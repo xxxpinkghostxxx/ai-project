@@ -228,7 +228,6 @@ class NeuralSystem:
         t1 = time.time()
         with utils.profile_section('vectorized node+conn updates'):
             try:
-                import numpy as np
                 import cupy as cp
                 import numba
                 xp = cp if utils.has_cupy() and utils.get_array_module().__name__ == 'cupy' else np
@@ -271,7 +270,6 @@ class NeuralSystem:
                         except Exception as e:
                             if self.logger:
                                 self.logger.error(f'[PERF] cupyx.scatter_add failed: {e}. Falling back to CPU/NumPy for this step.')
-                            import numpy as np
                             energies_cpu = energies.get()
                             src_idx_cpu = src_idx.get()
                             dst_idx_cpu = dst_idx.get()
@@ -443,7 +441,6 @@ class NeuralSystem:
         print(f"[PROFILE-UPDATE] vectorized: {timings['vectorized']:.4f}s | workspace: {timings['workspace']:.4f}s | sensory: {timings['sensory']:.4f}s | prune: {timings['prune']:.4f}s | conn_prune: {timings['conn_prune']:.4f}s | energy_redistribution: {timings['energy_redistribution']:.4f}s | growth: {timings['growth']:.4f}s | ws_feedback: {timings['ws_feedback']:.4f}s | dynamic_pulse: {timings['dynamic_pulse']:.4f}s | TOTAL: {t18-t0:.4f}s")
 
     def node_driven_growth(self):
-        import numpy as np
         # --- Batch: Find eligible nodes for growth ---
         node_energies = np.array([n.energy for n in self.processing_nodes], dtype=np.float32)
         eligible_spawn = node_energies > self.node_spawn_threshold
@@ -575,9 +572,6 @@ class NeuralSystem:
         }
 
     def update_sensory_nodes(self, frame):
-        # frame: 2D numpy array (grayscale)
-        # Sensory node energy reflects the light amount captured (inverse: dark = more energy, light = less)
-        import numpy as np
         import cupy as cp
         print("[DEBUG] update_sensory_nodes called")
         xp = cp if utils.has_cupy() and utils.get_array_module().__name__ == 'cupy' else np
