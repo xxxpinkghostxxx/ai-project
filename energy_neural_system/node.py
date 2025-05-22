@@ -83,7 +83,7 @@ class Node:
             print(f"[DEBUG] Workspace node {id(self)}: dt={dt:.4f}, before={before_energy:.4f}, after={self.energy:.4f}, gen={self.energy_generation_rate * dt:.4f}, cons={self.energy_consumption_rate * dt:.4f}")
             # Log before/after to diagnostic_trace.txt
             try:
-                from main import get_log_path, logger
+                from main import get_log_path, 
                 diag_path = get_log_path('diagnostic_trace.txt')
                 with open(diag_path, 'a', encoding='utf-8') as diagf:
                     diagf.write(f"[WS ENERGY] id={id(self)} before={before_energy:.4f} after={self.energy:.4f} gen={self.energy_generation_rate * dt:.4f} cons={self.energy_consumption_rate * dt:.4f}\n")
@@ -139,7 +139,7 @@ class Node:
                         dst.energy += send_amt
                         # Log transfer event
                         try:
-                            from main import get_log_path, logger
+                            from main import get_log_path, 
                             diag_path = get_log_path('diagnostic_trace.txt')
                             with open(diag_path, 'a', encoding='utf-8') as diagf:
                                 diagf.write(f"[TRANSFER] dynamic_id={id(self)} ws_id={id(dst)} amt={send_amt:.4f} src_before={before_src:.4f} src_after={self.energy:.4f} dst_before={before_dst:.4f} dst_after={dst.energy:.4f}\n")

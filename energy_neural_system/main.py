@@ -35,7 +35,6 @@ import cv2
 from config import SENSOR_WIDTH, SENSOR_HEIGHT, LOG_DIR, DASH_EXPORT_PATH, PERIODIC_UPDATE_MS, DEBUG_ON_ZERO_DYNAMIC_NODES
 import threading
 from pyvis.network import Network
-import os
 from datetime import datetime
 import sys
 import pickle
@@ -113,7 +112,6 @@ class RotatingDiagLogger:
             entry (dict): Diagnostic data to log.
         """
         def make_json_safe(obj):
-            import utils
             if isinstance(obj, dict):
                 return {k: make_json_safe(v) for k, v in obj.items()}
             elif isinstance(obj, list):
@@ -204,9 +202,6 @@ def log_ai_structure(frames, last_system, logger, LOG_DIR, rotate_struct_log_if_
         rotate_struct_log_if_needed: Log rotation helper.
         utils: Utility module for flattening nodes.
     """
-    import os
-    import time
-    from datetime import datetime
     if last_system is None:
         logger.info("[STRUCT LOG] No system to log.")
         return
@@ -395,8 +390,6 @@ def update_draw_window(system, ws_canvas: tk.Canvas, ws_image_id: int, metrics_l
         ws_image_id: Image ID for canvas.
         metrics_label: Tkinter Label for metrics.
     """
-    import numpy as np
-    from PIL import Image, ImageTk
     # --- Workspace grid visualization (grayscale or hue) ---
     if system is not None and hasattr(system, 'workspace_nodes'):
         ws_nodes = system.workspace_nodes
@@ -587,7 +580,6 @@ def open_control_panel(system) -> None:
     Args:
         system: Neural system object.
     """
-    import tkinter as tk
     import config
     panel = tk.Toplevel()
     panel.title('Live Control Panel')
@@ -633,15 +625,12 @@ def export_live_dashboard_data(system, frame):
         system: Neural system object.
         frame: Latest sensory frame (numpy array).
     """
-    import pickle
-    from config import DASH_EXPORT_PATH
     logger.debug("[DEBUG] export_live_dashboard_data: start")
     # Sensory image: downscale to 64x36 for dashboard
     if frame is not None:
         img = frame
         logger.debug("[DEBUG] export_live_dashboard_data: before image resize")
         if img.shape[1] > 64 or img.shape[0] > 36:
-            import cv2
             img = cv2.resize(img, (64, 36), interpolation=cv2.INTER_AREA)
         sensory_image = img
         logger.debug("[DEBUG] export_live_dashboard_data: after image resize")
@@ -995,7 +984,6 @@ def periodic_update_ui(ws_canvas, ws_image_id, metrics_label, shared_state, wind
 
 def live_console_config_updater():
     import config
-    import sys
     print("[LiveConfig] Type 'set PARAM VALUE' to update config, or 'list' to show current values.")
     while True:
         try:

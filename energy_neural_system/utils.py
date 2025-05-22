@@ -126,7 +126,6 @@ try:
     console_log_filename = os.path.join(LOG_DIR, f'console_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')
     LOG_MAX_SIZE = int(1.8 * 1024 * 1024)
     LOG_BACKUPS = 3
-    import config
     DEBUG_MODE = getattr(config, 'DEBUG_MODE', False)
     logger = setup_logging(LOG_DIR, log_filename, console_log_filename, LOG_MAX_SIZE, LOG_BACKUPS, DEBUG_MODE)
 except Exception as e:
