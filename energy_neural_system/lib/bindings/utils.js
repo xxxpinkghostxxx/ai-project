@@ -78,7 +78,7 @@ function neighbourhoodHighlight(params) {
   var updateArray = [];
   if (params.nodes.length > 0) {
     for (let nodeId in allNodes) {
-      if (allNodes.hasOwnProperty(nodeId)) {
+      if (Object.prototype.hasOwnProperty.call(allNodes, nodeId)) {
         // console.log(allNodes[nodeId]);
         updateArray.push(allNodes[nodeId]);
       }
@@ -87,7 +87,7 @@ function neighbourhoodHighlight(params) {
   } else {
     // console.log("Nothing was selected");
     for (let nodeId in allNodes) {
-      if (allNodes.hasOwnProperty(nodeId)) {
+      if (Object.prototype.hasOwnProperty.call(allNodes, nodeId)) {
         // console.log(allNodes[nodeId]);
         // allNodes[nodeId].color = {};
         updateArray.push(allNodes[nodeId]);
@@ -137,14 +137,14 @@ function filterHighlight(params) {
   var updateArray = [];
   if (params.nodes.length > 0) {
     for (let nodeId in allNodes) {
-      if (allNodes.hasOwnProperty(nodeId)) {
+      if (Object.prototype.hasOwnProperty.call(allNodes, nodeId)) {
         updateArray.push(allNodes[nodeId]);
       }
     }
     nodes.update(updateArray);
   } else {
     for (let nodeId in allNodes) {
-      if (allNodes.hasOwnProperty(nodeId)) {
+      if (Object.prototype.hasOwnProperty.call(allNodes, nodeId)) {
         updateArray.push(allNodes[nodeId]);
       }
     }
