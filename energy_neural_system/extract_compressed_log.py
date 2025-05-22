@@ -1,5 +1,4 @@
 import gzip
-import json
 import os
 
 LOG_PATH = os.path.join('logs', 'diagnostic_trace.json.gz')

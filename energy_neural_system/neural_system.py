@@ -4,10 +4,9 @@ import random
 import numpy as np
 import time
 import config
-from config import DRAW_GRID_SIZE, NODE_ENERGY_INIT_RANGE, NODE_ENERGY_SPAWN_COST, NODE_ENERGY_CONN_COST, CONN_ENERGY_TRANSFER_CAPACITY, NODE_SPAWN_THRESHOLD, CONN_SPAWN_THRESHOLD, SENSOR_WIDTH, SENSOR_HEIGHT, WORKSPACE_SIZE, NODE_ENERGY_CAP, NODE_ENERGY_GEN_RATE
+from config import NODE_ENERGY_INIT_RANGE, NODE_ENERGY_SPAWN_COST, NODE_ENERGY_CONN_COST, CONN_ENERGY_TRANSFER_CAPACITY, WORKSPACE_SIZE, NODE_ENERGY_CAP
 import utils
 import concurrent.futures
-import logging
 
 class NeuralSystem:
     def __init__(self, width, height, initial_nodes=10, logger=None):
