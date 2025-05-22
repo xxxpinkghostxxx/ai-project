@@ -1,6 +1,5 @@
 import time
 import numpy as np
-from utils import logger
 
 class Connection:
     def __init__(self, source, destination, weight=0.1, energy_transfer_capacity=0.3):

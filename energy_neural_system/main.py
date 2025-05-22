@@ -32,26 +32,21 @@ import numpy as np
 import tkinter as tk
 from PIL import Image, ImageTk
 import cv2
-from config import DRAW_GRID_SIZE, SENSOR_WIDTH, SENSOR_HEIGHT, LOG_DIR, DRAW_WINDOW_SIZE, DRAW_UPSCALE, DASH_EXPORT_PATH, PERIODIC_UPDATE_MS, DEBUG_MODE, DEBUG_ON_ZERO_DYNAMIC_NODES
+from config import SENSOR_WIDTH, SENSOR_HEIGHT, LOG_DIR, DASH_EXPORT_PATH, PERIODIC_UPDATE_MS, DEBUG_ON_ZERO_DYNAMIC_NODES
 import threading
 from pyvis.network import Network
 import os
 from datetime import datetime
 import sys
 import pickle
-import atexit
 from vision import ThreadedScreenCapture
 import matplotlib
 matplotlib.use('TkAgg')
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-import matplotlib.pyplot as plt
 import random
 import utils
 from utils import logger, LOG_MAX_SIZE, LOG_BACKUPS
-import gzip
 import json
 from collections import namedtuple
-import queue
 
 # CUDA/CuPy diagnostic at startup
 utils.check_cuda_status()
@@ -594,7 +589,6 @@ def open_control_panel(system) -> None:
         system: Neural system object.
     """
     import tkinter as tk
-    from tkinter import ttk
     import config
     panel = tk.Toplevel()
     panel.title('Live Control Panel')
