@@ -1,0 +1,20 @@
+2025-05-21 18:48:52,954 [ERROR] Tkinter callback exception
+Traceback (most recent call last):
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\tkinter\__init__.py", line 2068, in __call__
+    return self.func(*args)
+           ~~~~~~~~~^^^^^^^
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\tkinter\__init__.py", line 862, in callit
+    func(*args)
+    ~~~~^^^^^^^
+  File "c:\Users\chris\Documents\energy_neural_system\main.py", line 1022, in <lambda>
+    window.after(50, lambda: periodic_update_ui(ws_canvas, ws_image_id, metrics_label, shared_state, window, suspend_state))
+                             ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\chris\Documents\energy_neural_system\main.py", line 1018, in periodic_update_ui
+    update_draw_window(system, ws_canvas, ws_image_id, metrics_label)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\chris\Documents\energy_neural_system\main.py", line 455, in update_draw_window
+    metrics = system.get_metrics()
+  File "c:\Users\chris\Documents\energy_neural_system\neural_system.py", line 567, in get_metrics
+    'total_energy': sum([node.energy for node in self.processing_nodes]),
+                         ^^^^^^^^^^^
+KeyboardInterrupt

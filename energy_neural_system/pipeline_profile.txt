@@ -1,0 +1,8 @@
+Capture: 0.000021s
+Sensory: 0.015226s
+System: 33.158986s
+UI: 0.028575s
+SensWin: 0.012291s
+Dashboard: 0.013323s
+Diagnostics: 0.088673s
+Total: 33.317102s
