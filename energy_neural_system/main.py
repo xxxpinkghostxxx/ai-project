@@ -504,7 +504,6 @@ def show_connection_graph(background=False, interval=2.0):
     """
     def _draw_graph():
         try:
-            global last_system
             if last_system is None:
                 logger.info('No system state for connection graph.')
                 return
@@ -876,7 +875,6 @@ def create_sensory_window():
     return window, canvas, image_id
 
 def update_sensory_window(canvas, image_id):
-    global last_system
     if last_system is not None and hasattr(last_system, 'sensory_nodes'):
         sensory_nodes = last_system.sensory_nodes
         # Print a sample of sensory node energies
@@ -1048,7 +1046,6 @@ def main() -> None:
     """
     if logger:
         logger.info('main() function entered')
-    global last_system, energy_history, sensory_window, sensory_canvas, sensory_image_id
     start = time.time()
     sensory_count = SENSOR_WIDTH * SENSOR_HEIGHT
     initial_dynamic_nodes = int(sensory_count * 5)  # 5x sensory node count
