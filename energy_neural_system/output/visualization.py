@@ -43,7 +43,6 @@ def is_figure_closed(fig):
         return True
 
 def show_live_visualizations(last_processed_image, last_system, energy_history):
-    global live_fig, live_axes, live_initialized, live_colorbar
     if last_processed_image is None or last_system is None:
         return
     if live_fig is not None and is_figure_closed(live_fig):
