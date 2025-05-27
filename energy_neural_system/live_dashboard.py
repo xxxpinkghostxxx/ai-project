@@ -21,7 +21,7 @@ def create_desktop_shortcut():
         from win32com.client import Dispatch
         desktop = winshell.desktop()
         shortcut_path = os.path.join(desktop, 'AI Neural Dashboard.lnk')
-        target = f'pythonw.exe'
+        target = 'pythonw.exe'
         script = os.path.abspath(__file__)
         icon = script  # Use script as icon, or specify a .ico file if available
         shell = Dispatch('WScript.Shell')
