@@ -145,9 +145,7 @@ class RotatingDiagLogger:
             self.path = get_log_path(f'{self.base_filename}_{self.file_idx}.txt')
             self.f = open(self.path, 'a', encoding='utf-8')
     def close(self):
-        """
-        Close the current log file if open.
-        """
+        """Close the current log file if open."""
         if self.f:
             self.f.close()
 
