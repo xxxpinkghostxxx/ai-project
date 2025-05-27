@@ -291,8 +291,8 @@ class NeuralSystem:
                     from numba import njit
                     @njit
                     def write_back(energies_cpu, node_energies):
-                        for i in range(len(energies_cpu)):
-                            node_energies[i] = energies_cpu[i]
+                        for i, item in enumerate(energies_cpu):
+                            node_energies[i] = item
                     node_energies = np.array([n.energy for n in node_list], dtype=np.float32)
                     write_back(energies_cpu, node_energies)
                     for i, node in enumerate(node_list):
