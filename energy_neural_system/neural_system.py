@@ -333,18 +333,16 @@ class NeuralSystem:
                 print(f"[DEBUG] (after) Spawn threshold: {self.node_spawn_threshold:.2f} | Death threshold: {self.node_death_threshold:.2f}")
         # --- Parallel workspace node updates ---
         t3 = time.time()
-        with utils.profile_section('workspace node updates'):
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                for row in self.workspace_nodes:
-                    list(executor.map(lambda node: node.update(dt), row))
+        with utils.profile_section('workspace node updates'), concurrent.futures.ThreadPoolExecutor() as executor:
+            for row in self.workspace_nodes:
+                list(executor.map(lambda node: node.update(dt), row))
         t4 = time.time()
         timings['workspace'] = t4 - t3
         # --- Parallel sensory node updates ---
         t5 = time.time()
-        with utils.profile_section('sensory node updates'):
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                for row in self.sensory_nodes:
-                    executor.map(lambda node: node.update(), row)
+        with utils.profile_section('sensory node updates'), concurrent.futures.ThreadPoolExecutor() as executor:
+            for row in self.sensory_nodes:
+                executor.map(lambda node: node.update(), row)
         t6 = time.time()
         timings['sensory'] = t6 - t5
         # --- Prune dead nodes (batch with numpy mask) ---
