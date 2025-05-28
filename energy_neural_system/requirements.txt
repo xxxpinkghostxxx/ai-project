@@ -1,8 +1,0 @@
-numpy
-matplotlib
-Pillow
-opencv-python
-mss
-tk
-networkx
-pyvis 
