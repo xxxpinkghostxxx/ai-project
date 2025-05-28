@@ -197,7 +197,7 @@ class DGLNeuralSystem:
         g.ndata['dynamic_subtype'] = dynamic_subtypes.to(self.device)
         g.edata['weight'] = torch.tensor(weights, dtype=torch.float32, device=self.device).unsqueeze(1)
         g.edata['energy_transfer_capacity'] = torch.tensor(energy_caps, dtype=torch.float32, device=self.device).unsqueeze(1)
-        g.edata['conn_type'] = torch.tensor(conn_types, dtype=torch.int64, device=self.device)
+        g.edata['conn_type'] = torch.tensor(conn_types, dtype=torch.int64, device=self.device).unsqueeze(1)
         g.edata['plastic_lr'] = torch.tensor(plastic_lrs, dtype=torch.float32, device=self.device).unsqueeze(1)
         g.edata['gate_threshold'] = torch.tensor(gate_thresholds, dtype=torch.float32, device=self.device).unsqueeze(1)
         # --- Ensure every node has at least one connection ---
