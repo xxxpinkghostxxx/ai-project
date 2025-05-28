@@ -1,0 +1,228 @@
+Project Reference Guide
+
+🎯 Core Vision
+To create a self-organizing neural architecture that develops emergent intelligence through energy-based node dynamics and gradual sensory expansion.
+
+🏗️ System Architecture
+Foundation Components
+
+Fixed Sensory Layer
+
+Energy-neutral nodes
+Direct mapping to input sources (screen pixels, audio, etc.)
+No competition for resources
+Immutable but connectible
+
+
+Dynamic Processing Layer
+
+Energy-governed nodes and connections
+Self-organizing based on information utility
+Subject to growth and pruning
+
+
+Internal Workspace
+
+Designated area for manipulation and "imagination"
+Self-modifiable representation space
+Bridge between perception and action
+
+
+
+Node Properties
+
+Energy level
+Connection list
+Information channels
+Creation timestamp
+Activity history
+Energy generation/consumption rates
+
+Connection Properties
+
+Source and destination nodes
+Weight/strength
+Formation timestamp
+Activity metrics
+Energy transfer capacity
+
+
+⚡ Energy Economy Rules
+Generation
+
+Energy is generated when connections carry useful information
+More predictive connections generate more energy
+Novel information pathways receive energy bonuses
+
+Consumption
+
+Maintaining connections costs energy
+Creating new connections costs energy
+Idle nodes consume baseline energy
+Complex operations (like workspace manipulation) have higher costs
+
+Balance Mechanics
+
+Nodes die when energy falls to zero
+Excess energy enables connection formation or node spawning
+Energy can be transferred between connected nodes
+Energy generation should slightly exceed costs for stable growth
+
+
+📈 Development Roadmap
+Phase 1: Visual Foundation
+
+ Grayscale screen capture at reduced resolution
+ Basic node energy mechanics
+ Initial connection formation
+ Visual pattern detection emergence
+
+Phase 2: Enhanced Visual Processing
+
+ Increased resolution
+ Color channels introduction
+ Motion detection optimization
+ Visual workspace implementation
+
+Phase 3: Multimodal Expansion
+
+ Audio input integration
+ Text recognition from screen
+ Cross-modal association development
+
+Phase 4: Interaction Capabilities
+
+ Mouse control output nodes
+ Keyboard control output nodes
+ Action-perception feedback loops
+
+Phase 5: Advanced Features
+
+ Long-term memory structures
+ Meta-learning capabilities
+ Self-modification of system parameters
+ Enhanced control safeguards
+
+
+🔍 Monitoring Metrics
+System Health
+
+Total energy in system
+Node birth/death rates
+Connection formation/pruning rates
+Processing efficiency (useful information/energy consumed)
+
+Emergent Capabilities
+
+Pattern recognition accuracy
+Novel connection formation rate
+Information compression ratio
+Response to environmental changes
+Self-organized feature detectors
+
+Performance
+
+Update cycle time
+Memory usage
+GPU utilization
+Energy calculation efficiency
+
+
+⚙️ Implementation Guidelines
+Design Principles
+
+Start Simple: Begin with minimal viable implementation
+Gradual Expansion: Add features only when current system is stable
+Observable Metrics: Every change should be measurable
+Emergent Priority: Let patterns emerge rather than hardcoding them
+Energy Conservation: System should optimize for energy efficiency
+Adaptability: System should reorganize based on input patterns
+Controlled Growth: Prevent runaway node/connection expansion
+
+Code Structure
+
+Core engine separate from sensory/output interfaces
+Clean separation between fixed and dynamic components
+Efficient sparse matrix operations for connections
+Visualization components for system monitoring
+Configurable parameters for experimentation
+
+Technical Requirements
+
+Multi-threading for parallel node updates
+GPU acceleration for matrix operations
+Efficient data structures for connection tracking
+Circular buffers for activity history
+
+
+🧪 Experimentation Framework
+Parameters to Tune
+
+Initial energy allocations
+Energy generation/consumption rates
+Connection formation thresholds
+Node spawning conditions
+Information value calculations
+Update frequencies for different system parts
+
+Test Scenarios
+
+Static image processing
+Dynamic scene analysis
+Pattern recognition tasks
+Novel stimulus response
+Environmental change adaptation
+Resource constraint conditions
+
+Success Indicators
+
+Stable node population after initial growth
+Formation of specialized node clusters
+Efficient information pathways emerging
+Adaptive response to changing inputs
+Reduced energy consumption for recurring patterns
+
+
+🛡️ Safety Considerations
+System Stability
+
+Energy inflation/deflation prevention
+Catastrophic node death prevention
+Feedback loop detection
+Resource consumption limits
+
+Control Mechanisms
+
+Emergency shutdown capability
+Parameter reset functionality
+Growth rate limiters
+Energy injection/extraction tools
+Activity monitoring
+
+
+📊 Feature Evaluation Checklist
+When considering new features, evaluate against these criteria:
+
+Necessity: Does it serve the core vision?
+Timing: Is the system stable enough for this addition?
+Integration: How does it interact with existing components?
+Energy Impact: What are the energy economy implications?
+Complexity: Does it add disproportionate implementation complexity?
+Measurability: Can its impact be objectively measured?
+Emergence: Does it enable new emergent behaviors?
+Control: Are appropriate safeguards included?
+
+
+🔄 Development Workflow
+
+Propose feature with clear purpose and expected outcomes
+Evaluate using Feature Evaluation Checklist
+Implement in isolated development branch
+Test with increasing scale and complexity
+Measure impact on core metrics
+Document emergent behaviors
+Integrate only when proven stable and beneficial
+Monitor post-integration for unexpected interactions
+
+
+This living document serves as the central reference for the Energy-Based Neural System project. Refer to it when considering changes or additions to maintain alignment with the core vision and development principles.
