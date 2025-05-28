@@ -144,7 +144,7 @@ def export_screenshot():
         ts = datetime.now().strftime('%Y%m%d_%H%M%S')
         ws_path = os.path.join(LOG_DIR, f'dgl_workspace_{ts}.png')
         sens_path = os.path.join(LOG_DIR, f'dgl_sensory_{ts}.png')
-        html_path = r'C:/Users/chris/connection_graph.html'
+        html_path = os.path.join(os.path.dirname(__file__), 'connection_graph.html')
         # Workspace canvas
         window.update_idletasks()
         x = window.winfo_rootx() + canvas.winfo_rootx()
