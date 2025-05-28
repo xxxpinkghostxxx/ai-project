@@ -5,7 +5,6 @@ import torch
 import numpy as np
 import time
 import cv2
-import sys
 print(sys.executable)
 
 NODE_TYPE_SENSORY = 0
