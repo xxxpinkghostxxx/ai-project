@@ -140,10 +140,9 @@ def flatten_nodes(nodes):
     import numpy as np
     if isinstance(nodes, np.ndarray):
         return list(nodes.flatten())
-    elif isinstance(nodes, list) and nodes and isinstance(nodes[0], list):
+    if isinstance(nodes, list) and nodes and isinstance(nodes[0], list):
         return [n for row in nodes for n in row]
-    else:
-        return list(nodes)
+    return list(nodes)
 
 def extract_node_attrs(node):
     """Extract a dict of non-callable, non-private attributes from a node object."""
