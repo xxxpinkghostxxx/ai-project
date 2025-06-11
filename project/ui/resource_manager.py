@@ -1,4 +1,3 @@
-import tkinter as tk
 from PIL import Image, ImageTk
 from utils.error_handler import ErrorHandler
 

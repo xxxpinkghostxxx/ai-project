@@ -4,10 +4,7 @@ import dgl
 import torch
 import numpy as np
 import time
-import cv2
-from utils import profile_section
 print(sys.executable)
-import random
 import threading
 import queue
 import logging

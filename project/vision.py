@@ -8,7 +8,6 @@ import queue
 import config
 import logging
 from typing import Optional, Tuple, Union
-from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
