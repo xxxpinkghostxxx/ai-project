@@ -708,13 +708,15 @@ class DGLNeuralSystem:
             print(f"Error updating sensory nodes: {str(e)}")
             # Don't raise the exception, just log it and continue
 
-    def _validate_node_type(self, node_type):
+    @staticmethod
+    def _validate_node_type(node_type):
         """Validate node type"""
         valid_types = [NODE_TYPE_SENSORY, NODE_TYPE_DYNAMIC, NODE_TYPE_WORKSPACE, NODE_TYPE_HIGHWAY]
         if node_type not in valid_types:
             raise ValueError(f"Invalid node type: {node_type}. Must be one of {valid_types}")
 
-    def _validate_subtype(self, subtype, subtype_slot):
+    @staticmethod
+    def _validate_subtype(subtype, subtype_slot):
         """Validate node subtype"""
         valid_subtypes = {
             1: [SUBTYPE_TRANSMITTER, SUBTYPE_RESONATOR, SUBTYPE_DAMPENER],

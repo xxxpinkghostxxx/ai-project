@@ -31,7 +31,8 @@ class ConfigManager:
         }
         self.load_config()
 
-    def validate_config(self, config):
+    @staticmethod
+    def validate_config(config):
         """Validate configuration values"""
         try:
             # Validate version
