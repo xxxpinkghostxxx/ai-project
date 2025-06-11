@@ -1024,12 +1024,16 @@ class DGLNeuralSystem:
                         if d_type == NODE_TYPE_SENSORY and has_ws:
                             continue
                     # Directionality rules for conn_subtype3
-                    if subtype3 == CONN_SUBTYPE3_ONE_WAY_OUT:
-                        if parent[dst] != src:
-                            continue
-                    if subtype3 == CONN_SUBTYPE3_ONE_WAY_IN:
-                        if parent[dst] == src:
-                            continue
+                    if (
+                        subtype3 == CONN_SUBTYPE3_ONE_WAY_OUT
+                        and parent[dst] != src
+                    ):
+                        continue
+                    if (
+                        subtype3 == CONN_SUBTYPE3_ONE_WAY_IN
+                        and parent[dst] == src
+                    ):
+                        continue
                     valid_src.append(src)
                     valid_dst.append(dst)
                     valid_subtype3.append(subtype3)

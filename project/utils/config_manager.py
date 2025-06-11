@@ -85,12 +85,14 @@ class ConfigManager:
     def save_config(self):
         """Save configuration to file with backup"""
         try:
-            if self.validate_config(self.config):
-                if self.create_backup():
-                    with open(self.config_file, 'w') as f:
-                        json.dump(self.config, f, indent=4)
-                    ErrorHandler.log_info("Config saved successfully")
-                    return True
+            if (
+                self.validate_config(self.config)
+                and self.create_backup()
+            ):
+                with open(self.config_file, 'w') as f:
+                    json.dump(self.config, f, indent=4)
+                ErrorHandler.log_info("Config saved successfully")
+                return True
             return False
         except Exception as e:
             ErrorHandler.show_error("Config Save Error", f"Failed to save config: {str(e)}")
