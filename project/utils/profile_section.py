@@ -1,6 +1,4 @@
-"""
-Performance profiling utilities for the DGL Neural System.
-"""
+"""Performance profiling utilities for the DGL Neural System."""
 import time
 import functools
 import logging
