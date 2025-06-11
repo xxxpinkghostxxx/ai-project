@@ -213,8 +213,6 @@ class MainWindow:
 
     def _open_config_panel(self):
         """Open configuration panel"""
-        # This will be implemented in a separate config panel module
-        pass
 
     def _update_interval_changed(self, value):
         """Handle update interval change"""
