@@ -302,7 +302,6 @@ class DGLNeuralSystem:
 
             # Clear CUDA cache if using GPU
             if self.device == 'cuda':
-                import torch
                 torch.cuda.empty_cache()
 
             print("System cleanup completed")
