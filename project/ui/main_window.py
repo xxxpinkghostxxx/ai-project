@@ -13,25 +13,25 @@ class MainWindow:
         self.state_manager = state_manager
         self.resource_manager = UIResourceManager()
         self.frame_counter = 0
-        
+
         # Create main window
         self.window = tk.Tk()
         self.window.title('DGL AI Workspace Window')
         self.window.configure(bg='#222222')
-        
+
         # Create main frame
         self.main_frame = tk.Frame(self.window, bg='#222222')
         self.main_frame.pack(fill='both', expand=True)
-        
+
         # Create left frame (workspace and sensory)
         self.left_frame = tk.Frame(self.main_frame, bg='#222222')
         self.left_frame.pack(side='left', fill='both', expand=True, padx=(10, 0), pady=10)
-        
+
         # Create workspace canvas
         self.canvas = tk.Canvas(self.left_frame, bg='#181818', highlightthickness=0)
         self.canvas.pack(fill='both', expand=True, pady=(0, 5))
         self.image_id = self.canvas.create_image(0, 0, anchor='nw')
-        
+
         # Create metrics panel
         self.metrics_label = tk.Label(
             self.left_frame, 
@@ -42,7 +42,7 @@ class MainWindow:
             justify='left'
         )
         self.metrics_label.pack(fill='x', pady=(0, 5))
-        
+
         # Create sensory canvas
         sensory_config = self.config_manager.get_config('sensory')
         self.sensory_canvas = tk.Canvas(
@@ -54,15 +54,15 @@ class MainWindow:
         )
         self.sensory_canvas.pack(pady=(0, 10))
         self.sensory_image_id = self.sensory_canvas.create_image(0, 0, anchor='nw')
-        
+
         # Create right frame (controls)
         self.right_frame = tk.Frame(self.main_frame, bg='#222222')
         self.right_frame.pack(side='right', fill='y', padx=10, pady=10)
-        
+
         # Create controls frame
         self.controls_frame = tk.Frame(self.right_frame, bg='#222222')
         self.controls_frame.pack(fill='y', pady=(0, 10))
-        
+
         # Create status bar
         self.status_var = tk.StringVar(value="Running")
         self.status_bar = tk.Label(
@@ -74,20 +74,20 @@ class MainWindow:
             font=('Consolas', 10)
         )
         self.status_bar.pack(fill='x', side='bottom', pady=(10, 0))
-        
+
         # Create control buttons
         self._create_control_buttons()
-        
+
         # Create update interval slider
         self._create_interval_slider()
-        
+
         # Register window with resource manager
         self.resource_manager.register_window(self.window)
-        
+
         # Register event handlers
         self.canvas.bind('<Configure>', self._on_resize)
         self.window.protocol("WM_DELETE_WINDOW", self._on_closing)
-        
+
         # Register as state observer
         self.state_manager.add_observer(self)
 
@@ -106,7 +106,7 @@ class MainWindow:
             command=self._toggle_suspend
         )
         self.suspend_button.pack(fill='x', padx=4, pady=6)
-        
+
         # Pulse button
         self.pulse_button = tk.Button(
             self.controls_frame,
@@ -120,7 +120,7 @@ class MainWindow:
             command=self._pulse_energy
         )
         self.pulse_button.pack(fill='x', padx=4, pady=6)
-        
+
         # Sensory button
         self.sensory_button = tk.Button(
             self.controls_frame,
@@ -134,7 +134,7 @@ class MainWindow:
             command=self._toggle_sensory
         )
         self.sensory_button.pack(fill='x', padx=4, pady=6)
-        
+
         # Config button
         self.config_button = tk.Button(
             self.controls_frame,
@@ -153,14 +153,14 @@ class MainWindow:
         """Create update interval slider"""
         interval_frame = tk.Frame(self.right_frame, bg='#222222')
         interval_frame.pack(fill='x', padx=4, pady=6)
-        
+
         tk.Label(
             interval_frame,
             text="Update Interval (ms):",
             bg='#222222',
             fg='#e0e0e0'
         ).pack(side='left')
-        
+
         self.interval_slider = tk.Scale(
             interval_frame,
             from_=16,
@@ -246,14 +246,14 @@ class MainWindow:
                 # Create empty workspace
                 workspace_config = self.config_manager.get_config('workspace')
                 workspace_data = np.zeros((workspace_config['height'], workspace_config['width']))
-            
+
             # Convert to image
             arr = np.clip(workspace_data, 0, 244)
             arr_rgb = np.repeat(arr[:, :, None], 3, axis=2).astype(np.uint8)
-            
+
             # Get canvas size
             canvas_w, canvas_h = self.canvas.winfo_width(), self.canvas.winfo_height()
-            
+
             # Create and resize image
             if canvas_w > 1 and canvas_h > 1:
                 img = Image.fromarray(arr_rgb, mode='RGB').resize(
@@ -262,7 +262,7 @@ class MainWindow:
                 )
             else:
                 img = Image.fromarray(arr_rgb, mode='RGB')
-            
+
             # Update canvas
             tk_img = self.resource_manager.create_tk_image(img)
             if tk_img:
@@ -277,16 +277,16 @@ class MainWindow:
             arr = np.clip(sensory_data, 0, 1)
             arr = (arr * 255).astype(np.uint8)
             arr_rgb = np.repeat(arr[:, :, None], 3, axis=2)
-            
+
             # Get canvas size
             sensory_config = self.config_manager.get_config('sensory')
-            
+
             # Create and resize image
             img = Image.fromarray(arr_rgb, mode='RGB').resize(
                 (sensory_config['canvas_width'], sensory_config['canvas_height']),
                 resample=Image.NEAREST
             )
-            
+
             # Update canvas
             tk_img = self.resource_manager.create_tk_image(img)
             if tk_img:
@@ -327,7 +327,7 @@ class MainWindow:
                     text="Drain & Suspend",
                     bg='#882222'
                 )
-            
+
             if state.sensory_enabled:
                 self.sensory_button.config(
                     text="Disable Sensory Input",
@@ -347,7 +347,7 @@ class MainWindow:
         self.capture = capture
         self.frame_counter = 0
         self.window.after(100, self.startup_loop)
-        
+
     def periodic_update(self):
         """Periodic update function"""
         if not self.state_manager.get_state().suspended:
@@ -361,19 +361,19 @@ class MainWindow:
                         self.system.update_sensory_nodes(sensory_input)
                     else:
                         logger.warning("Received null frame from screen capture")
-                
+
                 # System update
                 self.system.update()
                 self.system.apply_connection_worker_results()
-                
+
                 # Queue connection tasks
                 self.frame_counter += 1
-                
+
                 if self.frame_counter % 2 == 0:
                     self.system.queue_connection_growth()
                 if self.frame_counter % 3 == 0:
                     self.system.queue_cull()
-                
+
                 # Update UI
                 self.update_workspace_canvas()
                 metrics = self.system.get_metrics()
@@ -383,45 +383,45 @@ class MainWindow:
                     metrics['dynamic_node_count'],
                     metrics['connection_count']
                 )
-                
+
             except Exception as e:
                 logger.error(f"Error during update: {e}")
                 ErrorHandler.show_error("Update Error", f"Error during update: {str(e)}")
-        
+
         # Schedule next update
         update_interval = self.config_manager.get_config('system', 'update_interval')
         self.window.after(update_interval, self.periodic_update)
-    
+
     def startup_loop(self):
         """Startup loop function"""
         try:
             # Set batch size for startup
             self.system.startup_batch_size = 500
             self.system.update()
-            
+
             # Update UI
             self.update_workspace_canvas()
             metrics = self.system.get_metrics()
             self.update_metrics_panel(metrics)
-            
+
             # Apply connection worker results
             self.system.apply_connection_worker_results()
-            
+
             # Queue connection tasks
             self.frame_counter += 1
-            
+
             if self.frame_counter % 2 == 0:
                 self.system.queue_connection_growth()
             if self.frame_counter % 3 == 0:
                 self.system.queue_cull()
-            
+
             # Continue startup or switch to periodic update
             if self.system.startup_phase:
                 self.window.after(1, self.startup_loop)
             else:
                 update_interval = self.config_manager.get_config('system', 'update_interval')
                 self.window.after(update_interval, self.periodic_update)
-                
+
         except Exception as e:
             logger.error(f"Error during startup: {e}")
             ErrorHandler.show_error("Startup Error", f"Error during startup: {str(e)}")

@@ -48,10 +48,10 @@ def initialize_system(config_manager: ConfigManager) -> Tuple[DGLNeuralSystem, T
         sensory_config = config_manager.get_config('sensory')
         workspace_config = config_manager.get_config('workspace')
         system_config = config_manager.get_config('system')
-        
+
         # Calculate dynamic nodes
         n_dynamic = sensory_config['width'] * sensory_config['height'] * 5
-        
+
         # Initialize neural system
         system = DGLNeuralSystem(
             sensory_config['width'],
@@ -59,13 +59,13 @@ def initialize_system(config_manager: ConfigManager) -> Tuple[DGLNeuralSystem, T
             n_dynamic,
             workspace_size=(workspace_config['width'], workspace_config['height'])
         )
-        
+
         # Initialize screen capture
         capture = ThreadedScreenCapture(
             sensory_config['width'],
             sensory_config['height']
         )
-        
+
         return system, capture
     except Exception as e:
         logger.error(f"Failed to initialize system: {e}")
@@ -76,26 +76,26 @@ def main():
         # Initialize managers
         config_manager = ConfigManager()
         state_manager = StateManager()
-        
+
         with managed_resources() as resources:
             # Initialize system components
             system, capture = initialize_system(config_manager)
             resources.extend([system, capture])
-            
+
             # Start connection worker
             system.start_connection_worker(batch_size=25)
-            
+
             # Start screen capture
             capture.start()
-            
+
             # Create main window
             main_window = MainWindow(config_manager, state_manager)
             resources.append(main_window)
-            
+
             # Start the system
             main_window.start_system(system, capture)
             main_window.run()
-            
+
     except Exception as e:
         logger.error(f"Fatal error: {e}")
         ErrorHandler.show_error("Fatal Error", f"System failed to start: {str(e)}")

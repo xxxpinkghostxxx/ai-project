@@ -16,16 +16,16 @@ class ConfigPanel:
             self.window = tk.Toplevel(self.parent)
             self.window.title('Config Panel')
             self.window.geometry('500x800')
-            
+
             # Create notebook for tabbed interface
             notebook = ttk.Notebook(self.window)
             notebook.pack(fill='both', expand=True, padx=5, pady=5)
-            
+
             # Create tabs
             self._create_sensory_tab(notebook)
             self._create_workspace_tab(notebook)
             self._create_system_tab(notebook)
-            
+
             # Create restart button
             restart_btn = ttk.Button(
                 self.window,
@@ -33,7 +33,7 @@ class ConfigPanel:
                 command=self._restart_system
             )
             restart_btn.pack(pady=10)
-            
+
             # Center window
             self.window.update_idletasks()
             width = self.window.winfo_width()
@@ -41,7 +41,7 @@ class ConfigPanel:
             x = (self.window.winfo_screenwidth() // 2) - (width // 2)
             y = (self.window.winfo_screenheight() // 2) - (height // 2)
             self.window.geometry(f'{width}x{height}+{x}+{y}')
-            
+
         except Exception as e:
             ErrorHandler.show_error("Config Panel Error", f"Failed to show config panel: {str(e)}")
 
@@ -49,14 +49,14 @@ class ConfigPanel:
         """Create sensory configuration tab"""
         frame = ttk.Frame(notebook)
         notebook.add(frame, text='Sensory')
-        
+
         row = 0
         for key in self.config_manager.get_config('sensory'):
             ttk.Label(
                 frame,
                 text=f"{key.replace('_', ' ').title()}:"
             ).grid(row=row, column=0, sticky='w', padx=5, pady=2)
-            
+
             if isinstance(self.config_manager.get_config('sensory', key), bool):
                 var = tk.BooleanVar(
                     value=self.config_manager.get_config('sensory', key)
@@ -86,14 +86,14 @@ class ConfigPanel:
         """Create workspace configuration tab"""
         frame = ttk.Frame(notebook)
         notebook.add(frame, text='Workspace')
-        
+
         row = 0
         for key in self.config_manager.get_config('workspace'):
             ttk.Label(
                 frame,
                 text=f"{key.replace('_', ' ').title()}:"
             ).grid(row=row, column=0, sticky='w', padx=5, pady=2)
-            
+
             var = tk.StringVar(
                 value=str(self.config_manager.get_config('workspace', key))
             )
@@ -113,14 +113,14 @@ class ConfigPanel:
         """Create system configuration tab"""
         frame = ttk.Frame(notebook)
         notebook.add(frame, text='System')
-        
+
         row = 0
         for key in self.config_manager.get_config('system'):
             ttk.Label(
                 frame,
                 text=f"{key.replace('_', ' ').title()}:"
             ).grid(row=row, column=0, sticky='w', padx=5, pady=2)
-            
+
             var = tk.StringVar(
                 value=str(self.config_manager.get_config('system', key))
             )
