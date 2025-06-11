@@ -1,15 +1,9 @@
-import os
-import time
-import threading
-from PIL import Image
-import numpy as np
 from dgl_neural_system import DGLNeuralSystem
 from vision import ThreadedScreenCapture
 from utils.error_handler import ErrorHandler
 from utils.config_manager import ConfigManager
 from system.state_manager import StateManager
 from ui.main_window import MainWindow
-from ui.config_panel import ConfigPanel
 import logging
 import contextlib
 from typing import Optional, Tuple

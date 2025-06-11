@@ -1,8 +1,6 @@
 import logging
-import tkinter as tk
 from tkinter import messagebox
 from functools import wraps
-import traceback
 
 # Configure logging
 logging.basicConfig(

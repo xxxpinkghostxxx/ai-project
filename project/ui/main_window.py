@@ -1,7 +1,6 @@
 import tkinter as tk
-from tkinter import ttk
 import numpy as np
-from PIL import Image, ImageTk
+from PIL import Image
 from utils.error_handler import ErrorHandler
 from utils.config_manager import ConfigManager
 from system.state_manager import StateManager
