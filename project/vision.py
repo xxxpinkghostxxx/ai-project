@@ -94,12 +94,12 @@ class ThreadedScreenCapture:
                 except Exception as e:
                     self._error_count += 1
                     logger.error(f"Screen capture error: {e}")
-                    
+
                     if self._error_count >= self._max_retries:
                         logger.error("Max retries exceeded, stopping capture")
                         self._stop_event.set()
                         break
-                    
+
                     # Exponential backoff
                     time.sleep(self._retry_delay * (2 ** (self._error_count - 1)))
 

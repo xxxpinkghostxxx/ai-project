@@ -213,7 +213,7 @@ class ConnectionWorker(threading.Thread):
         """Queue a new task with validation"""
         if task_type not in ['grow', 'cull']:
             raise ValueError(f"Invalid task type: {task_type}")
-        
+
         task = {'type': task_type, **kwargs}
         try:
             self.task_queue.put(task, timeout=1.0)
@@ -688,7 +688,7 @@ class DGLNeuralSystem:
             # Validate input
             if not isinstance(sensory_input, (np.ndarray, torch.Tensor)):
                 raise TypeError("sensory_input must be numpy array or torch tensor")
-            
+
             if sensory_input.shape != (self.sensory_height, self.sensory_width):
                 raise ValueError(f"sensory_input shape must be ({self.sensory_height}, {self.sensory_width})")
 
@@ -739,13 +739,13 @@ class DGLNeuralSystem:
             out_deg = g.out_degrees().float().to(self.device)
             decay = out_deg[dynamic_mask] * CONNECTION_MAINTENANCE_COST
             g.ndata['energy'][dynamic_mask] -= decay.unsqueeze(1)
-            
+
             # Calculate energy gain from outgoing connections (vectorized)
             src, dst = g.edges()
             weights = g.edata['weight'].squeeze()
             conn_subtype3 = g.edata.get('conn_subtype3', torch.zeros_like(weights, dtype=torch.int64))
             parent = g.ndata.get('parent', torch.full((g.num_nodes(),), -1, dtype=torch.int64, device=g.device))
-            
+
             # Vectorized allowed connections calculation
             is_parent = (parent[dst] == src)
             allowed = (
@@ -753,7 +753,7 @@ class DGLNeuralSystem:
                 ((conn_subtype3 == CONN_SUBTYPE3_ONE_WAY_OUT) & is_parent) |
                 ((conn_subtype3 == CONN_SUBTYPE3_ONE_WAY_IN) & (~is_parent))
             )
-            
+
             # Vectorized energy transfer
             src_allowed = src[allowed]
             weights_allowed = weights[allowed]
@@ -780,7 +780,7 @@ class DGLNeuralSystem:
 
         # Apply energy caps and death threshold
         g.ndata['energy'].clamp_(NODE_DEATH_THRESHOLD, NODE_ENERGY_CAP)
-        
+
         # Kill nodes that are below death threshold
         dead_nodes = (g.ndata['energy'] <= NODE_DEATH_THRESHOLD).squeeze()
         if dead_nodes.any():
@@ -1084,14 +1084,14 @@ class DGLNeuralSystem:
                 parent_arr = torch.cat([parent_arr, torch.full((n - len(parent_arr),), -1, dtype=torch.int64, device=device)])
         else:
             parent_arr = torch.full((n,), -1, dtype=torch.int64, device=device)
-        
+
         # For dynamic nodes, give 1% chance to spawn as highway
         if node_type == NODE_TYPE_DYNAMIC:
             # Randomly select 1% of nodes to be highway
             highway_mask = torch.rand(n, device=device) < 0.01
             n_highway = highway_mask.sum().item()
             n_dynamic = n - n_highway
-            
+
             # Add dynamic nodes
             if n_dynamic > 0:
                 dynamic_indices = torch.where(~highway_mask)[0]
@@ -1118,7 +1118,7 @@ class DGLNeuralSystem:
                         'parent': parent_arr[dynamic_indices]
                     }
                 )
-            
+
             # Add highway nodes
             if n_highway > 0:
                 highway_indices = torch.where(highway_mask)[0]
@@ -1178,7 +1178,7 @@ class DGLNeuralSystem:
         device = self.device
         node_type = g.ndata['node_type']
         energy = g.ndata['energy']
-        
+
         # Vectorized highway node normalization
         highway_mask = (node_type == NODE_TYPE_HIGHWAY)
         if highway_mask.sum() > 0:
@@ -1187,24 +1187,24 @@ class DGLNeuralSystem:
             energy_diff = avg_highway_energy - highway_energies
             transfer_amount = energy_diff * 0.1
             energy[highway_mask] += transfer_amount
-        
+
         # Batch process edge transfers
         src, dst = g.edges()
         src_type = node_type[src]
         dst_type = node_type[dst]
         weights = g.edata['weight']
         energy_caps = g.edata['energy_transfer_capacity']
-        
+
         # Vectorized transfer calculations
         src_energy = energy[src]
         dst_energy = energy[dst]
         transfer = src_energy * weights * energy_caps
-        
+
         # Vectorized node type masks
         highway_src = (src_type == NODE_TYPE_HIGHWAY)
         highway_dst = (dst_type == NODE_TYPE_HIGHWAY)
         dynamic_dst = (dst_type == NODE_TYPE_DYNAMIC)
-        
+
         # Vectorized pull calculations
         pull_mask = highway_src & dynamic_dst
         if pull_mask.any():
@@ -1215,23 +1215,23 @@ class DGLNeuralSystem:
             )
             energy[src[pull_mask]] -= pull_amount
             energy[dst[pull_mask]] += pull_amount
-        
+
         # Vectorized normal transfer
         normal_mask = ~(highway_src | highway_dst)
         if normal_mask.any():
             energy[src[normal_mask]] -= transfer[normal_mask]
             energy[dst[normal_mask]] += transfer[normal_mask]
-        
+
         # Vectorized highway transfer
         highway_mask = highway_src & highway_dst
         if highway_mask.any():
             transfer_amount = src_energy[highway_mask]
             energy[src[highway_mask]] -= transfer_amount
             energy[dst[highway_mask]] += transfer_amount
-        
+
         # Apply energy caps and check for emergency shutdown
         energy.clamp_(NODE_DEATH_THRESHOLD, NODE_ENERGY_CAP)
-        
+
         # Emergency shutdown if energy distribution is too extreme
         if energy.std() > NODE_ENERGY_CAP * 0.5:  # If standard deviation exceeds 50% of cap
             logger.warning("Emergency shutdown triggered due to extreme energy distribution")
