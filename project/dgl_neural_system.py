@@ -1,10 +1,8 @@
 import sys
-print(sys.executable)
 import dgl
 import torch
 import numpy as np
 import time
-print(sys.executable)
 import threading
 import queue
 import logging
@@ -14,7 +12,8 @@ from typing import Optional, Tuple, List, Dict, Any
 NODE_TYPE_SENSORY = 0
 NODE_TYPE_DYNAMIC = 1
 NODE_TYPE_WORKSPACE = 2
-NODE_TYPE_NAMES = ['Sensory', 'Dynamic', 'Workspace']
+NODE_TYPE_HIGHWAY = 3
+NODE_TYPE_NAMES = ['Sensory', 'Dynamic', 'Workspace', 'Highway']
 
 # --- Dynamic Node Subtypes ---
 SUBTYPE_TRANSMITTER = 0
@@ -231,12 +230,13 @@ class ConnectionWorker(threading.Thread):
     @property
     def is_alive(self):
         """Check if worker is alive and healthy"""
-        return (self.is_alive() and 
+        return (super().is_alive() and 
                 not self.stop_event.is_set() and 
                 self._error_count < self._max_retries)
 
 class DGLNeuralSystem:
-    def __init__(self, sensory_width, sensory_height, n_dynamic, workspace_size=(16, 16), device='cpu'):
+    def __init__(self, sensory_width: int, sensory_height: int, n_dynamic: int, 
+                 workspace_size: Tuple[int, int] = (16, 16), device: str = 'cpu') -> None:
         self.device = device
         self.sensory_width = sensory_width
         self.sensory_height = sensory_height
@@ -278,6 +278,14 @@ class DGLNeuralSystem:
             'cleanup_interval': 60.0  # Cleanup every 60 seconds
         }
         self._connection_worker = None
+        
+        # Additional system state attributes
+        self.suspended = False
+        self.last_update_time = time.time()
+        
+        # Performance tracking
+        self._last_cleanup = time.time()
+        self._cleanup_interval = 60.0
 
     def cleanup(self):
         """Clean up resources and free memory"""
@@ -306,9 +314,9 @@ class DGLNeuralSystem:
             if self.device == 'cuda':
                 torch.cuda.empty_cache()
 
-            print("System cleanup completed")
+            logger.info("System cleanup completed")
         except Exception as e:
-            print(f"Error during cleanup: {str(e)}")
+            logger.error(f"Error during cleanup: {str(e)}")
 
     def _check_memory_usage(self):
         """Check memory usage and trigger cleanup if needed"""
@@ -596,10 +604,10 @@ class DGLNeuralSystem:
         return self
 
     def summary(self):
-        print(f"Nodes: {self.g.num_nodes()} (sensory: {self.n_sensory}, dynamic: {self.n_dynamic}, workspace: {self.n_workspace})")
-        print(f"Edges: {self.g.num_edges()}")
-        print(f"Node features: {list(self.g.ndata.keys())}")
-        print(f"Edge features: {list(self.g.edata.keys())}")
+        logger.info(f"Nodes: {self.g.num_nodes()} (sensory: {self.n_sensory}, dynamic: {self.n_dynamic}, workspace: {self.n_workspace})")
+        logger.info(f"Edges: {self.g.num_edges()}")
+        logger.info(f"Node features: {list(self.g.ndata.keys())}")
+        logger.info(f"Edge features: {list(self.g.edata.keys())}")
 
     def update(self):
         """Main update method with error handling and validation"""
@@ -613,7 +621,7 @@ class DGLNeuralSystem:
 
             # Validate node counts
             if self.g.number_of_nodes() != self.n_total:
-                print(f"Warning: Node count mismatch. Expected {self.n_total}, got {self.g.number_of_nodes()}")
+                logger.warning(f"Node count mismatch. Expected {self.n_total}, got {self.g.number_of_nodes()}")
                 self.n_total = self.g.number_of_nodes()
 
             # Process death queue
@@ -622,7 +630,7 @@ class DGLNeuralSystem:
                     self._remove_nodes(self.death_queue)
                     self.death_queue.clear()
                 except Exception as e:
-                    print(f"Error processing death queue: {str(e)}")
+                    logger.error(f"Error processing death queue: {str(e)}")
 
             # Process birth queue
             if self.birth_queue:
@@ -631,25 +639,25 @@ class DGLNeuralSystem:
                         self._add_nodes(1, node_type, **args)
                     self.birth_queue.clear()
                 except Exception as e:
-                    print(f"Error processing birth queue: {str(e)}")
+                    logger.error(f"Error processing birth queue: {str(e)}")
 
             # Update node energies
             try:
                 self._update_energies()
             except Exception as e:
-                print(f"Error updating energies: {str(e)}")
+                logger.error(f"Error updating energies: {str(e)}")
 
             # Process connection worker results
             try:
                 self.apply_connection_worker_results()
             except Exception as e:
-                print(f"Error applying connection worker results: {str(e)}")
+                logger.error(f"Error applying connection worker results: {str(e)}")
 
             # Update metrics
             self.step_counter += 1
 
         except Exception as e:
-            print(f"Critical error in update: {str(e)}")
+            logger.error(f"Critical error in update: {str(e)}")
             # Attempt recovery
             self._attempt_recovery()
 
@@ -674,9 +682,9 @@ class DGLNeuralSystem:
             # Restart connection worker
             self.start_connection_worker()
 
-            print("System recovery completed")
+            logger.info("System recovery completed")
         except Exception as e:
-            print(f"Recovery failed: {str(e)}")
+            logger.error(f"Recovery failed: {str(e)}")
             # If recovery fails, we should probably stop the system
             self.cleanup()
 
@@ -703,7 +711,7 @@ class DGLNeuralSystem:
             self.g.ndata['energy'][sensory_mask] = sensory_input.flatten().unsqueeze(1)
 
         except Exception as e:
-            print(f"Error updating sensory nodes: {str(e)}")
+            logger.error(f"Error updating sensory nodes: {str(e)}")
             # Don't raise the exception, just log it and continue
 
     @staticmethod
@@ -1071,7 +1079,7 @@ class DGLNeuralSystem:
                 valid_eids = eids[(eids >= 0) & (eids < g.num_edges())]
                 invalid_eids = eids[(eids < 0) | (eids >= g.num_edges())]
                 if len(invalid_eids) > 0:
-                    print(f"[WARNING] Tried to remove invalid edge IDs: {invalid_eids.cpu().numpy().tolist()}")
+                    logger.warning(f"[WARNING] Tried to remove invalid edge IDs: {invalid_eids.cpu().numpy().tolist()}")
                 if len(valid_eids) > 0:
                     g.remove_edges(valid_eids)
             self.connection_worker.result_queue.task_done()
