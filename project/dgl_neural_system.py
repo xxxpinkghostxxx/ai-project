@@ -1,5 +1,4 @@
 import sys
-print(sys.executable)
 import dgl
 import torch
 import numpy as np
@@ -9,6 +8,7 @@ import threading
 import queue
 import logging
 import dgl.function as fn
+print(sys.executable)
 from typing import Optional, Tuple, List, Dict, Any
 
 NODE_TYPE_SENSORY = 0
