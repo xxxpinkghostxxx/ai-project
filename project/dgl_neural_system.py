@@ -1,20 +1,22 @@
 import sys
-print(sys.executable)
 import dgl
 import torch
 import numpy as np
 import time
-print(sys.executable)
 import threading
 import queue
 import logging
 import dgl.function as fn
 from typing import Optional, Tuple, List, Dict, Any
 
+# Configure logging
+logger = logging.getLogger(__name__)
+
 NODE_TYPE_SENSORY = 0
 NODE_TYPE_DYNAMIC = 1
 NODE_TYPE_WORKSPACE = 2
-NODE_TYPE_NAMES = ['Sensory', 'Dynamic', 'Workspace']
+NODE_TYPE_HIGHWAY = 3
+NODE_TYPE_NAMES = ['Sensory', 'Dynamic', 'Workspace', 'Highway']
 
 # --- Dynamic Node Subtypes ---
 SUBTYPE_TRANSMITTER = 0
@@ -80,8 +82,6 @@ CONN_SUBTYPE3_NAMES = ['OneWayOut', 'OneWayIn', 'FreeFlow']
 
 # --- Highway Node Constants ---
 HIGHWAY_CONNECTION_RADIUS = 25  # 25x25 area for highway node connections
-
-logger = logging.getLogger(__name__)
 
 class ConnectionWorker(threading.Thread):
     def __init__(self, system, batch_size=25):
@@ -231,7 +231,7 @@ class ConnectionWorker(threading.Thread):
     @property
     def is_alive(self):
         """Check if worker is alive and healthy"""
-        return (self.is_alive() and 
+        return (super().is_alive() and 
                 not self.stop_event.is_set() and 
                 self._error_count < self._max_retries)
 
@@ -709,7 +709,7 @@ class DGLNeuralSystem:
     @staticmethod
     def _validate_node_type(node_type):
         """Validate node type"""
-        valid_types = [NODE_TYPE_SENSORY, NODE_TYPE_DYNAMIC, NODE_TYPE_WORKSPACE]
+        valid_types = [NODE_TYPE_SENSORY, NODE_TYPE_DYNAMIC, NODE_TYPE_WORKSPACE, NODE_TYPE_HIGHWAY]
         if node_type not in valid_types:
             raise ValueError(f"Invalid node type: {node_type}. Must be one of {valid_types}")
 
