@@ -8,11 +8,13 @@ print(sys.executable)
 import threading
 import queue
 import logging
+import dgl.function as fn
+from typing import Optional, Tuple, List, Dict, Any
 
 NODE_TYPE_SENSORY = 0
 NODE_TYPE_DYNAMIC = 1
 NODE_TYPE_WORKSPACE = 2
-NODE_TYPE_HIGHWAY = 3  # New highway node type
+NODE_TYPE_NAMES = ['Sensory', 'Dynamic', 'Workspace']
 
 # --- Dynamic Node Subtypes ---
 SUBTYPE_TRANSMITTER = 0
@@ -707,7 +709,7 @@ class DGLNeuralSystem:
     @staticmethod
     def _validate_node_type(node_type):
         """Validate node type"""
-        valid_types = [NODE_TYPE_SENSORY, NODE_TYPE_DYNAMIC, NODE_TYPE_WORKSPACE, NODE_TYPE_HIGHWAY]
+        valid_types = [NODE_TYPE_SENSORY, NODE_TYPE_DYNAMIC, NODE_TYPE_WORKSPACE]
         if node_type not in valid_types:
             raise ValueError(f"Invalid node type: {node_type}. Must be one of {valid_types}")
 
@@ -763,7 +765,6 @@ class DGLNeuralSystem:
         for node_type, energy_field in [
             (NODE_TYPE_SENSORY, 'sens_energy'),
             (NODE_TYPE_WORKSPACE, 'ws_energy'),
-            (NODE_TYPE_HIGHWAY, 'hw_energy')
         ]:
             mask = (node_types == node_type)
             if mask.sum() > 0:

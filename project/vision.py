@@ -11,9 +11,6 @@ from typing import Optional, Tuple, Union
 
 logger = logging.getLogger(__name__)
 
-# Toggle: set to 'mss' or 'pillow' to choose capture backend
-CAPTURE_BACKEND = 'pillow'  # Change to 'mss' to use mss
-
 # Pillow import only if needed
 try:
     from PIL import ImageGrab
@@ -155,7 +152,14 @@ def capture_screen(resolution: Tuple[int, int] = (SENSOR_WIDTH, SENSOR_HEIGHT)) 
     backend = 'none'
 
     try:
-        if CAPTURE_BACKEND == 'mss':
+        if ImageGrab is not None:
+            img = ImageGrab.grab()
+            img = img.resize(resolution)
+            img = np.array(img)
+            if img.shape[-1] == 4:
+                img = img[..., :3]  # RGBA to RGB
+            backend = 'pillow'
+        else:
             with mss.mss() as sct:
                 if len(sct.monitors) <= 1:
                     logger.warning("No monitor found, returning blank image")
@@ -167,13 +171,6 @@ def capture_screen(resolution: Tuple[int, int] = (SENSOR_WIDTH, SENSOR_HEIGHT)) 
                     img = img[..., :3]  # BGRA to BGR
                     img = cv2.resize(img, resolution)
             backend = 'mss'
-        elif CAPTURE_BACKEND == 'pillow' and ImageGrab is not None:
-            img = ImageGrab.grab()
-            img = img.resize(resolution)
-            img = np.array(img)
-            if img.shape[-1] == 4:
-                img = img[..., :3]  # RGBA to RGB
-            backend = 'pillow'
     except Exception as e:
         logger.error(f"Screen capture failed: {e}")
         img = np.zeros((resolution[1], resolution[0], 3), dtype=np.uint8)

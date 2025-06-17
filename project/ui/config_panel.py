@@ -50,12 +50,12 @@ class ConfigPanel:
         frame = ttk.Frame(notebook)
         notebook.add(frame, text='Sensory')
 
-        row = 0
+        config_row = 0
         for key in self.config_manager.get_config('sensory'):
             ttk.Label(
                 frame,
                 text=f"{key.replace('_', ' ').title()}:"
-            ).grid(row=row, column=0, sticky='w', padx=5, pady=2)
+            ).grid(row=config_row, column=0, sticky='w', padx=5, pady=2)
 
             if isinstance(self.config_manager.get_config('sensory', key), bool):
                 var = tk.BooleanVar(
@@ -65,13 +65,13 @@ class ConfigPanel:
                     frame,
                     variable=var,
                     command=lambda k=key, v=var: self._update_config('sensory', k, v.get())
-                ).grid(row=row, column=1, sticky='w')
+                ).grid(row=config_row, column=1, sticky='w')
             else:
                 var = tk.StringVar(
                     value=str(self.config_manager.get_config('sensory', key))
                 )
                 ttk.Entry(frame, textvariable=var).grid(
-                    row=row,
+                    row=config_row,
                     column=1,
                     sticky='ew',
                     padx=5
@@ -80,25 +80,25 @@ class ConfigPanel:
                     'w',
                     lambda *args, k=key, v=var: self._update_config('sensory', k, int(v.get()))
                 )
-            row += 1
+            config_row += 1
 
     def _create_workspace_tab(self, notebook):
         """Create workspace configuration tab"""
         frame = ttk.Frame(notebook)
         notebook.add(frame, text='Workspace')
 
-        row = 0
+        config_row = 0
         for key in self.config_manager.get_config('workspace'):
             ttk.Label(
                 frame,
                 text=f"{key.replace('_', ' ').title()}:"
-            ).grid(row=row, column=0, sticky='w', padx=5, pady=2)
+            ).grid(row=config_row, column=0, sticky='w', padx=5, pady=2)
 
             var = tk.StringVar(
                 value=str(self.config_manager.get_config('workspace', key))
             )
             ttk.Entry(frame, textvariable=var).grid(
-                row=row,
+                row=config_row,
                 column=1,
                 sticky='ew',
                 padx=5
@@ -107,25 +107,25 @@ class ConfigPanel:
                 'w',
                 lambda *args, k=key, v=var: self._update_config('workspace', k, int(v.get()))
             )
-            row += 1
+            config_row += 1
 
     def _create_system_tab(self, notebook):
         """Create system configuration tab"""
         frame = ttk.Frame(notebook)
         notebook.add(frame, text='System')
 
-        row = 0
+        config_row = 0
         for key in self.config_manager.get_config('system'):
             ttk.Label(
                 frame,
                 text=f"{key.replace('_', ' ').title()}:"
-            ).grid(row=row, column=0, sticky='w', padx=5, pady=2)
+            ).grid(row=config_row, column=0, sticky='w', padx=5, pady=2)
 
             var = tk.StringVar(
                 value=str(self.config_manager.get_config('system', key))
             )
             ttk.Entry(frame, textvariable=var).grid(
-                row=row,
+                row=config_row,
                 column=1,
                 sticky='ew',
                 padx=5
@@ -134,7 +134,7 @@ class ConfigPanel:
                 'w',
                 lambda *args, k=key, v=var: self._update_config('system', k, float(v.get()))
             )
-            row += 1
+            config_row += 1
 
     def _update_config(self, section, key, value):
         """Update configuration value"""

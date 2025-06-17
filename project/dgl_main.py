@@ -6,7 +6,7 @@ from system.state_manager import StateManager
 from ui.main_window import MainWindow
 import logging
 import contextlib
-from typing import Optional, Tuple
+from typing import Tuple
 
 # Configure logging
 logging.basicConfig(
