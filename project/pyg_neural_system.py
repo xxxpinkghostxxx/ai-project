@@ -736,13 +736,96 @@ class PyGNeuralSystem:
 
     def _prepare_connection_growth_batch(self, batch_size):
         """Prepare a batch of connection growth candidates"""
-        # Placeholder implementation
-        return []
+        try:
+            # Find nodes that could form new connections
+            candidates = []
+            
+            if self.graph.num_nodes < 2:
+                return []
+            
+            # Get nodes with room for more connections
+            if hasattr(self.graph, 'max_connections'):
+                current_degrees = torch_geometric.utils.degree(self.graph.edge_index[0], num_nodes=self.graph.num_nodes)
+                can_connect = current_degrees < self.graph.max_connections
+                available_nodes = can_connect.nonzero(as_tuple=True)[0]
+            else:
+                # If no max_connections defined, assume all nodes can connect
+                available_nodes = torch.arange(self.graph.num_nodes, device=self.device)
+            
+            if len(available_nodes) < 2:
+                return []
+            
+            # Generate random connection candidates
+            num_candidates = min(batch_size, len(available_nodes) * 2)
+            
+            for _ in range(num_candidates):
+                # Random source and target
+                src_idx = torch.randint(0, len(available_nodes), (1,)).item()
+                src = available_nodes[src_idx].item()
+                
+                # Choose target (different from source)
+                target_candidates = available_nodes[available_nodes != src]
+                if len(target_candidates) == 0:
+                    continue
+                    
+                dst_idx = torch.randint(0, len(target_candidates), (1,)).item()
+                dst = target_candidates[dst_idx].item()
+                
+                # Random connection subtype
+                subtype3 = torch.randint(0, 3, (1,)).item()
+                
+                candidates.append((src, dst, subtype3))
+                
+                if len(candidates) >= batch_size:
+                    break
+            
+            return candidates
+            
+        except Exception as e:
+            logger.error(f"Error preparing connection growth batch: {e}")
+            return []
 
     def _prepare_cull_batch(self, batch_size):
         """Prepare a batch of connections to cull"""
-        # Placeholder implementation
-        return []
+        try:
+            if self.graph.num_edges == 0:
+                return []
+            
+            # Find connections that violate rules or are weak
+            to_remove = []
+            
+            src, dst = self.graph.edge_index
+            
+            # Basic validation: no self-loops
+            self_loops = (src == dst).nonzero(as_tuple=True)[0]
+            to_remove.extend(self_loops.cpu().tolist())
+            
+            # Check for invalid node type connections
+            if hasattr(self.graph, 'node_type'):
+                src_types = self.graph.node_type[src]
+                dst_types = self.graph.node_type[dst]
+                
+                # No sensory to sensory connections
+                invalid_sensory = ((src_types == NODE_TYPE_SENSORY) & (dst_types == NODE_TYPE_SENSORY)).nonzero(as_tuple=True)[0]
+                to_remove.extend(invalid_sensory.cpu().tolist())
+                
+                # No workspace to workspace connections
+                invalid_workspace = ((src_types == NODE_TYPE_WORKSPACE) & (dst_types == NODE_TYPE_WORKSPACE)).nonzero(as_tuple=True)[0]
+                to_remove.extend(invalid_workspace.cpu().tolist())
+                
+                # No sensory to workspace connections (unless through dynamic)
+                invalid_sens_ws = ((src_types == NODE_TYPE_SENSORY) & (dst_types == NODE_TYPE_WORKSPACE)).nonzero(as_tuple=True)[0]
+                to_remove.extend(invalid_sens_ws.cpu().tolist())
+            
+            # Remove duplicates and limit to batch size
+            to_remove = list(set(to_remove))
+            to_remove = to_remove[:batch_size]
+            
+            return to_remove
+            
+        except Exception as e:
+            logger.error(f"Error preparing cull batch: {e}")
+            return []
 
     def update(self):
         """Main update method with error handling and validation"""
@@ -886,13 +969,179 @@ class PyGNeuralSystem:
 
     def _add_nodes(self, n: int, node_type: int, parent_idx: Optional[int] = None):
         """Add nodes to the graph with proper attributes"""
-        # Placeholder implementation
-        pass
+        try:
+            if n <= 0:
+                return
+            
+            device = self.device
+            
+            # Create node data based on type
+            if node_type == NODE_TYPE_DYNAMIC:
+                # Create random positions for dynamic nodes
+                pos = torch.rand(n, 2, device=device) * 100
+                
+                node_data = NodeData(
+                    energy=torch.zeros((n, 1), device=device),
+                    node_type=torch.full((n,), node_type, dtype=torch.int64, device=device),
+                    pos=pos,
+                    velocity=torch.zeros((n, 2), device=device),
+                    dynamic_subtype=torch.randint(0, 3, (n,), device=device),
+                    dynamic_subtype2=torch.randint(0, 3, (n,), device=device),
+                    dynamic_subtype3=torch.randint(0, 3, (n,), device=device),
+                    dynamic_subtype4=torch.randint(0, 3, (n,), device=device),
+                    max_connections=torch.randint(1, 6, (n,), device=device),
+                    phase_offset=torch.rand(n, device=device) * 2 * np.pi,
+                    parent=torch.full((n,), parent_idx if parent_idx is not None else -1, dtype=torch.int64, device=device)
+                )
+                
+                # Add nodes to graph
+                self._add_nodes_to_graph(node_data)
+                self.n_dynamic += n
+                
+            elif node_type in [NODE_TYPE_SENSORY, NODE_TYPE_WORKSPACE, NODE_TYPE_HIGHWAY]:
+                # Create grid positions for structured nodes
+                pos = torch.rand(n, 2, device=device) * 100
+                
+                node_data = NodeData(
+                    energy=torch.zeros((n, 1), device=device),
+                    node_type=torch.full((n,), node_type, dtype=torch.int64, device=device),
+                    pos=pos,
+                    velocity=torch.zeros((n, 2), device=device),
+                    parent=torch.full((n,), parent_idx if parent_idx is not None else -1, dtype=torch.int64, device=device)
+                )
+                
+                # Add nodes to graph
+                self._add_nodes_to_graph(node_data)
+                
+                if node_type == NODE_TYPE_SENSORY:
+                    self.n_sensory += n
+                elif node_type == NODE_TYPE_WORKSPACE:
+                    self.n_workspace += n
+                    
+            else:
+                raise ValueError(f"Invalid node type: {node_type}")
+            
+            self.node_births += n
+            self.total_node_births += n
+            logger.info(f"Added {n} nodes of type {NODE_TYPE_NAMES[node_type]}")
+            
+        except Exception as e:
+            logger.error(f"Error adding nodes: {e}")
+            raise
 
     def _remove_nodes(self, node_indices: List[int]):
         """Remove nodes from the graph"""
-        # Placeholder implementation
-        pass
+        try:
+            if not node_indices:
+                return
+            
+            # Convert to tensor if needed
+            if isinstance(node_indices, list):
+                node_indices = torch.tensor(node_indices, dtype=torch.long, device=self.device)
+            elif isinstance(node_indices, torch.Tensor) and node_indices.dtype == torch.bool:
+                node_indices = node_indices.nonzero(as_tuple=True)[0]
+            
+            # Validate indices
+            valid_indices = node_indices[(node_indices >= 0) & (node_indices < self.graph.num_nodes)]
+            if len(valid_indices) == 0:
+                return
+            
+            # Count nodes by type before removal
+            node_types_to_remove = self.graph.node_type[valid_indices]
+            sensory_removed = (node_types_to_remove == NODE_TYPE_SENSORY).sum().item()
+            dynamic_removed = (node_types_to_remove == NODE_TYPE_DYNAMIC).sum().item()
+            workspace_removed = (node_types_to_remove == NODE_TYPE_WORKSPACE).sum().item()
+            
+            # Create mask for nodes to keep
+            keep_mask = torch.ones(self.graph.num_nodes, dtype=torch.bool, device=self.device)
+            keep_mask[valid_indices] = False
+            keep_indices = keep_mask.nonzero(as_tuple=True)[0]
+            
+            # Remove edges connected to removed nodes
+            edge_mask = keep_mask[self.graph.edge_index[0]] & keep_mask[self.graph.edge_index[1]]
+            if edge_mask.any():
+                new_edge_index = self.graph.edge_index[:, edge_mask]
+                # Remap edge indices
+                node_mapping = torch.full((self.graph.num_nodes,), -1, dtype=torch.long, device=self.device)
+                node_mapping[keep_indices] = torch.arange(len(keep_indices), device=self.device)
+                new_edge_index = node_mapping[new_edge_index]
+            else:
+                new_edge_index = torch.zeros((2, 0), dtype=torch.long, device=self.device)
+            
+            # Create new graph with remaining nodes
+            new_graph = Data(
+                x=self.graph.x[keep_indices],
+                edge_index=new_edge_index,
+                edge_attr=self.graph.edge_attr[edge_mask] if hasattr(self.graph, 'edge_attr') and self.graph.edge_attr is not None else None,
+                node_type=self.graph.node_type[keep_indices],
+                pos=self.graph.pos[keep_indices],
+                velocity=self.graph.velocity[keep_indices]
+            )
+            
+            # Copy optional node attributes
+            for attr_name in ['dynamic_subtype', 'dynamic_subtype2', 'dynamic_subtype3', 'dynamic_subtype4', 
+                             'max_connections', 'phase_offset', 'parent']:
+                if hasattr(self.graph, attr_name) and getattr(self.graph, attr_name) is not None:
+                    setattr(new_graph, attr_name, getattr(self.graph, attr_name)[keep_indices])
+            
+            # Copy optional edge attributes
+            for edge_attr in ['edge_weight', 'edge_capacity', 'edge_type', 'edge_plastic_lr', 
+                             'edge_gate_threshold', 'edge_subtype3']:
+                if hasattr(self.graph, edge_attr) and getattr(self.graph, edge_attr) is not None:
+                    setattr(new_graph, edge_attr, getattr(self.graph, edge_attr)[edge_mask])
+            
+            # Update graph and counters
+            self.graph = new_graph
+            self.n_sensory -= sensory_removed
+            self.n_dynamic -= dynamic_removed
+            self.n_workspace -= workspace_removed
+            self.n_total -= len(valid_indices)
+            
+            self.node_deaths += len(valid_indices)
+            self.total_node_deaths += len(valid_indices)
+            
+            logger.info(f"Removed {len(valid_indices)} nodes")
+            
+        except Exception as e:
+            logger.error(f"Error removing nodes: {e}")
+            raise
+
+    def update_sensory_nodes(self, sensory_input):
+        """Update sensory nodes with input validation"""
+        try:
+            # Validate input
+            if not isinstance(sensory_input, (np.ndarray, torch.Tensor)):
+                raise TypeError("sensory_input must be numpy array or torch tensor")
+
+            if isinstance(sensory_input, np.ndarray):
+                if sensory_input.shape != (self.sensory_height, self.sensory_width):
+                    raise ValueError(f"sensory_input shape must be ({self.sensory_height}, {self.sensory_width})")
+                sensory_input = torch.from_numpy(sensory_input).to(self.device)
+            
+            # Get sensory nodes
+            sensory_mask = (self.graph.node_type == NODE_TYPE_SENSORY)
+            if not sensory_mask.any():
+                logger.warning("No sensory nodes found to update")
+                return
+
+            # Update energies
+            sensory_energies = sensory_input.flatten().unsqueeze(1)
+            if len(sensory_energies) != sensory_mask.sum():
+                logger.warning(f"Sensory input size mismatch. Expected {sensory_mask.sum()}, got {len(sensory_energies)}")
+                # Resize to match
+                expected_size = sensory_mask.sum().item()
+                if len(sensory_energies) > expected_size:
+                    sensory_energies = sensory_energies[:expected_size]
+                else:
+                    # Pad with zeros
+                    padding = torch.zeros((expected_size - len(sensory_energies), 1), device=self.device)
+                    sensory_energies = torch.cat([sensory_energies, padding], dim=0)
+            
+            self.graph.x[sensory_mask] = sensory_energies
+            
+        except Exception as e:
+            logger.error(f"Error updating sensory nodes: {e}")
+            # Don't raise the exception, just log it and continue
 
     def _update_energies(self):
         """Update energy levels for all nodes using CUDA kernels or CPU fallback"""

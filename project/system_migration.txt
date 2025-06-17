@@ -1,0 +1,396 @@
+# Neural System Migration Guide: DGL to PyTorch Geometric (PyG)
+
+## Overview
+This guide helps you migrate from the DGL-based neural system to the PyTorch Geometric (PyG) implementation. Both systems provide the same core functionality but use different graph deep learning frameworks.
+
+## Quick Start Migration
+
+### 1. Configuration Files
+**DGL:** Uses `project/dgl_config.json`
+**PyG:** Uses `pyg_config.json` (root level)
+
+### 2. Main Entry Points
+**DGL:** `python project/dgl_main.py`
+**PyG:** `python project/pyg_main.py`
+
+### 3. Core Classes
+**DGL:** `DGLNeuralSystem` from `project/dgl_neural_system.py`
+**PyG:** `PyGNeuralSystem` from `project/pyg_neural_system.py`
+
+## Configuration Migration
+
+### DGL Config (dgl_config.json)
+```json
+{
+    "version": "1.0",
+    "sensory": {
+        "enabled": true,
+        "width": 64,
+        "height": 64,
+        "canvas_width": 192,
+        "canvas_height": 108
+    },
+    "workspace": {
+        "width": 16,
+        "height": 16,
+        "canvas_width": 800,
+        "canvas_height": 600
+    },
+    "system": {
+        "update_interval": 1000,
+        "energy_pulse": 10.0,
+        "max_energy": 100.0,
+        "min_energy": 0.0
+    }
+}
+```
+
+### PyG Config (pyg_config.json)
+```json
+{
+    "version": "1.0",
+    "framework": "pyg",
+    "device": "auto",
+    "sensory": {
+        "enabled": true,
+        "width": 64,
+        "height": 64,
+        "canvas_width": 192,
+        "canvas_height": 108,
+        "update_frequency": 30
+    },
+    "workspace": {
+        "width": 16,
+        "height": 16,
+        "canvas_width": 800,
+        "canvas_height": 600
+    },
+    "system": {
+        "max_nodes": 1000,
+        "max_edges": 5000,
+        "update_interval": 1000,
+        "energy_pulse": 10.0,
+        "max_energy": 244.0,
+        "min_energy": 0.0,
+        "node_spawn_threshold": 20.0,
+        "node_death_threshold": 0.0,
+        "connection_maintenance_cost": 0.02,
+        "transmission_loss": 0.9,
+        "batch_size": 25,
+        "worker_threads": 4
+    },
+    "neural": {
+        "node_types": {
+            "sensory": 0,
+            "dynamic": 1,
+            "workspace": 2,
+            "highway": 3
+        },
+        "dynamic_subtypes": {
+            "transmitter": 0,
+            "resonator": 1,
+            "dampener": 2
+        },
+        "connection_types": {
+            "excitatory": 0,
+            "inhibitory": 1,
+            "gated": 2,
+            "plastic": 3
+        }
+    },
+    "performance": {
+        "enable_cuda_kernels": true,
+        "memory_cleanup_interval": 60.0,
+        "metrics_update_interval": 1.0,
+        "max_memory_usage_gb": 8.0
+    },
+    "logging": {
+        "level": "INFO",
+        "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        "file": "pyg_neural_system.log"
+    }
+}
+```
+
+### Key Differences in Configuration:
+1. **Enhanced Structure:** PyG config has more detailed sections
+2. **Performance Settings:** PyG includes GPU/CPU optimization settings
+3. **Neural Parameters:** Explicit neural network parameters
+4. **Logging Configuration:** Built-in logging setup
+5. **Device Management:** Automatic device detection
+
+## Code Usage Migration
+
+### DGL Usage
+```python
+from project.dgl_neural_system import DGLNeuralSystem
+import json
+
+# Load config
+with open('project/dgl_config.json', 'r') as f:
+    config = json.load(f)
+
+# Initialize system
+system = DGLNeuralSystem(
+    sensory_width=config['sensory']['width'],
+    sensory_height=config['sensory']['height'],
+    n_dynamic=1000
+)
+
+# Run system
+system.update()
+```
+
+### PyG Usage
+```python
+from project.pyg_neural_system import PyGNeuralSystem
+import json
+
+# Load config
+with open('pyg_config.json', 'r') as f:
+    config = json.load(f)
+
+# Initialize system
+system = PyGNeuralSystem(config)
+
+# Run system
+system.update()
+```
+
+### Key Migration Points:
+1. **Single Config Parameter:** PyG takes the entire config dict
+2. **Automatic Initialization:** PyG handles all setup internally
+3. **Better Error Handling:** PyG includes comprehensive validation
+4. **Device Management:** PyG automatically handles GPU/CPU placement
+
+## Feature Comparison
+
+### Core Features (Both Systems)
+- ✅ Energy-based neural dynamics
+- ✅ Multiple node types (Sensory, Dynamic, Workspace, Highway)
+- ✅ Connection types (Excitatory, Inhibitory, Gated, Plastic)
+- ✅ Vision system integration
+- ✅ Multi-threaded connection processing
+- ✅ Performance monitoring
+
+### PyG Advantages
+- ✅ **Better Memory Management:** Native PyG optimizations
+- ✅ **Enhanced Error Handling:** Comprehensive validation and recovery
+- ✅ **Configuration System:** Complete configuration management
+- ✅ **Command Line Interface:** Full CLI with options
+- ✅ **Device Auto-Detection:** Automatic GPU/CPU handling
+- ✅ **Production Ready:** Complete logging and monitoring
+- ✅ **Better Documentation:** Comprehensive docstrings and examples
+
+### DGL Advantages
+- ✅ **Mature Codebase:** Well-tested implementation
+- ✅ **Complex Graph Operations:** Advanced DGL-specific features
+- ✅ **Specialized Functions:** DGL message passing functions
+
+## Performance Considerations
+
+### Memory Usage
+- **DGL:** Uses DGL's internal graph representation
+- **PyG:** Uses PyTorch tensors with potential GPU acceleration
+
+### Speed
+- **DGL:** Optimized for complex graph neural networks
+- **PyG:** Optimized for PyTorch ecosystem integration
+
+### GPU Acceleration
+- **DGL:** DGL-specific GPU kernels
+- **PyG:** Native PyTorch CUDA operations
+
+## Migration Steps
+
+### Step 1: Install PyG Dependencies
+```bash
+pip install torch torch-geometric
+```
+
+### Step 2: Create PyG Configuration
+```bash
+cp project/dgl_config.json pyg_config.json
+# Edit pyg_config.json to match PyG format
+```
+
+### Step 3: Test PyG System
+```bash
+python project/pyg_main.py --status
+```
+
+### Step 4: Run PyG System
+```bash
+python project/pyg_main.py --config pyg_config.json
+```
+
+### Step 5: Compare Results
+Run both systems with identical parameters and compare:
+- Energy distributions
+- Node counts
+- Connection patterns
+- Performance metrics
+
+## Troubleshooting
+
+### Common Issues
+
+#### 1. Import Errors
+**Problem:** `ModuleNotFoundError: No module named 'torch_geometric'`
+**Solution:** Install PyTorch Geometric
+```bash
+pip install torch torch-geometric
+```
+
+#### 2. Configuration Errors
+**Problem:** `KeyError: 'neural'` or similar config errors
+**Solution:** Use the complete PyG configuration format
+
+#### 3. Memory Issues
+**Problem:** Out of memory errors
+**Solution:** Adjust `max_memory_usage_gb` in config
+
+#### 4. Device Issues
+**Problem:** CUDA errors or device mismatch
+**Solution:** Set `"device": "cpu"` in config for CPU-only mode
+
+### Performance Tuning
+
+#### For CPU Systems
+```json
+{
+    "device": "cpu",
+    "performance": {
+        "enable_cuda_kernels": false,
+        "max_memory_usage_gb": 4.0
+    },
+    "system": {
+        "worker_threads": 2,
+        "batch_size": 10
+    }
+}
+```
+
+#### For GPU Systems
+```json
+{
+    "device": "auto",
+    "performance": {
+        "enable_cuda_kernels": true,
+        "max_memory_usage_gb": 8.0
+    },
+    "system": {
+        "worker_threads": 8,
+        "batch_size": 50
+    }
+}
+```
+
+## Testing Migration
+
+### Validation Script
+```python
+#!/usr/bin/env python3
+"""
+Migration validation script
+"""
+import json
+import numpy as np
+from project.dgl_neural_system import DGLNeuralSystem
+from project.pyg_neural_system import PyGNeuralSystem
+
+def validate_migration():
+    """Compare DGL and PyG implementations"""
+    
+    # Load configs
+    with open('project/dgl_config.json', 'r') as f:
+        dgl_config = json.load(f)
+    
+    with open('pyg_config.json', 'r') as f:
+        pyg_config = json.load(f)
+    
+    # Initialize systems
+    dgl_system = DGLNeuralSystem(
+        sensory_width=dgl_config['sensory']['width'],
+        sensory_height=dgl_config['sensory']['height'],
+        n_dynamic=1000
+    )
+    
+    pyg_system = PyGNeuralSystem(pyg_config)
+    
+    # Run identical test
+    test_input = np.random.rand(
+        dgl_config['sensory']['height'],
+        dgl_config['sensory']['width']
+    )
+    
+    # Update both systems
+    dgl_system.update_sensory_nodes(test_input)
+    dgl_system.update()
+    dgl_metrics = dgl_system.get_metrics()
+    
+    pyg_system.update_sensory_nodes(test_input)
+    pyg_system.update()
+    pyg_metrics = pyg_system.get_metrics()
+    
+    # Compare results
+    print("DGL Metrics:", dgl_metrics)
+    print("PyG Metrics:", pyg_metrics)
+    
+    return dgl_metrics, pyg_metrics
+
+if __name__ == '__main__':
+    validate_migration()
+```
+
+## Best Practices for Migration
+
+### 1. Gradual Migration
+- Start with PyG in a separate environment
+- Test with small datasets first
+- Compare results with existing DGL system
+- Gradually transition production workloads
+
+### 2. Configuration Management
+- Keep both configs in sync during transition
+- Use version control for configuration changes
+- Document any parameter adjustments needed
+
+### 3. Performance Monitoring
+- Monitor memory usage during migration
+- Compare processing speeds
+- Test GPU/CPU performance on target hardware
+
+### 4. Backup and Recovery
+- Backup existing DGL configurations
+- Keep DGL system available during transition
+- Plan rollback procedures if needed
+
+## When to Use Which System
+
+### Use DGL When:
+- You need DGL-specific features
+- Existing codebase is heavily integrated with DGL
+- You're working with complex graph neural network architectures
+- Your team has deep DGL expertise
+
+### Use PyG When:
+- You want better PyTorch integration
+- You need production-ready features (logging, monitoring, CLI)
+- You want automatic device management
+- You're starting a new project
+- You need better error handling and recovery
+
+## Conclusion
+
+Both systems provide robust neural network functionality. The PyG implementation offers:
+- Better production readiness
+- Enhanced error handling
+- Complete configuration management
+- Automatic device handling
+- Comprehensive documentation
+
+The migration path is straightforward, and both systems can coexist during the transition period.
+
+---
+*This document provides guidance for migrating between DGL and PyG neural system implementations.*

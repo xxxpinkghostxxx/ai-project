@@ -1,0 +1,63 @@
+{
+    "version": "1.0",
+    "framework": "pyg",
+    "device": "auto",
+    "sensory": {
+        "enabled": true,
+        "width": 64,
+        "height": 64,
+        "canvas_width": 192,
+        "canvas_height": 108,
+        "update_frequency": 30
+    },
+    "workspace": {
+        "width": 16,
+        "height": 16,
+        "canvas_width": 800,
+        "canvas_height": 600
+    },
+    "system": {
+        "max_nodes": 1000,
+        "max_edges": 5000,
+        "update_interval": 1000,
+        "energy_pulse": 10.0,
+        "max_energy": 244.0,
+        "min_energy": 0.0,
+        "node_spawn_threshold": 20.0,
+        "node_death_threshold": 0.0,
+        "connection_maintenance_cost": 0.02,
+        "transmission_loss": 0.9,
+        "batch_size": 25,
+        "worker_threads": 4
+    },
+    "neural": {
+        "node_types": {
+            "sensory": 0,
+            "dynamic": 1,
+            "workspace": 2,
+            "highway": 3
+        },
+        "dynamic_subtypes": {
+            "transmitter": 0,
+            "resonator": 1,
+            "dampener": 2
+        },
+        "connection_types": {
+            "excitatory": 0,
+            "inhibitory": 1,
+            "gated": 2,
+            "plastic": 3
+        }
+    },
+    "performance": {
+        "enable_cuda_kernels": true,
+        "memory_cleanup_interval": 60.0,
+        "metrics_update_interval": 1.0,
+        "max_memory_usage_gb": 8.0
+    },
+    "logging": {
+        "level": "INFO",
+        "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        "file": "pyg_neural_system.log"
+    }
+}
