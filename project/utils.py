@@ -1,6 +1,9 @@
 """
-utils.py - Common math and utility functions for the neural system project.
-Use these helpers to avoid code duplication and centralize reusable logic.
+Common utility functions for the neural system project.
+
+This module provides math helpers, profiling tools, system resource
+checking, logging setup, and other reusable utility functions to avoid
+code duplication across the project.
 """
 import random
 import time
@@ -61,7 +64,7 @@ def get_free_gpu_memory():
         import cupy as cp # type: ignore
         free, total = cp.cuda.runtime.memGetInfo()
         return free
-    except Exception:
+    except (ImportError, AttributeError, RuntimeError):
         return None
 
 def get_array_module():
@@ -84,14 +87,14 @@ def check_cuda_status():
             print(cupy.show_config())
             a = cupy.zeros(1)
             print("[CUDA DIAGNOSTIC] CuPy can allocate on GPU: SUCCESS")
-        except Exception as e:
+        except (RuntimeError, MemoryError, AttributeError) as e:
             print(f"[CUDA DIAGNOSTIC] CuPy import succeeded, but CUDA failed: {e}")
             print("[CUDA DIAGNOSTIC] Falling back to CPU mode.")
             config.USE_GPU = False
     except ImportError:
         print("[CUDA DIAGNOSTIC] CuPy is not installed. Falling back to CPU mode.")
         config.USE_GPU = False
-    except Exception as e:
+    except (AttributeError, RuntimeError) as e:
         print(f"[CUDA DIAGNOSTIC] Unexpected error: {e}")
         config.USE_GPU = False
 
@@ -128,7 +131,7 @@ try:
     LOG_BACKUPS = 3
     DEBUG_MODE = getattr(config, 'DEBUG_MODE', False)
     logger = setup_logging(LOG_DIR, log_filename, console_log_filename, LOG_MAX_SIZE, LOG_BACKUPS, DEBUG_MODE)
-except Exception as e:
+except (OSError, ValueError, AttributeError) as e:
     print(f"[LOGGING ERROR] Failed to set up logging: {e}")
     logger = None
 

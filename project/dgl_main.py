@@ -1,3 +1,9 @@
+"""
+Main entry point for the DGL Neural System.
+
+This module initializes and manages the neural system components,
+including resource management, error handling, and the main application loop.
+"""
 from dgl_neural_system import DGLNeuralSystem
 from vision import ThreadedScreenCapture
 from utils.error_handler import ErrorHandler
@@ -32,7 +38,7 @@ def managed_resources():
                     resource.cleanup()
                 elif hasattr(resource, 'stop'):
                     resource.stop()
-            except Exception as e:
+            except (AttributeError, RuntimeError, OSError) as e:
                 logger.error(f"Error cleaning up resource: {e}")
 
 def initialize_system(config_manager: ConfigManager) -> Tuple[DGLNeuralSystem, ThreadedScreenCapture]:
@@ -61,7 +67,7 @@ def initialize_system(config_manager: ConfigManager) -> Tuple[DGLNeuralSystem, T
         )
 
         return system, capture
-    except Exception as e:
+    except (ValueError, TypeError, KeyError, ImportError) as e:
         logger.error(f"Failed to initialize system: {e}")
         raise
 
@@ -90,7 +96,7 @@ def main():
             main_window.start_system(system, capture)
             main_window.run()
 
-    except Exception as e:
+    except (ValueError, TypeError, ImportError, OSError) as e:
         logger.error(f"Fatal error: {e}")
         ErrorHandler.show_error("Fatal Error", f"System failed to start: {str(e)}")
         raise

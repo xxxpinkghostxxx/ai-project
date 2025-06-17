@@ -1,3 +1,9 @@
+"""
+UI Resource Manager for handling image and window resources.
+
+Provides centralized resource management to prevent memory leaks
+and ensure proper cleanup of UI components.
+"""
 from PIL import Image, ImageTk
 from utils.error_handler import ErrorHandler
 
@@ -16,7 +22,7 @@ class UIResourceManager:
                 self.images.pop(0)  # Remove oldest image
             self.images.append(image)
             return image
-        except Exception as e:
+        except (MemoryError, ValueError) as e:
             ErrorHandler.show_error("Resource Error", f"Failed to register image: {str(e)}")
             return None
 
@@ -27,11 +33,12 @@ class UIResourceManager:
                 oldest_window = self.windows.pop(0)
                 try:
                     oldest_window.destroy()
-                except:
+                except (AttributeError, RuntimeError):
+                    # Window may already be destroyed or invalid
                     pass
             self.windows.append(window)
             return window
-        except Exception as e:
+        except (AttributeError, ValueError) as e:
             ErrorHandler.show_error("Resource Error", f"Failed to register window: {str(e)}")
             return None
 
@@ -39,7 +46,7 @@ class UIResourceManager:
         """Register a cleanup handler"""
         try:
             self._cleanup_handlers.append(handler)
-        except Exception as e:
+        except (AttributeError, ValueError) as e:
             ErrorHandler.show_error("Resource Error", f"Failed to register cleanup handler: {str(e)}")
 
     def cleanup(self):
@@ -49,7 +56,7 @@ class UIResourceManager:
             for handler in self._cleanup_handlers:
                 try:
                     handler()
-                except Exception as e:
+                except (TypeError, AttributeError) as e:
                     ErrorHandler.log_warning(f"Error during cleanup: {str(e)}")
 
             # Clear image references
@@ -59,7 +66,7 @@ class UIResourceManager:
             for window in self.windows:
                 try:
                     window.destroy()
-                except Exception as e:
+                except (AttributeError, RuntimeError) as e:
                     ErrorHandler.log_warning(f"Error destroying window: {str(e)}")
             self.windows.clear()
 
@@ -67,7 +74,7 @@ class UIResourceManager:
             self._cleanup_handlers.clear()
 
             ErrorHandler.log_info("Resource cleanup completed")
-        except Exception as e:
+        except (AttributeError, ValueError) as e:
             ErrorHandler.show_error("Cleanup Error", f"Failed to clean up resources: {str(e)}")
 
     def create_tk_image(self, image_data, size=None):
@@ -79,7 +86,7 @@ class UIResourceManager:
                 tk_image = ImageTk.PhotoImage(image_data)
                 return self.register_image(tk_image)
             return None
-        except Exception as e:
+        except (AttributeError, ValueError, OSError) as e:
             ErrorHandler.show_error("Resource Error", f"Failed to create Tk image: {str(e)}")
             return None
 

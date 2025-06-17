@@ -1,3 +1,9 @@
+"""
+Vision module for screen capture and image processing.
+
+Provides threaded screen capture functionality with fallback options
+and proper error handling for the neural system's sensory input.
+"""
 import threading
 import numpy as np
 import cv2
@@ -87,7 +93,7 @@ class ThreadedScreenCapture:
                     # Reset error count on successful capture
                     self._error_count = 0
 
-                except Exception as e:
+                except (mss.exception.ScreenShotError, cv2.error, ValueError, MemoryError) as e:
                     self._error_count += 1
                     logger.error(f"Screen capture error: {e}")
 
@@ -120,7 +126,7 @@ class ThreadedScreenCapture:
                 if self.drop_counter % 100 == 0:  # Log every 100 drops
                     logger.warning(f"Dropped {self.drop_counter} frames due to queue full")
 
-        except Exception as e:
+        except (AttributeError, ValueError, MemoryError) as e:
             logger.error(f"Error updating frame queue: {e}")
 
     def get_latest(self) -> Optional[np.ndarray]:
@@ -171,7 +177,7 @@ def capture_screen(resolution: Tuple[int, int] = (SENSOR_WIDTH, SENSOR_HEIGHT)) 
                     img = img[..., :3]  # BGRA to BGR
                     img = cv2.resize(img, resolution)
             backend = 'mss'
-    except Exception as e:
+    except (mss.exception.ScreenShotError, cv2.error, ValueError, OSError, MemoryError) as e:
         logger.error(f"Screen capture failed: {e}")
         img = np.zeros((resolution[1], resolution[0], 3), dtype=np.uint8)
 
@@ -192,6 +198,6 @@ def preprocess_image(image: np.ndarray) -> np.ndarray:
         resized = cv2.resize(gray, (SENSOR_WIDTH, SENSOR_HEIGHT))
         logger.debug(f"preprocess_image: shape={resized.shape}, min={resized.min()}, max={resized.max()}")
         return resized
-    except Exception as e:
+    except (cv2.error, ValueError, AttributeError) as e:
         logger.error(f"Image preprocessing failed: {e}")
         return np.zeros((SENSOR_HEIGHT, SENSOR_WIDTH), dtype=np.uint8) 
