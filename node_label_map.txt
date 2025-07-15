@@ -1,0 +1,77 @@
+# Node Label Map and Coding Environment Reference
+# For Human and AI Coding Assistants
+
+## Coding Environment
+- **Language:** Python 3.x
+- **Core Libraries:**
+  - torch (PyTorch)
+  - torch_geometric (PyTorch Geometric)
+  - numpy
+  - PIL (Pillow, for image capture)
+- **Graph Data Structure:**
+  - Uses torch_geometric.data.Data for graph representation
+  - Node features: torch.Tensor, shape (num_nodes, 1)
+  - Node labels: Python list of dicts, one dict per node, describing node type and metadata
+  - No edges by default (edge_index is empty), but can be added for connectivity
+- **Node Types:**
+  - Sensory nodes: Represent screen pixel RGB channels
+  - Dynamic nodes: Placeholder nodes for future computation/behavior
+
+## Sensory Nodes
+- **Purpose:** Represent the R, G, B channels of each pixel in the (possibly downscaled) screen capture
+- **Node Count:** 3 nodes per pixel (one for each channel)
+- **Label Fields:**
+  - `type`: Always 'sensory' for these nodes
+  - `x`: Integer, pixel x-coordinate (column index, 0-based)
+  - `y`: Integer, pixel y-coordinate (row index, 0-based)
+  - `channel`: String, one of 'R', 'G', 'B' (indicates which color channel this node represents)
+  - `feature`: Float, the value of the channel (0-255, not normalized)
+- **Example:**
+  - `{ "type": "sensory", "x": 10, "y": 5, "channel": "R", "feature": 128.0 }`
+- **Function in Code:**
+  - Created in create_pixel_rgb_graph (screen_graph.py)
+  - Used as fixed sensory input; not modified or removed during runtime
+
+## Dynamic Nodes
+- **Purpose:** Represent additional, non-sensory nodes for future dynamic computation or behavior
+- **Node Count:** Set by config or code (e.g., 4x sensory nodes at init)
+- **Label Fields:**
+  - `type`: Always 'dynamic' for these nodes
+  - `id`: Integer, unique dynamic node id (0-based, sequential)
+  - `energy`: Float, current energy value (initialized to match node feature)
+- **Example:**
+  - `{ "type": "dynamic", "id": 3, "energy": 0.73 }`
+- **Function in Code:**
+  - Appended after all sensory nodes in add_dynamic_nodes (dynamic_nodes.py)
+  - Used and updated by all modules (death_and_birth_logic.py, connection_logic.py, etc.)
+  - No references to 'dynamic_id' remain; all modules expect this format
+
+## Value Labels (for all nodes)
+- **feature**: Main value for the node (e.g., pixel intensity for sensory, energy for dynamic)
+- **energy**: Current energy value (if used, especially for dynamic nodes)
+- **threshold**: Activation or processing threshold (if used in future logic)
+
+## Behavior Labels (for future expansion)
+- **behavior**: String, describes node's behavior (e.g., 'oscillator', 'integrator', 'relay')
+- **state**: String, current state (e.g., 'active', 'inactive', 'pending')
+- **last_update**: Int or float, timestamp or frame index of last update
+
+## Example Label Usage
+- Sensory node: `{ "type": "sensory", "x": 0, "y": 0, "channel": "B", "feature": 255.0 }`
+- Dynamic node: `{ "type": "dynamic", "id": 3, "energy": 0.0 }`
+
+## Label Usage in Code
+- All nodes are labeled at creation for easy identification and processing
+- Labels are used for:
+  - Debugging and visualization
+  - AI coding assistant context
+  - Future logic for node selection, filtering, and behavior
+- Labels **do not** affect runtime performance or graph computation
+
+## Update Policy
+- Update this file whenever:
+  - New node types are added
+  - New value or behavior labels are introduced
+  - The graph structure or node creation logic changes
+
+# End of Node Label Map 

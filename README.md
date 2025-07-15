@@ -114,13 +114,14 @@ Our mission: Create a self-organizing neural architecture that learns and adapts
 
 Before adding a new feature, ask:
 1. Does it support our main goal?
-2. Is it the right time for this?
-3. Will it play nicely with what’s already here?
-4. How will it affect energy use?
-5. Is it too complex?
-6. Can we measure its impact?
-7. Will it enable new, emergent behaviors?
-8. Are safety measures included?
+2. does it only use the singular energy value?
+3. Is it the right time for this?
+4. Will it play nicely with what’s already here?
+5. How will it affect energy use?
+6. Is it too complex?
+7. Can we measure its impact?
+8. Will it enable new, emergent behaviors?
+9. Are safety measures included?
 
 ---
 
