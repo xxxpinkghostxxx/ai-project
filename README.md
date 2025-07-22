@@ -4,6 +4,9 @@
 
 [![Open Source](https://badges.frapsoft.com/os/v1/open-source.svg?v=103)](LICENSE)
 [![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg)](CONTRIBUTING.md)
+## Contact
+
+- Discord: @pinkzomboid
 
 Welcome to the AI Project! 🚀
 
