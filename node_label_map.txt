@@ -14,22 +14,21 @@
   - Node labels: Python list of dicts, one dict per node, describing node type and metadata
   - No edges by default (edge_index is empty), but can be added for connectivity
 - **Node Types:**
-  - Sensory nodes: Represent screen pixel RGB channels
+  - Sensory nodes: Represent screen pixel grayscale (black and white) values
   - Dynamic nodes: Placeholder nodes for future computation/behavior
 
 ## Sensory Nodes
-- **Purpose:** Represent the R, G, B channels of each pixel in the (possibly downscaled) screen capture
-- **Node Count:** 3 nodes per pixel (one for each channel)
+- **Purpose:** Represent the grayscale value of each pixel in the (possibly downscaled) screen capture
+- **Node Count:** 1 node per pixel
 - **Label Fields:**
   - `type`: Always 'sensory' for these nodes
   - `x`: Integer, pixel x-coordinate (column index, 0-based)
   - `y`: Integer, pixel y-coordinate (row index, 0-based)
-  - `channel`: String, one of 'R', 'G', 'B' (indicates which color channel this node represents)
-  - `feature`: Float, the value of the channel (0-255, not normalized)
+  - `energy`: Float, the grayscale value of the pixel (0-255, not normalized)
 - **Example:**
-  - `{ "type": "sensory", "x": 10, "y": 5, "channel": "R", "feature": 128.0 }`
+  - `{ "type": "sensory", "x": 10, "y": 5, "energy": 128.0 }`
 - **Function in Code:**
-  - Created in create_pixel_rgb_graph (screen_graph.py)
+  - Created in create_pixel_gray_graph (screen_graph.py)
   - Used as fixed sensory input; not modified or removed during runtime
 
 ## Dynamic Nodes
@@ -44,10 +43,10 @@
 - **Function in Code:**
   - Appended after all sensory nodes in add_dynamic_nodes (dynamic_nodes.py)
   - Used and updated by all modules (death_and_birth_logic.py, connection_logic.py, etc.)
-  - No references to 'dynamic_id' remain; all modules expect this format
+  - All modules expect this format
 
 ## Value Labels (for all nodes)
-- **feature**: Main value for the node (e.g., pixel intensity for sensory, energy for dynamic)
+- **feature**: Main value for the node (e.g., grayscale intensity for sensory, energy for dynamic)
 - **energy**: Current energy value (if used, especially for dynamic nodes)
 - **threshold**: Activation or processing threshold (if used in future logic)
 
@@ -57,7 +56,7 @@
 - **last_update**: Int or float, timestamp or frame index of last update
 
 ## Example Label Usage
-- Sensory node: `{ "type": "sensory", "x": 0, "y": 0, "channel": "B", "feature": 255.0 }`
+- Sensory node: `{ "type": "sensory", "x": 0, "y": 0, "energy": 255.0 }`
 - Dynamic node: `{ "type": "dynamic", "id": 3, "energy": 0.0 }`
 
 ## Label Usage in Code

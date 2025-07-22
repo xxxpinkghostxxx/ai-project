@@ -5,6 +5,7 @@ This module will contain all logic for node energy dynamics and behaviors
 in the energy-based neural system graph. Designed for modularity and future extension.
 """
 
+
 def update_node_energy(graph, node_id, delta_energy, strategy=None):
     """
     Update the energy value of a node according to the specified strategy.
@@ -19,6 +20,7 @@ def update_node_energy(graph, node_id, delta_energy, strategy=None):
     # TODO: Implement node energy update logic here
     pass
 
+
 def apply_energy_behavior(graph, behavior_params=None):
     """
     Apply energy-based behaviors to nodes (e.g., decay, transfer, thresholding).
@@ -31,6 +33,7 @@ def apply_energy_behavior(graph, behavior_params=None):
     # TODO: Implement energy behavior logic here
     pass
 
+
 def couple_sensory_energy_to_channel(graph):
     """
     For all sensory nodes, set their energy value to their channel value (feature).
@@ -39,14 +42,17 @@ def couple_sensory_energy_to_channel(graph):
     Returns:
         Modified graph with sensory node energies coupled to their channel values.
     """
-    if not hasattr(graph, 'node_labels') or not hasattr(graph, 'x'):
+    if not hasattr(graph, "node_labels") or not hasattr(graph, "x"):
         return graph
     for idx, label in enumerate(graph.node_labels):
-        if label.get('type') == 'sensory' or 'channel' in label:
+        if label.get("type") == "sensory" or "channel" in label:
             # Set energy to the channel value (feature)
             # Assume the channel value is stored in graph.x[idx, 0]
-            graph.x[idx, 0] = graph.x[idx, 0]  # Explicit, but could be extended for normalization
+            graph.x[idx, 0] = graph.x[
+                idx, 0
+            ]  # Explicit, but could be extended for normalization
     return graph
+
 
 def propagate_sensory_energy(graph):
     """
@@ -57,11 +63,15 @@ def propagate_sensory_energy(graph):
     Returns:
         Modified graph with propagated sensory energy.
     """
-    if not hasattr(graph, 'node_labels') or not hasattr(graph, 'x') or not hasattr(graph, 'edge_index'):
+    if (
+        not hasattr(graph, "node_labels")
+        or not hasattr(graph, "x")
+        or not hasattr(graph, "edge_index")
+    ):
         return graph
     edge_index = graph.edge_index
     for idx, label in enumerate(graph.node_labels):
-        if label.get('type') == 'sensory' or 'channel' in label:
+        if label.get("type") == "sensory" or "channel" in label:
             # Find all outgoing edges from this node
             outgoing = (edge_index[0] == idx).nonzero(as_tuple=True)[0]
             for edge_idx in outgoing:
@@ -70,4 +80,5 @@ def propagate_sensory_energy(graph):
                 graph.x[target, 0] = graph.x[idx, 0]
     return graph
 
-# AI/Human: Extend this file with actual energy behavior logic as the system evolves. 
+
+# AI/Human: Extend this file with actual energy behavior logic as the system evolves.
