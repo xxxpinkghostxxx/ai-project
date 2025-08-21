@@ -16,17 +16,47 @@
 - **Node Types:**
   - Sensory nodes: Represent screen pixel grayscale (black and white) values
   - Dynamic nodes: Placeholder nodes for future computation/behavior
+  - Oscillator nodes: Periodic energy emission nodes
+  - Integrator nodes: Energy accumulation and threshold-based activation
+  - Relay nodes: Energy transfer with amplification
+  - Highway nodes: High-capacity energy distribution nodes
+
+## Enhanced Node Labels (All Nodes)
+- **type**: 'sensory', 'dynamic', 'oscillator', 'integrator', 'relay', 'highway'
+- **behavior**: 'sensory', 'dynamic', 'oscillator', 'integrator', 'relay', 'highway'
+- **state**: 'active', 'inactive', 'pending', 'learning', 'consolidating', 'suspended'
+- **energy**: Current energy value (0-255 for sensory, 0-NODE_ENERGY_CAP for dynamic)
+- **membrane_potential**: Research-inspired membrane potential (normalized 0-1)
+- **threshold**: Activation threshold for the node
+- **refractory_timer**: Time remaining before node can activate again
+- **last_activation**: Timestamp of last activation
+- **plasticity_enabled**: Whether node can learn/adapt
+- **eligibility_trace**: Accumulated learning signal
+- **last_update**: Frame index of last update
+- **oscillation_freq**: For oscillator nodes (0.1-10.0 Hz)
+- **integration_rate**: For integrator nodes (0.01-1.0)
+- **relay_amplification**: For relay nodes (1.0-5.0)
+- **highway_energy_boost**: For highway nodes (1.0-3.0)
 
 ## Sensory Nodes
 - **Purpose:** Represent the grayscale value of each pixel in the (possibly downscaled) screen capture
 - **Node Count:** 1 node per pixel
 - **Label Fields:**
   - `type`: Always 'sensory' for these nodes
+  - `behavior`: Always 'sensory' for these nodes
   - `x`: Integer, pixel x-coordinate (column index, 0-based)
   - `y`: Integer, pixel y-coordinate (row index, 0-based)
   - `energy`: Float, the grayscale value of the pixel (0-255, not normalized)
+  - `state`: Always 'active' (sensory nodes are always available)
+  - `membrane_potential`: Set to energy/255.0 (normalized grayscale value)
+  - `threshold`: 0.5 (activation threshold for downstream connections)
+  - `refractory_timer`: 0.0 (no refractory period for sensory nodes)
+  - `last_activation`: 0 (sensory nodes don't have traditional activation)
+  - `plasticity_enabled`: False (sensory nodes don't learn)
+  - `eligibility_trace`: 0.0 (no learning for sensory nodes)
+  - `last_update`: 0 (updated each frame)
 - **Example:**
-  - `{ "type": "sensory", "x": 10, "y": 5, "energy": 128.0 }`
+  - `{ "type": "sensory", "behavior": "sensory", "x": 10, "y": 5, "energy": 128.0, "state": "active", "membrane_potential": 0.502, "threshold": 0.5, "refractory_timer": 0.0, "last_activation": 0, "plasticity_enabled": false, "eligibility_trace": 0.0, "last_update": 0 }`
 - **Function in Code:**
   - Created in create_pixel_gray_graph (screen_graph.py)
   - Used as fixed sensory input; not modified or removed during runtime
@@ -36,14 +66,103 @@
 - **Node Count:** Set by config or code (e.g., 4x sensory nodes at init)
 - **Label Fields:**
   - `type`: Always 'dynamic' for these nodes
+  - `behavior**: 'dynamic' (basic dynamic behavior)
   - `id`: Integer, unique dynamic node id (0-based, sequential)
   - `energy`: Float, current energy value (initialized to match node feature)
+  - `state`: 'active' or 'inactive' based on energy level
+  - `membrane_potential`: Set to energy/NODE_ENERGY_CAP (normalized)
+  - `threshold`: 0.3 (activation threshold for dynamic nodes)
+  - `refractory_timer`: 0.0 (no refractory period initially)
+  - `last_activation`: 0 (no activation history initially)
+  - `plasticity_enabled`: True (dynamic nodes can learn)
+  - `eligibility_trace`: 0.0 (no learning history initially)
+  - `last_update`: 0 (updated each frame)
 - **Example:**
-  - `{ "type": "dynamic", "id": 3, "energy": 0.73 }`
+  - `{ "type": "dynamic", "behavior": "dynamic", "id": 3, "energy": 0.73, "state": "active", "membrane_potential": 0.003, "threshold": 0.3, "refractory_timer": 0.0, "last_activation": 0, "plasticity_enabled": true, "eligibility_trace": 0.0, "last_update": 0 }`
 - **Function in Code:**
   - Appended after all sensory nodes in add_dynamic_nodes (dynamic_nodes.py)
   - Used and updated by all modules (death_and_birth_logic.py, connection_logic.py, etc.)
   - All modules expect this format
+
+## Oscillator Nodes
+- **Purpose:** Emit periodic energy pulses at specified frequencies
+- **Node Count:** Created dynamically based on network needs
+- **Label Fields:**
+  - `type`: 'oscillator'
+  - `behavior**: 'oscillator'
+  - `id`: Integer, unique oscillator node id
+  - `energy`: Current energy value (0-NODE_ENERGY_CAP)
+  - `state**: 'active', 'inactive', or 'learning'
+  - `membrane_potential`: Accumulates energy until threshold
+  - `threshold`: 0.8 (activation threshold for oscillators)
+  - `refractory_timer**: Time remaining before next oscillation
+  - `last_activation**: Timestamp of last oscillation
+  - `plasticity_enabled**: True (oscillators can adapt frequency)
+  - `eligibility_trace**: Learning signal for frequency adaptation
+  - `last_update**: Frame index of last update
+  - `oscillation_freq`: 0.1-10.0 Hz (oscillation frequency)
+- **Example:**
+  - `{ "type": "oscillator", "behavior": "oscillator", "id": 100, "energy": 0.5, "state": "active", "membrane_potential": 0.6, "threshold": 0.8, "refractory_timer": 0.0, "last_activation": 1234.5, "plasticity_enabled": true, "eligibility_trace": 0.1, "last_update": 50, "oscillation_freq": 2.0 }`
+
+## Integrator Nodes
+- **Purpose:** Accumulate incoming energy and activate when threshold is reached
+- **Node Count:** Created dynamically based on network needs
+- **Label Fields:**
+  - `type**: 'integrator'
+  - `behavior**: 'integrator'
+  - `id**: Integer, unique integrator node id
+  - `energy**: Current energy value (0-NODE_ENERGY_CAP)
+  - `state**: 'active', 'inactive', 'consolidating', or 'learning'
+  - `membrane_potential**: Accumulates energy from inputs
+  - `threshold**: 0.8 (activation threshold for integrators)
+  - `refractory_timer**: Time remaining before next integration
+  - `last_activation**: Timestamp of last activation
+  - `plasticity_enabled**: True (integrators can adapt thresholds)
+  - `eligibility_trace**: Learning signal for threshold adaptation
+  - `last_update**: Frame index of last update
+  - `integration_rate**: 0.01-1.0 (rate of energy accumulation)
+- **Example:**
+  - `{ "type": "integrator", "behavior": "integrator", "id": 101, "energy": 0.7, "state": "consolidating", "membrane_potential": 0.75, "threshold": 0.8, "refractory_timer": 0.5, "last_activation": 1235.0, "plasticity_enabled": true, "eligibility_trace": 0.2, "last_update": 51, "integration_rate": 0.5 }`
+
+## Relay Nodes
+- **Purpose:** Transfer energy with amplification and learning
+- **Node Count:** Created dynamically based on network needs
+- **Label Fields:**
+  - `type**: 'relay'
+  - `behavior**: 'relay'
+  - `id**: Integer, unique relay node id
+  - `energy**: Current energy value (0-NODE_ENERGY_CAP)
+  - `state**: 'active', 'inactive', 'pending', or 'learning'
+  - `membrane_potential**: Current relay potential
+  - `threshold**: 0.4 (activation threshold for relays)
+  - `refractory_timer**: Time remaining before next relay
+  - `last_activation**: Timestamp of last relay
+  - `plasticity_enabled**: True (relays can learn amplification)
+  - `eligibility_trace**: Learning signal for amplification adaptation
+  - `last_update**: Frame index of last update
+  - `relay_amplification**: 1.0-5.0 (energy amplification factor)
+- **Example:**
+  - `{ "type": "relay", "behavior": "relay", "id": 102, "energy": 0.6, "state": "active", "membrane_potential": 0.5, "threshold": 0.4, "refractory_timer": 0.0, "last_activation": 1236.0, "plasticity_enabled": true, "eligibility_trace": 0.15, "last_update": 52, "relay_amplification": 2.5 }`
+
+## Highway Nodes
+- **Purpose:** High-capacity energy distribution and network regulation
+- **Node Count:** Created dynamically based on network needs
+- **Label Fields:**
+  - `type**: 'highway'
+  - `behavior**: 'highway'
+  - `id**: Integer, unique highway node id
+  - `energy**: Current energy value (0-NODE_ENERGY_CAP)
+  - `state**: 'active', 'inactive', or 'regulating'
+  - `membrane_potential**: Current highway potential
+  - `threshold**: 0.2 (low activation threshold for highways)
+  - `refractory_timer**: Time remaining before next regulation
+  - `last_activation**: Timestamp of last regulation
+  - `plasticity_enabled**: True (highways can adapt capacity)
+  - `eligibility_trace**: Learning signal for capacity adaptation
+  - `last_update**: Frame index of last update
+  - `highway_energy_boost**: 1.0-3.0 (energy boost factor)
+- **Example:**
+  - `{ "type": "highway", "behavior": "highway", "id": 103, "energy": 0.9, "state": "regulating", "membrane_potential": 0.85, "threshold": 0.2, "refractory_timer": 0.1, "last_activation": 1237.0, "plasticity_enabled": true, "eligibility_trace": 0.3, "last_update": 53, "highway_energy_boost": 2.0 }`
 
 ## Value Labels (for all nodes)
 - **feature**: Main value for the node (e.g., grayscale intensity for sensory, energy for dynamic)
@@ -51,13 +170,14 @@
 - **threshold**: Activation or processing threshold (if used in future logic)
 
 ## Behavior Labels (for future expansion)
-- **behavior**: String, describes node's behavior (e.g., 'oscillator', 'integrator', 'relay')
-- **state**: String, current state (e.g., 'active', 'inactive', 'pending')
+- **behavior**: String, describes node's behavior (e.g., 'oscillator', 'integrator', 'relay', 'highway')
+- **state**: String, current state (e.g., 'active', 'inactive', 'pending', 'learning', 'consolidating', 'regulating')
 - **last_update**: Int or float, timestamp or frame index of last update
 
 ## Example Label Usage
-- Sensory node: `{ "type": "sensory", "x": 0, "y": 0, "energy": 255.0 }`
-- Dynamic node: `{ "type": "dynamic", "id": 3, "energy": 0.0 }`
+- Sensory node: `{ "type": "sensory", "behavior": "sensory", "x": 0, "y": 0, "energy": 255.0, "state": "active", "membrane_potential": 1.0, "threshold": 0.5, "refractory_timer": 0.0, "last_activation": 0, "plasticity_enabled": false, "eligibility_trace": 0.0, "last_update": 0 }`
+- Dynamic node: `{ "type": "dynamic", "behavior": "dynamic", "id": 3, "energy": 0.73, "state": "active", "membrane_potential": 0.003, "threshold": 0.3, "refractory_timer": 0.0, "last_activation": 0, "plasticity_enabled": true, "eligibility_trace": 0.0, "last_update": 0 }`
+- Oscillator node: `{ "type": "oscillator", "behavior": "oscillator", "id": 100, "energy": 0.5, "state": "active", "membrane_potential": 0.6, "threshold": 0.8, "refractory_timer": 0.0, "last_activation": 1234.5, "plasticity_enabled": true, "eligibility_trace": 0.1, "last_update": 50, "oscillation_freq": 2.0 }`
 
 ## Label Usage in Code
 - All nodes are labeled at creation for easy identification and processing
@@ -65,6 +185,7 @@
   - Debugging and visualization
   - AI coding assistant context
   - Future logic for node selection, filtering, and behavior
+  - Behavior-specific update logic in behavior_engine.py
 - Labels **do not** affect runtime performance or graph computation
 
 ## Update Policy
@@ -72,5 +193,6 @@
   - New node types are added
   - New value or behavior labels are introduced
   - The graph structure or node creation logic changes
+  - New behavior parameters are added
 
 # End of Node Label Map 

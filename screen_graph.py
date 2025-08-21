@@ -103,13 +103,23 @@ def create_pixel_gray_graph(arr):
         for x in range(w):
             idx = y * w + x
             energy = arr[y, x]
+            
+            # Calculate normalized membrane potential (0-1)
+            membrane_potential = min(energy / 255.0, 1.0)
+            
             node_labels.append({
                 "type": "sensory",
+                "behavior": "sensory",
                 "x": x,
                 "y": y,
                 "energy": float(energy),
-                "behavior": "sensory",
-                "state": "active",
+                "state": "active",  # Sensory nodes are always active
+                "membrane_potential": membrane_potential,
+                "threshold": 0.5,  # Activation threshold for downstream connections
+                "refractory_timer": 0.0,  # No refractory period for sensory nodes
+                "last_activation": 0,  # Sensory nodes don't have traditional activation
+                "plasticity_enabled": False,  # Sensory nodes don't learn
+                "eligibility_trace": 0.0,  # No learning for sensory nodes
                 "last_update": 0
             })
     x_tensor = torch.tensor(node_features, dtype=torch.float32)

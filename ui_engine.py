@@ -385,6 +385,673 @@ def create_sensory_visualization_window():
     log_step("create_sensory_visualization_window end")
 
 
+# --- SECTION: Connection Visualization Window ---
+@log_runtime
+def create_connection_visualization_window():
+    log_step("create_connection_visualization_window start")
+    logging.info("[PERF] create_connection_visualization_window: Creating connection visualization window")
+    
+    with dpg.window(
+        label="Connection Visualization",
+        tag="connection_window",
+        width=400,
+        height=300,
+        pos=(0, 420),
+    ):
+        dpg.add_text("Enhanced Connection System")
+        dpg.add_separator()
+        
+        # Connection statistics
+        dpg.add_text("Connection Stats:", tag="connection_stats_text")
+        dpg.add_text("Edge Types:", tag="edge_types_text")
+        dpg.add_text("Weight Distribution:", tag="weight_dist_text")
+        
+        # Connection controls
+        dpg.add_button(
+            label="Refresh Connections",
+            tag="refresh_connections_button",
+            callback=refresh_connection_display,
+        )
+        dpg.add_button(
+            label="Show Connection Matrix",
+            tag="show_matrix_button",
+            callback=show_connection_matrix,
+        )
+    
+    log_step("create_connection_visualization_window end")
+
+
+def refresh_connection_display():
+    """Refresh the connection visualization display."""
+    log_step("refresh_connection_display start")
+    
+    if latest_graph is None:
+        dpg.set_value("connection_stats_text", "No graph available")
+        return
+    
+    try:
+        # Get connection statistics
+        edge_count = latest_graph.edge_index.shape[1] if latest_graph.edge_index.numel() > 0 else 0
+        
+        # Count edge types if available
+        edge_types = {}
+        if hasattr(latest_graph, 'edge_attributes') and latest_graph.edge_attributes:
+            for edge in latest_graph.edge_attributes:
+                edge_type = edge.type
+                edge_types[edge_type] = edge_types.get(edge_type, 0) + 1
+        
+        # Calculate weight statistics
+        weights = []
+        if hasattr(latest_graph, 'edge_attributes') and latest_graph.edge_attributes:
+            weights = [edge.weight for edge in latest_graph.edge_attributes]
+        
+        # Update display
+        stats_text = f"Total Connections: {edge_count}"
+        dpg.set_value("connection_stats_text", stats_text)
+        
+        if edge_types:
+            types_text = ", ".join([f"{k}: {v}" for k, v in edge_types.items()])
+            dpg.set_value("edge_types_text", f"Edge Types: {types_text}")
+        else:
+            dpg.set_value("edge_types_text", "Edge Types: Basic connections")
+        
+        if weights:
+            avg_weight = sum(weights) / len(weights)
+            max_weight = max(weights)
+            min_weight = min(weights)
+            weight_text = f"Avg: {avg_weight:.2f}, Max: {max_weight:.2f}, Min: {min_weight:.2f}"
+            dpg.set_value("weight_dist_text", f"Weight Distribution: {weight_text}")
+        else:
+            dpg.set_value("weight_dist_text", "Weight Distribution: No weights available")
+            
+    except Exception as e:
+        logging.error(f"Error refreshing connection display: {e}")
+        dpg.set_value("connection_stats_text", f"Error: {str(e)}")
+    
+    log_step("refresh_connection_display end")
+
+
+def show_connection_matrix():
+    """Show a simple connection matrix visualization."""
+    log_step("show_connection_matrix start")
+    
+    if latest_graph is None:
+        print("No graph available for connection matrix")
+        return
+    
+    try:
+        # Create a simple connection matrix
+        num_nodes = len(latest_graph.node_labels)
+        matrix = np.zeros((num_nodes, num_nodes), dtype=bool)
+        
+        # Fill matrix based on edge_index
+        if latest_graph.edge_index.numel() > 0:
+            src = latest_graph.edge_index[0].cpu().numpy()
+            tgt = latest_graph.edge_index[1].cpu().numpy()
+            for i in range(len(src)):
+                matrix[src[i], tgt[i]] = True
+        
+        # Print matrix (for now, just show summary)
+        connections = np.sum(matrix)
+        density = connections / (num_nodes * num_nodes) if num_nodes > 0 else 0
+        
+        print(f"\n--- Connection Matrix Summary ---")
+        print(f"Nodes: {num_nodes}")
+        print(f"Connections: {connections}")
+        print(f"Density: {density:.4f}")
+        print(f"Matrix shape: {matrix.shape}")
+        
+        # Show first few connections
+        if connections > 0:
+            print(f"\nFirst 10 connections:")
+            count = 0
+            for i in range(min(10, num_nodes)):
+                for j in range(min(10, num_nodes)):
+                    if matrix[i, j] and count < 10:
+                        print(f"  {i} -> {j}")
+                        count += 1
+        
+        print("--- End Connection Matrix ---\n")
+        
+    except Exception as e:
+        logging.error(f"Error showing connection matrix: {e}")
+        print(f"Error: {e}")
+    
+    log_step("show_connection_matrix end")
+
+
+# --- SECTION: Learning Visualization Window ---
+@log_runtime
+def create_learning_visualization_window():
+    log_step("create_learning_visualization_window start")
+    logging.info("[PERF] create_learning_visualization_window: Creating learning visualization window")
+    
+    with dpg.window(
+        label="Learning & Plasticity",
+        tag="learning_window",
+        width=400,
+        height=300,
+        pos=(830, 100),
+    ):
+        dpg.add_text("Learning System Status")
+        dpg.add_separator()
+        
+        # Learning statistics
+        dpg.add_text("Learning Stats:", tag="learning_stats_text")
+        dpg.add_text("STDP Events:", tag="stdp_events_text")
+        dpg.add_text("Weight Changes:", tag="weight_changes_text")
+        dpg.add_text("Memory Traces:", tag="memory_traces_text")
+        
+        # Learning controls
+        dpg.add_button(
+            label="Refresh Learning Stats",
+            tag="refresh_learning_button",
+            callback=refresh_learning_display,
+        )
+        dpg.add_button(
+            label="Show Learning Patterns",
+            tag="show_patterns_button",
+            callback=show_learning_patterns,
+        )
+    
+    log_step("create_learning_visualization_window end")
+
+
+def refresh_learning_display():
+    """Refresh the learning visualization display."""
+    log_step("refresh_learning_display start")
+    
+    if latest_graph is None:
+        dpg.set_value("learning_stats_text", "No graph available")
+        return
+    
+    try:
+        # Get learning statistics if available
+        if hasattr(latest_graph, 'learning_engine'):
+            learning_stats = latest_graph.learning_engine.get_learning_statistics()
+            
+            # Update learning stats display
+            dpg.set_value("learning_stats_text", f"Learning Stats: {learning_stats['stdp_events']} STDP, {learning_stats['weight_changes']} changes")
+            dpg.set_value("stdp_events_text", f"STDP Events: {learning_stats['stdp_events']}")
+            dpg.set_value("weight_changes_text", f"Weight Changes: {learning_stats['weight_changes']}")
+            
+            # Calculate learning efficiency
+            from learning_engine import calculate_learning_efficiency
+            efficiency = calculate_learning_efficiency(latest_graph)
+            dpg.set_value("memory_traces_text", f"Learning Efficiency: {efficiency:.3f}")
+            
+        else:
+            dpg.set_value("learning_stats_text", "Learning engine not initialized")
+            dpg.set_value("stdp_events_text", "STDP Events: N/A")
+            dpg.set_value("weight_changes_text", "Weight Changes: N/A")
+            dpg.set_value("memory_traces_text", "Learning Efficiency: N/A")
+        
+        # Get memory statistics if available
+        if hasattr(latest_graph, 'memory_system'):
+            memory_stats = latest_graph.memory_system.get_memory_statistics()
+            memory_count = latest_graph.memory_system.get_memory_trace_count()
+            
+            # Update memory display
+            dpg.set_value("memory_traces_text", f"Memory Traces: {memory_count} active, {memory_stats['total_memory_strength']:.2f} strength")
+            
+    except Exception as e:
+        logging.error(f"Error refreshing learning display: {e}")
+        dpg.set_value("learning_stats_text", f"Error: {str(e)}")
+    
+    log_step("refresh_learning_display end")
+
+
+def show_learning_patterns():
+    """Show learning pattern analysis."""
+    log_step("show_learning_patterns start")
+    
+    if latest_graph is None:
+        print("No graph available for learning pattern analysis")
+        return
+    
+    try:
+        # Analyze learning patterns
+        from learning_engine import detect_learning_patterns
+        patterns = detect_learning_patterns(latest_graph)
+        
+        print(f"\n--- Learning Pattern Analysis ---")
+        print(f"Patterns Detected: {patterns['patterns_detected']}")
+        print(f"Weight Variance: {patterns['weight_variance']:.3f}")
+        print(f"Edge Type Distribution: {patterns['edge_type_distribution']}")
+        print(f"Total Connections: {patterns['total_connections']}")
+        
+        # Analyze memory distribution if available
+        if hasattr(latest_graph, 'memory_system'):
+            from memory_system import analyze_memory_distribution
+            memory_analysis = analyze_memory_distribution(latest_graph.memory_system)
+            
+            print(f"\n--- Memory System Analysis ---")
+            print(f"Total Memories: {memory_analysis['total_memories']}")
+            print(f"Average Strength: {memory_analysis['avg_strength']:.3f}")
+            print(f"Strength Variance: {memory_analysis['strength_variance']:.3f}")
+            print(f"Pattern Distribution: {memory_analysis['pattern_distribution']}")
+        
+        print("--- End Analysis ---\n")
+        
+    except Exception as e:
+        logging.error(f"Error showing learning patterns: {e}")
+        print(f"Error: {e}")
+    
+    log_step("show_learning_patterns end")
+
+
+# --- SECTION: Memory Visualization Window ---
+@log_runtime
+def create_memory_visualization_window():
+    log_step("create_memory_visualization_window start")
+    logging.info("[PERF] create_memory_visualization_window: Creating memory visualization window")
+    
+    with dpg.window(
+        label="Memory System",
+        tag="memory_window",
+        width=400,
+        height=300,
+        pos=(830, 420),
+    ):
+        dpg.add_text("Memory System Status")
+        dpg.add_separator()
+        
+        # Memory statistics
+        dpg.add_text("Memory Stats:", tag="memory_stats_text")
+        dpg.add_text("Active Traces:", tag="active_traces_text")
+        dpg.add_text("Pattern Types:", tag="pattern_types_text")
+        dpg.add_text("Memory Strength:", tag="memory_strength_text")
+        
+        # Memory controls
+        dpg.add_button(
+            label="Refresh Memory Stats",
+            tag="refresh_memory_button",
+            callback=refresh_memory_display,
+        )
+        dpg.add_button(
+            label="Show Memory Summary",
+            tag="show_memory_summary_button",
+            callback=show_memory_summary,
+        )
+    
+    log_step("create_memory_visualization_window end")
+
+
+def refresh_memory_display():
+    """Refresh the memory visualization display."""
+    log_step("refresh_memory_display start")
+    
+    if latest_graph is None:
+        dpg.set_value("memory_stats_text", "No graph available")
+        return
+    
+    try:
+        # Get memory statistics if available
+        if hasattr(latest_graph, 'memory_system'):
+            memory_stats = latest_graph.memory_system.get_memory_statistics()
+            memory_summary = latest_graph.memory_system.get_memory_summary()
+            
+            # Update memory stats display
+            dpg.set_value("memory_stats_text", f"Memory Stats: {memory_stats['traces_formed']} formed, {memory_stats['traces_consolidated']} consolidated")
+            dpg.set_value("active_traces_text", f"Active Traces: {memory_stats['patterns_recalled']} recalled")
+            
+            # Analyze pattern types
+            if memory_summary:
+                pattern_types = {}
+                total_strength = 0.0
+                for memory in memory_summary:
+                    pattern_type = memory['pattern_type']
+                    pattern_types[pattern_type] = pattern_types.get(pattern_type, 0) + 1
+                    total_strength += memory['strength']
+                
+                pattern_text = ", ".join([f"{k}: {v}" for k, v in pattern_types.items()])
+                dpg.set_value("pattern_types_text", f"Pattern Types: {pattern_text}")
+                dpg.set_value("memory_strength_text", f"Total Strength: {total_strength:.2f}")
+            else:
+                dpg.set_value("pattern_types_text", "Pattern Types: None")
+                dpg.set_value("memory_strength_text", "Total Strength: 0.0")
+        else:
+            dpg.set_value("memory_stats_text", "Memory system not initialized")
+            dpg.set_value("active_traces_text", "Active Traces: N/A")
+            dpg.set_value("pattern_types_text", "Pattern Types: N/A")
+            dpg.set_value("memory_strength_text", "Total Strength: N/A")
+            
+    except Exception as e:
+        logging.error(f"Error refreshing memory display: {e}")
+        dpg.set_value("memory_stats_text", f"Error: {str(e)}")
+    
+    log_step("refresh_memory_display end")
+
+
+def show_memory_summary():
+    """Show detailed memory summary."""
+    log_step("show_memory_summary start")
+    
+    if latest_graph is None:
+        print("No graph available for memory summary")
+        return
+    
+    try:
+        if hasattr(latest_graph, 'memory_system'):
+            memory_summary = latest_graph.memory_system.get_memory_summary()
+            
+            print(f"\n--- Memory System Summary ---")
+            print(f"Total Memory Traces: {len(memory_summary)}")
+            
+            if memory_summary:
+                print(f"\nMemory Traces:")
+                for i, memory in enumerate(memory_summary[:10]):  # Show first 10
+                    print(f"  {i+1}. Node {memory['node_id']}: {memory['pattern_type']}")
+                    print(f"     Strength: {memory['strength']:.3f}, Activations: {memory['activation_count']}")
+                    print(f"     Age: {memory['age_minutes']:.1f} minutes")
+                
+                if len(memory_summary) > 10:
+                    print(f"  ... and {len(memory_summary) - 10} more")
+            else:
+                print("  No memory traces formed yet")
+            
+            print("--- End Memory Summary ---\n")
+        else:
+            print("Memory system not initialized")
+        
+    except Exception as e:
+        logging.error(f"Error showing memory summary: {e}")
+        print(f"Error: {e}")
+    
+    log_step("show_memory_summary end")
+
+
+# --- SECTION: Homeostasis Visualization Window ---
+@log_runtime
+def create_homeostasis_visualization_window():
+    log_step("create_homeostasis_visualization_window start")
+    logging.info("[PERF] create_homeostasis_visualization_window: Creating homeostasis visualization window")
+    
+    with dpg.window(
+        label="Homeostasis & Network Health",
+        tag="homeostasis_window",
+        width=400,
+        height=300,
+        pos=(0, 740),
+    ):
+        dpg.add_text("Network Regulation Status")
+        dpg.add_separator()
+        
+        # Homeostasis statistics
+        dpg.add_text("Regulation Stats:", tag="regulation_stats_text")
+        dpg.add_text("Network Health:", tag="network_health_text")
+        dpg.add_text("Criticality Status:", tag="criticality_status_text")
+        dpg.add_text("Energy Balance:", tag="energy_balance_text")
+        
+        # Homeostasis controls
+        dpg.add_button(
+            label="Refresh Homeostasis Stats",
+            tag="refresh_homeostasis_button",
+            callback=refresh_homeostasis_display,
+        )
+        dpg.add_button(
+            label="Show Network Trends",
+            tag="show_trends_button",
+            callback=show_network_trends,
+        )
+    
+    log_step("create_homeostasis_visualization_window end")
+
+
+def refresh_homeostasis_display():
+    """Refresh the homeostasis visualization display."""
+    log_step("refresh_homeostasis_display start")
+    
+    if latest_graph is None:
+        dpg.set_value("regulation_stats_text", "No graph available")
+        return
+    
+    try:
+        # Get homeostasis statistics if available
+        if hasattr(latest_graph, 'homeostasis_controller'):
+            regulation_stats = latest_graph.homeostasis_controller.get_regulation_statistics()
+            health_status = latest_graph.homeostasis_controller.monitor_network_health(latest_graph)
+            network_trends = latest_graph.homeostasis_controller.get_network_trends()
+            
+            # Update regulation stats display
+            dpg.set_value("regulation_stats_text", 
+                         f"Regulation Stats: {regulation_stats['total_regulation_events']} events, "
+                         f"{regulation_stats['energy_regulations']} energy, "
+                         f"{regulation_stats['criticality_regulations']} criticality")
+            
+            # Update network health display
+            health_color = "green" if health_status['status'] == 'healthy' else "orange" if health_status['status'] == 'warning' else "red"
+            dpg.set_value("network_health_text", 
+                         f"Network Health: {health_status['status'].upper()} (Score: {health_status['health_score']:.2f})")
+            
+            # Update criticality status
+            if network_trends:
+                branching_trend = network_trends.get('branching_trend', 'unknown')
+                dpg.set_value("criticality_status_text", f"Criticality Status: {branching_trend}")
+            else:
+                dpg.set_value("criticality_status_text", "Criticality Status: Unknown")
+            
+            # Update energy balance
+            if hasattr(latest_graph, 'homeostasis_data'):
+                last_regulation = latest_graph.homeostasis_data.get('last_regulation', {})
+                if last_regulation:
+                    regulation_type = last_regulation.get('type', 'none')
+                    dpg.set_value("energy_balance_text", f"Energy Balance: {regulation_type}")
+                else:
+                    dpg.set_value("energy_balance_text", "Energy Balance: Stable")
+            else:
+                dpg.set_value("energy_balance_text", "Energy Balance: No data")
+                
+        else:
+            dpg.set_value("regulation_stats_text", "Homeostasis controller not initialized")
+            dpg.set_value("network_health_text", "Network Health: Unknown")
+            dpg.set_value("criticality_status_text", "Criticality Status: Unknown")
+            dpg.set_value("energy_balance_text", "Energy Balance: Unknown")
+            
+    except Exception as e:
+        logging.error(f"Error refreshing homeostasis display: {e}")
+        dpg.set_value("regulation_stats_text", f"Error: {str(e)}")
+    
+    log_step("refresh_homeostasis_display end")
+
+
+def show_network_trends():
+    """Show network trend analysis."""
+    log_step("show_network_trends start")
+    
+    if latest_graph is None:
+        print("No graph available for network trend analysis")
+        return
+    
+    try:
+        if hasattr(latest_graph, 'homeostasis_controller'):
+            trends = latest_graph.homeostasis_controller.get_network_trends()
+            health_status = latest_graph.homeostasis_controller.monitor_network_health(latest_graph)
+            
+            print(f"\n--- Network Trend Analysis ---")
+            print(f"Energy Trend: {trends.get('energy_trend', 'unknown')} (slope: {trends.get('energy_slope', 0):.4f})")
+            print(f"Branching Trend: {trends.get('branching_trend', 'unknown')} (slope: {trends.get('branching_slope', 0):.4f})")
+            print(f"Variance Trend: {trends.get('variance_trend', 'unknown')} (slope: {trends.get('variance_slope', 0):.4f})")
+            
+            print(f"\n--- Network Health Status ---")
+            print(f"Status: {health_status['status'].upper()}")
+            print(f"Health Score: {health_status['health_score']:.3f}")
+            print(f"Warnings: {len(health_status['warnings'])}")
+            
+            if health_status['warnings']:
+                for warning in health_status['warnings']:
+                    print(f"  - {warning}")
+            
+            print(f"\n--- Network Metrics ---")
+            metrics = health_status['metrics']
+            print(f"Total Energy: {metrics['total_energy']:.1f}")
+            print(f"Node Count: {metrics['num_nodes']}")
+            print(f"Average Energy: {metrics['avg_energy']:.1f}")
+            print(f"Connection Density: {metrics['connection_density']:.6f}")
+            
+            print("--- End Analysis ---\n")
+        else:
+            print("Homeostasis controller not initialized")
+        
+    except Exception as e:
+        logging.error(f"Error showing network trends: {e}")
+        print(f"Error: {e}")
+    
+    log_step("show_network_trends end")
+
+
+# --- SECTION: Energy Dynamics Visualization Window ---
+@log_runtime
+def create_energy_dynamics_window():
+    log_step("create_energy_dynamics_window start")
+    logging.info("[PERF] create_energy_dynamics_window: Creating energy dynamics visualization window")
+    
+    with dpg.window(
+        label="Energy Dynamics",
+        tag="energy_dynamics_window",
+        width=400,
+        height=300,
+        pos=(420, 740),
+    ):
+        dpg.add_text("Energy System Status")
+        dpg.add_separator()
+        
+        # Energy dynamics statistics
+        dpg.add_text("Energy Stats:", tag="energy_stats_text")
+        dpg.add_text("Membrane Potentials:", tag="membrane_potentials_text")
+        dpg.add_text("Refractory Status:", tag="refractory_status_text")
+        dpg.add_text("Plasticity Gates:", tag="plasticity_gates_text")
+        
+        # Energy dynamics controls
+        dpg.add_button(
+            label="Refresh Energy Stats",
+            tag="refresh_energy_button",
+            callback=refresh_energy_dynamics_display,
+        )
+        dpg.add_button(
+            label="Show Energy Analysis",
+            tag="show_energy_analysis_button",
+            callback=show_energy_analysis,
+        )
+    
+    log_step("create_energy_dynamics_window end")
+
+
+def refresh_energy_dynamics_display():
+    """Refresh the energy dynamics visualization display."""
+    log_step("refresh_energy_dynamics_display start")
+    
+    if latest_graph is None:
+        dpg.set_value("energy_stats_text", "No graph available")
+        return
+    
+    try:
+        # Calculate energy statistics
+        energy_values = latest_graph.x[:, 0].cpu().numpy()
+        total_energy = float(np.sum(energy_values))
+        avg_energy = float(np.mean(energy_values))
+        energy_variance = float(np.var(energy_values)) if len(energy_values) > 1 else 0.0
+        
+        # Update energy stats display
+        dpg.set_value("energy_stats_text", 
+                     f"Energy Stats: Total={total_energy:.1f}, Avg={avg_energy:.1f}, Var={energy_variance:.1f}")
+        
+        # Calculate membrane potential statistics
+        membrane_potentials = []
+        refractory_active = 0
+        plasticity_enabled = 0
+        
+        for node in latest_graph.node_labels:
+            if 'membrane_potential' in node:
+                membrane_potentials.append(node['membrane_potential'])
+            
+            if node.get('refractory_timer', 0) > 0:
+                refractory_active += 1
+            
+            if node.get('plasticity_enabled', False):
+                plasticity_enabled += 1
+        
+        if membrane_potentials:
+            avg_membrane = np.mean(membrane_potentials)
+            dpg.set_value("membrane_potentials_text", f"Membrane Potentials: Avg={avg_membrane:.3f}")
+        else:
+            dpg.set_value("membrane_potentials_text", "Membrane Potentials: No data")
+        
+        # Update refractory and plasticity status
+        total_nodes = len(latest_graph.node_labels)
+        dpg.set_value("refractory_status_text", f"Refractory Status: {refractory_active}/{total_nodes} active")
+        dpg.set_value("plasticity_gates_text", f"Plasticity Gates: {plasticity_enabled}/{total_nodes} enabled")
+        
+    except Exception as e:
+        logging.error(f"Error refreshing energy dynamics display: {e}")
+        dpg.set_value("energy_stats_text", f"Error: {str(e)}")
+    
+    log_step("refresh_energy_dynamics_display end")
+
+
+def show_energy_analysis():
+    """Show detailed energy analysis."""
+    log_step("show_energy_analysis start")
+    
+    if latest_graph is None:
+        print("No graph available for energy analysis")
+        return
+    
+    try:
+        # Analyze energy distribution
+        energy_values = latest_graph.x[:, 0].cpu().numpy()
+        total_energy = float(np.sum(energy_values))
+        avg_energy = float(np.mean(energy_values))
+        energy_variance = float(np.var(energy_values)) if len(energy_values) > 1 else 0.0
+        
+        print(f"\n--- Energy System Analysis ---")
+        print(f"Total Energy: {total_energy:.1f}")
+        print(f"Average Energy: {avg_energy:.1f}")
+        print(f"Energy Variance: {energy_variance:.1f}")
+        print(f"Energy Range: {np.min(energy_values):.1f} - {np.max(energy_values):.1f}")
+        
+        # Analyze behavior-specific energy patterns
+        behavior_energy = {}
+        for node in latest_graph.node_labels:
+            behavior = node.get('behavior', 'unknown')
+            if behavior not in behavior_energy:
+                behavior_energy[behavior] = []
+            
+            node_idx = latest_graph.node_labels.index(node)
+            if node_idx < len(energy_values):
+                behavior_energy[behavior].append(energy_values[node_idx])
+        
+        print(f"\n--- Behavior Energy Patterns ---")
+        for behavior, energies in behavior_energy.items():
+            if energies:
+                avg_behavior_energy = np.mean(energies)
+                print(f"{behavior.capitalize()}: {len(energies)} nodes, avg energy: {avg_behavior_energy:.1f}")
+        
+        # Analyze membrane potentials
+        membrane_potentials = []
+        for node in latest_graph.node_labels:
+            if 'membrane_potential' in node:
+                membrane_potentials.append(node['membrane_potential'])
+        
+        if membrane_potentials:
+            print(f"\n--- Membrane Potential Analysis ---")
+            print(f"Average Membrane Potential: {np.mean(membrane_potentials):.3f}")
+            print(f"Membrane Potential Range: {np.min(membrane_potentials):.3f} - {np.max(membrane_potentials):.3f}")
+        
+        # Analyze refractory periods
+        refractory_count = sum(1 for node in latest_graph.node_labels if node.get('refractory_timer', 0) > 0)
+        print(f"\n--- Refractory Period Status ---")
+        print(f"Nodes in Refractory Period: {refractory_count}/{len(latest_graph.node_labels)}")
+        
+        print("--- End Energy Analysis ---\n")
+        
+    except Exception as e:
+        logging.error(f"Error showing energy analysis: {e}")
+        print(f"Error: {e}")
+    
+    log_step("show_energy_analysis end")
+
+
 # --- SECTION: DPG App Setup ---
 @log_runtime
 def run_ui():
@@ -398,6 +1065,11 @@ def run_ui():
     create_performance_window()
     create_log_window()
     create_fps_window()
+    create_connection_visualization_window() # Added this line
+    create_learning_visualization_window() # Added this line
+    create_memory_visualization_window() # Added this line
+    create_homeostasis_visualization_window() # Added this line
+    create_energy_dynamics_window() # Added this line
     dpg.create_viewport(title="Neural System UI", width=1100, height=700)
     dpg.setup_dearpygui()
     dpg.show_viewport()

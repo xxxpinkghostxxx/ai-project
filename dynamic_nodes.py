@@ -39,12 +39,25 @@ def add_dynamic_nodes(graph, num_dynamic=None):
     for i in range(num_dynamic):
         node_id = len(graph.node_labels)
         energy = float(dynamic_energies[i, 0])
+        
+        # Calculate normalized membrane potential (0-1)
+        membrane_potential = min(energy / MAX_DYNAMIC_ENERGY, 1.0)
+        
+        # Determine initial state based on energy level
+        initial_state = "active" if energy > 0.3 else "inactive"
+        
         graph.node_labels.append({
             "id": node_id,
             "type": "dynamic",
-            "energy": energy,
             "behavior": "dynamic",
-            "state": "active",
+            "energy": energy,
+            "state": initial_state,
+            "membrane_potential": membrane_potential,
+            "threshold": 0.3,  # Activation threshold for dynamic nodes
+            "refractory_timer": 0.0,  # No refractory period initially
+            "last_activation": 0,  # No activation history initially
+            "plasticity_enabled": True,  # Dynamic nodes can learn
+            "eligibility_trace": 0.0,  # No learning history initially
             "last_update": 0
         })
     # Assertion: node_labels and x must match in length

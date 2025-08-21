@@ -1,2 +1,4 @@
-venv
-
+# Ignore all files in the venv directory
+venv/
+__pycache__/
+project/
