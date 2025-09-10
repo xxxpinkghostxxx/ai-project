@@ -11,13 +11,20 @@ import numpy as np
 import torch
 from logging_utils import log_step, log_node_state
 
-# Homeostasis constants
-DEFAULT_TARGET_ENERGY_RATIO = 0.6
-DEFAULT_CRITICALITY_THRESHOLD = 0.1
-DEFAULT_REGULATION_RATE = 0.001
-DEFAULT_REGULATION_INTERVAL = 100  # steps
-DEFAULT_BRANCHING_TARGET = 1.0
-DEFAULT_ENERGY_VARIANCE_THRESHOLD = 0.2
+# Import configuration manager
+from config_manager import get_homeostasis_config
+
+# Homeostasis constants with configuration fallbacks
+def get_homeostasis_config_values():
+    config = get_homeostasis_config()
+    return {
+        'target_energy_ratio': config.get('target_energy_ratio', 0.6),
+        'criticality_threshold': config.get('criticality_threshold', 0.1),
+        'regulation_rate': config.get('regulation_rate', 0.001),
+        'regulation_interval': config.get('regulation_interval', 100),
+        'branching_target': 1.0,  # Default branching target
+        'energy_variance_threshold': 0.2  # Default variance threshold
+    }
 
 
 class HomeostasisController:
@@ -28,13 +35,14 @@ class HomeostasisController:
     """
     
     def __init__(self):
-        """Initialize the homeostasis controller with regulation parameters."""
-        self.target_energy_ratio = DEFAULT_TARGET_ENERGY_RATIO
-        self.criticality_threshold = DEFAULT_CRITICALITY_THRESHOLD
-        self.regulation_rate = DEFAULT_REGULATION_RATE
-        self.regulation_interval = DEFAULT_REGULATION_INTERVAL
-        self.branching_target = DEFAULT_BRANCHING_TARGET
-        self.energy_variance_threshold = DEFAULT_ENERGY_VARIANCE_THRESHOLD
+        """Initialize the homeostasis controller with regulation parameters from configuration."""
+        config = get_homeostasis_config_values()
+        self.target_energy_ratio = config['target_energy_ratio']
+        self.criticality_threshold = config['criticality_threshold']
+        self.regulation_rate = config['regulation_rate']
+        self.regulation_interval = config['regulation_interval']
+        self.branching_target = config['branching_target']
+        self.energy_variance_threshold = config['energy_variance_threshold']
         
         # Regulation statistics
         self.regulation_stats = {
@@ -65,21 +73,59 @@ class HomeostasisController:
         if not hasattr(graph, 'node_labels') or not hasattr(graph, 'x'):
             return graph
         
-        # Calculate current energy metrics
-        total_energy = float(torch.sum(graph.x[:, 0]).item())
-        num_nodes = len(graph.node_labels)
-        avg_energy = total_energy / num_nodes if num_nodes > 0 else 0
-        
-        # Calculate energy ratio relative to maximum possible
-        max_possible_energy = num_nodes * 244.0  # NODE_ENERGY_CAP
-        energy_ratio = total_energy / max_possible_energy if max_possible_energy > 0 else 0
+        # Use network metrics if available for more comprehensive regulation
+        if hasattr(graph, 'network_metrics') and graph.network_metrics:
+            try:
+                metrics = graph.network_metrics.calculate_comprehensive_metrics(graph)
+                energy_metrics = metrics.get('energy_balance', {})
+                connectivity_metrics = metrics.get('connectivity', {})
+                
+                # Use metrics-based energy assessment
+                total_energy = energy_metrics.get('total_energy', 0.0)
+                avg_energy = energy_metrics.get('average_energy', 0.0)
+                energy_variance = energy_metrics.get('energy_variance', 0.0)
+                energy_ratio = energy_metrics.get('energy_ratio', 0.0)
+                
+                # Get connectivity information
+                connectivity_density = connectivity_metrics.get('density', 0.0)
+                num_nodes = len(graph.node_labels)
+                
+                log_step("Metrics-based energy regulation",
+                        total_energy=total_energy,
+                        avg_energy=avg_energy,
+                        energy_variance=energy_variance,
+                        connectivity_density=connectivity_density)
+                
+            except Exception as e:
+                log_step("Metrics calculation failed, using fallback", error=str(e))
+                # Fallback to basic energy calculation
+                total_energy = float(torch.sum(graph.x[:, 0]).item())
+                num_nodes = len(graph.node_labels)
+                avg_energy = total_energy / num_nodes if num_nodes > 0 else 0
+                
+                # Calculate energy ratio relative to maximum possible
+                max_possible_energy = num_nodes * 244.0  # NODE_ENERGY_CAP
+                energy_ratio = total_energy / max_possible_energy if max_possible_energy > 0 else 0
+                
+                # Calculate energy variance
+                energy_values = graph.x[:, 0].cpu().numpy()
+                energy_variance = np.var(energy_values) if len(energy_values) > 1 else 0
+        else:
+            # Fallback to basic energy calculation
+            total_energy = float(torch.sum(graph.x[:, 0]).item())
+            num_nodes = len(graph.node_labels)
+            avg_energy = total_energy / num_nodes if num_nodes > 0 else 0
+            
+            # Calculate energy ratio relative to maximum possible
+            max_possible_energy = num_nodes * 244.0  # NODE_ENERGY_CAP
+            energy_ratio = total_energy / max_possible_energy if max_possible_energy > 0 else 0
+            
+            # Calculate energy variance
+            energy_values = graph.x[:, 0].cpu().numpy()
+            energy_variance = np.var(energy_values) if len(energy_values) > 1 else 0
         
         # Store historical data
         self._update_history('energy', energy_ratio)
-        
-        # Calculate energy variance
-        energy_values = graph.x[:, 0].cpu().numpy()
-        energy_variance = np.var(energy_values) if len(energy_values) > 1 else 0
         self._update_history('variance', energy_variance)
         
         # Determine regulation action
@@ -182,8 +228,26 @@ class HomeostasisController:
         if not hasattr(graph, 'node_labels') or not hasattr(graph, 'edge_index'):
             return graph
         
-        # Calculate current branching ratio
-        branching_ratio = self._calculate_branching_ratio(graph)
+        # Use network metrics if available for more accurate criticality assessment
+        if hasattr(graph, 'network_metrics') and graph.network_metrics:
+            try:
+                metrics = graph.network_metrics.calculate_comprehensive_metrics(graph)
+                branching_ratio = metrics.get('criticality', 0.0)
+                connectivity_metrics = metrics.get('connectivity', {})
+                energy_metrics = metrics.get('energy_balance', {})
+                
+                # Use metrics-based criticality assessment
+                log_step("Metrics-based criticality optimization",
+                        branching_ratio=branching_ratio,
+                        connectivity_density=connectivity_metrics.get('density', 0.0),
+                        energy_variance=energy_metrics.get('energy_variance', 0.0))
+            except Exception as e:
+                log_step("Metrics calculation failed, using fallback", error=str(e))
+                branching_ratio = self._calculate_branching_ratio(graph)
+        else:
+            # Fallback to basic branching ratio calculation
+            branching_ratio = self._calculate_branching_ratio(graph)
+        
         self._update_history('branching', branching_ratio)
         
         # Determine if criticality regulation is needed

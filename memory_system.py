@@ -56,7 +56,8 @@ class MemorySystem:
         Returns:
             Modified graph with memory traces
         """
-        if not hasattr(graph, 'edge_attributes') or not graph.edge_attributes:
+        # Check if graph has node labels
+        if not hasattr(graph, 'node_labels') or not graph.node_labels:
             return graph
         
         memory_traces_formed = 0
@@ -74,6 +75,9 @@ class MemorySystem:
                         self._replace_weakest_memory(node_idx, graph)
         
         self.memory_stats['traces_formed'] += memory_traces_formed
+        
+        # Attach memory traces to graph for external access
+        graph.memory_traces = self.memory_traces
         
         if memory_traces_formed > 0:
             log_step("Memory traces formed", count=memory_traces_formed)
@@ -111,17 +115,22 @@ class MemorySystem:
             node_idx: Index of the node
             graph: PyTorch Geometric graph
         """
-        # Find incoming connections to this node
+        # Find incoming connections to this node using edge_index
         incoming_edges = []
-        if hasattr(graph, 'edge_attributes'):
-            for edge in graph.edge_attributes:
-                if edge.target == node_idx:
-                    incoming_edges.append({
-                        'source': edge.source,
-                        'weight': edge.weight,
-                        'type': edge.type,
-                        'source_behavior': graph.node_labels[edge.source].get('behavior', 'unknown')
-                    })
+        if hasattr(graph, 'edge_index') and graph.edge_index.numel() > 0:
+            edge_index = graph.edge_index.cpu().numpy()
+            target_edges = edge_index[1] == node_idx
+            
+            for edge_idx in np.where(target_edges)[0]:
+                source_idx = edge_index[0, edge_idx]
+                source_node = graph.node_labels[source_idx]
+                
+                incoming_edges.append({
+                    'source': int(source_idx),
+                    'weight': 1.0,  # Default weight
+                    'type': 'excitatory',  # Default type
+                    'source_behavior': source_node.get('behavior', 'unknown')
+                })
         
         # Store memory trace
         self.memory_traces[node_idx] = {
@@ -404,6 +413,45 @@ class MemorySystem:
             })
         
         return summary
+    
+    def get_node_memory_importance(self, node_id):
+        """
+        Get the memory importance score for a specific node.
+        
+        Args:
+            node_id: ID of the node to check
+        
+        Returns:
+            float: Memory importance score (0.0 to 1.0)
+        """
+        if node_id not in self.memory_traces:
+            return 0.0
+        
+        trace = self.memory_traces[node_id]
+        
+        # Calculate importance based on multiple factors
+        strength_factor = trace['strength'] / 10.0  # Normalize strength
+        activation_factor = min(trace['activation_count'] / 20.0, 1.0)  # Normalize activations
+        age_factor = max(0.0, 1.0 - (time.time() - trace['formation_time']) / 3600.0)  # Decay over 1 hour
+        
+        # Pattern type importance
+        pattern_importance = {
+            'oscillation': 0.8,
+            'integration': 0.9,
+            'relay': 0.7,
+            'highway': 0.6,
+            'workspace': 0.95,
+            'sensory': 0.5,
+            'dynamic': 0.3
+        }.get(trace['pattern_type'], 0.5)
+        
+        # Combine factors
+        importance = (strength_factor * 0.3 + 
+                     activation_factor * 0.3 + 
+                     age_factor * 0.2 + 
+                     pattern_importance * 0.2)
+        
+        return min(importance, 1.0)
 
 
 # Utility functions for memory analysis

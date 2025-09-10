@@ -10,12 +10,21 @@ import numpy as np
 import torch
 from logging_utils import log_step, log_node_state
 
+# Import configuration manager
+from config_manager import get_enhanced_nodes_config
+
 # Constants for behavior parameters
 NODE_ENERGY_CAP = 244.0  # Should match death_and_birth_logic.py
-DEFAULT_OSCILLATION_FREQ = 2.0  # Hz
-DEFAULT_INTEGRATION_RATE = 0.5
-DEFAULT_RELAY_AMPLIFICATION = 2.0
-DEFAULT_HIGHWAY_ENERGY_BOOST = 2.0
+
+# Get configuration values with defaults
+def get_enhanced_config():
+    config = get_enhanced_nodes_config()
+    return {
+        'oscillator_frequency': config.get('oscillator_frequency', 0.1),
+        'integrator_threshold': config.get('integrator_threshold', 0.8),
+        'relay_amplification': config.get('relay_amplification', 1.5),
+        'highway_energy_boost': config.get('highway_energy_boost', 2.0)
+    }
 
 # Time constants
 TIME_STEP = 0.01  # seconds per simulation step
@@ -37,7 +46,8 @@ class BehaviorEngine:
             'oscillator': self.update_oscillator_node,
             'integrator': self.update_integrator_node,
             'relay': self.update_relay_node,
-            'highway': self.update_highway_node
+            'highway': self.update_highway_node,
+            'workspace': self.update_workspace_node
         }
         
         # Track behavior statistics
@@ -45,7 +55,8 @@ class BehaviorEngine:
             'oscillator_activations': 0,
             'integrator_activations': 0,
             'relay_transfers': 0,
-            'highway_regulations': 0
+            'highway_regulations': 0,
+            'workspace_syntheses': 0
         }
     
     def update_node_behavior(self, node, graph, step):
@@ -115,8 +126,9 @@ class BehaviorEngine:
         Update oscillator node behavior.
         Oscillators emit periodic energy pulses when their membrane potential exceeds threshold.
         """
-        # Get oscillator parameters
-        oscillation_freq = node.get('oscillation_freq', DEFAULT_OSCILLATION_FREQ)
+        # Get oscillator parameters from configuration
+        config = get_enhanced_config()
+        oscillation_freq = node.get('oscillation_freq', config['oscillator_frequency'])
         threshold = node.get('threshold', 0.8)
         refractory_timer = node.get('refractory_timer', 0.0)
         membrane_potential = node.get('membrane_potential', 0.0)
@@ -159,9 +171,10 @@ class BehaviorEngine:
         Update integrator node behavior.
         Integrators accumulate incoming energy and activate when threshold is reached.
         """
-        # Get integrator parameters
-        integration_rate = node.get('integration_rate', DEFAULT_INTEGRATION_RATE)
-        threshold = node.get('threshold', 0.8)
+        # Get integrator parameters from configuration
+        config = get_enhanced_config()
+        integration_rate = node.get('integration_rate', 0.5)
+        threshold = node.get('threshold', config['integrator_threshold'])
         refractory_timer = node.get('refractory_timer', 0.0)
         membrane_potential = node.get('membrane_potential', 0.0)
         
@@ -204,8 +217,9 @@ class BehaviorEngine:
         Update relay node behavior.
         Relays transfer energy with amplification and can learn from successful transfers.
         """
-        # Get relay parameters
-        relay_amplification = node.get('relay_amplification', DEFAULT_RELAY_AMPLIFICATION)
+        # Get relay parameters from configuration
+        config = get_enhanced_config()
+        relay_amplification = node.get('relay_amplification', config['relay_amplification'])
         threshold = node.get('threshold', 0.4)
         refractory_timer = node.get('refractory_timer', 0.0)
         membrane_potential = node.get('membrane_potential', 0.0)
@@ -246,11 +260,12 @@ class BehaviorEngine:
     def update_highway_node(self, node, graph, step):
         """
         Update highway node behavior.
-        Highways are high-capacity energy distribution nodes that regulate network flow.
+        Highway nodes provide high-capacity energy distribution and network regulation.
         """
-        # Get highway parameters
-        highway_energy_boost = node.get('highway_energy_boost', DEFAULT_HIGHWAY_ENERGY_BOOST)
-        threshold = node.get('threshold', 0.2)  # Low threshold for highways
+        # Get highway parameters from configuration
+        config = get_enhanced_config()
+        highway_energy_boost = node.get('highway_energy_boost', config['highway_energy_boost'])
+        threshold = node.get('threshold', 0.2)
         refractory_timer = node.get('refractory_timer', 0.0)
         membrane_potential = node.get('membrane_potential', 0.0)
         
@@ -259,30 +274,74 @@ class BehaviorEngine:
             node['refractory_timer'] = max(0.0, refractory_timer - TIME_STEP)
             return node  # Can't regulate during refractory period
         
-        # Highways have high energy accumulation capacity
-        energy_increment = 0.05 * TIME_STEP * highway_energy_boost  # High accumulation with boost
-        membrane_potential += energy_increment
+        # Highway nodes have low threshold and high energy capacity
+        energy = node.get('energy', 0.0)
+        node['membrane_potential'] = min(energy / NODE_ENERGY_CAP, 1.0)
         
-        # Check if threshold is reached
-        if membrane_potential >= threshold:
-            # Highway regulates network
-            node['last_activation'] = time.time()
-            node['refractory_timer'] = REFRACTORY_PERIOD * 0.3  # Very short refractory for highways
-            node['membrane_potential'] = 0.0  # Reset after activation
+        # Highway nodes can pull energy from dynamic nodes when active
+        if membrane_potential >= threshold and refractory_timer <= 0:
+            # Boost energy using highway multiplier
+            boosted_energy = min(NODE_ENERGY_CAP, energy * highway_energy_boost)
+            node['energy'] = boosted_energy
+            
+            # Set refractory timer for regulation cycle
+            node['refractory_timer'] = 0.5  # 0.5 second regulation cycle
+            node['last_activation'] = step
             node['state'] = 'regulating'
             
             # Update statistics
             self.behavior_stats['highway_regulations'] += 1
-            
-            log_step("Highway regulating", 
-                    node_id=node.get('id', '?'), 
-                    boost=highway_energy_boost,
-                    step=step)
         else:
-            node['state'] = 'active' if membrane_potential > threshold * 0.5 else 'inactive'
+            node['state'] = 'active'
         
-        # Clamp membrane potential
-        node['membrane_potential'] = min(membrane_potential, 1.0)
+        return node
+    
+    def update_workspace_node(self, node, graph, step):
+        """
+        Update workspace node behavior.
+        Workspace nodes provide internal workspace for imagination and flexible thinking.
+        """
+        # Get workspace parameters
+        workspace_capacity = node.get('workspace_capacity', 5.0)
+        workspace_creativity = node.get('workspace_creativity', 1.5)
+        workspace_focus = node.get('workspace_focus', 3.0)
+        threshold = node.get('threshold', 0.6)
+        refractory_timer = node.get('refractory_timer', 0.0)
+        membrane_potential = node.get('membrane_potential', 0.0)
+        
+        # Update refractory timer
+        if refractory_timer > 0:
+            node['refractory_timer'] = max(0.0, refractory_timer - TIME_STEP)
+            return node  # Can't synthesize during refractory period
+        
+        # Update membrane potential based on energy
+        energy = node.get('energy', 0.0)
+        node['membrane_potential'] = min(energy / NODE_ENERGY_CAP, 1.0)
+        
+        # Workspace nodes can synthesize concepts when active
+        if membrane_potential >= threshold and refractory_timer <= 0:
+            # Check if workspace has enough capacity for synthesis
+            if workspace_capacity >= 2.0:  # Need at least 2 concepts to combine
+                # Perform synthesis (simplified version - full logic in workspace_engine.py)
+                synthesis_success = np.random.random() < (workspace_creativity * workspace_focus * 0.1)
+                
+                if synthesis_success:
+                    node['state'] = 'synthesizing'
+                    node['refractory_timer'] = 1.0 / workspace_creativity  # Higher creativity = faster cycles
+                    node['last_activation'] = step
+                    
+                    # Update statistics
+                    self.behavior_stats['workspace_syntheses'] += 1
+                else:
+                    node['state'] = 'planning'
+            else:
+                node['state'] = 'imagining'
+        elif membrane_potential > threshold * 0.8:
+            node['state'] = 'planning'
+        elif membrane_potential > threshold * 0.5:
+            node['state'] = 'imagining'
+        else:
+            node['state'] = 'active'
         
         return node
     
@@ -296,7 +355,8 @@ class BehaviorEngine:
             'oscillator_activations': 0,
             'integrator_activations': 0,
             'relay_transfers': 0,
-            'highway_regulations': 0
+            'highway_regulations': 0,
+            'workspace_syntheses': 0
         }
 
 
@@ -350,10 +410,24 @@ def has_active_connections(node, graph):
     Returns:
         bool: True if node has active connections
     """
-    # This is a placeholder - in the future, check actual graph connections
-    # For now, assume nodes with high energy have active connections
+    if not hasattr(graph, 'edge_index') or graph.edge_index.numel() == 0:
+        return False
+    
+    # Get node index
+    node_id = node.get('id', -1)
+    if node_id < 0 or node_id >= len(graph.node_labels):
+        return False
+    
+    # Check if node has any outgoing or incoming connections
+    has_outgoing = torch.any(graph.edge_index[0] == node_id)
+    has_incoming = torch.any(graph.edge_index[1] == node_id)
+    
+    # Also check if node has high energy (indicating activity)
     energy = node.get('energy', 0.0)
-    return energy > 0.5
+    has_energy = energy > 0.3
+    
+    # Node has active connections if it has graph connections AND energy
+    return (has_outgoing or has_incoming) and has_energy
 
 
 # Example usage and testing

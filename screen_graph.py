@@ -47,31 +47,39 @@ def capture_screen(scale=1.0):
     """
     t0 = time.perf_counter()
     log_step("capture_screen: start", scale=scale)
-    if HAS_MSS:
-        with mss.mss() as sct:
-            monitor = sct.monitors[1]
-            sct_img = sct.grab(monitor)
-            img = np.array(sct_img)[..., :3]  # BGRA to BGR
-            img = img[..., ::-1]  # BGR to RGB
-            log_step("capture_screen: used mss", shape=img.shape)
-    else:
-        img = ImageGrab.grab()
-        img = img.convert("RGB")
-        img = np.array(img)
-        log_step("capture_screen: used PIL.ImageGrab", shape=img.shape)
+    try:
+        if HAS_MSS:
+            with mss.mss() as sct:
+                monitor = sct.monitors[1]
+                sct_img = sct.grab(monitor)
+                img = np.array(sct_img)[..., :3]  # BGRA to BGR
+                img = img[..., ::-1]  # BGR to RGB
+                log_step("capture_screen: used mss", shape=img.shape)
+        else:
+            img = ImageGrab.grab()
+            img = img.convert("RGB")
+            img = np.array(img)
+            log_step("capture_screen: used PIL.ImageGrab", shape=img.shape)
+    except Exception as e:
+        # Safe fallback: generate a synthetic grayscale frame so UI doesn't crash
+        log_step("capture_screen: fallback synthetic frame due to error", error=str(e))
+        img = np.zeros((360, 640, 3), dtype=np.uint8)
     t1 = time.perf_counter()
     # Downscale if needed
     if scale != 1.0:
         h, w = img.shape[:2]
         new_w, new_h = int(w * scale), int(h * scale)
-        if HAS_CV2:
-            img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
-            log_step("capture_screen: resized with cv2", new_shape=img.shape)
-        else:
-            pil_img = ImageGrab.Image.fromarray(img)
-            pil_img = pil_img.resize((new_w, new_h), ImageGrab.Image.LANCZOS)
-            img = np.array(pil_img)
-            log_step("capture_screen: resized with PIL", new_shape=img.shape)
+        try:
+            if HAS_CV2:
+                img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+                log_step("capture_screen: resized with cv2", new_shape=img.shape)
+            else:
+                pil_img = ImageGrab.Image.fromarray(img)
+                pil_img = pil_img.resize((new_w, new_h), ImageGrab.Image.LANCZOS)
+                img = np.array(pil_img)
+                log_step("capture_screen: resized with PIL", new_shape=img.shape)
+        except Exception as e:
+            log_step("capture_screen: resize failed, keeping original size", error=str(e))
     t2 = time.perf_counter()
     # Convert to grayscale
     gray_img = rgb_to_gray(img)

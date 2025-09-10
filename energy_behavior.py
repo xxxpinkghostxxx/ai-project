@@ -11,12 +11,19 @@ import numpy as np
 import torch
 from logging_utils import log_step, log_node_state
 
-# Energy behavior constants
-DEFAULT_MEMBRANE_DECAY_RATE = 0.95
-DEFAULT_REFRACTORY_PERIOD = 1.0  # seconds
-DEFAULT_PLASTICITY_GATE_THRESHOLD = 0.3
-DEFAULT_ENERGY_LEAK_RATE = 0.02
-DEFAULT_ACTIVATION_THRESHOLD = 0.5
+# Import configuration manager
+from config_manager import get_learning_config
+
+# Energy behavior constants with configuration fallbacks
+def get_energy_config():
+    config = get_learning_config()
+    return {
+        'membrane_decay_rate': config.get('membrane_decay_rate', 0.95),
+        'refractory_period': config.get('refractory_period', 1.0),
+        'plasticity_gate_threshold': config.get('plasticity_gate_threshold', 0.3),
+        'energy_leak_rate': config.get('energy_leak_rate', 0.02),
+        'activation_threshold': config.get('activation_threshold', 0.5)
+    }
 
 
 def update_node_energy_with_learning(graph, node_id, delta_energy):
@@ -44,12 +51,13 @@ def update_node_energy_with_learning(graph, node_id, delta_energy):
     # Membrane potential integration (adapted to energy system)
     if 'membrane_potential' in node:
         membrane_pot = node['membrane_potential']
-        threshold = node.get('threshold', DEFAULT_ACTIVATION_THRESHOLD)
+        config = get_energy_config()
+        threshold = node.get('threshold', config['activation_threshold'])
         
         if membrane_pot > threshold:
             # Node activates
             node['last_activation'] = time.time()
-            node['refractory_timer'] = node.get('refractory_period', DEFAULT_REFRACTORY_PERIOD)
+            node['refractory_timer'] = node.get('refractory_period', config['refractory_period'])
             
             # Emit energy pulse if oscillator
             if node.get('behavior') == 'oscillator':
@@ -343,7 +351,8 @@ def apply_dynamic_energy_dynamics(graph, node_idx):
     current_energy = graph.x[node_idx, 0].item()
     
     # Energy decay over time
-    decay_rate = DEFAULT_ENERGY_LEAK_RATE
+    config = get_energy_config()
+    decay_rate = config['energy_leak_rate']
     decayed_energy = current_energy * decay_rate
     
     # Apply decay
@@ -355,7 +364,7 @@ def apply_dynamic_energy_dynamics(graph, node_idx):
         node['membrane_potential'] = min(new_energy / 244.0, 1.0)
     
     # Update plasticity state based on energy
-    if new_energy < DEFAULT_PLASTICITY_GATE_THRESHOLD:
+    if new_energy < config['plasticity_gate_threshold']:
         node['plasticity_enabled'] = False
         log_step("Plasticity disabled", 
                 node_id=node_idx,

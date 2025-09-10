@@ -11,14 +11,19 @@ import numpy as np
 import torch
 from logging_utils import log_step, log_node_state
 
-# Learning constants
-DEFAULT_LEARNING_RATE = 0.01
-DEFAULT_ELIGIBILITY_DECAY = 0.95
-DEFAULT_STDP_WINDOW = 20.0  # milliseconds
-DEFAULT_LTP_RATE = 0.02  # Long-term potentiation rate
-DEFAULT_LTD_RATE = 0.01  # Long-term depression rate
-DEFAULT_PLASTICITY_THRESHOLD = 0.1
-DEFAULT_CONSOLIDATION_THRESHOLD = 0.5
+# Import configuration manager
+from config_manager import get_learning_config
+
+# Learning constants with configuration fallbacks
+def get_learning_config_values():
+    config = get_learning_config()
+    return {
+        'learning_rate': config.get('plasticity_rate', 0.01),
+        'eligibility_decay': config.get('eligibility_decay', 0.95),
+        'stdp_window': config.get('stdp_window', 20.0),
+        'ltp_rate': config.get('ltp_rate', 0.02),
+        'ltd_rate': config.get('ltd_rate', 0.01)
+    }
 
 
 class LearningEngine:
@@ -29,14 +34,15 @@ class LearningEngine:
     """
     
     def __init__(self):
-        """Initialize the learning engine with learning parameters."""
-        self.learning_rate = DEFAULT_LEARNING_RATE
-        self.eligibility_decay = DEFAULT_ELIGIBILITY_DECAY
-        self.stdp_window = DEFAULT_STDP_WINDOW
-        self.ltp_rate = DEFAULT_LTP_RATE
-        self.ltd_rate = DEFAULT_LTD_RATE
-        self.plasticity_threshold = DEFAULT_PLASTICITY_THRESHOLD
-        self.consolidation_threshold = DEFAULT_CONSOLIDATION_THRESHOLD
+        """Initialize the learning engine with learning parameters from configuration."""
+        config = get_learning_config_values()
+        self.learning_rate = config['learning_rate']
+        self.eligibility_decay = config['eligibility_decay']
+        self.stdp_window = config['stdp_window']
+        self.ltp_rate = config['ltp_rate']
+        self.ltd_rate = config['ltd_rate']
+        self.plasticity_threshold = 0.1  # Default threshold
+        self.consolidation_threshold = 0.5  # Default threshold
         
         # Learning statistics
         self.learning_stats = {

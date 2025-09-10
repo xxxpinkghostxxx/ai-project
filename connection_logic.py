@@ -164,11 +164,23 @@ def intelligent_connection_formation(graph):
     num_nodes = len(graph.node_labels)
     
     # Get nodes by behavior type
+    sensory_indices = select_nodes_by_type(graph, 'sensory')
     oscillator_indices = select_nodes_by_behavior(graph, 'oscillator')
     integrator_indices = select_nodes_by_behavior(graph, 'integrator')
     relay_indices = select_nodes_by_behavior(graph, 'relay')
     highway_indices = select_nodes_by_behavior(graph, 'highway')
     dynamic_indices = select_nodes_by_behavior(graph, 'dynamic')
+    
+    # Strategy 0: Sensory nodes connect to dynamic nodes for energy flow
+    # Connect a subset of sensory nodes to dynamic nodes for basic energy flow
+    if sensory_indices and dynamic_indices:
+        # OPTIMIZED: Connect every 200th sensory node to avoid performance issues
+        sample_sensory = sensory_indices[::200]  # Every 200th sensory node
+        for sensory_idx in sample_sensory:
+            # Connect to 3 random dynamic nodes
+            dynamic_targets = np.random.choice(dynamic_indices, size=min(3, len(dynamic_indices)), replace=False)
+            for target in dynamic_targets:
+                create_weighted_connection(graph, sensory_idx, target, 0.1, 'excitatory')
     
     # Strategy 1: Oscillators connect to integrators for rhythmic input
     for osc_idx in oscillator_indices:
@@ -199,11 +211,35 @@ def intelligent_connection_formation(graph):
             create_weighted_connection(graph, highway_idx, target, 0.8, 'modulatory')
     
     # Strategy 5: Dynamic nodes connect to each other for basic connectivity
-    for dyn_idx in dynamic_indices:
-        # Connect to 2 other dynamic nodes
-        other_dynamic = [idx for idx in dynamic_indices if idx != dyn_idx][:2]
-        for target in other_dynamic:
-            create_weighted_connection(graph, dyn_idx, target, 0.6, 'excitatory')
+    # OPTIMIZED: Only connect a subset of dynamic nodes to avoid performance issues
+    if dynamic_indices and len(dynamic_indices) > 1000:
+        # For large networks, only connect every 100th dynamic node
+        sample_dynamic = dynamic_indices[::100]  # Every 100th node
+        for dyn_idx in sample_dynamic:
+            # Connect to 2-3 other sampled dynamic nodes
+            other_dynamic = [idx for idx in sample_dynamic if idx != dyn_idx]
+            num_connections = min(3, len(other_dynamic))
+            if num_connections > 0:
+                # Randomly select target nodes
+                targets = np.random.choice(other_dynamic, size=num_connections, replace=False)
+                for target in targets:
+                    create_weighted_connection(graph, dyn_idx, target, 0.6, 'excitatory')
+    elif dynamic_indices:
+        # For smaller networks, connect all dynamic nodes
+        for dyn_idx in dynamic_indices:
+            # Connect to 2-3 other dynamic nodes
+            other_dynamic = [idx for idx in dynamic_indices if idx != dyn_idx]
+            num_connections = min(3, len(other_dynamic))
+            if num_connections > 0:
+                # Randomly select target nodes
+                targets = np.random.choice(other_dynamic, size=num_connections, replace=False)
+                for target in targets:
+                    create_weighted_connection(graph, dyn_idx, target, 0.6, 'excitatory')
+    
+    # Log connection statistics
+    num_edges = graph.edge_index.shape[1] if graph.edge_index.numel() > 0 else 0
+    import logging
+    logging.info(f"[CONNECTIONS] Created {num_edges} connections: {len(sensory_indices)} sensory, {len(dynamic_indices)} dynamic")
     
     return graph
 

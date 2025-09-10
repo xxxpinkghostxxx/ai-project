@@ -20,11 +20,12 @@
   - Integrator nodes: Energy accumulation and threshold-based activation
   - Relay nodes: Energy transfer with amplification
   - Highway nodes: High-capacity energy distribution nodes
+  - Workspace nodes: Internal workspace for imagination and flexible thinking
 
 ## Enhanced Node Labels (All Nodes)
-- **type**: 'sensory', 'dynamic', 'oscillator', 'integrator', 'relay', 'highway'
-- **behavior**: 'sensory', 'dynamic', 'oscillator', 'integrator', 'relay', 'highway'
-- **state**: 'active', 'inactive', 'pending', 'learning', 'consolidating', 'suspended'
+- **type**: 'sensory', 'dynamic', 'oscillator', 'integrator', 'relay', 'highway', 'workspace'
+- **behavior**: 'sensory', 'dynamic', 'oscillator', 'integrator', 'relay', 'highway', 'workspace'
+- **state**: 'active', 'inactive', 'pending', 'learning', 'consolidating', 'suspended', 'imagining', 'planning', 'synthesizing'
 - **energy**: Current energy value (0-255 for sensory, 0-NODE_ENERGY_CAP for dynamic)
 - **membrane_potential**: Research-inspired membrane potential (normalized 0-1)
 - **threshold**: Activation threshold for the node
@@ -37,6 +38,9 @@
 - **integration_rate**: For integrator nodes (0.01-1.0)
 - **relay_amplification**: For relay nodes (1.0-5.0)
 - **highway_energy_boost**: For highway nodes (1.0-3.0)
+- **workspace_capacity**: For workspace nodes (1.0-10.0)
+- **workspace_creativity**: For workspace nodes (0.1-2.0)
+- **workspace_focus**: For workspace nodes (0.1-5.0)
 
 ## Sensory Nodes
 - **Purpose:** Represent the grayscale value of each pixel in the (possibly downscaled) screen capture
@@ -164,6 +168,28 @@
 - **Example:**
   - `{ "type": "highway", "behavior": "highway", "id": 103, "energy": 0.9, "state": "regulating", "membrane_potential": 0.85, "threshold": 0.2, "refractory_timer": 0.1, "last_activation": 1237.0, "plasticity_enabled": true, "eligibility_trace": 0.3, "last_update": 53, "highway_energy_boost": 2.0 }`
 
+## Workspace Nodes
+- **Purpose:** Internal workspace for imagination, flexible thinking, and combining perceptions to plan actions
+- **Node Count:** Created dynamically based on network needs and creativity demands
+- **Label Fields:**
+  - `type`: 'workspace'
+  - `behavior**: 'workspace'
+  - `id`: Integer, unique workspace node id
+  - `energy`: Current energy value (0-NODE_ENERGY_CAP)
+  - `state**: 'active', 'inactive', 'imagining', 'planning', 'synthesizing', or 'consolidating'
+  - `membrane_potential`: Current workspace potential for creative synthesis
+  - `threshold`: 0.6 (activation threshold for workspace operations)
+  - `refractory_timer`: Time remaining before next creative cycle
+  - `last_activation`: Timestamp of last creative activation
+  - `plasticity_enabled`: True (workspace nodes can adapt creativity parameters)
+  - `eligibility_trace`: Learning signal for creativity adaptation
+  - `last_update`: Frame index of last update
+  - `workspace_capacity`: 1.0-10.0 (capacity for holding multiple concepts)
+  - `workspace_creativity`: 0.1-2.0 (creativity multiplier for synthesis)
+  - `workspace_focus`: 0.1-5.0 (focus strength for sustained creative work)
+- **Example:**
+  - `{ "type": "workspace", "behavior": "workspace", "id": 104, "energy": 0.8, "state": "imagining", "membrane_potential": 0.7, "threshold": 0.6, "refractory_timer": 0.0, "last_activation": 1238.0, "plasticity_enabled": true, "eligibility_trace": 0.4, "last_update": 54, "workspace_capacity": 5.0, "workspace_creativity": 1.5, "workspace_focus": 3.0 }`
+
 ## Value Labels (for all nodes)
 - **feature**: Main value for the node (e.g., grayscale intensity for sensory, energy for dynamic)
 - **energy**: Current energy value (if used, especially for dynamic nodes)
@@ -178,6 +204,7 @@
 - Sensory node: `{ "type": "sensory", "behavior": "sensory", "x": 0, "y": 0, "energy": 255.0, "state": "active", "membrane_potential": 1.0, "threshold": 0.5, "refractory_timer": 0.0, "last_activation": 0, "plasticity_enabled": false, "eligibility_trace": 0.0, "last_update": 0 }`
 - Dynamic node: `{ "type": "dynamic", "behavior": "dynamic", "id": 3, "energy": 0.73, "state": "active", "membrane_potential": 0.003, "threshold": 0.3, "refractory_timer": 0.0, "last_activation": 0, "plasticity_enabled": true, "eligibility_trace": 0.0, "last_update": 0 }`
 - Oscillator node: `{ "type": "oscillator", "behavior": "oscillator", "id": 100, "energy": 0.5, "state": "active", "membrane_potential": 0.6, "threshold": 0.8, "refractory_timer": 0.0, "last_activation": 1234.5, "plasticity_enabled": true, "eligibility_trace": 0.1, "last_update": 50, "oscillation_freq": 2.0 }`
+- Workspace node: `{ "type": "workspace", "behavior": "workspace", "id": 104, "energy": 0.8, "state": "imagining", "membrane_potential": 0.7, "threshold": 0.6, "refractory_timer": 0.0, "last_activation": 1238.0, "plasticity_enabled": true, "eligibility_trace": 0.4, "last_update": 54, "workspace_capacity": 5.0, "workspace_creativity": 1.5, "workspace_focus": 3.0 }`
 
 ## Label Usage in Code
 - All nodes are labeled at creation for easy identification and processing

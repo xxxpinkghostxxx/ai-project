@@ -1,0 +1,42 @@
+{
+  "timestamp": "2025-09-03T20:47:52.730496",
+  "system_state": {
+    "simulation_running": false,
+    "sim_update_counter": 3,
+    "graph_info": {
+      "num_nodes": 288256,
+      "num_edges": 0,
+      "graph_h": 180,
+      "graph_w": 320
+    }
+  },
+  "performance_stats": {
+    "sim_updates": 4,
+    "ui_updates": 0,
+    "fps": 0.0,
+    "sim_fps": 0.0,
+    "last_sim_update_time": 1.1912343502044678,
+    "last_ui_update_time": 0.0,
+    "last_log_time": 1756957653.1319826,
+    "last_report": ""
+  },
+  "node_statistics": {
+    "total_nodes": 288256,
+    "node_types": {
+      "sensory": 57600,
+      "dynamic": 230400,
+      "workspace": 256
+    },
+    "node_states": {
+      "active": 218509,
+      "inactive": 69747
+    },
+    "energy_distribution": {
+      "min": 0.0,
+      "max": 243.6999969482422,
+      "mean": 9.591153392150662,
+      "total": 2764707.5122077814
+    }
+  },
+  "network_metrics": {}
+}

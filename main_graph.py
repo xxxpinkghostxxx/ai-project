@@ -6,12 +6,110 @@ This module constructs the full graph (sensory + dynamic nodes) in a single func
 
 from screen_graph import capture_screen, create_pixel_gray_graph, RESOLUTION_SCALE
 from dynamic_nodes import add_dynamic_nodes
+import numpy as np
+import torch
+
+
+def create_workspace_grid():
+    """
+    Creates a 16x16 grid of workspace nodes.
+    Each node represents a pixel in the internal workspace grid.
+    
+    Returns:
+        torch_geometric.data.Data: Graph containing only the workspace grid nodes.
+    """
+    grid_size = 16
+    num_nodes = grid_size * grid_size
+    
+    # Create node features (energy values, initially 0)
+    x = torch.zeros((num_nodes, 1), dtype=torch.float32)
+    
+    # Create node labels for each workspace node
+    node_labels = []
+    for y in range(grid_size):
+        for x_coord in range(grid_size):
+            node_label = {
+                "type": "workspace",
+                "behavior": "workspace",
+                "x": x_coord,
+                "y": y,
+                "energy": 0.0,
+                "state": "inactive",
+                "membrane_potential": 0.0,
+                "threshold": 0.6,
+                "refractory_timer": 0.0,
+                "last_activation": 0,
+                "plasticity_enabled": True,
+                "eligibility_trace": 0.0,
+                "last_update": 0,
+                "workspace_capacity": 5.0,
+                "workspace_creativity": 1.5,
+                "workspace_focus": 3.0
+            }
+            node_labels.append(node_label)
+    
+    # Create empty edge index (no connections initially)
+    edge_index = torch.empty((2, 0), dtype=torch.long)
+    
+    # Create the workspace graph
+    from torch_geometric.data import Data
+    workspace_graph = Data(
+        x=x,
+        edge_index=edge_index,
+        node_labels=node_labels,
+        h=grid_size,
+        w=grid_size
+    )
+    
+    return workspace_graph
+
+
+def merge_graphs(graph1, graph2):
+    """
+    Merges two PyTorch Geometric graphs by combining their nodes and edges.
+    
+    Args:
+        graph1: First graph
+        graph2: Second graph
+        
+    Returns:
+        torch_geometric.data.Data: Merged graph
+    """
+    from torch_geometric.data import Data
+    
+    # Combine node features
+    combined_x = torch.cat([graph1.x, graph2.x], dim=0)
+    
+    # Combine node labels
+    combined_labels = graph1.node_labels + graph2.node_labels
+    
+    # Adjust edge indices for the second graph
+    if hasattr(graph2, 'edge_index') and graph2.edge_index.numel() > 0:
+        offset = graph1.x.size(0)
+        adjusted_edge_index = graph2.edge_index + offset
+        combined_edge_index = torch.cat([graph1.edge_index, adjusted_edge_index], dim=1)
+    else:
+        combined_edge_index = graph1.edge_index
+    
+    # Create merged graph
+    merged_graph = Data(
+        x=combined_x,
+        edge_index=combined_edge_index,
+        node_labels=combined_labels
+    )
+    
+    # Copy other attributes
+    for attr in ['h', 'w', 'step']:
+        if hasattr(graph1, attr):
+            setattr(merged_graph, attr, getattr(graph1, attr))
+    
+    return merged_graph
 
 
 def initialize_main_graph(scale=RESOLUTION_SCALE):
     """
     Initializes the main graph by capturing the screen, creating the pixel grayscale graph,
-    and appending dynamic nodes.
+    appending dynamic nodes, and adding the workspace grid.
 
     Args:
         scale (float): Downscaling factor for screen capture.
@@ -19,9 +117,15 @@ def initialize_main_graph(scale=RESOLUTION_SCALE):
     Returns:
         torch_geometric.data.Data: The fully constructed graph with node labels.
     """
+    # Create the main sensory and dynamic node graph
     arr = capture_screen(scale=scale)
     pixel_graph = create_pixel_gray_graph(arr)
-    full_graph = add_dynamic_nodes(pixel_graph)
+    main_graph = add_dynamic_nodes(pixel_graph)
+    
+    # Create and merge the workspace grid
+    workspace_graph = create_workspace_grid()
+    full_graph = merge_graphs(main_graph, workspace_graph)
+    
     return full_graph
 
 
