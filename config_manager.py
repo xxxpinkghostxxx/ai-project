@@ -27,12 +27,43 @@ class ConfigManager:
         self._load_config()
     
     def _load_config(self):
-        """Load configuration from file."""
+        """Load configuration from file with security validation."""
         if os.path.exists(self.config_file):
-            self.config.read(self.config_file)
+            # Validate file path to prevent path traversal
+            if not self._validate_config_file_path():
+                raise ValueError(f"Invalid configuration file path: {self.config_file}")
+            
+            # Check file permissions (should be readable only by owner)
+            file_stat = os.stat(self.config_file)
+            if file_stat.st_mode & 0o077:  # Check if others have read/write permissions
+                import warnings
+                warnings.warn(f"Configuration file {self.config_file} has insecure permissions")
+            
+            try:
+                self.config.read(self.config_file)
+            except Exception as e:
+                raise ValueError(f"Failed to read configuration file: {e}")
         else:
             # Create default configuration if file doesn't exist
             self._create_default_config()
+    
+    def _validate_config_file_path(self) -> bool:
+        """Validate configuration file path for security."""
+        import os.path
+        
+        # Get absolute path to prevent path traversal
+        abs_path = os.path.abspath(self.config_file)
+        
+        # Check for path traversal patterns
+        if '..' in self.config_file or '\\' in self.config_file:
+            return False
+        
+        # Ensure file is within allowed directory
+        current_dir = os.path.abspath('.')
+        if not abs_path.startswith(current_dir):
+            return False
+        
+        return True
     
     def _create_default_config(self):
         """Create default configuration sections and values."""
@@ -204,6 +235,10 @@ class ConfigManager:
     def get_processing_config(self) -> Dict[str, float]:
         """Get processing configuration."""
         return self.get_section('Processing')
+    
+    def get_system_constants(self) -> Dict[str, float]:
+        """Get system constants configuration."""
+        return self.get_section('SystemConstants')
 
 # Global configuration manager instance
 config = ConfigManager()
@@ -236,3 +271,7 @@ def get_workspace_config() -> Dict[str, float]:
 def get_processing_config() -> Dict[str, Union[int, float]]:
     """Get processing configuration."""
     return config.get_processing_config()
+
+def get_system_constants() -> Dict[str, float]:
+    """Get system constants configuration."""
+    return config.get_system_constants()

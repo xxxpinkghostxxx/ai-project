@@ -6,7 +6,6 @@ This module constructs the full graph (sensory + dynamic nodes) in a single func
 
 from screen_graph import capture_screen, create_pixel_gray_graph, RESOLUTION_SCALE
 from dynamic_nodes import add_dynamic_nodes
-import numpy as np
 import torch
 
 
@@ -18,6 +17,10 @@ def create_workspace_grid():
     Returns:
         torch_geometric.data.Data: Graph containing only the workspace grid nodes.
     """
+    # Import ID manager for unique ID generation
+    from node_id_manager import get_id_manager
+    id_manager = get_id_manager()
+    
     grid_size = 16
     num_nodes = grid_size * grid_size
     
@@ -28,11 +31,18 @@ def create_workspace_grid():
     node_labels = []
     for y in range(grid_size):
         for x_coord in range(grid_size):
+            # Generate unique ID for this workspace node
+            node_id = id_manager.generate_unique_id("workspace", {"x": x_coord, "y": y})
+            
+            # Calculate the index in the grid
+            node_index = y * grid_size + x_coord
+            
             node_label = {
+                "id": node_id,  # UNIQUE ID: Primary identifier from ID manager
                 "type": "workspace",
                 "behavior": "workspace",
-                "x": x_coord,
-                "y": y,
+                "x": x_coord,  # METADATA: Grid coordinate preserved as metadata
+                "y": y,        # METADATA: Grid coordinate preserved as metadata
                 "energy": 0.0,
                 "state": "inactive",
                 "membrane_potential": 0.0,
@@ -47,6 +57,9 @@ def create_workspace_grid():
                 "workspace_focus": 3.0
             }
             node_labels.append(node_label)
+            
+            # Register the node index with the ID manager
+            id_manager.register_node_index(node_id, node_index)
     
     # Create empty edge index (no connections initially)
     edge_index = torch.empty((2, 0), dtype=torch.long)
@@ -131,21 +144,30 @@ def initialize_main_graph(scale=RESOLUTION_SCALE):
 
 def select_nodes_by_type(graph, node_type):
     """
-    Return a list of indices for nodes of the given type (e.g., 'sensory', 'dynamic').
+    Return a list of node IDs for nodes of the given type (e.g., 'sensory', 'dynamic').
+    Uses ID-based selection instead of array indices.
     """
-    return [i for i, lbl in enumerate(graph.node_labels) if lbl.get('type') == node_type]
+    from node_access_layer import NodeAccessLayer
+    access_layer = NodeAccessLayer(graph)
+    return access_layer.select_nodes_by_type(node_type)
 
 def select_nodes_by_state(graph, state):
     """
-    Return a list of indices for nodes with the given state (e.g., 'active', 'inactive').
+    Return a list of node IDs for nodes with the given state (e.g., 'active', 'inactive').
+    Uses ID-based selection instead of array indices.
     """
-    return [i for i, lbl in enumerate(graph.node_labels) if lbl.get('state') == state]
+    from node_access_layer import NodeAccessLayer
+    access_layer = NodeAccessLayer(graph)
+    return access_layer.select_nodes_by_state(state)
 
 def select_nodes_by_behavior(graph, behavior):
     """
-    Return a list of indices for nodes with the given behavior (e.g., 'sensory', 'dynamic', 'oscillator').
+    Return a list of node IDs for nodes with the given behavior (e.g., 'sensory', 'dynamic', 'oscillator').
+    Uses ID-based selection instead of array indices.
     """
-    return [i for i, lbl in enumerate(graph.node_labels) if lbl.get('behavior') == behavior]
+    from node_access_layer import NodeAccessLayer
+    access_layer = NodeAccessLayer(graph)
+    return access_layer.select_nodes_by_behavior(behavior)
 
 # Example usage (for testing/debugging)
 if __name__ == "__main__":

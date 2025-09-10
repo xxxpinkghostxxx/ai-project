@@ -15,15 +15,7 @@ from logging_utils import log_step, log_node_state
 from config_manager import get_learning_config
 
 # Learning constants with configuration fallbacks
-def get_learning_config_values():
-    config = get_learning_config()
-    return {
-        'learning_rate': config.get('plasticity_rate', 0.01),
-        'eligibility_decay': config.get('eligibility_decay', 0.95),
-        'stdp_window': config.get('stdp_window', 20.0),
-        'ltp_rate': config.get('ltp_rate', 0.02),
-        'ltd_rate': config.get('ltd_rate', 0.01)
-    }
+# Removed get_learning_config_values() - using config_manager directly
 
 
 class LearningEngine:
@@ -35,12 +27,12 @@ class LearningEngine:
     
     def __init__(self):
         """Initialize the learning engine with learning parameters from configuration."""
-        config = get_learning_config_values()
-        self.learning_rate = config['learning_rate']
-        self.eligibility_decay = config['eligibility_decay']
-        self.stdp_window = config['stdp_window']
-        self.ltp_rate = config['ltp_rate']
-        self.ltd_rate = config['ltd_rate']
+        config = get_learning_config()
+        self.learning_rate = config.get('plasticity_rate', 0.01)
+        self.eligibility_decay = config.get('eligibility_decay', 0.95)
+        self.stdp_window = config.get('stdp_window', 20.0)
+        self.ltp_rate = config.get('ltp_rate', 0.02)
+        self.ltd_rate = config.get('ltd_rate', 0.01)
         self.plasticity_threshold = 0.1  # Default threshold
         self.consolidation_threshold = 0.5  # Default threshold
         
@@ -374,19 +366,3 @@ def detect_learning_patterns(graph):
     }
 
 
-# Example usage and testing
-if __name__ == "__main__":
-    # Test learning engine
-    engine = LearningEngine()
-    
-    print("Learning Engine initialized successfully!")
-    print(f"Learning rate: {engine.learning_rate}")
-    print(f"STDP window: {engine.stdp_window} ms")
-    print(f"LTP rate: {engine.ltp_rate}")
-    print(f"LTD rate: {engine.ltd_rate}")
-    
-    # Test statistics
-    stats = engine.get_learning_statistics()
-    print(f"Initial statistics: {stats}")
-    
-    print("\nLearning Engine is ready for integration!")

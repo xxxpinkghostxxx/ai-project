@@ -8,15 +8,28 @@ Designed for modularity and future extension.
 import torch
 import random
 import numpy as np
+import logging
 from main_graph import select_nodes_by_type, select_nodes_by_state, select_nodes_by_behavior
+from config_manager import get_system_constants
+# Import connection constants to replace magic numbers
+from energy_constants import ConnectionConstants
 
-MAX_DYNAMIC_ENERGY = 1.0  # Define the maximum energy for dynamic nodes
-DYNAMIC_ENERGY_THRESHOLD = 0.8 * MAX_DYNAMIC_ENERGY  # 80% threshold
+# Configuration values now accessed directly from config_manager
+# Removed hardcoded constants - using config_manager instead
 
-# Edge type constants
-EDGE_TYPES = ['excitatory', 'inhibitory', 'modulatory']
-DEFAULT_EDGE_WEIGHT = 1.0
-DEFAULT_EDGE_DELAY = 0.0
+def get_max_dynamic_energy():
+    """Get max dynamic energy from configuration."""
+    constants = get_system_constants()
+    return constants.get('max_dynamic_energy', 1.0)
+
+def get_dynamic_energy_threshold():
+    """Get dynamic energy threshold from configuration."""
+    return ConnectionConstants.DYNAMIC_ENERGY_THRESHOLD_FRACTION * get_max_dynamic_energy()
+
+# Edge type constants (using ConnectionConstants)
+EDGE_TYPES = ConnectionConstants.EDGE_TYPES
+DEFAULT_EDGE_WEIGHT = ConnectionConstants.DEFAULT_EDGE_WEIGHT
+DEFAULT_EDGE_DELAY = ConnectionConstants.DEFAULT_EDGE_DELAY
 
 
 class EnhancedEdge:
@@ -30,10 +43,10 @@ class EnhancedEdge:
         self.target = target
         self.weight = weight
         self.type = edge_type  # 'excitatory', 'inhibitory', 'modulatory'
-        self.delay = 0.0  # Transmission delay
+        self.delay = ConnectionConstants.EDGE_DELAY_DEFAULT  # Transmission delay
         self.plasticity_tag = False  # For learning
-        self.eligibility_trace = 0.0  # STDP-like mechanism
-        self.last_activity = 0.0  # For timing-based updates
+        self.eligibility_trace = ConnectionConstants.ELIGIBILITY_TRACE_DEFAULT  # STDP-like mechanism
+        self.last_activity = ConnectionConstants.LAST_ACTIVITY_DEFAULT  # For timing-based updates
         self.strength_history = []  # Track weight changes over time
         self.creation_time = 0  # When this edge was created
         self.activation_count = 0  # How many times this edge has been used
@@ -42,7 +55,7 @@ class EnhancedEdge:
         """Update the eligibility trace for learning."""
         self.eligibility_trace += delta_eligibility
         # Decay eligibility trace over time
-        self.eligibility_trace *= 0.95
+        self.eligibility_trace *= ConnectionConstants.ELIGIBILITY_TRACE_DECAY
     
     def record_activation(self, timestamp):
         """Record when this edge was activated."""
@@ -54,7 +67,7 @@ class EnhancedEdge:
         if self.type == 'inhibitory':
             return -abs(self.weight)
         elif self.type == 'modulatory':
-            return self.weight * 0.5  # Modulatory connections are weaker
+            return self.weight * ConnectionConstants.MODULATORY_WEIGHT
         else:  # excitatory
             return abs(self.weight)
     
@@ -74,25 +87,37 @@ class EnhancedEdge:
         }
 
 
-def create_weighted_connection(graph, source, target, weight, edge_type='excitatory'):
+def create_weighted_connection(graph, source_id, target_id, weight, edge_type='excitatory'):
     """
-    Create a weighted connection with enhanced attributes.
+    Create a weighted connection with enhanced attributes using node IDs.
     
     Args:
         graph: PyTorch Geometric graph
-        source: Source node index
-        target: Target node index
+        source_id: Source node ID
+        target_id: Target node ID
         weight: Connection weight
         edge_type: Type of connection ('excitatory', 'inhibitory', 'modulatory')
     
     Returns:
         Modified graph with new edge
     """
-    # Create enhanced edge
-    edge = EnhancedEdge(source, target, weight, edge_type)
+    # Import ID manager to convert IDs to indices
+    from node_id_manager import get_id_manager
+    id_manager = get_id_manager()
     
-    # Add to edge_index
-    new_edge = torch.tensor([[source], [target]], dtype=torch.long)
+    # Convert node IDs to array indices
+    source_index = id_manager.get_node_index(source_id)
+    target_index = id_manager.get_node_index(target_id)
+    
+    if source_index is None or target_index is None:
+        logging.warning(f"Invalid node IDs for connection: source={source_id}, target={target_id}")
+        return graph
+    
+    # Create enhanced edge with IDs
+    edge = EnhancedEdge(source_id, target_id, weight, edge_type)
+    
+    # Add to edge_index using array indices
+    new_edge = torch.tensor([[source_index], [target_index]], dtype=torch.long)
     if graph.edge_index.numel() == 0:
         graph.edge_index = new_edge
     else:
@@ -138,7 +163,7 @@ def apply_weight_change(graph, edge_idx, weight_change):
     """
     if hasattr(graph, 'edge_attributes') and edge_idx < len(graph.edge_attributes):
         edge = graph.edge_attributes[edge_idx]
-        edge.weight = max(0.0, edge.weight + weight_change)  # Ensure non-negative
+        edge.weight = max(ConnectionConstants.ELIGIBILITY_TRACE_DEFAULT, edge.weight + weight_change)  # Ensure non-negative
         edge.strength_history.append(edge.weight)
         
         # Keep only recent history
@@ -152,99 +177,17 @@ def intelligent_connection_formation(graph):
     """
     Create intelligent connections based on node behaviors and states.
     This replaces the basic random connection approach with behavior-aware routing.
+    Uses optimized vectorized connection formation for better performance.
     """
     if not hasattr(graph, "node_labels") or not hasattr(graph, "x"):
         return graph
     
-    # Clear existing connections for fresh formation
-    graph.edge_index = torch.empty((2, 0), dtype=torch.long)
-    if hasattr(graph, 'edge_attributes'):
-        graph.edge_attributes = []
-    
-    num_nodes = len(graph.node_labels)
-    
-    # Get nodes by behavior type
-    sensory_indices = select_nodes_by_type(graph, 'sensory')
-    oscillator_indices = select_nodes_by_behavior(graph, 'oscillator')
-    integrator_indices = select_nodes_by_behavior(graph, 'integrator')
-    relay_indices = select_nodes_by_behavior(graph, 'relay')
-    highway_indices = select_nodes_by_behavior(graph, 'highway')
-    dynamic_indices = select_nodes_by_behavior(graph, 'dynamic')
-    
-    # Strategy 0: Sensory nodes connect to dynamic nodes for energy flow
-    # Connect a subset of sensory nodes to dynamic nodes for basic energy flow
-    if sensory_indices and dynamic_indices:
-        # OPTIMIZED: Connect every 200th sensory node to avoid performance issues
-        sample_sensory = sensory_indices[::200]  # Every 200th sensory node
-        for sensory_idx in sample_sensory:
-            # Connect to 3 random dynamic nodes
-            dynamic_targets = np.random.choice(dynamic_indices, size=min(3, len(dynamic_indices)), replace=False)
-            for target in dynamic_targets:
-                create_weighted_connection(graph, sensory_idx, target, 0.1, 'excitatory')
-    
-    # Strategy 1: Oscillators connect to integrators for rhythmic input
-    for osc_idx in oscillator_indices:
-        # Connect to 2 integrator nodes
-        for target in integrator_indices[:2]:
-            if target != osc_idx:
-                create_weighted_connection(graph, osc_idx, target, 1.0, 'excitatory')
-    
-    # Strategy 2: Integrators connect to relay nodes for output
-    for int_idx in integrator_indices:
-        # Connect to 1 relay node
-        for target in relay_indices[:1]:
-            if target != int_idx:
-                create_weighted_connection(graph, int_idx, target, 1.0, 'excitatory')
-    
-    # Strategy 3: Relay nodes connect to highways for energy distribution
-    for relay_idx in relay_indices:
-        # Connect to 1 highway node
-        for target in highway_indices[:1]:
-            if target != relay_idx:
-                create_weighted_connection(graph, relay_idx, target, 1.0, 'excitatory')
-    
-    # Strategy 4: Highways connect back to dynamic nodes for regulation
-    for highway_idx in highway_indices:
-        # Connect to 3 dynamic nodes for regulation
-        dynamic_targets = [idx for idx in dynamic_indices if idx != highway_idx][:3]
-        for target in dynamic_targets:
-            create_weighted_connection(graph, highway_idx, target, 0.8, 'modulatory')
-    
-    # Strategy 5: Dynamic nodes connect to each other for basic connectivity
-    # OPTIMIZED: Only connect a subset of dynamic nodes to avoid performance issues
-    if dynamic_indices and len(dynamic_indices) > 1000:
-        # For large networks, only connect every 100th dynamic node
-        sample_dynamic = dynamic_indices[::100]  # Every 100th node
-        for dyn_idx in sample_dynamic:
-            # Connect to 2-3 other sampled dynamic nodes
-            other_dynamic = [idx for idx in sample_dynamic if idx != dyn_idx]
-            num_connections = min(3, len(other_dynamic))
-            if num_connections > 0:
-                # Randomly select target nodes
-                targets = np.random.choice(other_dynamic, size=num_connections, replace=False)
-                for target in targets:
-                    create_weighted_connection(graph, dyn_idx, target, 0.6, 'excitatory')
-    elif dynamic_indices:
-        # For smaller networks, connect all dynamic nodes
-        for dyn_idx in dynamic_indices:
-            # Connect to 2-3 other dynamic nodes
-            other_dynamic = [idx for idx in dynamic_indices if idx != dyn_idx]
-            num_connections = min(3, len(other_dynamic))
-            if num_connections > 0:
-                # Randomly select target nodes
-                targets = np.random.choice(other_dynamic, size=num_connections, replace=False)
-                for target in targets:
-                    create_weighted_connection(graph, dyn_idx, target, 0.6, 'excitatory')
-    
-    # Log connection statistics
-    num_edges = graph.edge_index.shape[1] if graph.edge_index.numel() > 0 else 0
-    import logging
-    logging.info(f"[CONNECTIONS] Created {num_edges} connections: {len(sensory_indices)} sensory, {len(dynamic_indices)} dynamic")
-    
-    return graph
+    # Use optimized connection formation
+    from performance_optimizer_v3 import optimize_connection_formation
+    return optimize_connection_formation(graph)
 
 
-def update_connection_weights(graph, learning_rate=0.01):
+def update_connection_weights(graph, learning_rate=ConnectionConstants.LEARNING_RATE_DEFAULT):
     """
     Implement weight adaptation based on activity patterns.
     Use eligibility traces for gradual weight changes.
@@ -271,15 +214,15 @@ def update_connection_weights(graph, learning_rate=0.01):
         if source_activity > 0 and target_activity > 0:
             # Both nodes are active - strengthen connection
             weight_change = learning_rate * (source_activity + target_activity) / 2
-            edge.weight = min(edge.weight + weight_change, 5.0)  # Cap at 5.0
+            edge.weight = min(edge.weight + weight_change, ConnectionConstants.WEIGHT_CAP_MAX)  # Cap at max
             
             # Update eligibility trace
-            edge.eligibility_trace += weight_change * 0.1
+            edge.eligibility_trace += weight_change * ConnectionConstants.WEIGHT_CHANGE_FACTOR
         
         elif source_activity > 0 and target_activity == 0:
             # Only source active - slight weakening
-            weight_change = -learning_rate * 0.1
-            edge.weight = max(edge.weight + weight_change, 0.1)  # Minimum 0.1
+            weight_change = -learning_rate * ConnectionConstants.WEIGHT_CHANGE_FACTOR
+            edge.weight = max(edge.weight + weight_change, ConnectionConstants.WEIGHT_MIN)  # Minimum weight
         
         # Decay eligibility trace
         edge.update_eligibility_trace(0)

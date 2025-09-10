@@ -15,16 +15,7 @@ from logging_utils import log_step, log_node_state
 from config_manager import get_homeostasis_config
 
 # Homeostasis constants with configuration fallbacks
-def get_homeostasis_config_values():
-    config = get_homeostasis_config()
-    return {
-        'target_energy_ratio': config.get('target_energy_ratio', 0.6),
-        'criticality_threshold': config.get('criticality_threshold', 0.1),
-        'regulation_rate': config.get('regulation_rate', 0.001),
-        'regulation_interval': config.get('regulation_interval', 100),
-        'branching_target': 1.0,  # Default branching target
-        'energy_variance_threshold': 0.2  # Default variance threshold
-    }
+# Removed get_homeostasis_config_values() - using config_manager directly
 
 
 class HomeostasisController:
@@ -36,13 +27,13 @@ class HomeostasisController:
     
     def __init__(self):
         """Initialize the homeostasis controller with regulation parameters from configuration."""
-        config = get_homeostasis_config_values()
-        self.target_energy_ratio = config['target_energy_ratio']
-        self.criticality_threshold = config['criticality_threshold']
-        self.regulation_rate = config['regulation_rate']
-        self.regulation_interval = config['regulation_interval']
-        self.branching_target = config['branching_target']
-        self.energy_variance_threshold = config['energy_variance_threshold']
+        config = get_homeostasis_config()
+        self.target_energy_ratio = config.get('target_energy_ratio', 0.6)
+        self.criticality_threshold = config.get('criticality_threshold', 0.1)
+        self.regulation_rate = config.get('regulation_rate', 0.001)
+        self.regulation_interval = config.get('regulation_interval', 100)
+        self.branching_target = 1.0  # Default branching target
+        self.energy_variance_threshold = 0.2  # Default variance threshold
         
         # Regulation statistics
         self.regulation_stats = {
@@ -98,31 +89,21 @@ class HomeostasisController:
                 
             except Exception as e:
                 log_step("Metrics calculation failed, using fallback", error=str(e))
-                # Fallback to basic energy calculation
-                total_energy = float(torch.sum(graph.x[:, 0]).item())
-                num_nodes = len(graph.node_labels)
-                avg_energy = total_energy / num_nodes if num_nodes > 0 else 0
-                
-                # Calculate energy ratio relative to maximum possible
-                max_possible_energy = num_nodes * 244.0  # NODE_ENERGY_CAP
-                energy_ratio = total_energy / max_possible_energy if max_possible_energy > 0 else 0
-                
-                # Calculate energy variance
-                energy_values = graph.x[:, 0].cpu().numpy()
-                energy_variance = np.var(energy_values) if len(energy_values) > 1 else 0
+                # Use centralized energy calculation
+                from energy_utils import calculate_energy_statistics
+                energy_stats = calculate_energy_statistics(graph)
+                total_energy = energy_stats['total_energy']
+                avg_energy = energy_stats['avg_energy']
+                energy_ratio = energy_stats['energy_ratio']
+                energy_variance = energy_stats['energy_variance']
         else:
-            # Fallback to basic energy calculation
-            total_energy = float(torch.sum(graph.x[:, 0]).item())
-            num_nodes = len(graph.node_labels)
-            avg_energy = total_energy / num_nodes if num_nodes > 0 else 0
-            
-            # Calculate energy ratio relative to maximum possible
-            max_possible_energy = num_nodes * 244.0  # NODE_ENERGY_CAP
-            energy_ratio = total_energy / max_possible_energy if max_possible_energy > 0 else 0
-            
-            # Calculate energy variance
-            energy_values = graph.x[:, 0].cpu().numpy()
-            energy_variance = np.var(energy_values) if len(energy_values) > 1 else 0
+            # Use centralized energy calculation
+            from energy_utils import calculate_energy_statistics
+            energy_stats = calculate_energy_statistics(graph)
+            total_energy = energy_stats['total_energy']
+            avg_energy = energy_stats['avg_energy']
+            energy_ratio = energy_stats['energy_ratio']
+            energy_variance = energy_stats['energy_variance']
         
         # Store historical data
         self._update_history('energy', energy_ratio)
@@ -567,19 +548,3 @@ def detect_network_anomalies(graph):
     return anomalies
 
 
-# Example usage and testing
-if __name__ == "__main__":
-    # Test homeostasis controller
-    controller = HomeostasisController()
-    
-    print("Homeostasis Controller initialized successfully!")
-    print(f"Target energy ratio: {controller.target_energy_ratio}")
-    print(f"Criticality threshold: {controller.criticality_threshold}")
-    print(f"Regulation rate: {controller.regulation_rate}")
-    print(f"Regulation interval: {controller.regulation_interval}")
-    
-    # Test statistics
-    stats = controller.get_regulation_statistics()
-    print(f"Initial statistics: {stats}")
-    
-    print("\nHomeostasis Controller is ready for integration!")

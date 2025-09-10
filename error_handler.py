@@ -11,6 +11,7 @@ import time
 from typing import Any, Dict, List, Optional, Callable
 from functools import wraps
 from logging_utils import log_step
+from dependency_injection import register_service, resolve_service, is_service_registered
 
 
 class ErrorHandler:
@@ -91,8 +92,11 @@ class ErrorHandler:
         for callback in self.error_callbacks:
             try:
                 callback(error, context, critical)
-            except Exception as callback_error:
+            except (TypeError, ValueError, AttributeError) as callback_error:
                 logging.error(f"Error callback failed: {callback_error}")
+            except Exception as callback_error:
+                logging.error(f"Unexpected error callback failure: {callback_error}")
+                # Don't re-raise callback errors to prevent cascading failures
         
         # If critical, update system state
         if critical:
@@ -151,16 +155,24 @@ class ErrorHandler:
                 for callback in self.recovery_callbacks:
                     try:
                         callback(error_key, True)
-                    except Exception as callback_error:
+                    except (TypeError, ValueError, AttributeError) as callback_error:
                         logging.error(f"Recovery callback failed: {callback_error}")
+                    except Exception as callback_error:
+                        logging.error(f"Unexpected recovery callback failure: {callback_error}")
+                        # Don't re-raise callback errors to prevent cascading failures
                 
                 return True
             else:
                 log_step("Recovery attempt failed", error_key=error_key)
                 return False
                 
+        except (TypeError, ValueError, AttributeError, RuntimeError) as recovery_error:
+            log_step("Recovery attempt caused error", 
+                    error_key=error_key, 
+                    recovery_error=str(recovery_error))
+            return False
         except Exception as recovery_error:
-            log_step("Recovery attempt caused new error", 
+            log_step("Recovery attempt caused unexpected error", 
                     error_key=error_key, 
                     recovery_error=str(recovery_error))
             return False
@@ -193,15 +205,16 @@ class ErrorHandler:
         log_step("Error counts reset")
 
 
-# Global error handler instance
-_error_handler = None
-
+# Dependency injection support
 def get_error_handler() -> ErrorHandler:
-    """Get the global error handler instance."""
-    global _error_handler
-    if _error_handler is None:
-        _error_handler = ErrorHandler()
-    return _error_handler
+    """Get the error handler instance from dependency container."""
+    if is_service_registered(ErrorHandler):
+        return resolve_service(ErrorHandler)
+    else:
+        # Fallback: create and register a new instance
+        error_handler = ErrorHandler()
+        register_service(ErrorHandler, instance=error_handler)
+        return error_handler
 
 
 def safe_execute(func: Callable, context: str = "", 

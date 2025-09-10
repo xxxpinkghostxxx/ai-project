@@ -13,7 +13,6 @@ def append_log_line(line):
     global log_lines
     with log_lock:
         log_lines.append(line)
-        print(f"DEBUG: Log added to buffer: {line}")  # Diagnostic print
         if len(log_lines) > MAX_LOG_LINES:
             log_lines = log_lines[-MAX_LOG_LINES:]
 
@@ -46,8 +45,7 @@ def setup_logging(ui_callback=None, level=logging.INFO):
     handler = UILogHandler(ui_callback=ui_callback)
     handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
     logging.basicConfig(level=level, handlers=[handler], force=True)
-    print("DEBUG: UILogHandler attached to root logger.")
-    logging.info("TEST: Logging system initialized.")
+    logging.info("Logging system initialized.")
     return handler
 
 

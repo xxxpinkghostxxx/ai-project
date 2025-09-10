@@ -395,11 +395,15 @@ class PerformanceOptimizer:
             edge_count = graph.edge_index.shape[1] if hasattr(graph, 'edge_index') and graph.edge_index.numel() > 0 else 0
             throughput = node_count / step_time if step_time > 0 else 0
             
+            # Get comprehensive performance metrics from new monitoring system
+            from performance_monitor import get_system_performance_metrics
+            perf_metrics = get_system_performance_metrics()
+            
             metrics = PerformanceMetrics(
                 step_time=step_time,
-                memory_usage=0.0,  # Placeholder
-                cpu_usage=0.0,     # Placeholder
-                gpu_usage=0.0,     # Placeholder
+                memory_usage=perf_metrics['memory_usage'],
+                cpu_usage=perf_metrics['cpu_usage'],
+                gpu_usage=perf_metrics['gpu_usage'],
                 node_count=node_count,
                 edge_count=edge_count,
                 throughput=throughput,

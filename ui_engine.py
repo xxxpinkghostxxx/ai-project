@@ -12,7 +12,8 @@ from logging_utils import (
     log_step,
     get_log_lines,
 )
-from main_loop import update_dynamic_node_energies
+# from error_handling_utils import handle_ui_error, log_ui_error, safe_execute  # Not currently used
+# from main_loop import update_dynamic_node_energies  # REMOVED: function no longer exists
 from death_and_birth_logic import birth_new_dynamic_nodes, remove_dead_dynamic_nodes
 
 # --- SECTION: Logging Setup ---
@@ -29,46 +30,115 @@ SENSORY_UI_UPDATE_EVERY_N = (
 # --- DearPyGui UI Engine for Energy-Based Neural System ---
 # This file is structured for easy AI/human extension. See section markers.
 
-# --- SECTION: Shared State ---
-simulation_running = False
-latest_graph = None
-latest_graph_for_ui = None
-update_for_ui = False
-sim_update_counter = 0
-last_update_time = 0
-sensory_texture_tag = "sensory_texture"
-sensory_image_tag = "sensory_image"
-graph_lock = Lock()
-graph_h = None
-graph_w = None
+# --- SECTION: Thread-Safe State Management ---
+# Import thread-safe UI state manager
+from ui_state_manager import get_ui_state_manager
 
-# --- SECTION: Live Feed Data ---
-live_feed_data = {
-    "energy_history": [],
-    "node_activity_history": [],
-    "performance_history": [],
-    "connection_history": [],
-    "birth_rate_history": [],
-    "time_history": [],
-}
+# Get thread-safe state manager
+ui_state = get_ui_state_manager()
 
-# --- SECTION: Live Training System ---
-live_training_interface = None
-training_active = False
+# Thread-safe access to global state
+def get_simulation_running():
+    """
+    Get the current simulation running state.
+    
+    Returns:
+        bool: True if simulation is running, False otherwise
+    """
+    return ui_state.get_simulation_state()['simulation_running']
 
-# Live feed configuration
-live_feed_config = {
-    "max_history_length": 100
-}
+def set_simulation_running(running: bool):
+    """
+    Set the simulation running state.
+    
+    Args:
+        running (bool): True to start simulation, False to stop
+    """
+    ui_state.set_simulation_running(running)
 
-# System health tracking
-system_health = {
-    "status": "unknown",
-    "last_check": 0,
-    "alerts": [],
-    "energy_flow_rate": 0.0,
-    "connection_activity": 0
-}
+def get_latest_graph():
+    """
+    Get the latest graph from the simulation.
+    
+    Returns:
+        Any: The latest graph object or None if no graph is available
+    """
+    return ui_state.get_latest_graph()
+
+def get_latest_graph_for_ui():
+    """
+    Get the latest graph formatted for UI display.
+    
+    Returns:
+        Any: The latest graph object formatted for UI or None if no graph is available
+    """
+    return ui_state.get_latest_graph_for_ui()
+
+def update_graph(graph):
+    """
+    Update the current graph in the UI state.
+    
+    Args:
+        graph: The graph object to update
+    """
+    ui_state.update_graph(graph)
+
+def add_live_feed_data(data_type: str, value: float):
+    """
+    Add live feed data to the UI state.
+    
+    Args:
+        data_type (str): Type of data (e.g., 'energy', 'nodes', 'connections')
+        value (float): The data value to add
+    """
+    ui_state.add_live_feed_data(data_type, value)
+
+def get_live_feed_data():
+    """
+    Get all live feed data from the UI state.
+    
+    Returns:
+        Dict[str, List[float]]: Dictionary mapping data types to their value lists
+    """
+    return ui_state.get_live_feed_data()
+
+def clear_live_feed_data():
+    """
+    Clear all live feed data from the UI state.
+    """
+    ui_state.clear_live_feed_data()
+
+# Backward compatibility - these will be removed in future refactor
+simulation_running = property(get_simulation_running, set_simulation_running)
+latest_graph = property(get_latest_graph)
+latest_graph_for_ui = property(get_latest_graph_for_ui)
+live_feed_data = property(get_live_feed_data)
+
+# Additional backward compatibility properties
+def get_sensory_texture_tag():
+    return ui_state.sensory_texture_tag
+
+def get_sensory_image_tag():
+    return ui_state.sensory_image_tag
+
+def get_graph_h():
+    return ui_state.graph_h
+
+def get_graph_w():
+    return ui_state.graph_w
+
+def get_system_health():
+    return ui_state.get_system_health()
+
+def get_graph_lock():
+    return ui_state._lock
+
+sensory_texture_tag = property(get_sensory_texture_tag)
+sensory_image_tag = property(get_sensory_image_tag)
+graph_h = property(get_graph_h)
+graph_w = property(get_graph_w)
+system_health = property(get_system_health)
+graph_lock = property(get_graph_lock)
 
 
 # --- SECTION: Sensory Feature Update ---
@@ -129,9 +199,11 @@ def update_sensory_visualization(graph):
     arr_rgb = np.stack([arr] * 3, axis=-1)
     arr_f = arr_rgb.astype(np.float32) / 255.0
     arr_f = arr_f.flatten()
+    # Convert to list for DearPyGui
+    arr_list = arr_f.tolist()
     # Update the dynamic texture
     try:
-        dpg.set_value(sensory_texture_tag, arr_f)
+        dpg.set_value("sensory_texture", arr_list)
         logging.info(f"[UI] Sensory texture updated successfully")
     except Exception as e:
         logging.error(f"[UI] Failed to update sensory texture: {e}")
@@ -206,7 +278,10 @@ def active_logging_handler():
         # Still schedule next update even if there's an error
         try:
             dpg.set_frame_callback(dpg.get_frame_count() + 30, active_logging_handler)
-        except:
+        except (AttributeError, RuntimeError, OSError):
+            pass
+        except Exception:
+            # Don't let UI scheduling errors crash the system
             pass
 
 
@@ -216,17 +291,38 @@ def ui_frame_handler():
         # Core live updates
         live_update_callback()
 
-        # Lightweight performance reporting every second
+        # Comprehensive performance reporting every second
         now = time.time()
         if now - perf_stats.get("last_log_time", now) >= 1.0:
+            # Get UI performance metrics
             fps = perf_stats.get("ui_updates", 0) / max(now - perf_stats["last_log_time"], 1e-6)
             sim_fps = perf_stats.get("sim_updates", 0) / max(now - perf_stats["last_log_time"], 1e-6)
-            report = (
-                f"UI FPS: {fps:.2f}\n"
-                f"Sim FPS: {sim_fps:.2f}\n"
-                f"Last Sim Update: {perf_stats['last_sim_update_time']*1000:.1f} ms\n"
-                f"Last UI Update: {perf_stats['last_ui_update_time']*1000:.1f} ms"
-            )
+            
+            # Get comprehensive system performance metrics
+            try:
+                from performance_monitor import get_system_performance_metrics
+                system_metrics = get_system_performance_metrics()
+                
+                report = (
+                    f"UI FPS: {fps:.2f}\n"
+                    f"Sim FPS: {sim_fps:.2f}\n"
+                    f"Memory: {system_metrics['memory_usage']:.1f} MB\n"
+                    f"CPU: {system_metrics['cpu_usage']:.1f}%\n"
+                    f"GPU: {system_metrics['gpu_usage']:.1f}%\n"
+                    f"Health: {system_metrics['system_health_score']:.1f}%\n"
+                    f"Step Time: {system_metrics['step_time']*1000:.1f} ms\n"
+                    f"Error Rate: {system_metrics['error_rate']*100:.2f}%"
+                )
+            except Exception as e:
+                logging.error(f"Failed to get system performance metrics: {e}")
+                # Fallback to basic reporting
+                report = (
+                    f"UI FPS: {fps:.2f}\n"
+                    f"Sim FPS: {sim_fps:.2f}\n"
+                    f"Last Sim Update: {perf_stats['last_sim_update_time']*1000:.1f} ms\n"
+                    f"Last UI Update: {perf_stats['last_ui_update_time']*1000:.1f} ms"
+                )
+            
             perf_stats["fps"] = fps
             perf_stats["sim_fps"] = sim_fps
             perf_stats["last_report"] = report
@@ -250,7 +346,10 @@ def ui_frame_handler():
         # Schedule next frame update
         try:
             dpg.set_frame_callback(dpg.get_frame_count() + 1, ui_frame_handler)
+        except (AttributeError, RuntimeError, OSError):
+            pass
         except Exception:
+            # Don't let UI scheduling errors crash the system
             pass
 
 # --- SECTION: Performance Window ---
@@ -299,7 +398,6 @@ def simulation_loop():
     log_step("simulation_loop start")
     import time
 
-    global latest_graph, simulation_running, sim_update_counter, latest_graph_for_ui, update_for_ui, perf_stats, graph_h, graph_w
     logging.info("[PERF] simulation_loop: start")
     # Initialize the graph once
     from main_graph import initialize_main_graph
@@ -307,12 +405,20 @@ def simulation_loop():
         main_graph = initialize_main_graph()
     except Exception as e:
         logging.error(f"[SIM] Failed to initialize main graph: {e}")
-        simulation_running = False
+        set_simulation_running(False)
         log_step("simulation_loop end (init failure)")
         return
-    latest_graph = main_graph
-    graph_h = main_graph.h
-    graph_w = main_graph.w
+    
+    # Update graph using thread-safe method
+    update_graph(main_graph)
+    
+    # Update graph dimensions in state manager
+    ui_state._lock.acquire()
+    try:
+        ui_state.graph_h = main_graph.h
+        ui_state.graph_w = main_graph.w
+    finally:
+        ui_state._lock.release()
     # Initialize unified simulation manager
     from simulation_manager import get_simulation_manager
     
@@ -320,16 +426,21 @@ def simulation_loop():
     sim_manager = get_simulation_manager()
     sim_manager.set_graph(main_graph)
     
-    # Add UI update callback
+    # Add UI update callback with thread-safe access
     def ui_update_callback(graph, step, perf_stats):
         """Callback to update UI with latest graph state."""
-        global latest_graph, latest_graph_for_ui, update_for_ui, sim_update_counter
-        with graph_lock:
-            latest_graph = graph
-            sim_update_counter += 1
-            if sim_update_counter % SENSORY_UI_UPDATE_EVERY_N == 0:
-                latest_graph_for_ui = graph
-                update_for_ui = True
+        # Use thread-safe state manager
+        ui_state.update_graph(graph)
+        
+        # Update UI-specific state
+        ui_state._lock.acquire()
+        try:
+            ui_state.sim_update_counter += 1
+            if ui_state.sim_update_counter % SENSORY_UI_UPDATE_EVERY_N == 0:
+                ui_state.latest_graph_for_ui = graph
+                ui_state.update_for_ui = True
+        finally:
+            ui_state._lock.release()
     
     # Add performance callback
     def perf_callback(metrics):
@@ -418,17 +529,13 @@ def start_simulation_callback():
 
     global simulation_running, sim_update_counter, last_update_time
     logging.info("[PERF] start_simulation_callback: Simulation starting")
-    print("DEBUG: start_simulation_callback called!")
     if not simulation_running:
         simulation_running = True
         sim_update_counter = 0
         dpg.set_value("sim_status_text", "Simulation Running")
-        print("DEBUG: Starting simulation thread...")
         Thread(target=simulation_loop, daemon=True).start()
-        print("DEBUG: Simulation thread started!")
     else:
         logging.info("[UI] Simulation already running; start ignored")
-        print("DEBUG: Simulation already running")
     last_update_time = time.time()
     logging.info(f"[UI] Simulation started at {last_update_time}")
     log_step("start_simulation_callback end")
@@ -463,9 +570,7 @@ def reset_simulation_callback():
 
 # --- SECTION: Runtime Log UI Display Callback ---
 def show_runtime_log_in_ui():
-    print("DEBUG: Show Runtime Log in UI button pressed")
     logs = get_log_lines()
-    print(f"DEBUG: log buffer length = {len(logs)} (UI)")
     if logs:
         log_text = "\n".join(logs[-100:])
         dpg.set_value("runtime_log_text", log_text)
@@ -476,7 +581,6 @@ def show_runtime_log_in_ui():
         )
     else:
         dpg.set_value("runtime_log_text", "No logs recorded.")
-        print("DEBUG: Log buffer is empty (UI).")
 
 
 # --- SECTION: Main UI Organization ---
@@ -748,13 +852,14 @@ def create_visualization_panel():
         with dpg.group():
             dpg.add_text("Sensory Input (Screen Capture)")
             
-            # Create a placeholder texture for sensory visualization
+            # Create a default texture for sensory visualization
             default_w, default_h = 320, 180  # 16:9 aspect ratio, smaller size
-            arr = np.zeros((default_h, default_w), dtype=np.float32).flatten()
+            # Create texture data as a list of floats (0.0-1.0 range)
+            arr = [0.0] * (default_h * default_w)  # Simple list of floats for DearPyGui
             with dpg.texture_registry():
-                dpg.add_dynamic_texture(default_w, default_h, arr, tag=sensory_texture_tag)
+                dpg.add_dynamic_texture(default_w, default_h, arr, tag="sensory_texture")
             
-            dpg.add_image(sensory_texture_tag, tag=sensory_image_tag, width=320, height=180)
+            dpg.add_image("sensory_texture", tag="sensory_image", width=320, height=180)
             
             # Sensory controls
             with dpg.group(horizontal=True):
@@ -777,7 +882,8 @@ def create_visualization_panel():
             
             # Create workspace grid texture
             grid_size = 16
-            default_arr = np.zeros((grid_size, grid_size), dtype=np.float32).flatten()
+            # Create texture data as a list of floats (0.0-1.0 range)
+            default_arr = [0.0] * (grid_size * grid_size)  # Simple list of floats for DearPyGui
             with dpg.texture_registry():
                 dpg.add_dynamic_texture(grid_size, grid_size, default_arr, tag="workspace_grid_texture")
             
@@ -1019,32 +1125,63 @@ def save_configuration():
             }
         }
         
-        # Save to config file
+        # Save to config file with security validation
         config_path = "ui_config.json"
-        with open(config_path, 'w') as f:
-            json.dump(ui_state, f, indent=2)
+        
+        # Validate configuration data before saving
+        from input_validation import validate_dict
+        config_result = validate_dict(ui_state, max_keys=50)
+        if not config_result.is_valid:
+            logging.error(f"Invalid configuration data: {config_result.errors}")
+            raise ValueError("Configuration data validation failed")
+        
+        # Set secure file permissions
+        with open(config_path, 'w', encoding='utf-8') as f:
+            json.dump(config_result.sanitized_value, f, indent=2, ensure_ascii=False)
+        
+        # Set secure file permissions (readable only by owner)
+        os.chmod(config_path, 0o600)
         
         logging.info(f"UI configuration saved to {config_path}")
         print(f"Configuration saved successfully to {config_path}")
         
     except Exception as e:
         logging.error(f"Failed to save configuration: {e}")
-        print(f"Error saving configuration: {e}")
+        log_step("Configuration save failed", error=str(e))
 
 
 def load_configuration():
-    """Load configuration from file."""
+    """Load configuration from file with security validation."""
     try:
         import json
         import os
+        from input_validation import validate_file_path, validate_json
         
         config_path = "ui_config.json"
+        
+        # Validate file path for security
+        path_result = validate_file_path(config_path, allowed_extensions=['.json'], max_size=1024*1024)  # 1MB max
+        if not path_result.is_valid:
+            logging.error(f"Invalid configuration file path: {path_result.errors}")
+            print("Configuration file path validation failed. Using defaults.")
+            return
+        
         if not os.path.exists(config_path):
             print("No configuration file found. Using defaults.")
             return
         
-        with open(config_path, 'r') as f:
-            ui_state = json.load(f)
+        # Read and validate JSON content
+        with open(config_path, 'r', encoding='utf-8') as f:
+            json_content = f.read()
+        
+        # Validate JSON content for security
+        json_result = validate_json(json_content, max_depth=5)
+        if not json_result.is_valid:
+            logging.error(f"Invalid JSON configuration: {json_result.errors}")
+            print("Configuration file contains invalid JSON. Using defaults.")
+            return
+        
+        ui_state = json_result.sanitized_value
         
         # Restore panel visibility
         if 'panel_visibility' in ui_state:
@@ -1077,7 +1214,7 @@ def load_configuration():
         
     except Exception as e:
         logging.error(f"Failed to load configuration: {e}")
-        print(f"Error loading configuration: {e}")
+        log_step("Configuration load failed", error=str(e))
 
 
 def export_data():
@@ -1118,7 +1255,7 @@ def export_data():
         
     except Exception as e:
         logging.error(f"Failed to export data: {e}")
-        print(f"Error exporting data: {e}")
+        log_step("Data export failed", error=str(e))
 
 
 def get_node_statistics():
@@ -1200,7 +1337,7 @@ def show_all_panels():
         
     except Exception as e:
         logging.error(f"Error showing panels: {e}")
-        print(f"Error showing panels: {e}")
+        log_step("Panel show failed", error=str(e))
 
 
 def hide_all_panels():
@@ -1221,7 +1358,7 @@ def hide_all_panels():
         
     except Exception as e:
         logging.error(f"Error hiding panels: {e}")
-        print(f"Error hiding panels: {e}")
+        log_step("Panel hide failed", error=str(e))
 
 
 def reset_layout():
@@ -1255,7 +1392,7 @@ def reset_layout():
         
     except Exception as e:
         logging.error(f"Error resetting layout: {e}")
-        print(f"Error resetting layout: {e}")
+        log_step("Layout reset failed", error=str(e))
 
 
 def toggle_performance_panel():
@@ -1274,7 +1411,7 @@ def toggle_performance_panel():
             
     except Exception as e:
         logging.error(f"Error toggling performance panel: {e}")
-        print(f"Error toggling performance panel: {e}")
+        log_step("Performance panel toggle failed", error=str(e))
 
 
 def toggle_log_panel():
@@ -1293,7 +1430,7 @@ def toggle_log_panel():
             
     except Exception as e:
         logging.error(f"Error toggling log panel: {e}")
-        print(f"Error toggling log panel: {e}")
+        log_step("Log panel toggle failed", error=str(e))
 
 
 def toggle_network_panel():
@@ -1314,7 +1451,7 @@ def toggle_network_panel():
             
     except Exception as e:
         logging.error(f"Error toggling network panel: {e}")
-        print(f"Error toggling network panel: {e}")
+        log_step("Network panel toggle failed", error=str(e))
 
 
 def show_documentation():
@@ -1515,7 +1652,7 @@ def show_network_health_report():
             
     except Exception as e:
         logging.error(f"Error generating network health report: {e}")
-        print(f"Error generating network health report: {e}")
+        log_step("Network health report generation failed", error=str(e))
 
 
 def show_performance_details():
@@ -1593,7 +1730,7 @@ def show_performance_details():
             
     except Exception as e:
         logging.error(f"Error generating performance details: {e}")
-        print(f"Error generating performance details: {e}")
+        log_step("Performance details generation failed", error=str(e))
 
 
 def reset_performance_stats():
@@ -1689,7 +1826,7 @@ def save_current_settings():
         
     except Exception as e:
         logging.error(f"Error saving current settings: {e}")
-        print(f"Error saving current settings: {e}")
+        log_step("Settings save failed", error=str(e))
 
 
 def load_default_settings():
@@ -1734,7 +1871,7 @@ def load_default_settings():
         
     except Exception as e:
         logging.error(f"Error loading default settings: {e}")
-        print(f"Error loading default settings: {e}")
+        log_step("Default settings load failed", error=str(e))
 
 
 def reset_to_defaults():
@@ -1759,7 +1896,7 @@ def reset_to_defaults():
         
     except Exception as e:
         logging.error(f"Error resetting to defaults: {e}")
-        print(f"Error resetting to defaults: {e}")
+        log_step("Reset to defaults failed", error=str(e))
 
 
 def update_system_status():
@@ -2033,9 +2170,11 @@ def refresh_workspace_display():
             # Normalize to 0-1 range for texture
             grid_normalized = grid / 255.0
             grid_flat = grid_normalized.flatten()
+            # Convert to list for DearPyGui
+            grid_list = grid_flat.tolist()
             
             # Update the texture
-            dpg.set_value("workspace_grid_texture", grid_flat)
+            dpg.set_value("workspace_grid_texture", grid_list)
             
             # Update statistics
             total_energy = np.sum(grid)
@@ -2051,7 +2190,7 @@ def refresh_workspace_display():
             print("No graph available")
             
     except Exception as e:
-        print(f"Error refreshing workspace display: {e}")
+        log_step("Workspace display refresh failed", error=str(e))
         logging.error(f"Error refreshing workspace display: {e}")
 
 
@@ -2083,9 +2222,11 @@ def update_workspace_visualization(graph):
         # Normalize to 0-1 range for texture
         grid_normalized = grid / 255.0
         grid_flat = grid_normalized.flatten()
+        # Convert to list for DearPyGui
+        grid_list = grid_flat.tolist()
         
         # Update the texture
-        dpg.set_value("workspace_grid_texture", grid_flat)
+        dpg.set_value("workspace_grid_texture", grid_list)
         
         # Update statistics
         total_energy = np.sum(grid)
@@ -2112,11 +2253,11 @@ def set_workspace_node_energy():
         energy = dpg.get_value("workspace_energy_input")
         
         if not (0 <= x <= 15 and 0 <= y <= 15):
-            print("Error: Grid coordinates must be between 0 and 15")
+            log_step("Invalid grid coordinates", error="Coordinates must be between 0 and 15")
             return
         
         if not (0.0 <= energy <= 255.0):
-            print("Error: Energy must be between 0.0 and 255.0")
+            log_step("Invalid energy value", error="Energy must be between 0.0 and 255.0")
             return
         
         # Find the workspace node at this grid position
@@ -2140,7 +2281,7 @@ def set_workspace_node_energy():
             print("No graph available")
             
     except Exception as e:
-        print(f"Error setting workspace node energy: {e}")
+        log_step("Workspace node energy setting failed", error=str(e))
 
 
 def clear_workspace_grid():
@@ -2162,7 +2303,7 @@ def clear_workspace_grid():
             print("No graph available")
             
     except Exception as e:
-        print(f"Error clearing workspace grid: {e}")
+        log_step("Workspace grid clear failed", error=str(e))
 
 
 def randomize_workspace_grid():
@@ -2186,7 +2327,7 @@ def randomize_workspace_grid():
             print("No graph available")
             
     except Exception as e:
-        print(f"Error randomizing workspace grid: {e}")
+        log_step("Workspace grid randomization failed", error=str(e))
 
 
 # --- SECTION: DPG App Setup ---

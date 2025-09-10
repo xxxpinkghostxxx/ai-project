@@ -22,6 +22,9 @@ def run_main_loop(graph, steps=1000, step_delay=0.01):
     Returns:
         The final graph after simulation.
     """
+    # Import memory leak detection
+    from memory_leak_detector import MemoryLeakContext, force_memory_cleanup
+    
     # Create simulation manager with custom config for standalone mode
     config = {
         'update_interval': step_delay,
@@ -39,25 +42,30 @@ def run_main_loop(graph, steps=1000, step_delay=0.01):
         extra={"steps": steps, "step_delay": step_delay},
     )
     
-    # Run simulation steps
-    for step in range(steps):
-        # Assertion: graph must have node_labels and x
-        assert hasattr(graph, "node_labels") and hasattr(
-            graph, "x"
-        ), "Graph missing node_labels or x"
-        
-        log_step("Step start", step=step)
-        logging.info(f"[MAIN_LOOP] Step {step} start", extra={"step": step})
-        
-        # Run single simulation step
-        success = sim_manager.run_single_step()
-        
-        if not success:
-            logging.error(f"[MAIN_LOOP] Simulation step {step} failed")
-            break
-        
-        log_step("Step end", step=step)
-        logging.info(f"[MAIN_LOOP] Step {step} end", extra={"step": step}")
+    # Run simulation steps with memory leak prevention
+    with MemoryLeakContext("main_loop_simulation"):
+        for step in range(steps):
+            # Assertion: graph must have node_labels and x
+            assert hasattr(graph, "node_labels") and hasattr(
+                graph, "x"
+            ), "Graph missing node_labels or x"
+            
+            log_step("Step start", step=step)
+            logging.info(f"[MAIN_LOOP] Step {step} start", extra={"step": step})
+            
+            # Run single simulation step
+            success = sim_manager.run_single_step()
+            
+            if not success:
+                logging.error(f"[MAIN_LOOP] Simulation step {step} failed")
+                break
+            
+            # Force memory cleanup every 100 steps to prevent leaks
+            if step % 100 == 0 and step > 0:
+                force_memory_cleanup()
+            
+            log_step("Step end", step=step)
+            logging.info(f"[MAIN_LOOP] Step {step} end", extra={"step": step})
     
     # Get final performance stats
     perf_stats = sim_manager.get_performance_stats()
@@ -69,6 +77,9 @@ def run_main_loop(graph, steps=1000, step_delay=0.01):
                     "avg_step_time": perf_stats["avg_step_time"],
                     "system_health": perf_stats["system_health"]
                 })
+    
+    # Clean up simulation manager to prevent memory leaks
+    sim_manager.cleanup()
     
     return graph
 

@@ -6,23 +6,56 @@ in the energy-based neural system graph. Designed for modularity and future exte
 """
 
 import torch
+from typing import Dict, Any, Optional, Union
+from torch_geometric.data import Data
+from config_manager import get_system_constants
 
-MAX_DYNAMIC_ENERGY = 1.0  # Should match connection_logic.py
-DYNAMIC_BIRTH_THRESHOLD = 0.9 * MAX_DYNAMIC_ENERGY  # 90% threshold
-NEW_NODE_ENERGY_FRACTION = 0.4  # 40% of parent node's energy
-NODE_ENERGY_CAP = 244.0  # Clamp dynamic node energy to this value
-NODE_BIRTH_THRESHOLD = 0.8  # Threshold for birth (80% of max dynamic energy)
-NODE_BIRTH_COST = 0.3  # Energy cost to parent for spawning a new node (30% of max energy)
-NODE_DEATH_THRESHOLD = 0.0  # Threshold for dynamic node death
+# Configuration values now accessed directly from config_manager
+# Removed hardcoded constants - using config_manager instead
+
+def get_max_dynamic_energy() -> float:
+    """Get max dynamic energy from configuration."""
+    constants = get_system_constants()
+    return constants.get('max_dynamic_energy', 1.0)
+
+def get_node_energy_cap() -> float:
+    """Get node energy cap from configuration."""
+    constants = get_system_constants()
+    return constants.get('node_energy_cap', 244.0)
+
+def get_dynamic_birth_threshold() -> float:
+    """Get dynamic birth threshold from configuration."""
+    return 0.9 * get_max_dynamic_energy()  # 90% threshold
+
+def get_new_node_energy_fraction() -> float:
+    """Get new node energy fraction from configuration."""
+    return 0.4  # 40% of parent node's energy
+
+def get_node_birth_threshold() -> float:
+    """Get node birth threshold from configuration."""
+    return 0.8  # Threshold for birth (80% of max dynamic energy)
+
+def get_node_birth_cost() -> float:
+    """Get node birth cost from configuration."""
+    return 0.3  # Energy cost to parent for spawning a new node (30% of max energy)
+
+def get_node_death_threshold() -> float:
+    """Get node death threshold from configuration."""
+    return 0.0  # Threshold for dynamic node death
+
+def get_energy_cap_255() -> float:
+    """Get energy cap 255 from configuration."""
+    constants = get_system_constants()
+    return constants.get('energy_cap_255', 255.0)
 
 
-def handle_node_death(graph, node_id, strategy=None):
+def handle_node_death(graph: Data, node_id: int, strategy: Optional[Union[str, callable]] = None) -> Data:
     """
     Handle the removal (death) of a node from the graph according to the specified strategy.
     Args:
-        graph (torch_geometric.data.Data): The graph to modify.
-        node_id (int): The ID of the node to remove.
-        strategy (callable or None): Optional function to determine death policy.
+        graph: The graph to modify.
+        node_id: The ID of the node to remove.
+        strategy: Optional function to determine death policy.
     Returns:
         Modified graph with the node removed (if applicable).
     """
@@ -60,14 +93,14 @@ def handle_node_death(graph, node_id, strategy=None):
             if memory_importance > 0.7:
                 should_remove = False  # Protect high-importance nodes
             else:
-                should_remove = (node_energy <= NODE_DEATH_THRESHOLD and
+                should_remove = (node_energy <= get_node_death_threshold() and
                                memory_importance < 0.3)
         elif callable(strategy):
             # Use custom strategy function
             should_remove = strategy(node, graph, node_id)
         else:
             # Default strategy: remove if energy is zero, but consider memory importance
-            should_remove = (node_energy <= NODE_DEATH_THRESHOLD and
+            should_remove = (node_energy <= get_node_death_threshold() and
                            memory_importance < 0.4)
         
         if should_remove:
@@ -82,17 +115,20 @@ def handle_node_death(graph, node_id, strategy=None):
         
         return graph
             
-    except Exception as e:
+    except (ValueError, TypeError, AttributeError, IndexError) as e:
         logging.error(f"Error handling node death for node {node_id}: {e}")
+        return graph
+    except Exception as e:
+        logging.error(f"Unexpected error handling node death for node {node_id}: {e}")
         return graph
 
 
-def handle_node_birth(graph, birth_params=None):
+def handle_node_birth(graph: Data, birth_params: Optional[Dict[str, Any]] = None) -> Data:
     """
     Handle the creation (birth) of a new node in the graph according to the specified parameters.
     Args:
-        graph (torch_geometric.data.Data): The graph to modify.
-        birth_params (dict or None): Parameters for node creation (type, initial energy, etc).
+        graph: The graph to modify.
+        birth_params: Parameters for node creation (type, initial energy, etc).
     Returns:
         Modified graph with the new node added (if applicable).
     """
@@ -118,12 +154,15 @@ def handle_node_birth(graph, birth_params=None):
         
         return graph
             
-    except Exception as e:
+    except (ValueError, TypeError, AttributeError, IndexError) as e:
         logging.error(f"Error handling node birth: {e}")
+        return graph
+    except Exception as e:
+        logging.error(f"Unexpected error handling node birth: {e}")
         return graph
 
 
-def remove_node_from_graph(graph, node_id):
+def remove_node_from_graph(graph: Data, node_id: int) -> bool:
     """Remove a node from the graph and update all references."""
     import logging
     
@@ -163,12 +202,15 @@ def remove_node_from_graph(graph, node_id):
         logging.info(f"Node {node_id} removed from graph")
         return True
         
-    except Exception as e:
+    except (ValueError, TypeError, AttributeError, IndexError, RuntimeError) as e:
         logging.error(f"Error removing node {node_id} from graph: {e}")
+        return False
+    except Exception as e:
+        logging.error(f"Unexpected error removing node {node_id} from graph: {e}")
         return False
 
 
-def create_new_node(graph, birth_params):
+def create_new_node(graph: Data, birth_params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Create a new node with the specified parameters."""
     import logging
     
@@ -183,7 +225,7 @@ def create_new_node(graph, birth_params):
             'behavior': birth_params.get('behavior', 'dynamic'),
             'energy': birth_params.get('energy', 0.5),
             'state': birth_params.get('state', 'active'),
-            'membrane_potential': birth_params.get('energy', 0.5) / 255.0,
+            'membrane_potential': birth_params.get('energy', 0.5) / get_energy_cap_255(),
             'threshold': birth_params.get('threshold', 0.3),
             'refractory_timer': 0.0,
             'last_activation': 0,
@@ -202,12 +244,15 @@ def create_new_node(graph, birth_params):
         
         return node_label
         
-    except Exception as e:
+    except (ValueError, TypeError, AttributeError, KeyError) as e:
         logging.error(f"Error creating new node: {e}")
+        return None
+    except Exception as e:
+        logging.error(f"Unexpected error creating new node: {e}")
         return None
 
 
-def add_node_to_graph(graph, new_node):
+def add_node_to_graph(graph: Data, new_node: Dict[str, Any]) -> bool:
     """Add a new node to the graph."""
     import logging
     
@@ -227,17 +272,20 @@ def add_node_to_graph(graph, new_node):
         logging.info(f"Node {new_node['id']} added to graph")
         return True
         
-    except Exception as e:
+    except (ValueError, TypeError, AttributeError, RuntimeError) as e:
         logging.error(f"Error adding node to graph: {e}")
+        return False
+    except Exception as e:
+        logging.error(f"Unexpected error adding node to graph: {e}")
         return False
 
 
-def remove_dead_dynamic_nodes(graph):
+def remove_dead_dynamic_nodes(graph: Data) -> Data:
     """
-    Remove all dynamic nodes with energy below NODE_DEATH_THRESHOLD from the graph.
+    Remove all dynamic nodes with energy below get_node_death_threshold() from the graph.
     Frees their id and removes all connections (edges) involving them.
     Args:
-        graph (torch_geometric.data.Data): The graph to modify.
+        graph: The graph to modify.
     Returns:
         Modified graph with dead dynamic nodes and their edges removed.
     """
@@ -249,11 +297,11 @@ def remove_dead_dynamic_nodes(graph):
         or not hasattr(graph, "edge_index")
     ):
         return graph
-    # Find indices of dynamic nodes with energy < NODE_DEATH_THRESHOLD
+    # Find indices of dynamic nodes with energy < get_node_death_threshold()
     to_remove = [
         idx
         for idx, label in enumerate(graph.node_labels)
-        if label.get("type") == "dynamic" and graph.x[idx].item() < NODE_DEATH_THRESHOLD
+        if label.get("type") == "dynamic" and graph.x[idx].item() < get_node_death_threshold()
     ]
     if not to_remove:
         return graph
@@ -282,13 +330,13 @@ def remove_dead_dynamic_nodes(graph):
     return graph
 
 
-def birth_new_dynamic_nodes(graph):
+def birth_new_dynamic_nodes(graph: Data) -> Data:
     """
-    For each dynamic node with energy above NODE_BIRTH_THRESHOLD,
+    For each dynamic node with energy above get_node_birth_threshold(),
     generate a new dynamic node with a fraction of its parent's energy and deduct a birth cost.
-    Clamp energies to [0, NODE_ENERGY_CAP].
+    Clamp energies to [0, get_node_energy_cap()].
     Args:
-        graph (torch_geometric.data.Data): The graph to modify.
+        graph: The graph to modify.
     Returns:
         Modified graph with new dynamic nodes added.
     """
@@ -296,7 +344,7 @@ def birth_new_dynamic_nodes(graph):
         return graph
     
     import logging
-    logging.info(f"[BIRTH] Checking for node birth with threshold {NODE_BIRTH_THRESHOLD}")
+    logging.info(f"[BIRTH] Checking for node birth with threshold {get_node_birth_threshold()}")
     x = graph.x
     node_labels = graph.node_labels
     num_nodes = len(node_labels)
@@ -313,12 +361,12 @@ def birth_new_dynamic_nodes(graph):
     new_labels = []
     for idx in dynamic_indices:
         energy = x[idx].item()
-        if energy > NODE_BIRTH_THRESHOLD:
+        if energy > get_node_birth_threshold():
             # Deduct birth cost from parent
-            new_parent_energy = max(energy - NODE_BIRTH_COST, 0)
-            x[idx] = min(new_parent_energy, NODE_ENERGY_CAP)
+            new_parent_energy = max(energy - get_node_birth_cost(), 0)
+            x[idx] = min(new_parent_energy, get_node_energy_cap())
             # Assign a fraction of parent's energy to new node
-            new_energy = min(energy * NEW_NODE_ENERGY_FRACTION, NODE_ENERGY_CAP)
+            new_energy = min(energy * get_new_node_energy_fraction(), get_node_energy_cap())
             new_features.append([new_energy])
             new_labels.append({
                 "id": num_nodes + len(new_labels),
@@ -341,7 +389,7 @@ def birth_new_dynamic_nodes(graph):
     return graph
 
 
-def analyze_memory_patterns_for_birth(graph):
+def analyze_memory_patterns_for_birth(graph: Data) -> Dict[str, Any]:
     """
     Analyze memory patterns to determine optimal node creation parameters.
     
@@ -349,7 +397,7 @@ def analyze_memory_patterns_for_birth(graph):
         graph: PyTorch Geometric graph with memory system
     
     Returns:
-        dict: Birth parameters influenced by memory patterns
+        Birth parameters influenced by memory patterns
     """
     import random
     

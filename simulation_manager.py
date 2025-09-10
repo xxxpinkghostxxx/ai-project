@@ -20,13 +20,23 @@ from network_metrics import NetworkMetrics
 from workspace_engine import WorkspaceEngine
 from energy_behavior import apply_energy_behavior, update_membrane_potentials, apply_refractory_periods
 from error_handler import get_error_handler, safe_execute, graceful_degradation
-from performance_optimizer import get_performance_optimizer
+from performance_optimizer_v2 import PerformanceOptimizer
 
 # Import core simulation functions
-from main_loop import update_dynamic_node_energies
+# from main_loop import update_dynamic_node_energies  # REMOVED: function no longer exists
 from death_and_birth_logic import birth_new_dynamic_nodes, remove_dead_dynamic_nodes
 from connection_logic import intelligent_connection_formation
 from screen_graph import RESOLUTION_SCALE
+
+
+# Import the new performance monitoring system
+from performance_monitor import (
+    get_system_performance_metrics, 
+    record_simulation_step, 
+    record_simulation_error,
+    record_simulation_warning,
+    initialize_performance_monitoring
+)
 
 
 class SimulationManager:
@@ -42,11 +52,13 @@ class SimulationManager:
         Args:
             config: Optional configuration dictionary
         """
+        import threading
         self.config = config or {}
         self.is_running = False
         self.step_counter = 0
         self.simulation_thread = None
         self.graph = None
+        self._lock = threading.RLock()  # Thread safety lock
         
         # Initialize all neural systems
         self.behavior_engine = BehaviorEngine()
@@ -70,10 +82,12 @@ class SimulationManager:
         
         # Initialize error handler and performance optimizer
         self.error_handler = get_error_handler()
-        self.performance_optimizer = get_performance_optimizer()
+        self.performance_optimizer = PerformanceOptimizer()
         
-        # Add optimization callback
-        self.performance_optimizer.add_optimization_callback(self._on_optimization_applied)
+        # Add optimization callback with weak reference to prevent circular references
+        from memory_leak_detector import MemoryLeakPrevention
+        weak_callback = MemoryLeakPrevention.create_weak_callback(self._on_optimization_applied)
+        self.performance_optimizer.add_optimization_callback(weak_callback)
         
         # Performance tracking
         self.performance_stats = {
@@ -82,6 +96,13 @@ class SimulationManager:
             'last_step_time': 0.0,
             'system_health': 'unknown'
         }
+        
+        # Initialize performance monitoring
+        try:
+            initialize_performance_monitoring(update_interval=1.0)
+            logging.info("Performance monitoring initialized")
+        except Exception as e:
+            logging.error(f"Failed to initialize performance monitoring: {e}")
         
         log_step("SimulationManager initialized", 
                 update_interval=self.update_interval,
@@ -94,7 +115,8 @@ class SimulationManager:
         Args:
             graph: PyTorch Geometric graph to simulate
         """
-        self.graph = graph
+        with self._lock:
+            self.graph = graph
         
         # Attach systems to graph for persistence
         if self.graph is not None:
@@ -159,11 +181,8 @@ class SimulationManager:
             )
             
             # 4. Update dynamic node energies (decay, transfer, clamp)
-            safe_execute(
-                lambda: update_dynamic_node_energies(self.graph),
-                context="dynamic_energy_update",
-                default_return=None
-            )
+            # REMOVED: update_dynamic_node_energies function no longer exists
+            # Energy updates are now handled by apply_energy_behavior in step 2
             
             # 5. Add/update dynamic connections with intelligent formation
             safe_execute(
@@ -221,6 +240,7 @@ class SimulationManager:
                 
                 if health_status['status'] != 'healthy':
                     logging.warning(f"[SIMULATION] Network health: {health_status['status']} - {health_status['warnings']}")
+                    record_simulation_warning()
             
             # 13. Calculate network metrics (every N steps)
             if self.step_counter % self.metrics_update_interval == 0:
@@ -231,8 +251,14 @@ class SimulationManager:
                 for callback in self.metrics_callbacks:
                     try:
                         callback(metrics)
-                    except Exception as e:
+                    except (TypeError, ValueError, AttributeError) as e:
                         logging.error(f"Metrics callback error: {e}")
+                        record_simulation_error()
+                    except Exception as e:
+                        logging.error(f"Unexpected metrics callback error: {e}")
+                        record_simulation_error()
+                        # Re-raise unexpected errors to prevent silent failures
+                        raise
                 
                 logging.info(f"[SIMULATION] Step {self.step_counter}: Criticality={metrics['criticality']:.3f}, "
                            f"Connectivity={metrics['connectivity']['density']:.3f}, "
@@ -251,33 +277,49 @@ class SimulationManager:
                     self.performance_stats['avg_step_time'] * 0.9 + step_time * 0.1
                 )
             
-            # Record performance metrics for optimization
+            # Record step performance with new monitoring system
+            node_count = len(self.graph.node_labels) if hasattr(self.graph, 'node_labels') else 0
+            edge_count = self.graph.edge_index.shape[1] if hasattr(self.graph, 'edge_index') and self.graph.edge_index.numel() > 0 else 0
+            record_simulation_step(step_time, node_count, edge_count)
+            
+            # Record performance metrics for optimization (backward compatibility)
+            perf_metrics = get_system_performance_metrics()
             self.performance_optimizer.record_performance(
                 step_time=step_time,
-                memory_usage=0.0,  # TODO: Add actual memory monitoring
-                cpu_usage=0.0,     # TODO: Add actual CPU monitoring
-                network_activity=0.0,  # TODO: Add actual network monitoring
-                error_rate=0.0     # TODO: Add actual error rate monitoring
+                memory_usage=perf_metrics['memory_usage'],
+                cpu_usage=perf_metrics['cpu_usage'],
+                network_activity=perf_metrics['network_activity'],
+                error_rate=perf_metrics['error_rate']
             )
             
             # Call step callbacks
             for callback in self.step_callbacks:
                 try:
                     callback(self.graph, self.step_counter, self.performance_stats)
-                except Exception as e:
+                except (TypeError, ValueError, AttributeError) as e:
                     logging.error(f"Step callback error: {e}")
+                except Exception as e:
+                    logging.error(f"Unexpected step callback error: {e}")
+                    # Re-raise unexpected errors to prevent silent failures
+                    raise
             
             return True
             
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError, RuntimeError) as e:
             logging.error(f"Simulation step error: {e}")
             # Call error callbacks
             for callback in self.error_callbacks:
                 try:
                     callback(e, self.step_counter)
-                except Exception as callback_error:
+                except (TypeError, ValueError, AttributeError) as callback_error:
                     logging.error(f"Error callback error: {callback_error}")
-            return False
+                except Exception as callback_error:
+                    logging.error(f"Unexpected error callback error: {callback_error}")
+                    # Don't re-raise callback errors to prevent cascading failures
+        except Exception as e:
+            logging.error(f"Unexpected simulation step error: {e}")
+            # Re-raise unexpected errors
+            raise
     
     def start_simulation(self, run_in_thread: bool = True):
         """
@@ -286,16 +328,17 @@ class SimulationManager:
         Args:
             run_in_thread: If True, run simulation in background thread
         """
-        if self.is_running:
-            logging.warning("Simulation already running")
-            return
-        
-        if self.graph is None:
-            logging.error("No graph set for simulation")
-            return
-        
-        self.is_running = True
-        self.step_counter = 0
+        with self._lock:
+            if self.is_running:
+                logging.warning("Simulation already running")
+                return
+            
+            if self.graph is None:
+                logging.error("No graph set for simulation")
+                return
+            
+            self.is_running = True
+            self.step_counter = 0
         
         # Start performance monitoring
         self.performance_optimizer.start_monitoring()
@@ -313,21 +356,22 @@ class SimulationManager:
     
     def stop_simulation(self):
         """Stop the simulation."""
-        if not self.is_running:
-            logging.warning("Simulation not running")
-            return
-        
-        self.is_running = False
-        
-        if self.simulation_thread and self.simulation_thread.is_alive():
-            self.simulation_thread.join(timeout=2.0)
-        
-        # Stop performance monitoring
-        self.performance_optimizer.stop_monitoring()
-        
-        log_step("Simulation stopped", 
-                total_steps=self.step_counter,
-                avg_step_time=self.performance_stats['avg_step_time'])
+        with self._lock:
+            if not self.is_running:
+                logging.warning("Simulation not running")
+                return
+            
+            self.is_running = False
+            
+            if self.simulation_thread and self.simulation_thread.is_alive():
+                self.simulation_thread.join(timeout=2.0)
+            
+            # Stop performance monitoring
+            self.performance_optimizer.stop_monitoring()
+            
+            log_step("Simulation stopped", 
+                    total_steps=self.step_counter,
+                    avg_step_time=self.performance_stats['avg_step_time'])
     
     def _simulation_loop(self):
         """Internal simulation loop."""
@@ -393,8 +437,11 @@ class SimulationManager:
                         if i < pixel_graph.x.shape[0]:
                             graph.x[sensory_idx, 0] = pixel_graph.x[i, 0]
                             
-        except Exception as e:
+        except (ImportError, AttributeError, IndexError, ValueError) as e:
             logging.warning(f"Sensory update failed: {e}")
+            raise
+        except Exception as e:
+            logging.error(f"Unexpected sensory update error: {e}")
             raise
     
     def _fallback_sensory_update(self):
@@ -454,17 +501,106 @@ class SimulationManager:
         self.homeostasis_controller.reset_statistics()
         
         log_step("Simulation reset to initial state")
+    
+    def cleanup(self):
+        """Clean up resources and break circular references to prevent memory leaks."""
+        try:
+            # Stop simulation first
+            self.stop_simulation()
+            
+            # Clear graph references
+            if self.graph is not None:
+                self._clear_graph_references(self.graph)
+                self.graph = None
+            
+            # Clear callback lists
+            self.step_callbacks.clear()
+            self.metrics_callbacks.clear()
+            self.error_callbacks.clear()
+            
+            # Break circular references in neural systems
+            if hasattr(self, 'behavior_engine'):
+                self._break_system_references(self.behavior_engine)
+            if hasattr(self, 'learning_engine'):
+                self._break_system_references(self.learning_engine)
+            if hasattr(self, 'memory_system'):
+                self._break_system_references(self.memory_system)
+            if hasattr(self, 'homeostasis_controller'):
+                self._break_system_references(self.homeostasis_controller)
+            if hasattr(self, 'network_metrics'):
+                self._break_system_references(self.network_metrics)
+            if hasattr(self, 'workspace_engine'):
+                self._break_system_references(self.workspace_engine)
+            
+            # Clear system references
+            self.behavior_engine = None
+            self.learning_engine = None
+            self.memory_system = None
+            self.homeostasis_controller = None
+            self.network_metrics = None
+            self.workspace_engine = None
+            self.error_handler = None
+            self.performance_optimizer = None
+            
+            # Clear performance stats
+            self.performance_stats.clear()
+            
+            log_step("SimulationManager cleaned up")
+            
+        except Exception as e:
+            log_step("SimulationManager cleanup error", error=str(e))
+    
+    def _clear_graph_references(self, graph):
+        """Clear references in a graph to help with garbage collection."""
+        try:
+            if hasattr(graph, 'node_labels'):
+                # Clear large data structures
+                for node in graph.node_labels:
+                    if isinstance(node, dict):
+                        # Clear large arrays and tensors
+                        for key, value in list(node.items()):
+                            if hasattr(value, 'cpu'):  # PyTorch tensor
+                                del node[key]
+                            elif isinstance(value, (list, tuple)) and len(value) > 100:
+                                node[key] = []
+            
+            # Clear edge attributes if they exist
+            if hasattr(graph, 'edge_attributes'):
+                graph.edge_attributes.clear()
+                
+        except Exception as e:
+            log_step("Graph reference clearing error", error=str(e))
+    
+    def _break_system_references(self, system):
+        """Break circular references in a neural system."""
+        try:
+            if hasattr(system, '__dict__'):
+                # Clear references to parent objects
+                for attr_name in list(system.__dict__.keys()):
+                    attr_value = system.__dict__[attr_name]
+                    if hasattr(attr_value, '__dict__') and hasattr(attr_value, 'parent'):
+                        if attr_value.parent is system:
+                            attr_value.parent = None
+                    elif isinstance(attr_value, (list, tuple, set)):
+                        # Clear large collections
+                        if len(attr_value) > 1000:
+                            system.__dict__[attr_name] = []
+        except Exception as e:
+            log_step("System reference breaking error", error=str(e))
 
 
-# Global simulation manager instance
-_simulation_manager = None
+# Dependency injection support
+from dependency_injection import register_service, resolve_service, is_service_registered
 
 def get_simulation_manager() -> SimulationManager:
-    """Get the global simulation manager instance."""
-    global _simulation_manager
-    if _simulation_manager is None:
-        _simulation_manager = SimulationManager()
-    return _simulation_manager
+    """Get the simulation manager instance from dependency container."""
+    if is_service_registered(SimulationManager):
+        return resolve_service(SimulationManager)
+    else:
+        # Fallback: create and register a new instance
+        simulation_manager = SimulationManager()
+        register_service(SimulationManager, instance=simulation_manager)
+        return simulation_manager
 
 def create_simulation_manager(config: Optional[Dict[str, Any]] = None) -> SimulationManager:
     """Create a new simulation manager instance."""

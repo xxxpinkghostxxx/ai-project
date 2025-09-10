@@ -12,7 +12,6 @@ from energy_behavior import couple_sensory_energy_to_channel, propagate_sensory_
 from connection_logic import add_dynamic_connections
 from death_and_birth_logic import remove_dead_dynamic_nodes, birth_new_dynamic_nodes
 from logging_utils import log_runtime, log_step, log_node_state
-from network_metrics import NetworkMetrics
 import logging
 
 # Add other imports as needed (e.g., time, logging)
@@ -265,12 +264,8 @@ def run_main_loop(graph, steps=1000, step_delay=0.01):
         graph = apply_refractory_periods(graph)
         logging.info(f"[MAIN_LOOP] Enhanced energy behavior applied", extra={"step": step})
         
-        # NEW: Apply homeostatic regulation based on configuration
-        from config_manager import get_homeostasis_config
-        homeostasis_config = get_homeostasis_config()
-        regulation_interval = homeostasis_config.get('regulation_interval', 100)
-        
-        if step % regulation_interval == 0:
+        # NEW: Apply homeostatic regulation every 100 steps
+        if step % 100 == 0:
             log_step("Apply homeostatic regulation", step=step)
             from homeostasis_controller import HomeostasisController
             
@@ -288,33 +283,6 @@ def run_main_loop(graph, steps=1000, step_delay=0.01):
                 logging.warning(f"[HOMEOSTASIS] Network health: {health_status['status']} - {health_status['warnings']}")
             
             logging.info(f"[MAIN_LOOP] Homeostatic regulation applied", extra={"step": step})
-        
-        # NEW: Calculate network metrics every 50 steps
-        if step % 50 == 0:
-            log_step("Calculate network metrics", step=step)
-            
-            # Initialize network metrics engine if not already done
-            if not hasattr(graph, 'network_metrics'):
-                from config_manager import get_network_metrics_config
-                config = get_network_metrics_config()
-                graph.network_metrics = NetworkMetrics(calculation_interval=config.get('calculation_interval', 50))
-            
-            # Calculate comprehensive network metrics
-            metrics = graph.network_metrics.calculate_comprehensive_metrics(graph)
-            
-            # Log key metrics for monitoring
-            logging.info(f"[NETWORK_METRICS] Step {step}: Criticality={metrics['criticality']:.3f}, "
-                        f"Connectivity={metrics['connectivity']['density']:.3f}, "
-                        f"Energy Variance={metrics['energy_balance']['energy_variance']:.2f}")
-            
-            # Get network health score
-            health_score = graph.network_metrics.get_network_health_score()
-            if health_score['score'] < 60.0:
-                logging.warning(f"[NETWORK_METRICS] Low network health score: {health_score['score']:.1f} - {health_score['status']}")
-                for rec in health_score['recommendations']:
-                    logging.warning(f"[NETWORK_METRICS] Recommendation: {rec}")
-            
-            logging.info(f"[MAIN_LOOP] Network metrics calculated", extra={"step": step})
         
         log_step(
             "Step end",

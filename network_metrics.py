@@ -20,13 +20,7 @@ from logging_utils import log_runtime, log_step
 from config_manager import get_network_metrics_config
 
 # Get network metrics configuration values
-def get_network_config_values():
-    config = get_network_metrics_config()
-    return {
-        'calculation_interval': config.get('calculation_interval', 50),
-        'criticality_target': config.get('criticality_target', 1.0),
-        'connectivity_target': config.get('connectivity_target', 0.3)
-    }
+# Removed get_network_config_values() - using config_manager directly
 
 
 class NetworkMetrics:
@@ -44,8 +38,8 @@ class NetworkMetrics:
         Args:
             calculation_interval: Steps between metric calculations (uses config if None)
         """
-        config = get_network_config_values()
-        self.calculation_interval = calculation_interval or config['calculation_interval']
+        config = get_network_metrics_config()
+        self.calculation_interval = calculation_interval or config.get('calculation_interval', 50)
         self.criticality_target = config.get('criticality_target', 1.0)
         self.connectivity_target = config.get('connectivity_target', 0.3)
         self.metrics_history = deque(maxlen=1000)  # Keep last 1000 measurements
@@ -186,16 +180,20 @@ class NetworkMetrics:
             logging.warning("[NETWORK_METRICS] No node features found for energy balance")
             return {'total_energy': 0.0, 'energy_variance': 0.0, 'energy_entropy': 0.0}
         
-        # Extract energy values from node features
+        # Use centralized energy calculation
+        from energy_utils import calculate_energy_statistics
+        energy_stats = calculate_energy_statistics(graph)
+        
+        total_energy = energy_stats['total_energy']
+        energy_variance = energy_stats['energy_variance']
+        energy_entropy = energy_stats['energy_entropy']
+        
+        # Extract energy values for additional calculations
         try:
             energy_values = graph.x[:, 0].cpu().numpy()
         except (IndexError, AttributeError):
             logging.warning("[NETWORK_METRICS] Could not extract energy values from graph features")
             return {'total_energy': 0.0, 'energy_variance': 0.0, 'energy_entropy': 0.0}
-        
-        total_energy = np.sum(energy_values)
-        energy_variance = np.var(energy_values) if len(energy_values) > 1 else 0.0
-        energy_entropy = self._calculate_energy_entropy(energy_values)
         
         # Energy distribution analysis
         energy_distribution = {

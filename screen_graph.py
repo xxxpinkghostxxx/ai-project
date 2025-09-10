@@ -44,7 +44,15 @@ def capture_screen(scale=1.0):
     Capture the screen and return a numpy grayscale array, downscaled if needed.
     Uses mss (fastest) if available, else falls back to PIL.ImageGrab.
     Uses OpenCV for resizing if available, else PIL.
+    
+    Security: Validates scale parameter to prevent resource exhaustion attacks.
     """
+    # Validate scale parameter for security
+    if not isinstance(scale, (int, float)):
+        raise ValueError("Scale must be a number")
+    if scale <= 0 or scale > 2.0:  # Limit scale to prevent resource exhaustion
+        raise ValueError("Scale must be between 0 and 2.0")
+    
     t0 = time.perf_counter()
     log_step("capture_screen: start", scale=scale)
     try:
@@ -107,19 +115,28 @@ def create_pixel_gray_graph(arr):
     num_nodes = h * w
     node_features = arr.flatten().reshape(-1, 1)  # shape (num_nodes, 1)
     node_labels = []
+    
+    # Import ID manager for unique ID generation
+    from node_id_manager import get_id_manager
+    id_manager = get_id_manager()
+    
     for y in range(h):
         for x in range(w):
             idx = y * w + x
             energy = arr[y, x]
             
+            # Generate unique ID for this sensory node
+            node_id = id_manager.generate_unique_id("sensory", {"x": x, "y": y})
+            
             # Calculate normalized membrane potential (0-1)
             membrane_potential = min(energy / 255.0, 1.0)
             
             node_labels.append({
+                "id": node_id,  # UNIQUE ID: Primary identifier
                 "type": "sensory",
                 "behavior": "sensory",
-                "x": x,
-                "y": y,
+                "x": x,  # METADATA: Spatial coordinate preserved as metadata
+                "y": y,  # METADATA: Spatial coordinate preserved as metadata
                 "energy": float(energy),
                 "state": "active",  # Sensory nodes are always active
                 "membrane_potential": membrane_potential,
@@ -130,6 +147,9 @@ def create_pixel_gray_graph(arr):
                 "eligibility_trace": 0.0,  # No learning for sensory nodes
                 "last_update": 0
             })
+            
+            # Register the node index with the ID manager
+            id_manager.register_node_index(node_id, idx)
     x_tensor = torch.tensor(node_features, dtype=torch.float32)
     # Assertion: node_labels and x must match num_nodes
     assert len(node_labels) == num_nodes, "Node label count mismatch in create_pixel_gray_graph"
