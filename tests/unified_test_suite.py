@@ -363,17 +363,12 @@ def test_ui_components() -> Tuple[bool, Dict[str, Any]]:
 def test_performance_monitoring() -> Tuple[bool, Dict[str, Any]]:
 
     try:
-        from performance_monitor import (
-            get_system_performance_metrics,
-            record_simulation_step,
-            record_simulation_error,
-            record_simulation_warning
-        )
-        metrics = get_system_performance_metrics()
+        from utils import performance_monitor
+        metrics = performance_monitor.get_system_performance_metrics()
         details = {'metrics_collected': True, 'metrics': metrics}
-        record_simulation_step(0.1, 100, 200)
-        record_simulation_error()
-        record_simulation_warning()
+        performance_monitor.record_simulation_step(0.1, 100, 200)
+        performance_monitor.record_simulation_error()
+        performance_monitor.record_simulation_warning()
         details['recording_functions_ok'] = True
         return True, details
     except Exception as e:

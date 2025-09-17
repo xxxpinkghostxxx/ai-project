@@ -9,6 +9,10 @@ from torch_geometric.data import Data
 from utils.logging_utils import log_step
 from energy.node_access_layer import NodeAccessLayer
 
+from neural.enhanced_neural_dynamics import create_enhanced_neural_dynamics
+from neural.enhanced_connection_system import create_enhanced_connection_system
+from neural.enhanced_node_behaviors import create_enhanced_node_behavior_system
+
 
 
 class EnhancedNeuralIntegration:

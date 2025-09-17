@@ -8,7 +8,18 @@ import logging
 from typing import Dict, Any, List, Optional, Tuple
 from utils.logging_utils import log_step
 from energy.node_access_layer import get_node_by_id, update_node_property
+from energy import NodeAccessLayer
 from utils.common_utils import safe_hasattr, safe_get_attr
+
+import importlib
+
+try:
+    librosa = importlib.import_module('librosa')
+    LIBROSA_AVAILABLE = True
+except ImportError:
+    librosa = None
+    LIBROSA_AVAILABLE = False
+    logging.warning("librosa not available. Audio feature extraction will use fallbacks.")
 
 
 class AudioToNeuralBridge:
@@ -58,8 +69,10 @@ class AudioToNeuralBridge:
             return audio_data / np.max(np.abs(audio_data))
         return audio_data
     def _extract_mfcc(self, audio_data: np.ndarray) -> np.ndarray:
+        if not LIBROSA_AVAILABLE or librosa is None:
+            logging.warning("librosa unavailable for MFCC extraction, using fallback.")
+            return np.zeros((self.n_mfcc, 10), dtype=np.float32)
         try:
-            import librosa
             mfcc = librosa.feature.mfcc(
                 y=audio_data,
                 sr=self.sample_rate,
@@ -68,15 +81,15 @@ class AudioToNeuralBridge:
                 hop_length=self.hop_length
             )
             return mfcc.astype(np.float32)
-        except ImportError:
-            return np.zeros((self.n_mfcc, 10), dtype=np.float32)
         except Exception as e:
             log_step("Error extracting MFCC", error=str(e))
             return np.zeros((self.n_mfcc, 10), dtype=np.float32)
 
     def _extract_mel_spectrogram(self, audio_data: np.ndarray) -> np.ndarray:
+        if not LIBROSA_AVAILABLE or librosa is None:
+            logging.warning("librosa unavailable for mel spectrogram extraction, using fallback.")
+            return np.zeros((self.n_mels, 10), dtype=np.float32)
         try:
-            import librosa
             mel_spec = librosa.feature.melspectrogram(
                 y=audio_data,
                 sr=self.sample_rate,
@@ -86,14 +99,14 @@ class AudioToNeuralBridge:
             )
             log_mel_spec = np.log(mel_spec + 1e-8)
             return log_mel_spec.astype(np.float32)
-        except ImportError:
-            return np.zeros((self.n_mels, 10), dtype=np.float32)
         except Exception as e:
             log_step("Error extracting mel spectrogram", error=str(e))
             return np.zeros((self.n_mels, 10), dtype=np.float32)
     def _extract_spectral_features(self, audio_data: np.ndarray) -> np.ndarray:
+        if not LIBROSA_AVAILABLE or librosa is None:
+            logging.warning("librosa unavailable for spectral features extraction, using fallback.")
+            return np.zeros((3, 10), dtype=np.float32)
         try:
-            import librosa
             spectral_centroids = librosa.feature.spectral_centroid(
                 y=audio_data, sr=self.sample_rate
             )[0]
@@ -135,14 +148,14 @@ class AudioToNeuralBridge:
                 features = np.zeros((3, 10), dtype=np.float32)
 
             return features.astype(np.float32)
-        except ImportError:
-            return np.zeros((3, 10), dtype=np.float32)
         except Exception as e:
             log_step("Error extracting spectral features", error=str(e))
             return np.zeros((3, 10), dtype=np.float32)
     def _extract_temporal_features(self, audio_data: np.ndarray) -> np.ndarray:
+        if not LIBROSA_AVAILABLE or librosa is None:
+            logging.warning("librosa unavailable for temporal features extraction, using fallback.")
+            return np.zeros((2, 10), dtype=np.float32)
         try:
-            import librosa
             rms = librosa.feature.rms(y=audio_data)[0]
             bandwidth = librosa.feature.spectral_bandwidth(
                 y=audio_data, sr=self.sample_rate
@@ -170,8 +183,6 @@ class AudioToNeuralBridge:
                 features = np.zeros((2, 10), dtype=np.float32)
 
             return features.astype(np.float32)
-        except ImportError:
-            return np.zeros((2, 10), dtype=np.float32)
         except Exception as e:
             log_step("Error extracting temporal features", error=str(e))
             return np.zeros((2, 10), dtype=np.float32)

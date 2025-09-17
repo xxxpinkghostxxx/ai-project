@@ -2,6 +2,8 @@
 
 
 
+from config.unified_config_manager import get_learning_config, get_enhanced_nodes_config
+
 class EnergyConstants:
     TIME_STEP = 0.01
     REFRACTORY_PERIOD_SHORT = 0.1
@@ -63,8 +65,8 @@ class EnergyConstants:
         return config.get('plasticity_gate_threshold', cls.PLASTICITY_THRESHOLD_DEFAULT)
     @classmethod
     def get_dynamic_energy_threshold(cls) -> float:
-        from connection_logic import get_max_dynamic_energy
-        return cls.DYNAMIC_ENERGY_THRESHOLD_FRACTION * get_max_dynamic_energy()
+        from energy.energy_behavior import get_node_energy_cap
+        return cls.DYNAMIC_ENERGY_THRESHOLD_FRACTION * get_node_energy_cap()
 
 
 class ConnectionConstants:

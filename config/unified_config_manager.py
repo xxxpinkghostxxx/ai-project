@@ -9,14 +9,11 @@ import yaml
 import configparser
 import threading
 import time
-import os
-import logging
-from typing import Dict, List, Any, Optional, Callable, Union, Type
-from dataclasses import dataclass, field
+from typing import Dict, List, Any, Optional, Callable, Union
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from collections import defaultdict
-import weakref
 from utils.print_utils import print_info, print_warning, print_error
 from utils.logging_utils import log_step
 
@@ -156,9 +153,6 @@ class UnifiedConfigManager:
         
         # INI parser for backward compatibility
         self.ini_config = configparser.ConfigParser()
-        self._section_cache = {}
-        self._cache_ttl = 300
-        self._last_cache_update = time.time()
         
         # Load initial configuration
         if config_file and Path(config_file).exists():
@@ -170,6 +164,32 @@ class UnifiedConfigManager:
         self._setup_default_schemas()
         
         log_step("UnifiedConfigManager initialized")
+    
+    def _flatten_config(self, data: Dict[str, Any], parent_key: str = '', sep: str = '.') -> Dict[str, Any]:
+        """Flatten nested configuration dictionary to dot notation."""
+        items = []
+        for k, v in data.items():
+            new_key = f"{parent_key}{sep}{k}" if parent_key else k
+            if isinstance(v, dict):
+                items.extend(
+                    self._flatten_config(v, new_key, sep=sep).items()
+                )
+            else:
+                items.append((new_key, v))
+            return dict(items)
+
+    def _unflatten_config(self, flat_config: Dict[str, Any], sep: str = '.') -> Dict[str, Any]:
+        """Unflatten dot notation configuration back to nested dictionary."""
+        result: Dict[str, Any] = {}
+        for full_key, value in flat_config.items():
+            keys = full_key.split(sep)
+            d = result
+            for key in keys[:-1]:
+                if key not in d:
+                    d[key] = {}
+                d = d[key]
+            d[keys[-1]] = value
+        return result
     
     def _create_default_config(self):
         """Create default configuration."""
@@ -202,30 +222,50 @@ class UnifiedConfigManager:
             }
         }
         
-        # Convert to flat structure
+        # Convert to flat structure, using schema defaults if available
         for section, values in default_config.items():
             for key, value in values.items():
-                self.config[f"{section}.{key}"] = value
+                full_key = f"{section}.{key}"
+                if full_key in self.schemas:
+                    self.config[full_key] = self.schemas[full_key].default_value
+                else:
+                    self.config[full_key] = value
     
     def _setup_default_schemas(self):
         """Setup default configuration schemas."""
         default_schemas = [
             ConfigSchema('General.debug_mode', ConfigType.BOOLEAN, False, 'Enable debug mode'),
-            ConfigSchema('General.log_level', ConfigType.STRING, 'INFO', 'Logging level', 
+            ConfigSchema('General.log_level', ConfigType.STRING, 'INFO', 'Logging level',
                        allowed_values=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']),
-            ConfigSchema('General.max_threads', ConfigType.INTEGER, 4, 'Maximum number of threads', 
+            ConfigSchema('General.max_threads', ConfigType.INTEGER, 4, 'Maximum number of threads',
                        min_value=1, max_value=32),
-            ConfigSchema('SystemConstants.node_energy_cap', ConfigType.FLOAT, 255.0, 
+            ConfigSchema('SystemConstants.node_energy_cap', ConfigType.FLOAT, 255.0,
                        'Maximum node energy capacity', min_value=1.0, max_value=1000.0),
-            ConfigSchema('SystemConstants.time_step', ConfigType.FLOAT, 0.01, 
+            ConfigSchema('SystemConstants.time_step', ConfigType.FLOAT, 0.01,
                        'Simulation time step', min_value=0.001, max_value=1.0),
-            ConfigSchema('Learning.plasticity_rate', ConfigType.FLOAT, 0.01, 
+            ConfigSchema('SystemConstants.refractory_period', ConfigType.FLOAT, 0.1,
+                       'Node refractory period', min_value=0.0, max_value=1.0),
+            ConfigSchema('Learning.plasticity_rate', ConfigType.FLOAT, 0.01,
                        'Learning plasticity rate', min_value=0.0, max_value=1.0),
-            ConfigSchema('Performance.monitoring_enabled', ConfigType.BOOLEAN, True, 
+            ConfigSchema('Learning.stdp_window', ConfigType.FLOAT, 20.0,
+                       'STDP learning window', min_value=0.0),
+            ConfigSchema('Learning.ltp_rate', ConfigType.FLOAT, 0.02,
+                       'Long-term potentiation rate', min_value=0.0, max_value=1.0),
+            ConfigSchema('EnhancedNodes.oscillator_frequency', ConfigType.FLOAT, 1.0,
+                       'Oscillator node frequency', min_value=0.0),
+            ConfigSchema('EnhancedNodes.integrator_threshold', ConfigType.FLOAT, 0.8,
+                       'Integrator node threshold', min_value=0.0, max_value=1.0),
+            ConfigSchema('EnhancedNodes.relay_amplification', ConfigType.FLOAT, 1.5,
+                       'Relay node amplification', min_value=0.0),
+            ConfigSchema('EnhancedNodes.highway_energy_boost', ConfigType.FLOAT, 2.0,
+                       'Highway node energy boost', min_value=0.0),
+            ConfigSchema('Performance.monitoring_enabled', ConfigType.BOOLEAN, True,
                        'Enable performance monitoring'),
-            ConfigSchema('Performance.optimization_level', ConfigType.STRING, 'medium', 
-                       'Performance optimization level', 
-                       allowed_values=['none', 'low', 'medium', 'high', 'maximum'])
+            ConfigSchema('Performance.optimization_level', ConfigType.STRING, 'medium',
+                       'Performance optimization level',
+                       allowed_values=['none', 'low', 'medium', 'high', 'maximum']),
+            ConfigSchema('Performance.memory_pooling', ConfigType.BOOLEAN, True,
+                       'Enable memory pooling')
         ]
         
         for schema in default_schemas:
@@ -318,17 +358,22 @@ class UnifiedConfigManager:
             if file_path.suffix.lower() == '.json':
                 with open(file_path, 'r') as f:
                     data = json.load(f)
-                    self.config.update(data)
+                    flat_data = self._flatten_config(data)
+                    self.config.update(flat_data)
             elif file_path.suffix.lower() in ['.yml', '.yaml']:
                 with open(file_path, 'r') as f:
                     data = yaml.safe_load(f)
-                    self.config.update(data)
+                    flat_data = self._flatten_config(data)
+                    self.config.update(flat_data)
             elif file_path.suffix.lower() == '.ini':
                 self.ini_config.read(file_path)
                 self._load_ini_config()
             else:
                 print_error(f"Unsupported config file format: {file_path.suffix}")
                 return False
+
+            # Validate and reset any invalid loaded values
+            self._validate_and_reset()
             
             log_step(f"Configuration loaded from {file_path}")
             return True
@@ -362,10 +407,10 @@ class UnifiedConfigManager:
             
             if format.lower() == 'json':
                 with open(file_path, 'w') as f:
-                    json.dump(self.config, f, indent=2)
+                    json.dump(self._unflatten_config(self.config), f, indent=2)
             elif format.lower() in ['yml', 'yaml']:
                 with open(file_path, 'w') as f:
-                    yaml.dump(self.config, f, default_flow_style=False)
+                    yaml.dump(self._unflatten_config(self.config), f, default_flow_style=False)
             elif format.lower() == 'ini':
                 self._save_ini_config(file_path)
             else:
@@ -427,6 +472,15 @@ class UnifiedConfigManager:
                 if schema and not self.validator.validate(value, schema):
                     errors[key].append(f"Invalid value: {value}")
             return dict(errors)
+
+    def _validate_and_reset(self):
+        """Validate loaded config and reset invalid values to defaults."""
+        errors = self.validate_all()
+        for key, error_msgs in errors.items():
+            if key in self.schemas:
+                default_val = self.schemas[key].default_value
+                self.config[key] = default_val
+                print_warning(f"Reset invalid config '{key}' to default '{default_val}'. Errors: {error_msgs[0] if error_msgs else 'Unknown'}")
     
     def get_schema(self, key: str) -> Optional[ConfigSchema]:
         """Get schema for a configuration key."""
@@ -442,9 +496,9 @@ class UnifiedConfigManager:
     def export_config(self, format: str = "json") -> str:
         """Export configuration as string."""
         if format.lower() == 'json':
-            return json.dumps(self.config, indent=2)
+            return json.dumps(self._unflatten_config(self.config), indent=2)
         elif format.lower() in ['yml', 'yaml']:
-            return yaml.dump(self.config, default_flow_style=False)
+            return yaml.dump(self._unflatten_config(self.config), default_flow_style=False)
         else:
             raise ValueError(f"Unsupported export format: {format}")
     
@@ -555,4 +609,5 @@ def get_logging_config() -> Dict[str, Any]:
 
 # Backward compatibility aliases
 ConfigManager = UnifiedConfigManager
+DynamicConfigManager = UnifiedConfigManager
 config = get_config_manager()

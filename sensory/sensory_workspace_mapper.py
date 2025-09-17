@@ -9,7 +9,7 @@ from torch_geometric.data import Data
 from utils.logging_utils import log_step
 from energy.node_access_layer import NodeAccessLayer
 
-from connection_logic import create_weighted_connection
+from neural.connection_logic import create_weighted_connection
 
 
 class SensoryWorkspaceMapper:

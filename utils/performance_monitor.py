@@ -9,6 +9,7 @@ from collections import deque
 import gc
 
 import os
+import importlib
 
 _warnings_shown = set()
 try:
@@ -20,21 +21,12 @@ except ImportError:
         logging.warning("psutil not available - using basic performance monitoring")
         _warnings_shown.add('psutil')
 try:
-    import GPUtil
+    gputil = importlib.import_module('GPUtil')
     GPUTIL_AVAILABLE = True
 except ImportError:
+    gputil = None
     GPUTIL_AVAILABLE = False
-    if 'gputil' not in _warnings_shown:
-        logging.warning("GPUtil not available - GPU monitoring disabled")
-        _warnings_shown.add('gputil')
-try:
-    import resource
-    RESOURCE_AVAILABLE = True
-except ImportError:
-    RESOURCE_AVAILABLE = False
-    if 'resource' not in _warnings_shown:
-        logging.warning("resource module not available - using basic memory monitoring")
-        _warnings_shown.add('resource')
+RESOURCE_AVAILABLE = False
 @dataclass
 
 
@@ -102,6 +94,7 @@ class PerformanceMonitor:
         self._monitoring = False
         self._monitor_thread: Optional[threading.Thread] = None
         self.alert_callbacks: List[Callable[[str, Dict[str, Any]], None]] = []
+        self._last_memory_update = 0.0
         self._initialize_system_info()
         logging.info(f"PerformanceMonitor initialized - psutil: {PSUTIL_AVAILABLE}, "
                     f"GPUtil: {GPUTIL_AVAILABLE}, resource: {RESOURCE_AVAILABLE}")
@@ -192,7 +185,13 @@ class PerformanceMonitor:
         try:
             if PSUTIL_AVAILABLE:
                 self.current_metrics.cpu_percent = psutil.cpu_percent(interval=None)
-                self.current_metrics.load_average = psutil.getloadavg()[0] if hasattr(psutil, 'getloadavg') else 0.0
+                try:
+                    if hasattr(psutil, 'getloadavg'):
+                        self.current_metrics.load_average = psutil.getloadavg()[0]
+                    else:
+                        self.current_metrics.load_average = 0.0
+                except OSError:
+                    self.current_metrics.load_average = 0.0
             else:
                 self.current_metrics.cpu_percent = 0.0
                 self.current_metrics.load_average = 0.0
@@ -201,8 +200,8 @@ class PerformanceMonitor:
             self.current_metrics.cpu_percent = 0.0
     def _update_gpu_metrics(self) -> None:
         try:
-            if GPUTIL_AVAILABLE:
-                gpus = GPUtil.getGPUs()
+            if GPUTIL_AVAILABLE and gputil is not None:
+                gpus = gputil.getGPUs()
                 if gpus:
                     gpu = gpus[0]
                     self.current_metrics.gpu_usage_percent = gpu.load * 100

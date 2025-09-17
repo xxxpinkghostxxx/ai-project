@@ -11,7 +11,7 @@ def safe_divide(numerator: float, denominator: float, fallback: float = 0.0) -> 
     if denominator == 0 or denominator <= 0:
         return fallback
     return numerator / denominator
-from energy_constants import (
+from .energy_constants import (
     EnergyConstants, OscillatorConstants, IntegratorConstants,
     RelayConstants, HighwayConstants
 )

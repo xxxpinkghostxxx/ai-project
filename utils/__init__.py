@@ -14,7 +14,6 @@ from .print_utils import *
 from .statistics_utils import *
 from .logging_utils import *
 from .random_seed_manager import *
-from .error_handler import *
 from .error_handling_utils import *
 from .exception_utils import *
 from .unified_error_handler import *
@@ -22,6 +21,7 @@ from .performance_monitor import *
 from .performance_optimizer import *
 from .unified_performance_system import *
 from .static_allocator import *
+from . import performance_monitor
 
 __all__ = [
     'CommonUtils',
@@ -37,5 +37,6 @@ __all__ = [
     'PerformanceMonitor',
     'PerformanceOptimizer',
     'UnifiedPerformanceSystem',
-    'StaticAllocator'
+    'StaticAllocator',
+    'performance_monitor'
 ]
