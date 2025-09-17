@@ -1,0 +1,247 @@
+"""
+Consolidated constants to reduce string duplication across the codebase.
+"""
+
+# Common UI Constants
+UI_CONSTANTS = {
+    'SIMULATION_STATUS_RUNNING': 'Running',
+    'SIMULATION_STATUS_STOPPED': 'Stopped',
+    'NEURAL_SIMULATION_TITLE': 'Neural Simulation',
+    'MAIN_WINDOW_TAG': 'main_window',
+    'STATUS_TEXT_TAG': 'status_text',
+    'NODES_TEXT_TAG': 'nodes_text',
+    'EDGES_TEXT_TAG': 'edges_text',
+    'ENERGY_TEXT_TAG': 'energy_text',
+    'CONNECTIONS_TEXT_TAG': 'connections_text',
+    'LEGEND_WINDOW_TAG': 'legend_window',
+    'HELP_WINDOW_TAG': 'help_window'
+}
+
+# Common Error Messages
+ERROR_MESSAGES = {
+    'GRAPH_NONE': 'Graph is None',
+    'INVALID_NODE_ID': 'Invalid node ID',
+    'MISSING_ATTRIBUTE': 'Missing required attribute',
+    'CALLBACK_ERROR': 'Callback execution failed',
+    'UI_UPDATE_ERROR': 'UI update failed',
+    'INVALID_SLOT': 'Invalid slot number',
+    'FILE_OPERATION_FAILED': 'File operation failed',
+    'GRAPH_OPERATION_FAILED': 'Graph operation failed',
+    'CONFIG_LOAD_FAILED': 'Configuration loading failed',
+    'MEMORY_ALLOCATION_FAILED': 'Memory allocation failed',
+    'NETWORK_OPERATION_FAILED': 'Network operation failed',
+    'SIMULATION_STEP_FAILED': 'Simulation step failed',
+    'NODE_OPERATION_FAILED': 'Node operation failed',
+    'EXCEPTION_OCCURRED': 'Exception occurred',
+    'ERROR_OCCURRED': 'Error occurred',
+    'WARNING_OCCURRED': 'Warning occurred',
+    'DEBUG_INFO': 'Debug info',
+    'SUCCESS_MESSAGE': 'Success',
+    'FAILURE_MESSAGE': 'Failure',
+    'UI_ERROR': 'UI Error',
+    'PROCESSING_ERROR': 'Error processing',
+    'SIMULATION_ERROR': 'Error in simulation',
+    'INVALID_SLOT': 'Invalid slot number'
+}
+
+# Common Log Messages
+LOG_MESSAGES = {
+    'SYSTEM_STARTED': 'System started',
+    'SYSTEM_STOPPED': 'System stopped',
+    'SIMULATION_STARTED': 'Simulation started',
+    'SIMULATION_STOPPED': 'Simulation stopped',
+    'GRAPH_UPDATED': 'Graph updated',
+    'NODE_CREATED': 'Node created',
+    'NODE_DELETED': 'Node deleted',
+    'CONNECTION_CREATED': 'Connection created',
+    'CONNECTION_DELETED': 'Connection deleted',
+    'ENERGY_UPDATED': 'Energy updated',
+    'MEMORY_CONSOLIDATED': 'Memory consolidated',
+    'LEARNING_APPLIED': 'Learning applied',
+    'ERROR_OCCURRED': 'Error occurred',
+    'WARNING_OCCURRED': 'Warning occurred'
+}
+
+# Common File Paths
+FILE_PATHS = {
+    'NEURAL_MAPS_DIR': 'neural_maps',
+    'SLOT_METADATA': 'slot_metadata.json',
+    'CONFIG_FILE': 'config.ini',
+    'LOG_DIR': 'logs',
+    'PROFILE_DIR': 'profiles'
+}
+
+# Common Node Properties
+NODE_PROPERTIES = {
+    'ID': 'id',
+    'TYPE': 'type',
+    'SUBTYPE': 'subtype',
+    'ENERGY': 'energy',
+    'STATE': 'state',
+    'THRESHOLD': 'threshold',
+    'MEMBRANE_POTENTIAL': 'membrane_potential',
+    'REFRACTORY_TIMER': 'refractory_timer',
+    'LAST_UPDATE': 'last_update',
+    'PLASTICITY_ENABLED': 'plasticity_enabled',
+    'ELIGIBILITY_TRACE': 'eligibility_trace',
+    'ENHANCED_BEHAVIOR': 'enhanced_behavior'
+}
+
+# Common Connection Properties
+CONNECTION_PROPERTIES = {
+    'SOURCE': 'source',
+    'TARGET': 'target',
+    'WEIGHT': 'weight',
+    'TYPE': 'type',
+    'DELAY': 'delay',
+    'ACTIVE': 'active',
+    'ELIGIBILITY_TRACE': 'eligibility_trace',
+    'LAST_ACTIVITY': 'last_activity',
+    'ACTIVATION_COUNT': 'activation_count'
+}
+
+# Common System States
+SYSTEM_STATES = {
+    'INITIALIZING': 'initializing',
+    'RUNNING': 'running',
+    'STOPPED': 'stopped',
+    'PAUSED': 'paused',
+    'ERROR': 'error',
+    'CLEANUP': 'cleanup'
+}
+
+# Common Node States
+NODE_STATES = {
+    'ACTIVE': 'active',
+    'INACTIVE': 'inactive',
+    'PENDING': 'pending',
+    'CONSOLIDATING': 'consolidating',
+    'SYNTHESIZING': 'synthesizing',
+    'PLANNING': 'planning',
+    'IMAGINING': 'imagining',
+    'REGULATING': 'regulating'
+}
+
+# Common Node Types
+NODE_TYPES = {
+    'SENSORY': 'sensory',
+    'DYNAMIC': 'dynamic',
+    'OSCILLATOR': 'oscillator',
+    'INTEGRATOR': 'integrator',
+    'RELAY': 'relay',
+    'HIGHWAY': 'highway',
+    'WORKSPACE': 'workspace',
+    'TRANSMITTER': 'transmitter',
+    'RESONATOR': 'resonator',
+    'DAMPENER': 'dampener'
+}
+
+# Common Connection Types
+CONNECTION_TYPES = {
+    'EXCITATORY': 'excitatory',
+    'INHIBITORY': 'inhibitory',
+    'MODULATORY': 'modulatory',
+    'PLASTIC': 'plastic',
+    'BURST': 'burst',
+    'GATED': 'gated'
+}
+
+# Common Performance Metrics
+PERFORMANCE_METRICS = {
+    'STEP_TIME': 'step_time',
+    'TOTAL_RUNTIME': 'total_runtime',
+    'FPS': 'fps',
+    'MEMORY_USAGE': 'memory_usage_mb',
+    'CPU_PERCENT': 'cpu_percent',
+    'GPU_USAGE': 'gpu_usage_percent',
+    'ERROR_RATE': 'error_rate',
+    'NODE_COUNT': 'node_count',
+    'EDGE_COUNT': 'edge_count',
+    'THROUGHPUT': 'throughput'
+}
+
+# Common Thresholds
+THRESHOLDS = {
+    'MEMORY_WARNING_MB': 2000.0,
+    'MEMORY_CRITICAL_MB': 4000.0,
+    'CPU_WARNING_PERCENT': 80.0,
+    'CPU_CRITICAL_PERCENT': 95.0,
+    'STEP_TIME_WARNING_MS': 100.0,
+    'STEP_TIME_CRITICAL_MS': 500.0,
+    'FPS_WARNING': 20.0,
+    'FPS_CRITICAL': 10.0,
+    'ERROR_RATE_WARNING': 0.05,
+    'ERROR_RATE_CRITICAL': 0.1
+}
+
+# Common Default Values
+DEFAULT_VALUES = {
+    'ENERGY_CAP': 255.0,
+    'THRESHOLD_DEFAULT': 0.5,
+    'LEARNING_RATE': 0.01,
+    'REFRACTORY_PERIOD': 0.1,
+    'INTEGRATION_RATE': 0.5,
+    'RELAY_AMPLIFICATION': 1.5,
+    'HIGHWAY_ENERGY_BOOST': 2.0,
+    'WEIGHT_DEFAULT': 1.0,
+    'DELAY_DEFAULT': 0.0,
+    'ELIGIBILITY_TRACE_DEFAULT': 0.0
+}
+
+# Common Print Patterns
+PRINT_PATTERNS = {
+    'ERROR_PREFIX': 'Error:',
+    'WARNING_PREFIX': 'Warning:',
+    'INFO_PREFIX': 'Info:',
+    'DEBUG_PREFIX': 'Debug:',
+    'SUCCESS_PREFIX': 'Success:',
+    'FAILURE_PREFIX': 'Failure:',
+    'EXCEPTION_PATTERN': 'except Exception as e:\n        print(f',
+    'PRINT_F_PATTERN': 'print(f',
+    'PRINT_PATTERN': 'print(',
+    'ERROR_PRINT_PATTERN': 'print(f"Error: {e}")',
+    'WARNING_PRINT_PATTERN': 'print(f"Warning: {message}")',
+    'INFO_PRINT_PATTERN': 'print(f"Info: {message}")',
+    'UI_ERROR_PATTERN': 'print(f"UI Error: {e}")',
+    'PROCESSING_ERROR_PATTERN': 'print(f"Error processing {file_path}: {e}")',
+    'SIMULATION_ERROR_PATTERN': 'print(f"Error in simulation: {e}")',
+    'INVALID_SLOT_PATTERN': 'print(f"Invalid slot number: {slot_number}")'
+}
+
+# Common Exception Types
+EXCEPTION_TYPES = {
+    'VALUE_ERROR': ValueError,
+    'TYPE_ERROR': TypeError,
+    'ATTRIBUTE_ERROR': AttributeError,
+    'KEY_ERROR': KeyError,
+    'RUNTIME_ERROR': RuntimeError,
+    'MEMORY_ERROR': MemoryError,
+    'OS_ERROR': OSError,
+    'IO_ERROR': IOError
+}
+
+# Common Function Names
+FUNCTION_NAMES = {
+    'INIT': '__init__',
+    'CLEANUP': 'cleanup',
+    'RESET': 'reset',
+    'UPDATE': 'update',
+    'START': 'start',
+    'STOP': 'stop',
+    'GET_STATISTICS': 'get_statistics',
+    'RESET_STATISTICS': 'reset_statistics',
+    'MAIN': 'main'
+}
+
+# Common Class Names
+CLASS_NAMES = {
+    'SIMULATION_MANAGER': 'SimulationManager',
+    'BEHAVIOR_ENGINE': 'BehaviorEngine',
+    'LEARNING_ENGINE': 'LearningEngine',
+    'MEMORY_SYSTEM': 'MemorySystem',
+    'ERROR_HANDLER': 'ErrorHandler',
+    'PERFORMANCE_MONITOR': 'PerformanceMonitor',
+    'NETWORK_METRICS': 'NetworkMetrics',
+    'UI_ENGINE': 'UIEngine',
+    'UI_STATE_MANAGER': 'UIStateManager'
+}

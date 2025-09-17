@@ -17,7 +17,7 @@ librosa==0.10.1
 scipy==1.11.4
 
 # Cryptography (for secure configuration)
-cryptography==41.0.8
+cryptography==42.0.8
 
 # Configuration Management
 configparser==6.0.0
@@ -56,3 +56,4 @@ requests==2.31.0
 rich==13.7.0
 pyyaml==6.0.1
 stevedore==5.5.0
+pylint==3.2.7

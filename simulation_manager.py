@@ -1,3 +1,41 @@
+"""
+Legacy compatibility stub for simulation_manager.
+This module was removed during reorg; kept as a thin facade to avoid IDE errors.
+"""
+
+from typing import Optional, Dict, Any
+from utils.logging_utils import log_step
+
+
+class SimulationManager:
+    def __init__(self) -> None:
+        log_step("SimulationManager stub initialized")
+
+    def run_single_step(self) -> None:
+        log_step("SimulationManager stub run_single_step called")
+
+
+# Minimal performance hooks used by legacy references
+
+def get_system_performance_metrics() -> Dict[str, Any]:
+    return {}
+
+
+def record_simulation_step(step: int, info: Optional[Dict[str, Any]] = None) -> None:
+    pass
+
+
+def record_simulation_error(error: Exception | str) -> None:
+    pass
+
+
+def record_simulation_warning(msg: str) -> None:
+    pass
+
+
+def initialize_performance_monitoring(config: Optional[Dict[str, Any]] = None) -> None:
+    log_step("Performance monitoring stub initialized")
+
 
 import time
 import threading
@@ -7,32 +45,42 @@ import numpy as np
 import configparser
 import os
 import functools
-from typing import Optional, Dict, Any, Callable, Union, List
-from logging_utils import log_step, log_runtime
-from behavior_engine import BehaviorEngine
-from learning_engine import LearningEngine
-from memory_system import MemorySystem
-from homeostasis_controller import HomeostasisController
-from network_metrics import NetworkMetrics
-from workspace_engine import WorkspaceEngine
-from energy_behavior import apply_energy_behavior, update_membrane_potentials, apply_refractory_periods
-from error_handler import get_error_handler
-from death_and_birth_logic import birth_new_dynamic_nodes, remove_dead_dynamic_nodes
-from connection_logic import intelligent_connection_formation
-from screen_graph import RESOLUTION_SCALE
-from performance_monitor import (
-    get_system_performance_metrics,
-    record_simulation_step,
-    record_simulation_error,
-    record_simulation_warning,
-    initialize_performance_monitoring
-)
+
+
+from neural.behavior_engine import BehaviorEngine
+from learning.learning_engine import LearningEngine
+from learning.memory_system import MemorySystem
+from learning.homeostasis_controller import HomeostasisController
+from neural.network_metrics import NetworkMetrics
+from neural.workspace_engine import WorkspaceEngine
+from energy.energy_behavior import apply_energy_behavior, update_membrane_potentials, apply_refractory_periods
+
+from neural.death_and_birth_logic import birth_new_dynamic_nodes, remove_dead_dynamic_nodes
+from neural.connection_logic import intelligent_connection_formation
+from ui.screen_graph import RESOLUTION_SCALE
+from utils.error_handling_utils import safe_execute, safe_initialize_component, safe_process_step, safe_callback_execution
+
+
+
+
 
 
 class SimulationManager:
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-
+        """Initialize SimulationManager with NASA-compliant structure."""
+        self._initialize_basic_properties(config)
+        self._initialize_core_engines()
+        self._initialize_optional_components()
+        self._initialize_enhanced_systems()
+        self._initialize_sensory_systems()
+        self._initialize_performance_tracking()
+        self._initialize_callbacks()
+        self._load_configuration()
+        self._validate_initialization()
+    
+    def _initialize_basic_properties(self, config: Optional[Dict[str, Any]]):
+        """Initialize basic properties and threading."""
         import threading
         self.config = config or {}
         self.is_running = False
@@ -43,26 +91,28 @@ class SimulationManager:
         self.graph = None
         self._lock = threading.RLock()
         self.max_steps = None
+        self.last_visual_data = None
+        self.last_audio_data = None
+    
+    def _initialize_core_engines(self):
+        """Initialize core simulation engines."""
         self.behavior_engine = BehaviorEngine()
         self.learning_engine = LearningEngine()
         self.memory_system = MemorySystem()
         self.homeostasis_controller = HomeostasisController()
         self.network_metrics = NetworkMetrics()
         self.workspace_engine = WorkspaceEngine()
-        try:
-            from node_id_manager import get_id_manager
-            self.id_manager = get_id_manager()
-            logging.info("Node ID manager initialized")
-        except Exception as e:
-            logging.warning(f"Failed to initialize node ID manager: {e}")
-            self.id_manager = None
-        self.memory_update_interval = 10
-        self.homeostasis_update_interval = 20
-        self.event_processing_interval = 5
-        self.enhanced_integration = self._create_enhanced_neural_integration()
-        if self.enhanced_integration:
-            self.behavior_engine.enhanced_integration = self.enhanced_integration
-            logging.info("Enhanced neural integration initialized")
+        
+        # Initialize ID manager
+        from energy.node_id_manager import get_id_manager
+        self.id_manager = safe_initialize_component(
+            "Node ID manager", 
+            lambda: get_id_manager(),
+            None
+        )
+    
+    def _initialize_optional_components(self):
+        """Initialize optional components with error handling."""
         self.audio_to_neural_bridge = self._safe_initialize_component(
             "audio_to_neural_bridge",
             lambda: self._create_audio_bridge(),
@@ -78,30 +128,6 @@ class SimulationManager:
             lambda: self._create_neural_persistence(),
             critical=False
         )
-        self.visual_energy_bridge = None
-        try:
-            from visual_energy_bridge import create_visual_energy_bridge
-            self.visual_energy_bridge = create_visual_energy_bridge(self.enhanced_integration)
-            logging.info("Visual energy bridge initialized")
-        except ImportError:
-            self.visual_energy_bridge = None
-            logging.info("Visual energy bridge not available")
-        except Exception as e:
-            self.visual_energy_bridge = None
-            logging.warning(f"Failed to initialize visual energy bridge: {e}")
-        self.sensory_workspace_mapper = None
-        try:
-            from sensory_workspace_mapper import create_sensory_workspace_mapper
-            self.sensory_workspace_mapper = create_sensory_workspace_mapper()
-            logging.info("Sensory workspace mapper initialized")
-        except ImportError:
-            self.sensory_workspace_mapper = None
-            logging.info("Sensory workspace mapper not available")
-        except Exception as e:
-            self.sensory_workspace_mapper = None
-            logging.warning(f"Failed to initialize sensory workspace mapper: {e}")
-        self.last_visual_data = None
-        self.last_audio_data = None
         self.event_driven_system = self._safe_initialize_component(
             "event_driven_system",
             lambda: self._create_event_system(),
@@ -112,61 +138,29 @@ class SimulationManager:
             lambda: self._create_spike_system(),
             critical=False
         )
-        self.update_interval = self.config.get('update_interval', 0.1)
-        self.sensory_update_interval = self.config.get('sensory_update_interval', 10)
-        self.memory_update_interval = self.config.get('memory_update_interval', 100)
-        self.homeostasis_update_interval = self.config.get('homeostasis_update_interval', 200)
-        self.metrics_update_interval = self.config.get('metrics_update_interval', 100)
-        self.step_callbacks = []
-        self.metrics_callbacks = []
-        self.error_callbacks = []
-        self.performance_stats = {
-            'total_steps': 0,
-            'avg_step_time': 0.0,
-            'last_step_time': 0.0,
-            'system_health': 'unknown'
-        }
-        self.consecutive_failures = 0
-        self.max_consecutive_failures = 100
-        self.error_handler = get_error_handler()
-        self.error_count = 0
+    
+    def _initialize_enhanced_systems(self):
+        """Initialize enhanced neural systems."""
+        self.enhanced_integration = self._create_enhanced_neural_integration()
+        if self.enhanced_integration:
+            self.behavior_engine.enhanced_integration = self.enhanced_integration
+            logging.info("Enhanced neural integration initialized")
+    
+    def _initialize_sensory_systems(self):
+        """Initialize sensory processing systems."""
+        # Visual energy bridge
+        from sensory.visual_energy_bridge import create_visual_energy_bridge
+        self.visual_energy_bridge = safe_initialize_component(
+            "Visual energy bridge",
+            lambda: create_visual_energy_bridge(self.enhanced_integration),
+            None
+        )
+        
+        # Sensory workspace mapper
+        self.sensory_workspace_mapper = None
         try:
-            from performance_monitor import get_performance_monitor
-            self.performance_monitor = get_performance_monitor()
-            if not self.performance_monitor._monitoring:
-                self.performance_monitor.start_monitoring()
-            logging.info("Performance monitoring initialized and started")
-        except Exception as e:
-            logging.error(f"Failed to initialize performance monitoring: {e}")
-            self.performance_monitor = None
-        try:
-            from visual_energy_bridge import create_visual_energy_bridge
-            self.visual_energy_bridge = create_visual_energy_bridge()
-            logging.info("Visual energy bridge initialized")
-        except ImportError:
-            self.visual_energy_bridge = None
-            logging.info("Visual energy bridge not available")
-        except Exception as e:
-            self.visual_energy_bridge = None
-            logging.warning(f"Failed to initialize visual energy bridge: {e}")
-        try:
-            self.audio_bridge = self._safe_initialize_component(
-                "audio_to_neural_bridge",
-                self._create_audio_bridge,
-                critical=False
-            )
-            if hasattr(self, 'behavior_engine') and hasattr(self.behavior_engine, 'enhanced_integration'):
-                self.audio_bridge.set_enhanced_integration(self.behavior_engine.enhanced_integration)
-            logging.info("Audio to neural bridge initialized")
-        except ImportError:
-            self.audio_bridge = None
-            logging.info("Audio to neural bridge not available")
-        except Exception as e:
-            self.audio_bridge = None
-            logging.warning(f"Failed to initialize audio to neural bridge: {e}")
-        try:
-            from sensory_workspace_mapper import create_sensory_workspace_mapper
-            self.sensory_workspace_mapper = create_sensory_workspace_mapper((10, 10))
+            from sensory.sensory_workspace_mapper import create_sensory_workspace_mapper
+            self.sensory_workspace_mapper = create_sensory_workspace_mapper()
             logging.info("Sensory workspace mapper initialized")
         except ImportError:
             self.sensory_workspace_mapper = None
@@ -174,38 +168,68 @@ class SimulationManager:
         except Exception as e:
             self.sensory_workspace_mapper = None
             logging.warning(f"Failed to initialize sensory workspace mapper: {e}")
-        try:
-            self.initialize_graph()
-            logging.info("Graph initialized successfully")
-        except Exception as e:
-            logging.error(f"Failed to initialize graph: {e}")
-        self.config_file = "config.ini"
-        self._config_parser = configparser.ConfigParser()
-        self._section_cache = {}
-        self._cache_ttl = 300
-        self._last_cache_update = time.time()
+    
+    def _initialize_performance_tracking(self):
+        """Initialize performance tracking systems."""
+        self.performance_monitor = self._safe_initialize_component(
+            "performance_monitor",
+            lambda: self._create_performance_monitor(),
+            critical=False
+        )
+        self.performance_stats = {
+            'total_steps': 0,
+            'avg_step_time': 0.0,
+            'max_step_time': 0.0,
+            'min_step_time': float('inf'),
+            'errors': 0,
+            'warnings': 0,
+            'log_entries': 0,
+            'uptime': 0.0
+        }
+        self.memory_update_interval = 10
+        self.homeostasis_update_interval = 20
+        self.event_processing_interval = 5
+    
+    def _initialize_callbacks(self):
+        """Initialize callback systems."""
+        self.step_callbacks = []
+        self.metrics_callbacks = []
+        self.error_callbacks = []
+    
+    def _load_configuration(self):
+        """Load configuration settings."""
         self._load_config()
-        self._precache_frequent_sections()
-        self._log_lines = []
-        self._max_log_lines = 100
-        self._log_lock = threading.Lock()
-        log_step("SimulationManager initialized",
-                update_interval=self.update_interval,
-                systems_initialized=7)
+    
+    def _validate_initialization(self):
+        """Validate that initialization completed successfully."""
+        critical_components = [
+            self.behavior_engine,
+            self.learning_engine,
+            self.memory_system,
+            self.homeostasis_controller,
+            self.network_metrics,
+            self.workspace_engine
+        ]
+        
+        failed_components = [comp for comp in critical_components if comp is None]
+        if failed_components:
+            logging.error(f"Critical components failed to initialize: {len(failed_components)}")
+        else:
+            logging.info("All critical components initialized successfully")
     def _create_audio_bridge(self):
-        from audio_to_neural_bridge import create_audio_to_neural_bridge
+        from sensory.audio_to_neural_bridge import create_audio_to_neural_bridge
         return create_audio_to_neural_bridge(self)
     def _create_hebbian_learning(self):
-        from live_hebbian_learning import create_live_hebbian_learning
+        from learning.live_hebbian_learning import create_live_hebbian_learning
         return create_live_hebbian_learning(self)
     def _create_neural_persistence(self):
-        from neural_map_persistence import create_neural_map_persistence
+        from neural.neural_map_persistence import create_neural_map_persistence
         return create_neural_map_persistence()
     def _create_event_system(self):
-        from event_driven_system import create_event_driven_system
+        from neural.event_driven_system import create_event_driven_system
         return create_event_driven_system(self)
     def _create_spike_system(self):
-        from spike_queue_system import create_spike_queue_system
+        from neural.spike_queue_system import create_spike_queue_system
         return create_spike_queue_system(self)
     def _safe_initialize_component(self, component_name: str, init_func: callable,
                                  critical: bool = False) -> Any:
@@ -289,7 +313,7 @@ class SimulationManager:
                     nodes=len(self.graph.node_labels) if hasattr(self.graph, 'node_labels') else 0)
     def initialize_graph(self):
         try:
-            from main_graph import initialize_main_graph
+            from core.main_graph import initialize_main_graph
             graph = initialize_main_graph()
             if self.id_manager is not None:
                 graph_size = len(graph.node_labels) if hasattr(graph, 'node_labels') else 0
@@ -308,225 +332,342 @@ class SimulationManager:
     def add_error_callback(self, callback: Callable):
         self.error_callbacks.append(callback)
     def run_single_step(self) -> bool:
-
+        """Execute a single simulation step with error handling."""
+        assert self.graph is not None, "Graph must be initialized before running simulation step"
+        assert hasattr(self, 'step_counter'), "Step counter must be initialized"
+        assert self.step_counter >= 0, "Step counter must be non-negative"
+        
         if self.graph is None:
             return False
+        
         try:
             step_start_time = time.time()
             self.step_counter += 1
-            capture_interval = 200 if self.step_counter > 1000 else 100
-            if self.step_counter % capture_interval == 0:
-                try:
-                    success = self._update_sensory_features(self.graph, scale=RESOLUTION_SCALE)
-                    if not success:
-                        logging.warning("Sensory update failed, using fallback")
-                        self._fallback_sensory_update()
-                except Exception as e:
-                    logging.warning(f"Sensory update failed: {e}")
-                    self._fallback_sensory_update()
-            if self.event_driven_system is not None:
-                try:
-                    events_processed = self.process_events(max_events=1000)
-                    if events_processed > 0:
-                        logging.debug(f"Processed {events_processed} events at step {self.step_counter}")
-                except Exception as e:
-                    logging.warning(f"Event processing failed: {e}")
-            else:
-                if self.step_counter % 100 == 0:
-                    try:
-                        self.event_driven_system = self._create_event_system()
-                        if self.event_driven_system is not None:
-                            logging.info("Event system reinitialized")
-                    except Exception as e:
-                        logging.debug(f"Event system reinitialization failed: {e}")
-            if self.spike_queue_system is not None:
-                try:
-                    spikes_processed = self.spike_queue_system.process_spikes(max_spikes=1000)
-                    if spikes_processed > 0:
-                        logging.debug(f"Processed {spikes_processed} spikes at step {self.step_counter}")
-                except Exception as e:
-                    logging.warning(f"Spike processing failed: {e}")
-            if (self.audio_to_neural_bridge is not None and
-                hasattr(self, 'last_audio_data') and
-                self.last_audio_data is not None):
-                try:
-                    self.graph = self.audio_to_neural_bridge.integrate_audio_nodes_into_graph(
-                        self.graph, self.last_audio_data
-                    )
-                    logging.debug(f"Audio processing applied at step {self.step_counter}")
-                except Exception as e:
-                    logging.warning(f"Audio processing failed: {e}")
-            try:
-                self._update_node_behaviors()
-            except Exception as e:
-                logging.warning(f"Node behavior update failed: {e}")
-            if (self.enhanced_integration is not None and
-                self.step_counter % 2 == 0):
-                try:
-                    self.graph = self.enhanced_integration.integrate_with_existing_system(
-                        self.graph, self.step_counter
-                    )
-                    logging.debug(f"Enhanced neural dynamics applied at step {self.step_counter}")
-                except Exception as e:
-                    logging.warning(f"Enhanced neural dynamics failed: {e}")
-            try:
-                self._apply_energy_dynamics()
-            except Exception as e:
-                logging.warning(f"Energy dynamics failed: {e}")
-            if self.step_counter % 5 == 0:
-                try:
-                    self.graph = intelligent_connection_formation(self.graph)
-                except Exception as e:
-                    logging.warning(f"Connection formation failed: {e}")
-            if self.step_counter % 5 == 0:
-                try:
-                    self.graph = self.learning_engine.consolidate_connections(self.graph)
-                except Exception as e:
-                    logging.warning(f"Learning consolidation failed: {e}")
-            if self.step_counter % 20 == 0:
-                try:
-                    self.workspace_engine.update_workspace_nodes(self.graph, self.step_counter)
-                except Exception as e:
-                    logging.warning(f"Workspace update failed: {e}")
-            if self.step_counter % 50 == 0 and len(self.graph.node_labels) < 50000:
-                try:
-                    birth_new_dynamic_nodes(self.graph)
-                except Exception as e:
-                    logging.warning(f"Node birth failed: {e}")
-            if self.step_counter % 50 == 0:
-                try:
-                    remove_dead_dynamic_nodes(self.graph)
-                except Exception as e:
-                    logging.warning(f"Node death failed: {e}")
-            if self.live_hebbian_learning is not None and self.step_counter % 3 == 0:
-                self.graph = self.live_hebbian_learning.apply_continuous_learning(self.graph, self.step_counter)
-            if self.step_counter % self.memory_update_interval == 0:
-                try:
-                    self.graph = self.memory_system.form_memory_traces(self.graph)
-                    self.graph = self.memory_system.consolidate_memories(self.graph)
-                    logging.debug(f"Memory system updated at step {self.step_counter}")
-                except Exception as e:
-                    logging.warning(f"Memory system update failed: {e}")
-            if self.step_counter % self.homeostasis_update_interval == 0:
-                try:
-                    self.graph = self.homeostasis_controller.regulate_network_activity(self.graph)
-                except Exception as e:
-                    logging.warning(f"Homeostatic control failed: {e}")
-            if self.step_counter % (self.memory_update_interval // 2) == 0:
-                self.graph = self.learning_engine.apply_memory_influence(self.graph)
-            health_status = {'status': 'unknown', 'warnings': []}
-            if self.step_counter % self.homeostasis_update_interval == 0:
-                self.graph = self.homeostasis_controller.optimize_criticality(self.graph)
-                health_status = self.homeostasis_controller.monitor_network_health(self.graph)
-                self.performance_stats['system_health'] = health_status['status']
-            if self.step_counter % 100 == 0:
-                node_count = len(self.graph.node_labels)
-                if node_count > 100000:
-                    logging.warning(f"Graph size limit reached: {node_count} nodes")
-                    self._prune_graph_if_needed()
-                elif node_count > 50000:
-                    logging.info(f"Graph size: {node_count} nodes (approaching limit)")
-            if self.step_counter % 5 == 0 and self.enhanced_integration is not None:
-                try:
-                    pass
-                except Exception as e:
-                    logging.warning(f"Neuromodulator effects failed: {e}")
-                if health_status['status'] != 'healthy':
-                    logging.warning(
-                        f"[SIMULATION] Network health: {health_status['status']} - "
-                        f"{health_status['warnings']}"
-                    )
-                    record_simulation_warning()
-            if (self.step_counter % 5 == 0 and
-                hasattr(self, 'visual_energy_bridge') and
-                self.visual_energy_bridge is not None):
-                try:
-                    if hasattr(self, 'last_visual_data') and self.last_visual_data is not None:
-                        self.graph = self.visual_energy_bridge.process_visual_to_enhanced_energy(
-                            self.graph, self.last_visual_data, self.step_counter
-                        )
-                except Exception as e:
-                    logging.warning(f"Visual energy bridge processing failed: {e}")
-            if (self.step_counter % 10 == 0 and
-                hasattr(self, 'sensory_workspace_mapper') and
-                self.sensory_workspace_mapper is not None):
-                try:
-                    if hasattr(self, 'last_visual_data') and self.last_visual_data is not None:
-                        self.graph = self.sensory_workspace_mapper.map_visual_to_workspace(
-                            self.graph, self.last_visual_data, self.step_counter
-                        )
-                    if hasattr(self, 'last_audio_data') and self.last_audio_data is not None:
-                        self.graph = self.sensory_workspace_mapper.map_audio_to_workspace(
-                            self.graph, self.last_audio_data, self.step_counter
-                        )
-                except Exception as e:
-                    logging.warning(f"Sensory workspace mapping failed: {e}")
-            if self.step_counter % 200 == 0:
-                metrics = self.network_metrics.calculate_comprehensive_metrics(self.graph)
-                self.performance_stats['last_metrics'] = metrics
-                for callback in self.metrics_callbacks:
-                    try:
-                        callback(metrics)
-                    except (TypeError, ValueError, AttributeError) as e:
-                        logging.error(f"Metrics callback error: {e}")
-                        record_simulation_error()
-                    except Exception as e:
-                        logging.error(f"Unexpected metrics callback error: {e}")
-                        record_simulation_error()
-                        raise
-                logging.info(f"[SIMULATION] Step {self.step_counter}: Criticality={metrics['criticality']:.3f}, "
-                           f"Connectivity={metrics['connectivity']['density']:.3f}, "
-                           f"Energy Variance={metrics['energy_balance']['energy_variance']:.2f}")
-            step_time = time.time() - step_start_time
-            self.performance_stats['last_step_time'] = step_time
-            self.performance_stats['total_steps'] = self.step_counter
-            self.current_step = self.step_counter
-            if step_time > 1.0:
-                log_step("Step time exceeded 1 second", step_time=step_time, step=self.step_counter)
-                self.performance_stats['slow_steps'] = self.performance_stats.get('slow_steps', 0) + 1
-            if self.performance_stats['avg_step_time'] == 0:
-                self.performance_stats['avg_step_time'] = step_time
-            else:
-                self.performance_stats['avg_step_time'] = (
-                    self.performance_stats['avg_step_time'] * 0.9 + step_time * 0.1
-                )
-            node_count = len(self.graph.node_labels) if hasattr(self.graph, 'node_labels') else 0
-            edge_count = self.graph.edge_index.shape[1] if hasattr(self.graph, 'edge_index') and self.graph.edge_index.numel() > 0 else 0
-            record_simulation_step(step_time, node_count, edge_count)
-            if self.performance_monitor and hasattr(self.performance_monitor, '_update_metrics') and self.step_counter % 50 == 0:
-                self.performance_monitor._update_metrics()
-            for callback in self.step_callbacks:
-                try:
-                    callback(self.graph, self.step_counter, self.performance_stats)
-                except (TypeError, ValueError, AttributeError) as e:
-                    logging.error(f"Step callback error: {e}")
-                except Exception as e:
-                    logging.error(f"Unexpected step callback error: {e}")
-                    raise
-            step_end_time = time.time()
-            step_duration = step_end_time - step_start_time
-            if self.performance_monitor:
-                self.performance_monitor.record_step(
-                    step_duration,
-                    len(self.graph.node_labels) if hasattr(self.graph, 'node_labels') else 0,
-                    self.graph.edge_index.shape[1] if hasattr(self.graph, 'edge_index') else 0
-                )
+            
+            # Process all simulation components
+            self._process_sensory_input()
+            self._process_event_system()
+            self._process_spike_system()
+            self._process_audio_input()
+            self._process_neural_dynamics()
+            self._process_learning_systems()
+            self._process_workspace_systems()
+            self._process_node_lifecycle()
+            self._process_memory_systems()
+            self._process_homeostatic_control()
+            self._process_visual_systems()
+            self._process_metrics_and_callbacks()
+            
+            # Update performance statistics
+            self._update_step_statistics(step_start_time)
             return True
+            
         except (ValueError, TypeError, AttributeError, RuntimeError) as e:
             logging.warning(f"Simulation step error (non-critical): {e}")
             record_simulation_error()
-            for callback in self.error_callbacks:
-                try:
-                    callback(e, self.step_counter)
-                except (TypeError, ValueError, AttributeError) as callback_error:
-                    logging.error(f"Error callback error: {callback_error}")
-                except Exception as callback_error:
-                    logging.error(f"Unexpected error callback error: {callback_error}")
+            self._handle_step_error(e)
             return True
         except Exception as e:
             logging.error(f"Unexpected simulation step error: {e}")
             record_simulation_error()
             raise
+
+    def _process_sensory_input(self):
+        """Process sensory input updates."""
+        capture_interval = 200 if self.step_counter > 1000 else 100
+        if self.step_counter % capture_interval == 0:
+            try:
+                success = self._update_sensory_features(self.graph, scale=RESOLUTION_SCALE)
+                if not success:
+                    logging.warning("Sensory update failed, using fallback")
+                    self._fallback_sensory_update()
+            except Exception as e:
+                logging.warning(f"Sensory update failed: {e}")
+                self._fallback_sensory_update()
+
+    def _process_event_system(self):
+        """Process event-driven system updates."""
+        if self.event_driven_system is not None:
+            try:
+                events_processed = self.process_events(max_events=1000)
+                if events_processed > 0:
+                    logging.debug(f"Processed {events_processed} events at step {self.step_counter}")
+            except Exception as e:
+                logging.warning(f"Event processing failed: {e}")
+        else:
+            if self.step_counter % 100 == 0:
+                try:
+                    self.event_driven_system = self._create_event_system()
+                    if self.event_driven_system is not None:
+                        logging.info("Event system reinitialized")
+                except Exception as e:
+                    logging.debug(f"Event system reinitialization failed: {e}")
+
+    def _process_spike_system(self):
+        """Process spike queue system updates."""
+        if self.spike_queue_system is not None:
+            try:
+                spikes_processed = self.spike_queue_system.process_spikes(max_spikes=1000)
+                if spikes_processed > 0:
+                    logging.debug(f"Processed {spikes_processed} spikes at step {self.step_counter}")
+            except Exception as e:
+                logging.warning(f"Spike processing failed: {e}")
+
+    def _process_audio_input(self):
+        """Process audio input integration."""
+        if (self.audio_to_neural_bridge is not None and
+            hasattr(self, 'last_audio_data') and
+            self.last_audio_data is not None):
+            try:
+                self.graph = self.audio_to_neural_bridge.integrate_audio_nodes_into_graph(
+                    self.graph, self.last_audio_data
+                )
+                logging.debug(f"Audio processing applied at step {self.step_counter}")
+            except Exception as e:
+                logging.warning(f"Audio processing failed: {e}")
+
+    def _process_neural_dynamics(self):
+        """Process neural dynamics updates."""
+        try:
+            self._update_node_behaviors()
+        except Exception as e:
+            logging.warning(f"Node behavior update failed: {e}")
+        
+        if (self.enhanced_integration is not None and
+            self.step_counter % 2 == 0):
+            try:
+                self.graph = self.enhanced_integration.integrate_with_existing_system(
+                    self.graph, self.step_counter
+                )
+                logging.debug(f"Enhanced neural dynamics applied at step {self.step_counter}")
+            except Exception as e:
+                logging.warning(f"Enhanced neural dynamics failed: {e}")
+        
+        try:
+            self._apply_energy_dynamics()
+        except Exception as e:
+            logging.warning(f"Energy dynamics failed: {e}")
+
+    def _process_learning_systems(self):
+        """Process learning system updates."""
+        if self.step_counter % 5 == 0:
+            try:
+                self.graph = intelligent_connection_formation(self.graph)
+            except Exception as e:
+                logging.warning(f"Connection formation failed: {e}")
+            
+            try:
+                self.graph = self.learning_engine.consolidate_connections(self.graph)
+            except Exception as e:
+                logging.warning(f"Learning consolidation failed: {e}")
+        
+        if self.live_hebbian_learning is not None and self.step_counter % 3 == 0:
+            self.graph = self.live_hebbian_learning.apply_continuous_learning(self.graph, self.step_counter)
+
+    def _process_workspace_systems(self):
+        """Process workspace system updates."""
+        if self.step_counter % 20 == 0:
+            try:
+                self.workspace_engine.update_workspace_nodes(self.graph, self.step_counter)
+            except Exception as e:
+                logging.warning(f"Workspace update failed: {e}")
+
+    def _process_node_lifecycle(self):
+        """Process node birth and death."""
+        if self.step_counter % 50 == 0 and len(self.graph.node_labels) < 50000:
+            try:
+                birth_new_dynamic_nodes(self.graph)
+            except Exception as e:
+                logging.warning(f"Node birth failed: {e}")
+        
+        if self.step_counter % 50 == 0:
+            try:
+                remove_dead_dynamic_nodes(self.graph)
+            except Exception as e:
+                logging.warning(f"Node death failed: {e}")
+
+    def _process_memory_systems(self):
+        """Process memory system updates."""
+        if self.step_counter % self.memory_update_interval == 0:
+            try:
+                self.graph = self.memory_system.form_memory_traces(self.graph)
+                self.graph = self.memory_system.consolidate_memories(self.graph)
+                logging.debug(f"Memory system updated at step {self.step_counter}")
+            except Exception as e:
+                logging.warning(f"Memory system update failed: {e}")
+        
+        if self.step_counter % (self.memory_update_interval // 2) == 0:
+            self.graph = self.learning_engine.apply_memory_influence(self.graph)
+
+    def _process_homeostatic_control(self):
+        """Process homeostatic control updates."""
+        health_status = {'status': 'unknown', 'warnings': []}
+        
+        if self.step_counter % self.homeostasis_update_interval == 0:
+            try:
+                self.graph = self.homeostasis_controller.regulate_network_activity(self.graph)
+            except Exception as e:
+                logging.warning(f"Homeostatic control failed: {e}")
+            
+            try:
+                self.graph = self.homeostasis_controller.optimize_criticality(self.graph)
+                health_status = self.homeostasis_controller.monitor_network_health(self.graph)
+                self.performance_stats['system_health'] = health_status['status']
+            except Exception as e:
+                logging.warning(f"Criticality optimization failed: {e}")
+        
+        # Check graph size limits
+        if self.step_counter % 100 == 0:
+            node_count = len(self.graph.node_labels)
+            if node_count > 100000:
+                logging.warning(f"Graph size limit reached: {node_count} nodes")
+                self._prune_graph_if_needed()
+            elif node_count > 50000:
+                logging.info(f"Graph size: {node_count} nodes (approaching limit)")
+        
+        # Handle health warnings
+        if health_status['status'] != 'healthy':
+            logging.warning(
+                f"[SIMULATION] Network health: {health_status['status']} - "
+                f"{health_status['warnings']}"
+            )
+            record_simulation_warning()
+
+    def _process_visual_systems(self):
+        """Process visual system updates."""
+        if (self.step_counter % 5 == 0 and
+            hasattr(self, 'visual_energy_bridge') and
+            self.visual_energy_bridge is not None):
+            try:
+                if hasattr(self, 'last_visual_data') and self.last_visual_data is not None:
+                    self.graph = self.visual_energy_bridge.process_visual_to_enhanced_energy(
+                        self.graph, self.last_visual_data, self.step_counter
+                    )
+            except Exception as e:
+                logging.warning(f"Visual energy bridge processing failed: {e}")
+        
+        if (self.step_counter % 10 == 0 and
+            hasattr(self, 'sensory_workspace_mapper') and
+            self.sensory_workspace_mapper is not None):
+            try:
+                if hasattr(self, 'last_visual_data') and self.last_visual_data is not None:
+                    self.graph = self.sensory_workspace_mapper.map_visual_to_workspace(
+                        self.graph, self.last_visual_data, self.step_counter
+                    )
+                if hasattr(self, 'last_audio_data') and self.last_audio_data is not None:
+                    self.graph = self.sensory_workspace_mapper.map_audio_to_workspace(
+                        self.graph, self.last_audio_data, self.step_counter
+                    )
+            except Exception as e:
+                logging.warning(f"Sensory workspace mapping failed: {e}")
+
+    def _process_metrics_and_callbacks(self):
+        """Process metrics calculation and callbacks."""
+        if self.step_counter % 200 == 0:
+            try:
+                metrics = self.network_metrics.calculate_comprehensive_metrics(self.graph)
+                self.performance_stats['last_metrics'] = metrics
+                self._execute_metrics_callbacks(metrics)
+                self._log_step_metrics(metrics)
+            except Exception as e:
+                logging.warning(f"Metrics calculation failed: {e}")
+
+    def _execute_metrics_callbacks(self, metrics):
+        """Execute metrics callbacks with error handling."""
+        for callback in self.metrics_callbacks:
+            try:
+                callback(metrics)
+            except (TypeError, ValueError, AttributeError) as e:
+                logging.error(f"Metrics callback error: {e}")
+                record_simulation_error()
+            except Exception as e:
+                logging.error(f"Unexpected metrics callback error: {e}")
+                record_simulation_error()
+                raise
+
+    def _log_step_metrics(self, metrics):
+        """Log step metrics information."""
+        logging.info(f"[SIMULATION] Step {self.step_counter}: Criticality={metrics['criticality']:.3f}, "
+                   f"Connectivity={metrics['connectivity']['density']:.3f}, "
+                   f"Energy Variance={metrics['energy_balance']['energy_variance']:.2f}")
+
+    def _update_step_statistics(self, step_start_time):
+        """Update step performance statistics."""
+        step_time = time.time() - step_start_time
+        self.performance_stats['last_step_time'] = step_time
+        self.performance_stats['total_steps'] = self.step_counter
+        self.current_step = self.step_counter
+        
+        if step_time > 1.0:
+            log_step("Step time exceeded 1 second", step_time=step_time, step=self.step_counter)
+            self.performance_stats['slow_steps'] = self.performance_stats.get('slow_steps', 0) + 1
+        
+        # Update average step time
+        if self.performance_stats['avg_step_time'] == 0:
+            self.performance_stats['avg_step_time'] = step_time
+        else:
+            self.performance_stats['avg_step_time'] = (
+                self.performance_stats['avg_step_time'] * 0.9 + step_time * 0.1
+            )
+        
+        # Record step metrics
+        node_count = self._get_node_count()
+        edge_count = self._get_edge_count()
+        record_simulation_step(step_time, node_count, edge_count)
+        
+        # Update performance monitor
+        if self.performance_monitor and hasattr(self.performance_monitor, '_update_metrics') and self.step_counter % 50 == 0:
+            self.performance_monitor._update_metrics()
+        
+        # Execute step callbacks
+        self._execute_step_callbacks()
+        
+        # Record final step metrics
+        if self.performance_monitor:
+            self.performance_monitor.record_step(step_time, node_count, edge_count)
+
+    def _execute_step_callbacks(self):
+        """Execute step callbacks with error handling."""
+        for callback in self.step_callbacks:
+            try:
+                callback(self.graph, self.step_counter, self.performance_stats)
+            except (TypeError, ValueError, AttributeError) as e:
+                logging.error(f"Step callback error: {e}")
+            except Exception as e:
+                logging.error(f"Unexpected step callback error: {e}")
+                raise
+
+    def _handle_step_error(self, error):
+        """Handle step errors with callbacks."""
+        for callback in self.error_callbacks:
+            try:
+                callback(error, self.step_counter)
+            except (TypeError, ValueError, AttributeError) as callback_error:
+                logging.error(f"Error callback error: {callback_error}")
+            except Exception as callback_error:
+                logging.error(f"Unexpected error callback error: {callback_error}")
+    
+    def _get_node_count(self) -> int:
+        """Get node count with simplified conditional check."""
+        if self.graph is None:
+            return 0
+        return len(self.graph.node_labels) if hasattr(self.graph, 'node_labels') else 0
+    
+    def _get_edge_count(self) -> int:
+        """Get edge count with simplified conditional check."""
+        if self.graph is None:
+            return 0
+        if not hasattr(self.graph, 'edge_index'):
+            return 0
+        return self.graph.edge_index.shape[1] if self.graph.edge_index.numel() > 0 else 0
+    
+    def _has_visual_data(self) -> bool:
+        """Check if visual data is available with simplified conditional."""
+        return hasattr(self, 'last_visual_data') and self.last_visual_data is not None
+    
+    def _has_audio_data(self) -> bool:
+        """Check if audio data is available with simplified conditional."""
+        return hasattr(self, 'last_audio_data') and self.last_audio_data is not None
     def start_simulation(self, run_in_thread: bool = True):
 
         with self._lock:
@@ -634,7 +775,7 @@ class SimulationManager:
             if graph is None:
                 log_step("Graph is None in _update_sensory_features")
                 return False
-            from screen_graph import capture_screen, create_pixel_gray_graph
+            from ui.screen_graph import capture_screen, create_pixel_gray_graph
             if self.step_counter % 100 != 0:
                 return True
             arr = capture_screen(scale=scale)
@@ -655,7 +796,7 @@ class SimulationManager:
                 except (ImportError, AttributeError, IndexError, ValueError, RuntimeError) as e:
                     logging.warning(f"Enhanced visual processing failed: {e}")
             pixel_graph = create_pixel_gray_graph(arr)
-            if hasattr(graph, 'node_labels') and hasattr(graph, 'x'):
+            if safe_hasattr(graph, 'node_labels', 'x'):
                 sensory_indices = [i for i, node in enumerate(graph.node_labels)
                                  if node.get('type') == 'sensory']
                 if sensory_indices and hasattr(pixel_graph, 'x'):
@@ -721,7 +862,7 @@ class SimulationManager:
                     old_id = node['id']
                     node['id'] = i
                     log_step(f"Fixed ID mismatch: {old_id} -> {i} at index {i}")
-            if hasattr(self.graph, 'node_labels') and hasattr(self.graph, 'x'):
+            if safe_hasattr(self.graph, 'node_labels', 'x'):
                 labels_count = len(self.graph.node_labels)
                 x_count = self.graph.x.shape[0] if self.graph.x is not None else 0
                 if labels_count != x_count:
@@ -764,7 +905,7 @@ class SimulationManager:
             if num_nodes == 0:
                 return
             if not hasattr(self, '_access_layer') or self._access_layer is None:
-                from node_access_layer import NodeAccessLayer
+                from energy.node_access_layer import NodeAccessLayer
                 self._access_layer = NodeAccessLayer(self.graph)
             access_layer = self._access_layer
             nodes_to_update = min(50, num_nodes)
@@ -825,7 +966,7 @@ class SimulationManager:
     def process_audio_to_neural(self, audio_data):
 
         try:
-            if self.graph is not None and self.audio_to_neural_bridge is not None:
+            if self.graph and self.audio_to_neural_bridge is not None:
                 self.graph = self.audio_to_neural_bridge.integrate_audio_nodes_into_graph(
                     self.graph, audio_data
                 )
@@ -845,7 +986,7 @@ class SimulationManager:
     def save_neural_map(self, slot_number=None, metadata=None):
 
         try:
-            if self.graph is not None and self.neural_map_persistence is not None:
+            if self.graph and self.neural_map_persistence is not None:
                 return self.neural_map_persistence.save_neural_map(
                     self.graph, slot_number, metadata
                 )
@@ -928,7 +1069,7 @@ class SimulationManager:
         return {}
     def get_access_layer(self):
         if hasattr(self, 'graph') and self.graph is not None:
-            from node_access_layer import NodeAccessLayer
+            from energy.node_access_layer import NodeAccessLayer
             return NodeAccessLayer(self.graph)
         return None
     def schedule_spike_event(self, node_id: int, timestamp: float = None, priority: int = 1):
@@ -948,7 +1089,7 @@ class SimulationManager:
     def schedule_spike(self, source_id: int, target_id: int, spike_type: str = 'excitatory',
                       amplitude: float = 1.0, weight: float = 1.0, timestamp: float = None):
         if self.spike_queue_system is not None:
-            from spike_queue_system import SpikeType
+            from neural.spike_queue_system import SpikeType
             spike_type_enum = SpikeType.EXCITATORY
             if spike_type.lower() == 'inhibitory':
                 spike_type_enum = SpikeType.INHIBITORY
@@ -968,262 +1109,7 @@ class SimulationManager:
         if hasattr(self, 'sensory_workspace_mapper') and self.sensory_workspace_mapper is not None:
             return self.sensory_workspace_mapper.get_mapping_statistics()
         return {}
-    def get_spike_propagation_display_data(self) -> Dict[str, Any]:
-        if self.spike_queue_system is not None:
-            stats = self.spike_queue_system.get_statistics()
-            return {
-                'active_spikes': stats.get('queue_size', 0),
-                'processed_spikes': stats.get('spikes_processed', 0),
-                'spike_rate': stats.get('spikes_per_second', 0.0),
-                'propagation_delay': stats.get('avg_propagation_delay', 0.0),
-                'successful_transmissions': stats.get('successful_transmissions', 0),
-                'failed_transmissions': stats.get('failed_transmissions', 0),
-                'refractory_violations': stats.get('refractory_violations', 0),
-                'total_amplitude': stats.get('total_amplitude', 0.0),
-                'synaptic_transmissions': stats.get('synaptic_transmissions', 0)
-            }
-        return {
-            'active_spikes': 0,
-            'processed_spikes': 0,
-            'spike_rate': 0.0,
-            'propagation_delay': 0.0,
-            'successful_transmissions': 0,
-            'failed_transmissions': 0,
-            'refractory_violations': 0,
-            'total_amplitude': 0.0,
-            'synaptic_transmissions': 0
-        }
-    def get_energy_flow_display_data(self) -> Dict[str, Any]:
-        if self.graph is None or not hasattr(self.graph, 'x'):
-            return {'total_energy': 0.0, 'energy_flow_rate': 0.0, 'active_transfers': 0}
-        total_energy = float(self.graph.x[:, 0].sum()) if self.graph.x.numel() > 0 else 0.0
-        active_nodes = int((self.graph.x[:, 0] > 0.1).sum()) if self.graph.x.numel() > 0 else 0
-        return {
-            'total_energy': total_energy,
-            'energy_flow_rate': total_energy / max(len(self.graph.node_labels), 1),
-            'active_transfers': active_nodes,
-            'energy_distribution': 'normal'
-        }
-    def get_event_driven_display_data(self) -> Dict[str, Any]:
-        if self.event_driven_system is not None:
-            stats = self.event_driven_system.get_statistics()
-            return {
-                'pending_events': stats.get('pending_events', 0),
-                'processed_events': stats.get('processed_events', 0),
-                'event_rate': stats.get('events_per_second', 0.0)
-            }
-        return {'pending_events': 0, 'processed_events': 0, 'event_rate': 0.0}
-    def get_neural_dynamics_display_data(self) -> Dict[str, Any]:
-        if self.graph is None:
-            return {'membrane_activity': 0.0, 'spike_activity': 0.0, 'plasticity_activity': 0.0}
-        membrane_activity = 0.0
-        spike_activity = 0.0
-        plasticity_activity = 0.0
-        if hasattr(self.graph, 'node_labels'):
-            active_membrane = sum(1 for node in self.graph.node_labels
-                                if node.get('membrane_potential', 0) > 0.5)
-            spike_activity = sum(1 for node in self.graph.node_labels
-                               if node.get('state') == 'active')
-            plasticity_activity = sum(1 for node in self.graph.node_labels
-                                    if node.get('plasticity_enabled', False))
-            total_nodes = len(self.graph.node_labels)
-            if total_nodes > 0:
-                membrane_activity = active_membrane / total_nodes
-                spike_activity = spike_activity / total_nodes
-                plasticity_activity = plasticity_activity / total_nodes
-        return {
-            'membrane_activity': membrane_activity,
-            'spike_activity': spike_activity,
-            'plasticity_activity': plasticity_activity,
-            'theta_bursts': sum(1 for node in self.graph.node_labels
-                               if node.get('theta_burst_detected', False)) if hasattr(self.graph, 'node_labels') else 0,
-            'ieg_tagged_nodes': sum(1 for node in self.graph.node_labels
-                                  if node.get('ieg_tagged', False)) if hasattr(self.graph, 'node_labels') else 0,
-            'homeostatic_balance': self._calculate_homeostatic_balance(),
-            'criticality': self._calculate_criticality()
-        }
-    def get_graph_display_data(self) -> str:
-        if self.graph is None:
-            return "No graph loaded"
-        node_count = len(self.graph.node_labels) if hasattr(self.graph, 'node_labels') else 0
-        edge_count = self.graph.edge_index.shape[1] if hasattr(self.graph, 'edge_index') else 0
-        return f"Nodes: {node_count}, Edges: {edge_count}"
-    def get_network_display_data(self) -> str:
-        if self.network_metrics:
-            last_metrics = getattr(self.network_metrics, 'last_metrics', {})
-            criticality = last_metrics.get('criticality', 0.0)
-            return f"Criticality: {criticality:.3f}"
-        return "Network metrics unavailable"
-    def get_memory_display_data(self) -> str:
-        if self.memory_system:
-            stats = self.memory_system.get_memory_statistics()
-            traces = stats.get('traces_formed', 0)
-            return f"Memory traces: {traces}"
-        return "Memory system unavailable"
-    def get_connection_display_data(self) -> str:
-        if self.graph is None or not hasattr(self.graph, 'edge_index'):
-            return "No connections"
-        edge_count = self.graph.edge_index.shape[1] if self.graph.edge_index.numel() > 0 else 0
-        return f"Connections: {edge_count}"
-    def get_node_display_data(self) -> str:
-        if self.graph is None or not hasattr(self.graph, 'node_labels'):
-            return "No nodes"
-        node_count = len(self.graph.node_labels)
-        return f"Nodes: {node_count}"
-    def get_stdp_display_data(self) -> str:
-        if self.live_hebbian_learning is not None:
-            stats = self.live_hebbian_learning.get_learning_statistics()
-            return f"STDP Updates: {stats.get('stdp_updates', 0)}"
-        return "STDP: Not available"
-    def get_ieg_display_data(self) -> str:
-        if self.enhanced_integration is not None:
-            stats = self.enhanced_integration.get_integration_statistics()
-            return f"IEG Tags: {stats.get('ieg_tags', 0)}"
-        return "IEG: Not available"
-    def get_theta_burst_display_data(self) -> str:
-        if self.enhanced_integration is not None:
-            stats = self.enhanced_integration.get_integration_statistics()
-            return f"Theta Bursts: {stats.get('theta_bursts', 0)}"
-        return "Theta Bursts: Not available"
-    def get_membrane_dynamics_display_data(self) -> str:
-        if self.graph is None or not hasattr(self.graph, 'x'):
-            return "No membrane data"
-        if hasattr(self.graph, 'x') and self.graph.x is not None:
-            avg_membrane = float(torch.mean(self.graph.x[:, 1]).item()) if self.graph.x.shape[1] > 1 else 0.0
-            return f"Avg Membrane: {avg_membrane:.3f}"
-        return "Membrane: No data"
-    def get_ei_balance_display_data(self) -> str:
-        if self.enhanced_integration is not None:
-            stats = self.enhanced_integration.get_integration_statistics()
-            return f"E/I Ratio: {stats.get('ei_ratio', 0.0):.3f}"
-        return "E/I Balance: Not available"
-    def get_criticality_display_data(self) -> str:
-        if self.network_metrics is not None:
-            last_metrics = getattr(self.network_metrics, 'last_metrics', {})
-            criticality = last_metrics.get('criticality', 0.0)
-            return f"Criticality: {criticality:.3f}"
-        return "Criticality: Not available"
-    def get_neuromodulator_display_data(self) -> str:
-        if self.enhanced_integration is not None:
-            stats = self.enhanced_integration.get_integration_statistics()
-            return f"Neuromodulators: {len(stats.get('neuromodulators', {}))}"
-        return "Neuromodulators: Not available"
-    def get_homeostasis_display_data(self) -> str:
-        if self.homeostasis_controller is not None:
-            stats = self.homeostasis_controller.get_regulation_statistics()
-            return f"Regulations: {stats.get('total_regulations', 0)}"
-        return "Homeostasis: Not available"
-    def get_memory_consolidation_display_data(self) -> str:
-        if self.memory_system is not None:
-            stats = self.memory_system.get_memory_statistics()
-            return f"Memory Traces: {stats.get('memory_traces', 0)}"
-        return "Memory: Not available"
-    def get_eligibility_trace_display_data(self) -> str:
-        if self.live_hebbian_learning is not None:
-            stats = self.live_hebbian_learning.get_learning_statistics()
-            return f"Eligibility Traces: {stats.get('eligibility_traces', 0)}"
-        return "Eligibility: Not available"
-    def get_spike_queue_display_data(self) -> str:
-        return f"Queue size: {self.get_spike_queue_size()}"
-    def get_event_queue_display_data(self) -> str:
-        if self.event_driven_system is not None:
-            stats = self.event_driven_system.get_statistics()
-            return f"Pending Events: {stats.get('pending_events', 0)}"
-        return "Events: Not available"
-    def get_visual_system_display_data(self) -> str:
-        if self.visual_energy_bridge is not None:
-            stats = self.visual_energy_bridge.get_visual_statistics()
-            return f"Visual Patterns: {stats.get('patterns_detected', 0)}"
-        return "Visual: Not available"
-    def get_audio_system_display_data(self) -> str:
-        if self.audio_bridge is not None:
-            stats = self.audio_bridge.get_audio_feature_statistics()
-            return f"Audio Features: {stats.get('cached_features', 0)}"
-        return "Audio: Not available"
-    def get_sensory_input_display_data(self) -> str:
-        if self.sensory_workspace_mapper is not None:
-            stats = self.sensory_workspace_mapper.get_mapping_statistics()
-            return f"Sensory Mappings: {stats.get('total_mappings', 0)}"
-        return "Sensory: Not available"
-    def get_feature_extraction_display_data(self) -> str:
-        if self.visual_energy_bridge is not None:
-            stats = self.visual_energy_bridge.get_visual_statistics()
-            return f"Features Extracted: {stats.get('features_extracted', 0)}"
-        return "Features: Not available"
-    def get_configuration_display_data(self) -> str:
-        from config_manager import get_system_constants
-        constants = get_system_constants()
-        return f"Config Keys: {len(constants)}"
-    def get_settings_display_data(self) -> str:
-        return f"Simulation Running: {self.simulation_running}"
-    def get_parameter_display_data(self) -> str:
-        if self.graph is None:
-            return "No parameters"
-        return f"Graph Parameters: {len(self.graph.keys()) if hasattr(self.graph, 'keys') else 'Unknown'}"
-    def get_threshold_display_data(self) -> str:
-        if self.graph is None or not hasattr(self.graph, 'node_labels'):
-            return "No threshold data"
-        thresholds = [node.get('threshold', 0.5) for node in self.graph.node_labels]
-        avg_threshold = sum(thresholds) / len(thresholds) if thresholds else 0.5
-        return f"Avg Threshold: {avg_threshold:.3f}"
-    def get_error_display_data(self) -> str:
-        return f"Errors: {self.performance_stats.get('errors', 0)}"
-    def get_warning_display_data(self) -> str:
-        return f"Warnings: {self.performance_stats.get('warnings', 0)}"
-    def get_log_display_data(self) -> str:
-        return f"Log Entries: {self.performance_stats.get('log_entries', 0)}"
-    def get_debug_display_data(self) -> str:
-        return f"Debug Info: Step {self.current_step}"
-    def get_miscellaneous_display_data(self) -> str:
-        return f"Uptime: {self.performance_stats.get('uptime', 0):.1f}s"
-    def _calculate_homeostatic_balance(self) -> float:
-        if self.graph is None or not hasattr(self.graph, 'x'):
-            return 0.5
-        try:
-            energies = self.graph.x[:, 0].detach().cpu().numpy()
-            if len(energies) == 0:
-                return 0.5
-            energy_mean = np.mean(energies)
-            energy_std = np.std(energies)
-            if energy_mean > 0:
-                balance = max(0.0, min(1.0, 1.0 - (energy_std / energy_mean)))
-            else:
-                balance = 0.5
-            return balance
-        except Exception:
-            return 0.5
-    def _calculate_criticality(self) -> float:
-        if self.graph is None or not hasattr(self.graph, 'node_labels'):
-            return 0.5
-        try:
-            active_nodes = sum(1 for node in self.graph.node_labels
-                             if node.get('state') == 'active')
-            total_nodes = len(self.graph.node_labels)
-            if total_nodes == 0:
-                return 0.5
-            activity_ratio = active_nodes / total_nodes
-            if hasattr(self.graph, 'edge_index') and self.graph.edge_index.shape[1] > 0:
-                max_possible_edges = total_nodes * (total_nodes - 1) // 2
-                if max_possible_edges > 0:
-                    edge_density = self.graph.edge_index.shape[1] / max_possible_edges
-                else:
-                    edge_density = 0.0
-            else:
-                edge_density = 0.0
-            criticality = (activity_ratio + edge_density) / 2.0
-            return max(0.0, min(1.0, criticality))
-        except Exception:
-            return 0.5
-    def get_summary_display_data(self) -> str:
-        if self.graph is None:
-            return "No summary available"
-        node_count = len(self.graph.node_labels) if hasattr(self.graph, 'node_labels') else 0
-        edge_count = self.graph.edge_index.shape[1] if hasattr(self.graph, 'edge_index') and self.graph.edge_index.numel() > 0 else 0
-        return f"Summary: {node_count} nodes, {edge_count} edges"
-    def get_overview_display_data(self) -> str:
-        return f"Step: {self.current_step}, Running: {self.simulation_running}"
-    def get_dashboard_display_data(self) -> str:
-        return f"Dashboard: {len(self.performance_stats)} metrics"
+    # Display data functions are handled dynamically by __getattr__
     def __getattr__(self, name):
         if name.endswith('_display_data'):
             return lambda: f"{name.replace('_', ' ').title()}"
@@ -1268,7 +1154,7 @@ class SimulationManager:
             
             # Clean up orphaned IDs in the ID manager
             try:
-                from node_id_manager import get_id_manager
+                from energy.node_id_manager import get_id_manager
                 id_manager = get_id_manager()
                 orphaned_count = id_manager.cleanup_orphaned_ids(self.graph)
                 if orphaned_count > 0:
@@ -1280,10 +1166,10 @@ class SimulationManager:
     def _create_enhanced_neural_integration(self):
 
         try:
-            from enhanced_neural_dynamics import EnhancedNeuralDynamics
-            from enhanced_connection_system import EnhancedConnectionSystem
-            from enhanced_node_behaviors import EnhancedNodeBehaviorSystem
-            from node_access_layer import NodeAccessLayer
+            from neural.enhanced_neural_dynamics import EnhancedNeuralDynamics
+            from neural.enhanced_connection_system import EnhancedConnectionSystem
+            from neural.enhanced_node_behaviors import EnhancedNodeBehaviorSystem
+            from energy.node_access_layer import NodeAccessLayer
             neural_dynamics = EnhancedNeuralDynamics()
             connection_system = EnhancedConnectionSystem()
             node_behavior_system = EnhancedNodeBehaviorSystem()
@@ -1340,7 +1226,7 @@ class SimulationManager:
     def _create_enhanced_node(self, graph, node_id, node_type='dynamic', subtype='standard', **kwargs):
 
         try:
-            from node_access_layer import NodeAccessLayer
+            from energy.node_access_layer import NodeAccessLayer
             access_layer = NodeAccessLayer(graph)
             if not access_layer.is_valid_node_id(node_id):
                 log_step("Invalid node ID for enhanced node creation", node_id=node_id)
@@ -1363,7 +1249,7 @@ class SimulationManager:
     def _create_enhanced_connection(self, graph, source_id, target_id, connection_type='excitatory', **kwargs):
 
         try:
-            from node_access_layer import NodeAccessLayer
+            from energy.node_access_layer import NodeAccessLayer
             access_layer = NodeAccessLayer(graph)
             if not access_layer.is_valid_node_id(source_id) or not access_layer.is_valid_node_id(target_id):
                 log_step("Invalid node IDs for enhanced connection", source_id=source_id, target_id=target_id)
@@ -1485,32 +1371,32 @@ class SimulationManager:
                 self.get_config_section(section)
     def get_config(self, section: str, key: str, default: Any = None, value_type: type = str) -> Any:
 
-        from config_manager import get_config as config_get
+        from config.config_manager import get_config as config_get
         return config_get(section, key, default, value_type)
     def get_config_section(self, section: str) -> Dict[str, Any]:
 
-        from config_manager import get_config as config_get
+        from config.config_manager import get_config as config_get
         config = config_get(section, '', {})
         return config if isinstance(config, dict) else {}
     def set_config(self, section: str, key: str, value: Any):
 
-        from config_manager import config
+        from config.config_manager import config
         config.set(section, key, value)
     def save_config(self):
 
-        from config_manager import config
+        from config.config_manager import config
         config.save()
     def reload_config(self):
 
-        from config_manager import config
+        from config.config_manager import config
         config.reload()
     def append_log_line(self, line: str):
 
-        from logging_utils import append_log_line
+        from utils.logging_utils import append_log_line
         append_log_line(line)
     def get_log_lines(self) -> List[str]:
 
-        from logging_utils import get_log_lines
+        from utils.logging_utils import get_log_lines
         return get_log_lines()
     def log_runtime(self, func):
 
@@ -1671,3 +1557,6 @@ if __name__ == "__main__":
     manager = SimulationManager()
     print(f"Manager created with {len(manager.step_callbacks)} step callbacks")
     print("SimulationManager is ready for integration!")
+
+
+

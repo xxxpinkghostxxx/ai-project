@@ -1,0 +1,265 @@
+
+from ui.screen_graph import capture_screen, create_pixel_gray_graph, RESOLUTION_SCALE
+from neural.dynamic_nodes import add_dynamic_nodes
+from utils.pattern_consolidation_utils import create_workspace_node, create_sensory_node, create_dynamic_node
+import torch
+
+
+
+def create_workspace_grid():
+
+    from energy.node_id_manager import get_id_manager
+    id_manager = get_id_manager()
+    grid_size = 16
+    num_nodes = grid_size * grid_size
+    x = torch.zeros((num_nodes, 1), dtype=torch.float32)
+    node_labels = []
+    for y in range(grid_size):
+        for x_coord in range(grid_size):
+            node_id = id_manager.generate_unique_id("workspace", {"x": x_coord, "y": y})
+            node_index = y * grid_size + x_coord
+            node_label = create_workspace_node(
+                node_id=node_id,
+                x=x_coord,
+                y=y,
+                energy=0.0,
+                state="inactive",
+                membrane_potential=0.0,
+                threshold=0.6,
+                refractory_timer=0.0,
+                last_activation=0,
+                plasticity_enabled=True,
+                eligibility_trace=0.0,
+                last_update=0,
+                workspace_capacity=5.0,
+                workspace_creativity=1.5,
+                workspace_focus=3.0
+            )
+            node_labels.append(node_label)
+            id_manager.register_node_index(node_id, node_index)
+    edge_index = torch.empty((2, 0), dtype=torch.long)
+    from torch_geometric.data import Data
+    workspace_graph = Data(
+        x=x,
+        edge_index=edge_index,
+        node_labels=node_labels,
+        h=grid_size,
+        w=grid_size
+    )
+    return workspace_graph
+
+
+def merge_graphs(graph1, graph2):
+
+    from torch_geometric.data import Data
+    from energy.node_id_manager import get_id_manager
+    combined_x = torch.cat([graph1.x, graph2.x], dim=0)
+    combined_labels = graph1.node_labels + graph2.node_labels
+    id_manager = get_id_manager()
+    offset = graph1.x.size(0)
+    for i, node in enumerate(graph2.node_labels):
+        node_id = node.get('id')
+        if node_id is not None:
+            new_index = offset + i
+            # Use proper method instead of direct attribute access
+            if not id_manager.register_node_index(node_id, new_index):
+                # If registration fails, generate a new ID
+                new_node_id = id_manager.generate_unique_id(node.get('type', 'unknown'))
+                node['id'] = new_node_id
+                id_manager.register_node_index(new_node_id, new_index)
+    if hasattr(graph2, 'edge_index') and graph2.edge_index.numel() > 0:
+        adjusted_edge_index = graph2.edge_index + offset
+        combined_edge_index = torch.cat([graph1.edge_index, adjusted_edge_index], dim=1)
+    else:
+        combined_edge_index = graph1.edge_index
+    merged_graph = Data(
+        x=combined_x,
+        edge_index=combined_edge_index,
+        node_labels=combined_labels
+    )
+    for attr in ['h', 'w', 'step']:
+        if hasattr(graph1, attr):
+            setattr(merged_graph, attr, getattr(graph1, attr))
+    return merged_graph
+
+
+def create_test_graph(num_sensory=100, num_dynamic=20):
+    """Create a test graph with sensory and dynamic nodes for testing purposes."""
+    import numpy as np
+    from torch_geometric.data import Data
+    from energy.node_id_manager import get_id_manager
+    
+    id_manager = get_id_manager()
+    x = torch.randn(num_sensory + num_dynamic, 1)
+    node_labels = []
+    
+    # Create sensory nodes
+    for i in range(num_sensory):
+        node_id = id_manager.generate_unique_id("sensory")
+        node_labels.append({
+            'id': node_id,
+            'type': 'sensory',
+            'behavior': 'sensory',
+            'energy': float(x[i, 0]),
+            'state': 'active',
+            'membrane_potential': 0.0,
+            'threshold': 0.3,
+            'refractory_timer': 0.0,
+            'last_activation': 0,
+            'plasticity_enabled': True,
+            'eligibility_trace': 0.0,
+            'last_update': 0
+        })
+        id_manager.register_node_index(node_id, i)
+    
+    # Create dynamic nodes
+    for i in range(num_sensory, num_sensory + num_dynamic):
+        node_id = id_manager.generate_unique_id("dynamic")
+        node_labels.append({
+            'id': node_id,
+            'type': 'dynamic',
+            'behavior': 'dynamic',
+            'energy': float(x[i, 0]),
+            'state': 'inactive',
+            'membrane_potential': 0.0,
+            'threshold': 0.5,
+            'refractory_timer': 0.0,
+            'last_activation': 0,
+            'plasticity_enabled': True,
+            'eligibility_trace': 0.0,
+            'last_update': 0
+        })
+        id_manager.register_node_index(node_id, i)
+    
+    # Create random connections
+    edge_list = []
+    for i in range(min(50, num_sensory + num_dynamic)):
+        source = np.random.randint(0, num_sensory + num_dynamic)
+        target = np.random.randint(0, num_sensory + num_dynamic)
+        if source != target:
+            edge_list.append([source, target])
+    
+    edge_index = torch.tensor(edge_list, dtype=torch.long).t() if edge_list else torch.empty((2, 0), dtype=torch.long)
+    
+    return Data(
+        x=x,
+        edge_index=edge_index,
+        node_labels=node_labels
+    )
+
+
+def create_test_graph_with_workspace(num_sensory=100, num_dynamic=20, num_workspace=100):
+    """Create a test graph with sensory, dynamic, and workspace nodes for testing purposes."""
+    import numpy as np
+    from torch_geometric.data import Data
+    from energy.node_id_manager import get_id_manager
+    
+    id_manager = get_id_manager()
+    x = torch.randn(num_sensory + num_dynamic + num_workspace, 1)
+    node_labels = []
+    
+    # Create sensory nodes with spatial coordinates
+    for i in range(num_sensory):
+        node_id = id_manager.generate_unique_id("sensory")
+        x_coord = i % 10
+        y_coord = i // 10
+        node_labels.append({
+            'id': node_id,
+            'type': 'sensory',
+            'behavior': 'sensory',
+            'energy': float(x[i, 0]),
+            'state': 'active',
+            'x': x_coord,
+            'y': y_coord,
+            'membrane_potential': 0.0,
+            'threshold': 0.3,
+            'refractory_timer': 0.0,
+            'last_activation': 0,
+            'plasticity_enabled': False,
+            'eligibility_trace': 0.0,
+            'last_update': 0
+        })
+        id_manager.register_node_index(node_id, i)
+    
+    # Create dynamic nodes
+    for i in range(num_sensory, num_sensory + num_dynamic):
+        node_id = id_manager.generate_unique_id("dynamic")
+        node_labels.append({
+            'id': node_id,
+            'type': 'dynamic',
+            'behavior': 'dynamic',
+            'energy': float(x[i, 0]),
+            'state': 'inactive',
+            'membrane_potential': 0.0,
+            'threshold': 0.5,
+            'refractory_timer': 0.0,
+            'last_activation': 0,
+            'plasticity_enabled': True,
+            'eligibility_trace': 0.0,
+            'last_update': 0
+        })
+        id_manager.register_node_index(node_id, i)
+    
+    # Create workspace nodes
+    for i in range(num_sensory + num_dynamic, num_sensory + num_dynamic + num_workspace):
+        node_id = id_manager.generate_unique_id("workspace")
+        x_coord = (i - num_sensory - num_dynamic) % 10
+        y_coord = (i - num_sensory - num_dynamic) // 10
+        node_labels.append({
+            'id': node_id,
+            'type': 'workspace',
+            'behavior': 'workspace',
+            'energy': float(x[i, 0]),
+            'state': 'inactive',
+            'x': x_coord,
+            'y': y_coord,
+            'membrane_potential': 0.0,
+            'threshold': 0.6,
+            'refractory_timer': 0.0,
+            'last_activation': 0,
+            'plasticity_enabled': True,
+            'eligibility_trace': 0.0,
+            'last_update': 0,
+            'workspace_capacity': 5.0,
+            'workspace_creativity': 1.5,
+            'workspace_focus': 3.0
+        })
+        id_manager.register_node_index(node_id, i)
+    
+    # Create random connections
+    edge_list = []
+    for i in range(min(50, num_sensory + num_dynamic + num_workspace)):
+        source = np.random.randint(0, num_sensory + num_dynamic + num_workspace)
+        target = np.random.randint(0, num_sensory + num_dynamic + num_workspace)
+        if source != target:
+            edge_list.append([source, target])
+    
+    edge_index = torch.tensor(edge_list, dtype=torch.long).t() if edge_list else torch.empty((2, 0), dtype=torch.long)
+    
+    return Data(
+        x=x,
+        edge_index=edge_index,
+        node_labels=node_labels
+    )
+
+
+def initialize_main_graph(scale=RESOLUTION_SCALE):
+
+    arr = capture_screen(scale=scale)
+    pixel_graph = create_pixel_gray_graph(arr)
+    main_graph = add_dynamic_nodes(pixel_graph)
+    workspace_graph = create_workspace_grid()
+    full_graph = merge_graphs(main_graph, workspace_graph)
+    return full_graph
+if __name__ == "__main__":
+    import time
+    print("Press Ctrl+C to stop.")
+    try:
+        while True:
+            graph = initialize_main_graph()
+            print(f"Graph: {len(graph.x)} nodes (including dynamic nodes)")
+            print(f"First 6 node labels: {graph.node_labels[:6]}")
+            print(f"Last 6 node labels: {graph.node_labels[-6:]}")
+            time.sleep(0.5)
+    except KeyboardInterrupt:
+        print("Stopped.")
