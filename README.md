@@ -1,171 +1,288 @@
+# AI Neural Simulation System
 
+A comprehensive biologically-inspired neural network simulation system with real-time visualization, learning capabilities, and advanced neural dynamics.
 
-# AI Project
+## 🧠 Overview
 
-[![Open Source](https://badges.frapsoft.com/os/v1/open-source.svg?v=103)](LICENSE)
-[![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg)](CONTRIBUTING.md)
+This system implements a sophisticated neural simulation that combines:
+- **Biologically-inspired neural networks** with energy-based dynamics
+- **Real-time visualization** using DearPyGui
+- **Advanced learning mechanisms** including STDP, Hebbian learning, and memory formation
+- **Event-driven architecture** for efficient processing
+- **Multi-modal sensory integration** (visual and audio)
+- **Homeostatic regulation** and criticality maintenance
 
-Welcome to the AI Project! 🚀
+## 🏗️ Architecture
 
-We’re building this together as an open source community under the MIT License. Your feedback, ideas, and contributions make this project thrive—whether you’re here to report a bug, suggest a feature, or submit a pull request, you belong here. For all the ways you can get involved, check out our [CONTRIBUTING.md](CONTRIBUTING.md).
+### Core Components
 
----
+#### 1. Simulation Manager (`simulation_manager.py`)
+- Central coordinator for all neural systems
+- Orchestrates simulation loop and component lifecycles
+- Manages configuration and error handling
+- Integrates enhanced neural processes
+
+#### 2. Enhanced Neural Integration (`enhanced_neural_integration.py`)
+- Integrates all enhanced neural systems
+- Manages neural dynamics, connections, and behaviors
+- Provides unified interface for advanced features
+
+#### 3. Neural Dynamics (`enhanced_neural_dynamics.py`)
+- Implements STDP (Spike-Timing Dependent Plasticity)
+- IEG (Immediate Early Gene) tagging for plasticity gating
+- Theta-burst stimulation for LTP induction
+- Membrane dynamics and spike generation
+
+#### 4. Node Behaviors (`enhanced_node_behaviors.py`)
+- Sophisticated biological node types:
+  - **Oscillators**: Generate rhythmic activity
+  - **Integrators**: Accumulate and consolidate information
+  - **Relays**: Amplify and transmit signals
+  - **Highways**: High-capacity energy distribution
+  - **Workspace**: Imagination and flexible thinking
+
+#### 5. Connection System (`enhanced_connection_system.py`)
+- Advanced connection types:
+  - Excitatory, inhibitory, modulatory
+  - Plastic connections with STDP
+  - Burst connections for theta rhythms
+  - Gated connections with neuromodulation
+
+### Supporting Systems
+
+#### Energy Management
+- **Energy Behavior** (`energy_behavior.py`): Energy flow and consumption
+- **Energy Constants** (`energy_constants.py`): Centralized energy parameters
+- **Node Access Layer** (`node_access_layer.py`): ID-based node operations
+
+#### Learning & Memory
+- **Learning Engine** (`learning_engine.py`): STDP and pattern learning
+- **Memory System** (`memory_system.py`): Memory formation and persistence
+- **Live Hebbian Learning** (`live_hebbian_learning.py`): Real-time learning
+
+#### Sensory Integration
+- **Visual Energy Bridge** (`visual_energy_bridge.py`): Visual input processing
+- **Audio to Neural Bridge** (`audio_to_neural_bridge.py`): Audio feature extraction
+- **Sensory Workspace Mapper** (`sensory_workspace_mapper.py`): Sensory-to-workspace mapping
+
+#### System Management
+- **Performance Monitor** (`performance_monitor.py`): Real-time system monitoring
+- **Error Handler** (`error_handler.py`): Graceful error handling and recovery
+- **Configuration Manager** (`config_manager.py`): Centralized configuration
+- **Event-Driven System** (`event_driven_system.py`): Event-based processing
+
 ## 🚀 Quick Start
 
-The system is now in a stable, production-ready state with comprehensive performance monitoring, security hardening, and optimized architecture. To get started:
+### Installation
 
-1. **Install Dependencies**: `pip install -r requirements.txt`
-2. **Launch System**: Run `start_neural_system.bat` or `python launch_ui.py`
-3. **Monitor Performance**: Real-time performance metrics are displayed in the UI
+1. **Clone the repository**:
+```bash
+git clone <repository-url>
+cd ai-project
+```
 
-### Key Features Implemented:
-- ✅ **ID-Based Node System**: Complete refactor from spatial to ID-based architecture
-- ✅ **Performance Monitoring**: Real-time system resource tracking with alerts
-- ✅ **Security Hardening**: Input validation, secure configuration, vulnerability scanning
-- ✅ **Code Quality**: Comprehensive type hints, docstrings, error handling
-- ✅ **Architecture**: Decoupled modules with dependency injection and event bus
-- ✅ **Optimization**: Vectorized operations, caching, memory leak prevention
-## 🎯 Core Vision
+2. **Install dependencies**:
+```bash
+pip install -r requirements.txt
+```
 
-Our mission: Create a self-organizing neural architecture that learns and adapts through energy-driven node dynamics and ever-expanding senses. In simpler terms, we want to build something that grows, discovers, and surprises us—much like real intelligence.
+3. **Run the simulation**:
+```bash
+python unified_launcher.py
+```
+
+### Basic Usage
+
+```python
+from simulation_manager import create_simulation_manager
+from main_graph import initialize_main_graph
+
+# Create simulation manager
+sim_manager = create_simulation_manager()
+
+# Initialize neural graph
+graph = initialize_main_graph(scale=0.25)
+sim_manager.set_graph(graph)
+
+# Start simulation
+sim_manager.start_simulation()
+
+# Run simulation steps
+for step in range(1000):
+    sim_manager.run_single_step()
+```
+
+## 🔧 Configuration
+
+The system uses `config.ini` for configuration management:
+
+```ini
+[SystemConstants]
+node_energy_cap = 255.0
+time_step = 0.01
+refractory_period = 0.1
+
+[Learning]
+plasticity_rate = 0.01
+stdp_window = 20.0
+ltp_rate = 0.02
+
+[EnhancedNodes]
+oscillator_frequency = 0.1
+integrator_threshold = 0.8
+relay_amplification = 1.5
+```
+
+## 🧪 Advanced Features
+
+### Enhanced Neural Dynamics
+
+```python
+# Create enhanced neural integration
+from enhanced_neural_integration import create_enhanced_neural_integration
+
+integration = create_enhanced_neural_integration()
+
+# Create sophisticated nodes
+integration.create_enhanced_node(
+    graph, node_id=0, node_type='dynamic',
+    subtype='oscillator', is_excitatory=True,
+    oscillation_frequency=2.0, energy=0.8
+)
+
+# Create advanced connections
+integration.create_enhanced_connection(
+    graph, source_id=0, target_id=1,
+    connection_type='excitatory', weight=1.5,
+    plasticity_enabled=True, learning_rate=0.02
+)
+```
+
+### Sensory Integration
+
+```python
+# Visual processing
+from visual_energy_bridge import create_visual_energy_bridge
+
+visual_bridge = create_visual_energy_bridge(integration)
+graph = visual_bridge.process_visual_to_enhanced_energy(
+    graph, screen_data, step
+)
+
+# Audio processing
+from audio_to_neural_bridge import create_audio_to_neural_bridge
+
+audio_bridge = create_audio_to_neural_bridge()
+sensory_nodes = audio_bridge.process_audio_to_sensory_nodes(audio_data)
+```
+
+### Memory and Learning
+
+```python
+# Memory formation
+from memory_system import MemorySystem
+
+memory_system = MemorySystem()
+memory_system.form_memory_traces(graph)
+
+# Live Hebbian learning
+from live_hebbian_learning import create_live_hebbian_learning
+
+learning = create_live_hebbian_learning(sim_manager)
+graph = learning.apply_continuous_learning(graph, step)
+```
+
+## 📊 Monitoring and Visualization
+
+### Performance Monitoring
+
+```python
+from performance_monitor import get_performance_monitor
+
+monitor = get_performance_monitor()
+metrics = monitor.get_current_metrics()
+
+print(f"Memory usage: {metrics.memory_usage_mb:.1f} MB")
+print(f"CPU usage: {metrics.cpu_percent:.1f}%")
+print(f"FPS: {metrics.fps:.1f}")
+```
+
+### Network Metrics
+
+```python
+from network_metrics import create_network_metrics
+
+metrics = create_network_metrics()
+criticality = metrics.calculate_criticality(graph)
+connectivity = metrics.analyze_connectivity(graph)
+```
+
+## 🧬 Biological Features
+
+### Spike-Timing Dependent Plasticity (STDP)
+- Long-term potentiation (LTP) and depression (LTD)
+- Timing-dependent weight updates
+- Eligibility traces for delayed reinforcement
+
+### Homeostatic Regulation
+- Energy balance maintenance
+- Criticality optimization
+- Network stability preservation
+
+### Neuromodulation
+- Dopamine, serotonin, acetylcholine effects
+- Global network state modulation
+- Learning rate adaptation
+
+### Memory Formation
+- Pattern recognition and storage
+- Memory consolidation processes
+- Recall and pattern matching
+
+## 🔬 Research Applications
+
+This system is designed for:
+- **Neuroscience research**: Studying neural dynamics and plasticity
+- **AI development**: Biologically-inspired learning algorithms
+- **Cognitive modeling**: Understanding brain-like information processing
+- **Educational purposes**: Visualizing neural network behavior
+
+## 📁 Project Structure
+
+```
+ai-project/
+├── simulation_manager.py          # Main simulation coordinator
+├── enhanced_neural_*.py          # Advanced neural systems
+├── behavior_engine.py            # Node behavior management
+├── energy_*.py                   # Energy dynamics
+├── learning_*.py                 # Learning mechanisms
+├── memory_system.py              # Memory formation
+├── sensory_*.py                  # Sensory integration
+├── ui_*.py                       # User interface
+├── config.ini                    # Configuration
+├── requirements.txt              # Dependencies
+└── README.md                     # This file
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🙏 Acknowledgments
+
+- PyTorch Geometric for graph neural networks
+- DearPyGui for real-time visualization
+- The neuroscience community for biological inspiration
+- Open source contributors and researchers
 
 ---
 
-## 🏗️ System Architecture
-
-### Building Blocks
-
-- **Fixed Sensory Layer**
-  - Maps directly to inputs (like screen pixels or audio)
-  - Nodes here don’t compete for resources—they’re always available
-  - These nodes are stable, but others can connect to them
-
-- **Dynamic Processing Layer**
-  - Nodes and connections here compete for and use energy
-  - They grow, shrink, and self-organize, always trying to make sense of things
-
-- **Internal Workspace**
-  - A special place for “imagination” and flexible thinking
-  - Here, the system can combine perceptions and plan actions
-
----
-
-## 🧬 How Nodes & Connections Work
-
-- **Node Properties:** Each node tracks its energy, its connections, what info it handles, when it was made, its activity, and how it uses or generates energy.
-- **Connection Properties:** Every connection knows its source/target, strength, age, activity, and how much energy it can carry.
-
----
-
-## ⚡ The Energy Economy
-
-- **Making Energy:** When connections move useful, predictive, or novel info, they generate energy.
-- **Spending Energy:** It costs energy to create or maintain nodes and connections—especially the more complex ones.
-- **Staying Balanced:** If a node runs out of energy, it’s removed. Extra energy fuels growth. Ideally, energy made slightly exceeds what’s spent, so the system stays alive and vibrant.
-
----
-
-## 📈 Roadmap: How We Grow
-
-**Phase 1: Visual Foundation**
-- Capture grayscale screen images (at low resolution)
-- Establish energy mechanics and basic connection rules
-- Watch for first signs of pattern recognition
-
-**Phase 2: Better Vision**
-- Add color and higher resolution
-- Detect motion
-- Build a visual workspace
-
-**Phase 3: Multi-Sense Expansion**
-- Introduce audio and text inputs
-- Link information between senses
-
-**Phase 4: Interaction**
-- Enable mouse and keyboard outputs
-- Complete the loop between perception and action
-
-**Phase 5: Smarter Features**
-- Build memory and learning about learning (“meta-learning”)
-- Let the system tweak its own parameters
-- Add strong safety and control measures
-
----
-
-## 🔍 How We Measure Progress
-
-- **System Health:** Total energy, how often nodes/connections are created or removed, efficiency
-- **Emergent Skills:** Detecting patterns, making new connections, responding adaptively
-- **Performance:** Processing speed, memory/GPU use, energy efficiency
-
----
-
-## ⚙️ How We Build
-
-- **Keep It Simple:** Start with basics, add complexity only when needed
-- **Focus on Emergence:** Let interesting behaviors arise naturally
-- **Stay Modular:** Core engine, sensory, and processing layers are kept separate and easy to tinker with
-- **Tech Stack:** Multi-threaded, GPU-accelerated, using efficient data structures and circular buffers for history
-
----
-
-## 🧪 Experiment and Play
-
-- **What to Tune:** Energy flow rates, creation thresholds, update speeds, etc.
-- **Test Ideas:** Feed in static and dynamic scenes, see how the system adapts and recognizes patterns
-- **Success Looks Like:** Stable but adaptable networks, efficient paths, creative solutions
-
----
-
-## 🛡️ Safety First
-
-- **Stability:** Guard against runaway growth or collapse, prevent energy “inflation” or “death spirals”
-- **Controls:** Emergency stop, reset options, growth limits, live monitoring
-
----
-
-## 📊 Feature Checklist
-
-Before adding a new feature, ask:
-1. Does it support our main goal?
-2. does it only use the singular energy value?
-3. Is it the right time for this?
-4. Will it play nicely with what’s already here?
-5. How will it affect energy use?
-6. Is it too complex?
-7. Can we measure its impact?
-8. Will it enable new, emergent behaviors?
-9. Are safety measures included?
-
----
-
-## 🔄 How We Work
-
-1. Propose—share your idea or feature
-2. Evaluate—use the checklist above
-3. Build—it in a separate branch
-4. Test—start small, then scale up
-5. Document—note anything new or interesting that emerges
-6. Merge—only when it’s stable and valuable
-7. Watch—monitor for surprises after it’s live
-
----
-
-## 🤝 Join Us!
-
-Everyone is welcome—whether you’re curious, have questions, or want to make something amazing with us. Please see [CONTRIBUTING.md](CONTRIBUTING.md) for how to start, and don’t hesitate to open an issue or pull request!
-
----
-
-## 📜 License
-
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
-
----
-
-If you’d like this further tailored (e.g., with a more playful, technical, or academic voice), let me know!
-
----
-
-_This living document serves as the central reference for the Energy-Based Neural System project. Refer to it when considering changes or additions to maintain alignment with the core vision and direction._
-This living document serves as the central reference for the Energy-Based Neural System project. Refer to it when considering changes or additions to maintain alignment with the core vision and development principles.
+**Note**: This is a research and educational system. For production use, additional testing and optimization may be required.
