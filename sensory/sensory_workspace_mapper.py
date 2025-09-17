@@ -11,6 +11,8 @@ from energy.node_access_layer import NodeAccessLayer
 
 from neural.connection_logic import create_weighted_connection
 
+from utils.event_bus import get_event_bus
+
 
 class SensoryWorkspaceMapper:
 
@@ -33,6 +35,10 @@ class SensoryWorkspaceMapper:
             'motion': (0.5, 0.0, 1.0, 0.5),
             'texture': (0.5, 0.5, 1.0, 1.0),
         }
+        self.manager = None
+        self.bus = get_event_bus()
+        self.bus.subscribe('SENSORY_INPUT_AUDIO', self._on_audio_input)
+        self.bus.subscribe('SENSORY_INPUT_VISUAL', self._on_visual_input)
         log_step("SensoryWorkspaceMapper initialized", workspace_size=workspace_size)
     def map_visual_to_workspace(self, graph: Data, visual_data: np.ndarray,
                                step: int) -> Data:
@@ -396,6 +402,24 @@ class SensoryWorkspaceMapper:
             'audio_sensitivity': self.audio_sensitivity,
             'pattern_threshold': self.pattern_threshold
         }
+
+    def set_manager(self, manager):
+        self.manager = manager
+
+    def _on_audio_input(self, event_type, data):
+        if self.manager and self.manager.graph is not None:
+            features = data.get('features', np.zeros(1024))
+            if isinstance(features, np.ndarray):
+                self.map_audio_to_workspace(self.manager.graph, features, self.manager.step_counter)
+                self.manager.event_bus.emit('GRAPH_UPDATE', {'graph': self.manager.graph})
+
+    def _on_visual_input(self, event_type, data):
+        if self.manager and self.manager.graph is not None:
+            energy = data.get('energy', 0.5)
+            # Create mock frame from energy
+            mock_frame = np.full((64, 64), energy * 255, dtype=np.uint8)
+            self.map_visual_to_workspace(self.manager.graph, mock_frame, self.manager.step_counter)
+            self.manager.event_bus.emit('GRAPH_UPDATE', {'graph': self.manager.graph})
 
 
 def create_sensory_workspace_mapper(workspace_size: Tuple[int, int] = (10, 10)) -> SensoryWorkspaceMapper:

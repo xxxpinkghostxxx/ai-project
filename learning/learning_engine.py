@@ -1,10 +1,16 @@
 
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import time
 import numpy as np
 from utils.logging_utils import log_step
 
 
 from config.unified_config_manager import get_learning_config
+from utils.event_bus import get_event_bus
+from typing import Dict, Any
 
 
 class LearningEngine:
@@ -27,7 +33,10 @@ class LearningEngine:
         }
         self.memory_traces = {}
         self.memory_decay_rate = 0.99
-    def apply_timing_learning(self, pre_node, post_node, edge, delta_t):
+        self.event_bus = get_event_bus()
+        self.sim_manager = None
+        self.event_bus.subscribe('SPIKE', self._on_spike)
+    def apply_timing_learning(self, pre_node: Any, post_node: Any, edge: Any, delta_t: float) -> float:
 
         if abs(delta_t) <= self.stdp_window / 1000.0:
             if delta_t > 0:
@@ -49,7 +58,40 @@ class LearningEngine:
             edge.eligibility_trace += weight_change
             return weight_change
         return 0.0
-    def consolidate_connections(self, graph):
+
+    def _on_spike(self, event_type: str, data: Dict[str, Any]) -> None:
+        """Handle SPIKE event and apply timing learning."""
+        try:
+            node_id = data['node_id']
+            source_id = data.get('source_id', node_id)
+            if self.sim_manager is None:
+                from simulation_manager import get_simulation_manager
+                self.sim_manager = get_simulation_manager()
+            access_layer = self.sim_manager.get_access_layer()
+            if access_layer:
+                pre_node = access_layer.get_node_by_id(source_id)
+                post_node = access_layer.get_node_by_id(node_id)
+                # Dummy edge and delta_t; in full impl, calculate delta_t from timestamps
+                edge = None
+                delta_t = 0.0  # Would calculate from last spikes
+                change = self.apply_timing_learning(pre_node, post_node, edge, delta_t)
+                if change != 0.0:
+                    self.emit_learning_update(source_id, node_id, change)
+        except Exception:
+            pass  # Fallback: no action
+
+    def emit_learning_update(self, source_id: int, target_id: int, weight_change: float) -> None:
+        """Emit LEARNING_UPDATE event."""
+        try:
+            self.event_bus.emit('LEARNING_UPDATE', {
+                'source_id': source_id,
+                'target_id': target_id,
+                'weight_change': weight_change
+            })
+        except Exception:
+            pass  # Fallback: no action
+
+    def consolidate_connections(self, graph: Any) -> Any:
 
         if not hasattr(graph, 'edge_attributes') or not graph.edge_attributes:
             return graph
@@ -66,6 +108,7 @@ class LearningEngine:
                 consolidated_count += 1
                 total_weight_change += actual_change
                 self.learning_stats['consolidation_events'] += 1
+                self.emit_learning_update(edge.source, edge.target, actual_change)
                 log_step("Connection consolidated",
                         edge_idx=edge_idx,
                         source=edge.source,
@@ -75,7 +118,7 @@ class LearningEngine:
         self.learning_stats['weight_changes'] += consolidated_count
         self.learning_stats['total_weight_change'] += total_weight_change
         return graph
-    def form_memory_traces(self, graph):
+    def form_memory_traces(self, graph: Any) -> Any:
 
         if not hasattr(graph, 'edge_attributes') or not graph.edge_attributes:
             return graph
@@ -89,7 +132,7 @@ class LearningEngine:
         if memory_traces_formed > 0:
             log_step("Memory traces formed", count=memory_traces_formed)
         return graph
-    def _has_stable_pattern(self, node, graph):
+    def _has_stable_pattern(self, node: Any, graph: Any) -> bool:
 
         last_activation = node.get('last_activation', 0)
         current_time = time.time()
@@ -97,7 +140,7 @@ class LearningEngine:
             node.get('energy', 0.0) > 0.3):
             return True
         return False
-    def _create_memory_trace(self, node_idx, graph):
+    def _create_memory_trace(self, node_idx: int, graph: Any) -> None:
 
         incoming_edges = []
         if hasattr(graph, 'edge_attributes'):
@@ -114,7 +157,7 @@ class LearningEngine:
             'formation_time': time.time(),
             'activation_count': 0
         }
-    def apply_memory_influence(self, graph):
+    def apply_memory_influence(self, graph: Any) -> Any:
 
         if not self.memory_traces:
             return graph
@@ -131,7 +174,7 @@ class LearningEngine:
         for node_idx in to_remove:
             del self.memory_traces[node_idx]
         return graph
-    def _reinforce_memory_pattern(self, node_idx, memory_trace, graph):
+    def _reinforce_memory_pattern(self, node_idx: int, memory_trace: Dict[str, Any], graph: Any) -> None:
 
         if not hasattr(graph, 'edge_attributes'):
             return
@@ -143,9 +186,9 @@ class LearningEngine:
                         reinforcement = memory_trace['strength'] * 0.1
                         edge.weight = min(edge.weight + reinforcement, 5.0)
                         break
-    def get_learning_statistics(self):
+    def get_learning_statistics(self) -> Dict[str, Any]:
         return self.learning_stats.copy()
-    def reset_statistics(self):
+    def reset_statistics(self) -> None:
         self.learning_stats = {
             'stdp_events': 0,
             'weight_changes': 0,
@@ -153,11 +196,11 @@ class LearningEngine:
             'memory_traces_formed': 0,
             'total_weight_change': 0.0
         }
-    def get_memory_trace_count(self):
+    def get_memory_trace_count(self) -> int:
         return len(self.memory_traces)
 
 
-def calculate_learning_efficiency(graph):
+def calculate_learning_efficiency(graph: Any) -> float:
 
     if not hasattr(graph, 'edge_attributes') or not graph.edge_attributes:
         return 0.0
@@ -167,7 +210,7 @@ def calculate_learning_efficiency(graph):
     return efficiency
 
 
-def detect_learning_patterns(graph):
+def detect_learning_patterns(graph: Any) -> Dict[str, Any]:
 
     if not hasattr(graph, 'edge_attributes') or not graph.edge_attributes:
         return {'patterns_detected': 0}

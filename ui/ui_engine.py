@@ -2,8 +2,11 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from utils.event_bus import get_event_bus
+
 from dearpygui import dearpygui as dpg
 import time
+import math
 import logging
 import json
 from datetime import datetime
@@ -11,6 +14,11 @@ from ui.ui_state_manager import get_ui_state_manager
 from utils.logging_utils import log_step
 
 ui_state = get_ui_state_manager()
+event_bus = get_event_bus()
+event_bus.subscribe('GRAPH_UPDATE', lambda event_type, data: (ui_state.update_graph(data.get('graph')), update_graph_visualization()))
+event_bus.subscribe('UI_REFRESH', lambda event_type, data: update_ui_display())
+
+_manager = None
 
 # Define constants inline
 CONSTANTS = {
@@ -61,14 +69,18 @@ def create_main_window():
                 
                 # Control panel
                 with dpg.group(horizontal=True):
-                    dpg.add_button(label="Start", callback=lambda: set_simulation_running(True), width=100)
-                    dpg.add_button(label="Stop", callback=lambda: set_simulation_running(False), width=100)
-                    dpg.add_button(label="Reset", callback=reset_simulation, width=100)
-                    dpg.add_button(label="Save Neural Map", callback=save_neural_map_callback, width=150)
-                    dpg.add_button(label="Load Neural Map", callback=load_neural_map_callback, width=150)
+                    dpg.add_button(label="Start", callback=start_simulation_callback, width=100)
+                    dpg.add_button(label="Stop", callback=stop_simulation_callback, width=100)
+                    dpg.add_button(label="Reset", callback=reset_simulation_callback, width=100)
+                    
+                    # Neural map slot selector
+                    dpg.add_text("Map Slot:")
+                    slot_input = dpg.add_input_int(tag="map_slot", default_value=0, width=50)
+                    dpg.add_button(label="Save Neural Map", callback=lambda: save_neural_map_callback(dpg.get_value(slot_input)), width=150)
+                    dpg.add_button(label="Load Neural Map", callback=lambda: load_neural_map_callback(dpg.get_value(slot_input)), width=150)
                 
                 # Status panel
-                with dpg.child_window(height=100, width=400, tag="status_panel"):
+                with dpg.child_window(height=120, width=-1, tag="status_panel"):
                     dpg.add_text(default_value="Status: ", tag=CONSTANTS['STATUS_TEXT_TAG'])
                     dpg.add_text(default_value="Nodes: ", tag=CONSTANTS['NODES_TEXT_TAG'])
                     dpg.add_text(default_value="Edges: ", tag=CONSTANTS['EDGES_TEXT_TAG'])
@@ -76,7 +88,7 @@ def create_main_window():
                     dpg.add_text(default_value="Health: ", tag="health_text")
                 
                 # Live metrics
-                with dpg.child_window(height=200, width=400, tag="metrics_panel"):
+                with dpg.child_window(height=250, width=-1, tag="metrics_panel"):
                     dpg.add_text(default_value="Live Metrics:")
                     dpg.add_text(default_value="Energy: ", tag=CONSTANTS['ENERGY_TEXT_TAG'])
                     dpg.add_text(default_value="Connections: ", tag=CONSTANTS['CONNECTIONS_TEXT_TAG'])
@@ -84,7 +96,7 @@ def create_main_window():
                     dpg.add_text(default_value="EI Ratio: ", tag="ei_ratio_text")
                     dpg.add_separator()
                     dpg.add_text(default_value="Recent Events:")
-                    dpg.add_input_text(default_value="", tag="events_log", multiline=True, readonly=True, height=80)
+                    dpg.add_input_text(default_value="", tag="events_log", multiline=True, readonly=True, height=120)
 
             with dpg.tab(label="Graph Visualization"):
                 dpg.add_text(default_value="Neural Graph Visualization")
@@ -92,33 +104,33 @@ def create_main_window():
                 
                 # Graph controls
                 with dpg.group(horizontal=True):
-                    dpg.add_checkbox(label="Show Nodes", tag="show_nodes", default_value=True)
-                    dpg.add_checkbox(label="Show Edges", tag="show_edges", default_value=True)
-                    dpg.add_checkbox(label="Color by Energy", tag="color_energy", default_value=True)
-                    dpg.add_slider_float(label="Node Size", tag="node_size", default_value=2.0, min_value=0.5, max_value=10.0)
-                    dpg.add_slider_float(label="Edge Thickness", tag="edge_thickness", default_value=1.0, min_value=0.1, max_value=5.0)
+                    dpg.add_checkbox(label="Show Nodes", tag="show_nodes", default_value=True, callback=lambda: update_graph_visualization())
+                    dpg.add_checkbox(label="Show Edges", tag="show_edges", default_value=True, callback=lambda: update_graph_visualization())
+                    dpg.add_checkbox(label="Color by Energy", tag="color_energy", default_value=True, callback=lambda: update_graph_visualization())
+                    dpg.add_slider_float(label="Node Size", tag="node_size", default_value=2.0, min_value=0.5, max_value=10.0, callback=lambda: update_graph_visualization())
+                    dpg.add_slider_float(label="Edge Thickness", tag="edge_thickness", default_value=1.0, min_value=0.1, max_value=5.0, callback=lambda: update_graph_visualization())
                 
                 # Visualization area
-                dpg.add_drawlist(width=800, height=500, tag="graph_view")
+                dpg.add_drawlist(width=-1, height=600, tag="graph_view")
                 
-                dpg.add_text(default_value="Zoom: Use mouse wheel | Pan: Drag with right mouse button")
+                dpg.add_text(default_value="Zoom: Use mouse wheel | Pan: Drag with right mouse button | Controls update live")
 
             with dpg.tab(label="Metrics & Plots"):
                 dpg.add_text(default_value="Real-time Metrics and Historical Plots")
                 dpg.add_separator()
                 
                 # Plots
-                with dpg.plot(label="Energy History", height=200, width=500, tag="energy_plot"):
+                with dpg.plot(label="Energy History", height=300, width=-1, tag="energy_plot"):
                     dpg.add_plot_legend()
                     dpg.add_plot_axis(dpg.mvXAxis, label="Time Steps", tag="energy_axis")
                     dpg.add_line_series([], [], label="Average Energy", tag="energy_series", parent="energy_axis")
                 
-                with dpg.plot(label="Node Activity", height=200, width=500, tag="activity_plot"):
+                with dpg.plot(label="Node Activity", height=300, width=-1, tag="activity_plot"):
                     dpg.add_plot_legend()
                     dpg.add_plot_axis(dpg.mvXAxis, label="Time Steps", tag="activity_axis")
                     dpg.add_line_series([], [], label="Active Nodes", tag="activity_series", parent="activity_axis")
                 
-                with dpg.plot(label="Performance", height=200, width=500, tag="performance_plot"):
+                with dpg.plot(label="Performance", height=300, width=-1, tag="performance_plot"):
                     dpg.add_plot_legend()
                     dpg.add_plot_axis(dpg.mvXAxis, label="Time Steps", tag="perf_axis")
                     dpg.add_line_series([], [], label="Step Time (ms)", tag="perf_series", parent="perf_axis")
@@ -196,52 +208,176 @@ def create_main_window():
                         dpg.add_text(default_value="• Checkboxes: Toggle layers")
                         dpg.add_text(default_value="• Sliders: Adjust visuals")
 
+def get_manager():
+    global _manager
+    if _manager is None:
+        try:
+            import simulation_manager
+            _manager = simulation_manager.get_simulation_manager()
+            logging.info("SimulationManager loaded successfully")
+        except ImportError as e:
+            logging.error(f"Failed to load SimulationManager: {e}")
+            _manager = None
+    return _manager
+
+def start_simulation_callback():
+    global _manager
+    try:
+        manager = get_manager()
+        if manager is None:
+            raise ImportError("SimulationManager not available")
+        if manager.graph is None:
+            manager.initialize_graph()
+        manager.start_simulation()
+        set_simulation_running(True)
+        dpg.set_value("events_log", "Simulation started")
+        logging.info("UI Start button: Simulation started")
+    except Exception as e:
+        dpg.set_value("events_log", f"Start failed: {str(e)}")
+        logging.error(f"Start simulation failed: {e}")
+
+def stop_simulation_callback():
+    global _manager
+    try:
+        manager = get_manager()
+        if manager is None:
+            dpg.set_value("events_log", "Simulation manager not loaded")
+            return
+        manager.stop_simulation()
+        set_simulation_running(False)
+        dpg.set_value("events_log", "Simulation stopped")
+        logging.info("UI Stop button: Simulation stopped")
+    except Exception as e:
+        dpg.set_value("events_log", f"Stop failed: {str(e)}")
+        logging.error(f"Stop simulation failed: {e}")
+
+def reset_simulation_callback():
+    global _manager
+    try:
+        manager = get_manager()
+        if manager is None:
+            dpg.set_value("events_log", "Simulation manager not loaded")
+            return
+        manager.reset_simulation()
+        set_simulation_running(False)
+        clear_live_feed_data()
+        dpg.set_value("events_log", "Simulation reset")
+        logging.info("UI Reset button: Simulation reset")
+    except Exception as e:
+        dpg.set_value("events_log", f"Reset failed: {str(e)}")
+        logging.error(f"Reset simulation failed: {e}")
+
 def reset_simulation():
-    set_simulation_running(False)
-    clear_live_feed_data()
-    logging.info("Simulation reset")
+    reset_simulation_callback()
 
 def update_ui_display():
     """Update UI display with consolidated error handling and safe access."""
-    try:
-        # Update simulation status
-        status = CONSTANTS['SIMULATION_STATUS_RUNNING'] if get_simulation_running() else CONSTANTS['SIMULATION_STATUS_STOPPED']
-        dpg.set_value(CONSTANTS['STATUS_TEXT_TAG'], f"Status: {status}")
+    global _manager
+    is_running = get_simulation_running()
+    manager = _manager
 
-        # Update step count
-        step_count = ui_state.get_simulation_state().get('sim_update_counter', 0)
-        dpg.set_value("step_count_text", f"Step Count: {step_count}")
+    # Update simulation status
+    status = CONSTANTS['SIMULATION_STATUS_RUNNING'] if is_running else CONSTANTS['SIMULATION_STATUS_STOPPED']
+    dpg.set_value(CONSTANTS['STATUS_TEXT_TAG'], f"Status: {status}")
 
-        # Update graph information
-        graph = get_latest_graph_for_ui()
-        if graph is not None:
-            node_count = len(graph.node_labels) if hasattr(graph, 'node_labels') else 0
-            edge_count = graph.edge_index.shape[1] if hasattr(graph, 'edge_index') else 0
+    # Update step count
+    step_count = ui_state.get_simulation_state().get('sim_update_counter', 0)
+    if manager and hasattr(manager, 'step_counter'):
+        step_count = manager.step_counter
+    dpg.set_value("step_count_text", f"Step Count: {step_count}")
 
-            dpg.set_value(CONSTANTS['NODES_TEXT_TAG'], f"Nodes: {node_count}")
-            dpg.set_value(CONSTANTS['EDGES_TEXT_TAG'], f"Edges: {edge_count}")
+    # Update graph information
+    graph = get_latest_graph_for_ui()
+    node_count = 0
+    edge_count = 0
+    if graph is not None:
+        node_count = len(graph.node_labels) if hasattr(graph, 'node_labels') else 0
+        edge_count = graph.edge_index.shape[1] if hasattr(graph, 'edge_index') else 0
+    elif manager and hasattr(manager, 'graph') and manager.graph is not None:
+        graph = manager.graph
+        node_count = len(graph.node_labels) if hasattr(graph, 'node_labels') else 0
+        edge_count = graph.edge_index.shape[1] if hasattr(graph, 'edge_index') else 0
 
-            # Update health (placeholder)
+    dpg.set_value(CONSTANTS['NODES_TEXT_TAG'], f"Nodes: {node_count}")
+    dpg.set_value(CONSTANTS['EDGES_TEXT_TAG'], f"Edges: {edge_count}")
+
+    # Update health and metrics if manager available
+    if manager:
+        try:
+            system_stats = manager.get_system_stats() if hasattr(manager, 'get_system_stats') else {}
+            health = system_stats.get('health_score', 50.0)
+            dpg.set_value("health_text", f"Health: {health:.1f}")
+
+            if hasattr(manager, 'network_metrics') and manager.network_metrics and graph:
+                metrics = manager.network_metrics.calculate_comprehensive_metrics(graph)
+                dpg.set_value("criticality_text", f"Criticality: {metrics.get('criticality', 0.0):.3f}")
+                ei_ratio = metrics.get('connectivity', {}).get('ei_ratio', 1.00)
+                dpg.set_value("ei_ratio_text", f"EI Ratio: {ei_ratio:.2f}")
+            else:
+                dpg.set_value("criticality_text", "Criticality: Unknown")
+                dpg.set_value("ei_ratio_text", "EI Ratio: Unknown")
+
+            stats = manager.get_performance_stats() if hasattr(manager, 'get_performance_stats') else {}
+            avg_energy = stats.get('avg_energy', 0.0)
+            dpg.set_value(CONSTANTS['ENERGY_TEXT_TAG'], f"Energy: {avg_energy:.2f}")
+
+            connections = edge_count
+            dpg.set_value(CONSTANTS['CONNECTIONS_TEXT_TAG'], f"Connections: {connections}")
+
+            # Update plots with time steps as x-axis
+            time_steps = list(range(max(1, len(ui_state.get_live_feed_data().get('energy_history', [])))))
+            if ui_state.live_feed_data.get('energy_history'):
+                energy_y = ui_state.get_live_feed_data().get('energy_history', [])
+                energy_data = [time_steps, energy_y]
+                dpg.set_value("energy_series", energy_data)
+            else:
+                dpg.set_value("energy_series", [[0], [0.0]])
+
+            if ui_state.live_feed_data.get('node_activity_history'):
+                activity_y = ui_state.get_live_feed_data().get('node_activity_history', [])
+                activity_data = [time_steps, activity_y]
+                dpg.set_value("activity_series", activity_data)
+            else:
+                dpg.set_value("activity_series", [[0], [0.0]])
+
+            perf_y = [stats.get('avg_step_time', 0.0) * 1000] * len(time_steps) if time_steps else [0.0]
+            perf_data = [time_steps, perf_y]
+            dpg.set_value("perf_series", perf_data)
+
+            dpg.set_value("events_log", "Simulation active - metrics updating.")
+        except Exception as e:
+            logging.error(f"Manager update error: {e}")
+            # Fallback to placeholders
             dpg.set_value("health_text", "Health: Unknown")
-
-            # Update metrics (placeholder)
-            dpg.set_value("criticality_text", "Criticality: 0.000")
-            dpg.set_value("ei_ratio_text", "EI Ratio: 1.00")
-
-        # Update live feed data (placeholder)
-        dpg.set_value(CONSTANTS['ENERGY_TEXT_TAG'], "Energy: 0.00")
-        dpg.set_value(CONSTANTS['CONNECTIONS_TEXT_TAG'], "Connections: 0")
-
-        # Update plots (placeholder)
-        dpg.set_value("energy_series", [[0], [0.0]])
-        dpg.set_value("activity_series", [[0], [0.0]])
+            dpg.set_value("criticality_text", "Criticality: Unknown")
+            dpg.set_value("ei_ratio_text", "EI Ratio: Unknown")
+            dpg.set_value(CONSTANTS['ENERGY_TEXT_TAG'], "Energy: Unknown")
+            dpg.set_value(CONSTANTS['CONNECTIONS_TEXT_TAG'], "Connections: Unknown")
+            dpg.set_value("events_log", f"Manager error: {str(e)}")
+    else:
+        # Placeholders when manager not loaded
+        dpg.set_value("health_text", "Health: Unknown")
+        dpg.set_value("criticality_text", "Criticality: Unknown")
+        dpg.set_value("ei_ratio_text", "EI Ratio: Unknown")
+        dpg.set_value(CONSTANTS['ENERGY_TEXT_TAG'], "Energy: Unknown")
+        dpg.set_value(CONSTANTS['CONNECTIONS_TEXT_TAG'], "Connections: Unknown")
+        dpg.set_value("events_log", "No events logged yet. Start simulation for live data." if not is_running else "Simulation active - load backend to see metrics.")
+    
+        # Update plots when no manager
+        energy_history = ui_state.get_live_feed_data().get('energy_history', [])
+        if energy_history:
+            ts = list(range(len(energy_history)))
+            dpg.set_value("energy_series", [ts, energy_history])
+        else:
+            dpg.set_value("energy_series", [[0], [0.0]])
+        activity_history = ui_state.get_live_feed_data().get('node_activity_history', [])
+        if activity_history:
+            ts = list(range(len(activity_history)))
+            dpg.set_value("activity_series", [ts, activity_history])
+        else:
+            dpg.set_value("activity_series", [[0], [0.0]])
         dpg.set_value("perf_series", [[0], [0.0]])
 
-        # Update events log (placeholder)
-        dpg.set_value("events_log", "No events logged yet. Simulation required for live data.")
-
-    except Exception as e:
-        logging.error(f"UI update failed: {e}")
 
 def update_graph_visualization():
     """Update the graph visualization drawlist."""
@@ -259,13 +395,30 @@ def update_graph_visualization():
     node_inactive_color = dpg.get_value("node_inactive_color")
     edge_color = dpg.get_value("edge_color")
 
-    width, height = 800, 500
+    # Get drawlist size
+    width = dpg.get_item_rect_size("graph_view")[0]
+    height = dpg.get_item_rect_size("graph_view")[1]
     center_x, center_y = width / 2, height / 2
 
+    # Basic zoom and pan (stored in state)
+    zoom = ui_state.get_simulation_state().get('viz_zoom', 1.0)
+    pan_x = ui_state.get_simulation_state().get('viz_pan_x', 0.0)
+    pan_y = ui_state.get_simulation_state().get('viz_pan_y', 0.0)
+
+    dpg.clear_draw_list()
+
     if show_nodes and hasattr(graph, 'node_labels') and graph.node_labels:
-        for i, node in enumerate(graph.node_labels[:100]):  # Limit to 100 nodes for performance
-            x = (i % 10) * 80 + 50
-            y = (i // 10) * 50 + 50
+        # Use node positions if available, else simple layout
+        num_nodes = len(graph.node_labels)
+        cols = max(1, int(math.sqrt(num_nodes)))
+        rows = math.ceil(num_nodes / cols)
+        for i, node in enumerate(graph.node_labels[:500]):  # Increased limit
+            if 'pos' in node and node['pos']:
+                x, y = node['pos']
+            else:
+                # Improved grid layout
+                x = (i % cols) / cols * width * zoom + pan_x
+                y = (i // cols) / rows * height * zoom + pan_y
             energy = node.get('energy', 0.0)
             state = node.get('state', 'inactive')
 
@@ -277,59 +430,94 @@ def update_graph_visualization():
             else:
                 color = node_active_color if state == 'active' else node_inactive_color
 
-            dpg.draw_circle([x, y], node_size, color=color, thickness=2)
+            dpg.draw_circle([x, y], node_size * zoom, color=color, thickness=2)
 
     if show_edges and hasattr(graph, 'edge_index') and graph.edge_index.numel() > 0:
-        for j in range(min(graph.edge_index.shape[1], 50)):  # Limit edges
-            src = graph.edge_index[0, j].item() % 10 * 80 + 50
-            tgt = graph.edge_index[1, j].item() % 10 * 80 + 50
-            src_y = (graph.edge_index[0, j].item() // 10) * 50 + 50
-            tgt_y = (graph.edge_index[1, j].item() // 10) * 50 + 50
-            dpg.draw_line([src, src_y], [tgt, tgt_y], color=edge_color, thickness=edge_thickness)
+        num_nodes = len(graph.node_labels)
+        cols = max(1, int(math.sqrt(num_nodes)))
+        rows = math.ceil(num_nodes / cols)
+        for j in range(min(graph.edge_index.shape[1], 200)):  # Increased limit
+            src_idx = graph.edge_index[0, j].item()
+            tgt_idx = graph.edge_index[1, j].item()
+            
+            # Get positions similarly
+            if src_idx < len(graph.node_labels) and 'pos' in graph.node_labels[src_idx]:
+                src_x, src_y = graph.node_labels[src_idx]['pos']
+            else:
+                src_x = (src_idx % cols) / cols * width * zoom + pan_x
+                src_y = (src_idx // cols) / rows * height * zoom + pan_y
+            
+            if tgt_idx < len(graph.node_labels) and 'pos' in graph.node_labels[tgt_idx]:
+                tgt_x, tgt_y = graph.node_labels[tgt_idx]['pos']
+            else:
+                tgt_x = (tgt_idx % cols) / cols * width * zoom + pan_x
+                tgt_y = (tgt_idx // cols) / rows * height * zoom + pan_y
+            
+            dpg.draw_line([src_x, src_y], [tgt_x, tgt_y], color=edge_color, thickness=edge_thickness * zoom)
 
-def save_neural_map_callback():
+    # Note: Full zoom/pan requires mouse handlers; basic scaling here
+
+def save_neural_map_callback(slot):
+    global _manager
     """Callback to save neural map."""
     try:
-        slot = 0  # Default slot
-        from simulation_manager import get_simulation_manager
-        manager = get_simulation_manager()
-        if manager:
-            success = manager.save_neural_map(slot)
-            dpg.set_value("events_log", f"Saved neural map to slot {slot}: {'Success' if success else 'Failed'}")
+        manager = get_manager()
+        if manager is None:
+            dpg.set_value("events_log", "Simulation manager not loaded")
+            return
+        if manager.graph is None:
+            manager.initialize_graph()
+        success = manager.save_neural_map(slot)
+        dpg.set_value("events_log", f"Saved neural map to slot {slot}: {'Success' if success else 'Failed'}")
     except Exception as e:
         dpg.set_value("events_log", f"Save failed: {str(e)}")
 
-def load_neural_map_callback():
+def load_neural_map_callback(slot):
+    global _manager
     """Callback to load neural map."""
     try:
-        slot = 0  # Default slot
-        from simulation_manager import get_simulation_manager
-        manager = get_simulation_manager()
-        if manager:
-            success = manager.load_neural_map(slot)
-            dpg.set_value("events_log", f"Loaded neural map from slot {slot}: {'Success' if success else 'Failed'}")
+        manager = get_manager()
+        if manager is None:
+            dpg.set_value("events_log", "Simulation manager not loaded")
+            return
+        success = manager.load_neural_map(slot)
+        if success:
+            ui_state.update_graph(manager.graph)
+            update_graph_visualization()
+        dpg.set_value("events_log", f"Loaded neural map from slot {slot}: {'Success' if success else 'Failed'}")
     except Exception as e:
         dpg.set_value("events_log", f"Load failed: {str(e)}")
 
 def apply_config_changes():
+    global _manager
     """Apply configuration changes from UI sliders."""
     try:
-        from simulation_manager import get_simulation_manager
-        manager = get_simulation_manager()
-        if manager:
-            # Update learning parameters
-            ltp_rate = dpg.get_value("ltp_rate")
-            ltd_rate = dpg.get_value("ltd_rate")
-            stdp_window = dpg.get_value("stdp_window")
-            if hasattr(manager.learning_engine, 'ltp_rate'):
-                manager.learning_engine.ltp_rate = ltp_rate
-            if hasattr(manager.learning_engine, 'ltd_rate'):
-                manager.learning_engine.ltd_rate = ltd_rate
-            if hasattr(manager.learning_engine, 'stdp_window'):
-                manager.learning_engine.stdp_window = stdp_window / 1000.0  # Convert to seconds
-            
-            # Update other parameters as needed
-            dpg.set_value("events_log", "Configuration changes applied")
+        manager = get_manager()
+        if manager is None:
+            dpg.set_value("events_log", "Simulation manager not loaded")
+            return
+        # Update learning parameters
+        ltp_rate = dpg.get_value("ltp_rate")
+        ltd_rate = dpg.get_value("ltd_rate")
+        stdp_window = dpg.get_value("stdp_window")
+        if hasattr(manager.learning_engine, 'ltp_rate'):
+            manager.learning_engine.ltp_rate = ltp_rate
+        if hasattr(manager.learning_engine, 'ltd_rate'):
+            manager.learning_engine.ltd_rate = ltd_rate
+        if hasattr(manager.learning_engine, 'stdp_window'):
+            manager.learning_engine.stdp_window = stdp_window / 1000.0  # Convert to seconds
+        
+        # Update viz params in state
+        ui_state.live_feed_config['node_size'] = dpg.get_value("node_size")
+        ui_state.live_feed_config['edge_thickness'] = dpg.get_value("edge_thickness")
+        
+        # Update manager config if available
+        if hasattr(manager, 'set_config'):
+            manager.set_config('Learning', 'ltp_rate', ltp_rate)
+            manager.set_config('Learning', 'ltd_rate', ltd_rate)
+        
+        dpg.set_value("events_log", "Configuration changes applied and propagated")
+        update_graph_visualization()
     except Exception as e:
         dpg.set_value("events_log", f"Apply failed: {str(e)}")
 
@@ -354,7 +542,7 @@ def update_frame():
  
 def create_ui():
     dpg.create_context()
-    dpg.create_viewport(title="Neural Simulation System - Enhanced UI", width=1400, height=900)
+    dpg.create_viewport(title="Neural Simulation System - Enhanced UI", width=1600, height=1000)
     
     # Setup theme for better visuals
     with dpg.theme(tag="dark_theme"):
@@ -371,7 +559,7 @@ def create_ui():
     dpg.bind_theme("dark_theme")
     
     create_main_window()
-    dpg.set_primary_window(CONSTANTS['MAIN_WINDOW_TAG'])
+    dpg.set_primary_window(CONSTANTS['MAIN_WINDOW_TAG'], value=True)
     
     # Create about dialog window
     with dpg.window(label="About Neural Simulation", modal=True, show=False, tag="about_dialog"):
@@ -390,8 +578,8 @@ def create_ui():
     # Add menu bar
     main_menu = dpg.add_menu_bar(parent=CONSTANTS['MAIN_WINDOW_TAG'], tag="main_menu")
     file_menu = dpg.add_menu(parent=main_menu, label="File", tag="file_menu")
-    dpg.add_menu_item(parent=file_menu, label="Save Neural Map", callback=save_neural_map_callback)
-    dpg.add_menu_item(parent=file_menu, label="Load Neural Map", callback=load_neural_map_callback)
+    dpg.add_menu_item(parent=file_menu, label="Save Neural Map", callback=lambda: save_neural_map_callback(dpg.get_value("map_slot")))
+    dpg.add_menu_item(parent=file_menu, label="Load Neural Map", callback=lambda: load_neural_map_callback(dpg.get_value("map_slot")))
     dpg.add_menu_item(parent=file_menu, label="Export Metrics", callback=export_metrics)
     dpg.add_menu_item(parent=file_menu, label="Exit", callback=lambda: dpg.stop_dearpygui())
     
@@ -413,15 +601,21 @@ def create_ui():
 
 
 def export_metrics():
+    global _manager
     """Export current metrics to file."""
     try:
         live_data = get_live_feed_data()
         health = ui_state.get_system_health()
+        sim_steps = ui_state.get_simulation_state().get('sim_update_counter', 0)
+        if _manager:
+            sim_steps = _manager.step_counter if hasattr(_manager, 'step_counter') else sim_steps
+            system_stats = _manager.get_system_stats() if hasattr(_manager, 'get_system_stats') else {}
+            health = system_stats.get('health', health)
         metrics = {
             'timestamp': datetime.now().isoformat(),
             'live_data': live_data,
             'health': health,
-            'simulation_steps': ui_state.get_simulation_state().get('sim_update_counter', 0)
+            'simulation_steps': sim_steps
         }
         filename = f"simulation_metrics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
         with open(filename, 'w') as f:

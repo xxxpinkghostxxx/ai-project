@@ -5,7 +5,9 @@ import time
 import numpy as np
 import torch
 
-from config.unified_config_manager import get_homeostasis_config, config
+from energy.energy_behavior import get_node_energy_cap
+
+from config.unified_config_manager import get_homeostasis_config, get_config, config
 from utils.logging_utils import log_step
 from neural.death_and_birth_logic import get_node_birth_threshold, get_node_death_threshold
 
@@ -105,14 +107,13 @@ class HomeostasisController:
     Supports adaptive regulation, memory integration, and validation via config flags.
     """
     def __init__(self):
-        config = get_homeostasis_config()
-        self.enable_adaptive_regulation = config.get('enable_adaptive_regulation', True, bool)
-        self.enable_memory_integration = config.get('enable_memory_integration', True, bool)
-        self.enable_validation = config.get('enable_validation', True, bool)
-        self.target_energy_ratio = config.get('target_energy_ratio', 0.6)
-        self.criticality_threshold = config.get('criticality_threshold', 0.1)
-        self.regulation_rate = config.get('regulation_rate', 0.001)
-        self.regulation_interval = config.get('regulation_interval', 100)
+        self.enable_adaptive_regulation = get_config('Homeostasis', 'enable_adaptive_regulation', True, bool)
+        self.enable_memory_integration = get_config('Homeostasis', 'enable_memory_integration', True, bool)
+        self.enable_validation = get_config('Homeostasis', 'enable_validation', True, bool)
+        self.target_energy_ratio = get_config('Homeostasis', 'target_energy_ratio', 0.6, float)
+        self.criticality_threshold = get_config('Homeostasis', 'criticality_threshold', 0.1, float)
+        self.regulation_rate = get_config('Homeostasis', 'regulation_rate', 0.001, float)
+        self.regulation_interval = get_config('Homeostasis', 'regulation_interval', 100, int)
         self.branching_target = 1.0
         self.energy_variance_threshold = 0.2
         self.stats_manager = StatsManager()
@@ -146,7 +147,8 @@ class HomeostasisController:
                     total_energy = 0.0
                 num_nodes = len(graph.node_labels)
                 avg_energy = total_energy / num_nodes if num_nodes > 0 else 0.0
-                energy_ratio = avg_energy / 244.0 if total_energy > 0 else 0.0
+                max_energy = get_node_energy_cap()
+                energy_ratio = avg_energy / max_energy if max_energy > 0 else 0.0
                 if hasattr(graph, 'x') and len(graph.x) > 1:
                     energy_variance = float(torch.var(graph.x[:, 0]).item())
                 else:
@@ -155,7 +157,8 @@ class HomeostasisController:
             total_energy = float(torch.sum(graph.x[:, 0]).item()) if hasattr(graph, 'x') else 0.0
             num_nodes = len(graph.node_labels)
             avg_energy = total_energy / num_nodes if num_nodes > 0 else 0.0
-            energy_ratio = avg_energy / 244.0 if total_energy > 0 else 0.0
+            max_energy = get_node_energy_cap()
+            energy_ratio = avg_energy / max_energy if max_energy > 0 else 0.0
             if hasattr(graph, 'x') and len(graph.x) > 1:
                 energy_variance = float(torch.var(graph.x[:, 0]).item())
             else:
@@ -197,34 +200,38 @@ class HomeostasisController:
                 if not improved:
                     self.regulation_rate *= 0.9  # Adjust rate if not effective
         return graph
-    def _apply_energy_regulation(self, graph, regulation_type, current_ratio):
+    def _apply_energy_regulation(self, graph, regulation_type, current_ratio, adaptive_rate):
         """Applies energy regulation by adjusting birth and death thresholds."""
 
 
         if regulation_type == 'reduce_energy':
             current_death_threshold = get_node_death_threshold()
             current_birth_threshold = get_node_birth_threshold()
-            new_death_threshold = current_death_threshold + (self.regulation_rate * 50.0)
+            new_death_threshold = current_death_threshold + (adaptive_rate * 50.0)
             new_death_threshold = min(new_death_threshold, 50.0)
-            new_birth_threshold = current_birth_threshold - (self.regulation_rate * 50.0)
+            new_birth_threshold = current_birth_threshold - (adaptive_rate * 50.0)
             new_birth_threshold = max(new_birth_threshold, 50.0)
             log_step("Energy reduction regulation applied",
                     old_death_threshold=current_death_threshold,
                     new_death_threshold=new_death_threshold,
                     old_birth_threshold=current_birth_threshold,
                     new_birth_threshold=new_birth_threshold)
+            config.set_value('NodeLifecycle', 'death_threshold', new_death_threshold)
+            config.set_value('NodeLifecycle', 'birth_threshold', new_birth_threshold)
         elif regulation_type == 'increase_energy':
             current_death_threshold = get_node_death_threshold()
             current_birth_threshold = get_node_birth_threshold()
-            new_death_threshold = current_death_threshold - (self.regulation_rate * 10.0)
+            new_death_threshold = current_death_threshold - (adaptive_rate * 10.0)
             new_death_threshold = max(new_death_threshold, 0.0)
-            new_birth_threshold = current_birth_threshold + (self.regulation_rate * 50.0)
+            new_birth_threshold = current_birth_threshold + (adaptive_rate * 50.0)
             new_birth_threshold = min(new_birth_threshold, 300.0)
             log_step("Energy increase regulation applied",
                     old_death_threshold=current_death_threshold,
                     new_death_threshold=new_death_threshold,
                     old_birth_threshold=current_birth_threshold,
                     new_birth_threshold=new_birth_threshold)
+            config.set_value('NodeLifecycle', 'death_threshold', new_death_threshold)
+            config.set_value('NodeLifecycle', 'birth_threshold', new_birth_threshold)
         if not hasattr(graph, 'homeostasis_data'):
             graph.homeostasis_data = {}
         graph.homeostasis_data['last_regulation'] = {
@@ -254,7 +261,6 @@ class HomeostasisController:
                 branching_ratio = self._calculate_branching_ratio(graph)
         else:
             branching_ratio = self._calculate_branching_ratio(graph)
-        self._update_history('branching', branching_ratio)
         self.history_manager.update_history('branching', branching_ratio)
         trends = self.history_manager.get_network_trends() if self.enable_adaptive_regulation else {}
         adaptive_threshold = self.criticality_threshold
@@ -312,16 +318,25 @@ class HomeostasisController:
         return 0.0
     def _apply_criticality_regulation(self, graph, regulation_type, current_ratio):
 
+        max_energy = get_node_energy_cap()
         if regulation_type == 'supercritical':
             regulation_action = 'reduce_excitation'
+            scale_factor = 0.95
             log_step("Supercritical regulation applied",
                     action="reduce_excitation",
-                    current_ratio=current_ratio)
+                    current_ratio=current_ratio,
+                    scale_factor=scale_factor)
+            if hasattr(graph, 'x'):
+                graph.x[:, 0] = torch.clamp(graph.x[:, 0] * scale_factor, 0, max_energy)
         elif regulation_type == 'subcritical':
             regulation_action = 'increase_excitation'
+            scale_factor = 1.05
             log_step("Subcritical regulation applied",
                     action="increase_excitation",
-                    current_ratio=current_ratio)
+                    current_ratio=current_ratio,
+                    scale_factor=scale_factor)
+            if hasattr(graph, 'x'):
+                graph.x[:, 0] = torch.clamp(graph.x[:, 0] * scale_factor, 0, max_energy)
         if not hasattr(graph, 'homeostasis_data'):
             graph.homeostasis_data = {}
         graph.homeostasis_data['criticality_regulation'] = {
@@ -367,7 +382,6 @@ class HomeostasisController:
             status = 'warning'
         else:
             status = 'critical'
-        connection_density = graph.edge_index.shape[1] / (num_nodes * num_nodes) if num_nodes > 0 else 0
         metrics = {
             'total_energy': total_energy,
             'num_nodes': num_nodes,
@@ -380,20 +394,6 @@ class HomeostasisController:
             'warnings': warnings,
             'metrics': metrics
         }
-    def _update_history(self, metric_type, value):
-        """Updates the history buffer for the specified metric type."""
-        if metric_type == 'energy':
-            self.energy_history.append(value)
-            if len(self.energy_history) > self.max_history_length:
-                self.energy_history = self.energy_history[-self.max_history_length:]
-        elif metric_type == 'branching':
-            self.branching_history.append(value)
-            if len(self.branching_history) > self.max_history_length:
-                self.branching_history = self.branching_history[-self.max_history_length:]
-        elif metric_type == 'variance':
-            self.variance_history.append(value)
-            if len(self.variance_history) > self.max_history_length:
-                self.variance_history = self.variance_history[-self.max_history_length:]
     def get_regulation_statistics(self):
         """Returns a copy of the regulation statistics via StatsManager."""
         return self.stats_manager.get_statistics()
@@ -401,45 +401,14 @@ class HomeostasisController:
         """Resets statistics and histories via managers."""
         self.stats_manager.reset()
         self.history_manager = HistoryManager()
-    def get_network_trends(self):
-        """
-        Analyzes recent history to determine trends in energy, branching, and variance.
-        Returns a dictionary with trend directions and slopes.
-        """
-        trends = {}
-        if len(self.energy_history) > 10:
-            recent_energy = self.energy_history[-10:]
-            x_energy = range(len(recent_energy))
-            y_energy = recent_energy
-            energy_trend = np.polyfit(x_energy, y_energy, 1)[0]
-            trends['energy_trend'] = ('increasing' if energy_trend > 0.001
-                                      else 'decreasing' if energy_trend < -0.001 else 'stable')
-            trends['energy_slope'] = energy_trend
-        if len(self.branching_history) > 10:
-            recent_branching = self.branching_history[-10:]
-            x_branching = range(len(recent_branching))
-            y_branching = recent_branching
-            branching_trend = np.polyfit(x_branching, y_branching, 1)[0]
-            trends['branching_trend'] = ('increasing' if branching_trend > 0.01
-                                         else 'decreasing' if branching_trend < -0.01 else 'stable')
-            trends['branching_slope'] = branching_trend
-        if len(self.variance_history) > 10:
-            recent_variance = self.variance_history[-10:]
-            x_variance = range(len(recent_variance))
-            y_variance = recent_variance
-            variance_trend = np.polyfit(x_variance, y_variance, 1)[0]
-            trends['variance_trend'] = ('increasing' if variance_trend > 0.1
-                                        else 'decreasing' if variance_trend < -0.1 else 'stable')
-            trends['variance_slope'] = variance_trend
-        return trends
-
     def _calculate_current_metrics(self, graph):
         """Helper to calculate current energy metrics for validation."""
         if not hasattr(graph, 'network_metrics') or not graph.network_metrics:
             total_energy = float(torch.sum(graph.x[:, 0]).item()) if hasattr(graph, 'x') else 0.0
             num_nodes = len(graph.node_labels)
             avg_energy = total_energy / num_nodes if num_nodes > 0 else 0.0
-            energy_ratio = avg_energy / 244.0 if total_energy > 0 else 0.0
+            max_energy = get_node_energy_cap()
+            energy_ratio = avg_energy / max_energy if max_energy > 0 else 0.0
             energy_variance = float(torch.var(graph.x[:, 0]).item()) if hasattr(graph, 'x') and len(graph.x) > 1 else 0.0
         else:
             try:
@@ -516,6 +485,5 @@ def detect_network_anomalies(graph):
         for behavior, count in behavior_counts.items():
             ratio = count / total_nodes
             if ratio > 0.8:
-                anomalies.append(f"Behavior imbalance: {behavior} dominates")
-                anomalies.append(f"({count}/{total_nodes})")
-    return anomalies
+                anomalies.append(f"Behavior imbalance: {behavior} dominates ({count}/{total_nodes})")
+        return anomalies

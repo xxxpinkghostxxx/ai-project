@@ -4,6 +4,7 @@ import numpy as np
 from typing import Dict, List, Optional, Any, Callable, Iterator, Tuple
 from utils.logging_utils import log_step
 from energy.node_id_manager import get_id_manager
+from energy.energy_behavior import get_node_energy_cap
 
 
 class NodeAccessLayer:
@@ -204,3 +205,70 @@ def select_nodes_by_behavior(graph, behavior: str) -> List[int]:
 def select_nodes_by_state(graph, state: str) -> List[int]:
     access_layer = NodeAccessLayer(graph)
     return access_layer.select_nodes_by_state(state)
+
+
+def update_node_property(graph, node_id: int, property_name: str, new_value: Any) -> bool:
+    """
+    Safely update a property for a specific node in the graph.
+    
+    For 'energy', updates graph.x[node_id_index, 0] and clamps to [0, get_node_energy_cap()].
+    For other properties (e.g., 'type', 'behavior'), updates graph.node_labels[node_id_index][property_name].
+    
+    Handles missing attributes and invalid inputs with logging.
+    """
+    from utils.logging_utils import log_step
+    import logging
+
+    id_manager = get_id_manager()
+    
+    try:
+        # Convert node_id to int
+        if hasattr(node_id, 'item'):
+            node_id = int(node_id.item())
+        else:
+            node_id = int(node_id)
+        
+        # Validate node_id
+        if not id_manager.is_valid_id(node_id):
+            logging.warning(f"Invalid node ID: {node_id}")
+            return False
+        
+        index = id_manager.get_node_index(node_id)
+        if index is None:
+            logging.warning(f"Could not retrieve index for node_id {node_id}")
+            return False
+        
+        if property_name == 'energy':
+            # Handle energy update in graph.x
+            if not hasattr(graph, 'x') or graph.x is None or index >= graph.x.shape[0]:
+                logging.warning(f"Graph missing valid 'x' attribute or index {index} out of range for node {node_id}")
+                return False
+            
+            energy_cap = get_node_energy_cap()
+            clamped_value = max(0.0, min(float(new_value), energy_cap))
+            graph.x[index, 0] = clamped_value
+            log_step(f"Updated energy for node {node_id} to {clamped_value} (clamped from {new_value})",
+                     extra={"node_id": node_id, "property": property_name, "old_value": None, "new_value": clamped_value})
+            return True
+        else:
+            # Handle other properties in node_labels
+            if not hasattr(graph, 'node_labels') or graph.node_labels is None or index >= len(graph.node_labels):
+                logging.warning(f"Graph missing valid 'node_labels' attribute or index {index} out of range for node {node_id}")
+                return False
+            
+            node = graph.node_labels[index]
+            if not isinstance(node, dict):
+                logging.warning(f"Node labels for node {node_id} at index {index} is not a dict")
+                return False
+            
+            old_value = node.get(property_name, None)
+            node[property_name] = new_value
+            log_step(f"Updated property '{property_name}' for node {node_id} from {old_value} to {new_value}",
+                     extra={"node_id": node_id, "property": property_name, "old_value": old_value, "new_value": new_value})
+            return True
+    
+    except Exception as e:
+        logging.error(f"Error in update_node_property for node {node_id}, property '{property_name}': {str(e)}")
+        log_step(f"Failed to update property '{property_name}' for node {node_id} due to error: {str(e)}",
+                 extra={"node_id": node_id, "property": property_name, "error": str(e)})
+        return False

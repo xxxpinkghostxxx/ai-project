@@ -549,7 +549,24 @@ def get_config_manager() -> UnifiedConfigManager:
 # Convenience functions for backward compatibility
 def get_config(section: str, key: str, default: Any = None, value_type: type = str) -> Any:
     """Get a configuration value (INI-style)."""
-    return get_config_manager().get(f"{section}.{key}", default)
+    value = get_config_manager().get(f"{section}.{key}", default)
+    if value is None:
+        return default
+    try:
+        if value_type == int:
+            return int(value)
+        elif value_type == float:
+            return float(value)
+        elif value_type == bool:
+            if isinstance(value, str):
+                return value.lower() in ('true', '1', 'yes', 'on')
+            return bool(value)
+        elif value_type == str:
+            return str(value)
+        else:
+            return value
+    except (ValueError, TypeError):
+        return default
 
 
 def set_config(section: str, key: str, value: Any):

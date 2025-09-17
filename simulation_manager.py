@@ -1,51 +1,34 @@
-"""
-Legacy compatibility stub for simulation_manager.
-This module was removed during reorg; kept as a thin facade to avoid IDE errors.
-"""
 
-from typing import Optional, Dict, Any, List
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from typing import Optional, Dict, Any, List, Callable
+
 from utils.logging_utils import log_step
-
-
-class SimulationManager:
-    def __init__(self) -> None:
-        log_step("SimulationManager stub initialized")
-
-    def run_single_step(self) -> None:
-        log_step("SimulationManager stub run_single_step called")
-
-
-# Minimal performance hooks used by legacy references
-
-def get_system_performance_metrics() -> Dict[str, Any]:
-    return {}
-
-
-def record_simulation_step(step: int, info: Optional[Dict[str, Any]] = None) -> None:
-    pass
-
-
-def record_simulation_error(error: Exception | str) -> None:
-    pass
-
-
-def record_simulation_warning(msg: str) -> None:
-    pass
-
-
-def initialize_performance_monitoring(config: Optional[Dict[str, Any]] = None) -> None:
-    log_step("Performance monitoring stub initialized")
-
+from utils.performance_monitor import PerformanceMonitor, record_simulation_step, record_simulation_error, record_simulation_warning
 
 import time
 import threading
 import logging
 import torch
+from torch.profiler import profile, record_function, ProfilerActivity
 import numpy as np
 import configparser
 import os
 import functools
 
+
+# Minimal performance hooks used by legacy references
+
+def get_system_performance_metrics() -> Dict[str, Any]:
+    from utils.performance_monitor import get_system_performance_metrics
+    return get_system_performance_metrics()
+
+def initialize_performance_monitoring(config: Optional[Dict[str, Any]] = None) -> None:
+    from utils.performance_monitor import initialize_performance_monitoring
+    initialize_performance_monitoring()
+    log_step("Performance monitoring initialized")
 
 from neural.behavior_engine import BehaviorEngine
 from learning.learning_engine import LearningEngine
@@ -54,10 +37,11 @@ from learning.homeostasis_controller import HomeostasisController
 from neural.network_metrics import NetworkMetrics
 from neural.workspace_engine import WorkspaceEngine
 from energy.energy_behavior import apply_energy_behavior, update_membrane_potentials, apply_refractory_periods
+from utils.random_seed_manager import RandomSeedManager
+from utils.static_allocator import StaticAllocator
 
 from neural.death_and_birth_logic import birth_new_dynamic_nodes, remove_dead_dynamic_nodes
 from neural.connection_logic import intelligent_connection_formation
-from ui.screen_graph import RESOLUTION_SCALE
 from utils.error_handling_utils import safe_execute, safe_initialize_component, safe_process_step, safe_callback_execution
 from utils.common_utils import safe_hasattr
 
@@ -78,6 +62,11 @@ class SimulationManager:
         self._initialize_enhanced_systems()
         self._initialize_sensory_systems()
         self._initialize_performance_tracking()
+        from utils.event_bus import get_event_bus
+        self.event_bus = get_event_bus()
+        self.random_seed_manager = RandomSeedManager()
+        self.random_seed_manager.initialize()
+        self.static_allocator = StaticAllocator()
         self._initialize_callbacks()
         self._load_configuration()
         self._validate_initialization()
@@ -96,6 +85,7 @@ class SimulationManager:
         self.max_steps = None
         self.last_visual_data = None
         self.last_audio_data = None
+        self.update_interval = self.get_config('Processing', 'update_interval', 0.016, float)  # Default ~60 FPS
     
     def _initialize_core_engines(self):
         """Initialize core simulation engines."""
@@ -172,6 +162,18 @@ class SimulationManager:
             self.sensory_workspace_mapper = None
             logging.warning(f"Failed to initialize sensory workspace mapper: {e}")
     
+    def _create_performance_monitor(self):
+        """Create and initialize performance monitor with config."""
+        try:
+            update_interval = self.get_config('Performance', 'update_interval', 1.0, float)
+            self.performance_monitor = PerformanceMonitor(update_interval=update_interval)
+            self.performance_monitor.start_monitoring()
+            logging.info("Performance monitor created and started")
+            return self.performance_monitor
+        except Exception as e:
+            logging.warning(f"Failed to create performance monitor: {e}")
+            return None
+
     def _initialize_performance_tracking(self):
         """Initialize performance tracking systems."""
         self.performance_monitor = self._safe_initialize_component(
@@ -179,6 +181,9 @@ class SimulationManager:
             lambda: self._create_performance_monitor(),
             critical=False
         )
+        if self.performance_monitor:
+            self.performance_monitor.record_error = record_simulation_error
+            self.performance_monitor.record_warning = record_simulation_warning
         self.performance_stats = {
             'total_steps': 0,
             'avg_step_time': 0.0,
@@ -192,6 +197,7 @@ class SimulationManager:
         self.memory_update_interval = 10
         self.homeostasis_update_interval = 20
         self.event_processing_interval = 5
+        self.config_file = 'config.ini'
     
     def _initialize_callbacks(self):
         """Initialize callback systems."""
@@ -360,6 +366,11 @@ class SimulationManager:
             self._process_homeostatic_control()
             self._process_visual_systems()
             self._process_metrics_and_callbacks()
+            try:
+                self.event_bus.emit('GRAPH_UPDATE', {'graph': self.graph})
+                self.event_bus.emit('UI_REFRESH', {})
+            except Exception:
+                pass  # Fallback: direct UI updates if any
             
             # Update performance statistics
             self._update_step_statistics(step_start_time)
@@ -367,7 +378,10 @@ class SimulationManager:
             
         except (ValueError, TypeError, AttributeError, RuntimeError) as e:
             logging.warning(f"Simulation step error (non-critical): {e}")
-            record_simulation_error()
+            try:
+                record_simulation_error()
+            except Exception as record_e:
+                logging.error(f"Failed to record error: {record_e}")
             self._handle_step_error(e)
             return True
         except Exception as e:
@@ -380,7 +394,8 @@ class SimulationManager:
         capture_interval = 200 if self.step_counter > 1000 else 100
         if self.step_counter % capture_interval == 0:
             try:
-                success = self._update_sensory_features(self.graph, scale=RESOLUTION_SCALE)
+                resolution_scale = self.get_config('General', 'resolution_scale', 1.0, float)
+                success = self._update_sensory_features(self.graph, scale=resolution_scale)
                 if not success:
                     logging.warning("Sensory update failed, using fallback")
                     self._fallback_sensory_update()
@@ -506,22 +521,31 @@ class SimulationManager:
         """Process homeostatic control updates."""
         health_status = {'status': 'unknown', 'warnings': []}
         
+        graph_ready = (self.graph is not None and
+                       hasattr(self.graph, 'node_labels') and self.graph.node_labels is not None and
+                       hasattr(self.graph, 'x') and self.graph.x is not None)
+        
         if self.step_counter % self.homeostasis_update_interval == 0:
-            try:
-                self.graph = self.homeostasis_controller.regulate_network_activity(self.graph)
-            except Exception as e:
-                logging.warning(f"Homeostatic control failed: {e}")
-            
-            try:
-                self.graph = self.homeostasis_controller.optimize_criticality(self.graph)
-                health_status = self.homeostasis_controller.monitor_network_health(self.graph)
-                self.performance_stats['system_health'] = health_status['status']
-            except Exception as e:
-                logging.warning(f"Criticality optimization failed: {e}")
+            if graph_ready:
+                try:
+                    self.graph = self.homeostasis_controller.regulate_network_activity(self.graph)
+                    self.graph = self.homeostasis_controller.optimize_criticality(self.graph)
+                    health_status = self.homeostasis_controller.monitor_network_health(self.graph)
+                    self.performance_stats['system_health'] = health_status['status']
+                except Exception as e:
+                    logging.warning(f"Homeostatic control failed: {e}")
+                    health_status = {'status': 'error', 'warnings': [str(e)]}
+                    self.performance_stats['system_health'] = 'error'
+                    record_simulation_error()
+            else:
+                health_status = {'status': 'unhealthy', 'warnings': ['Graph missing required attributes (node_labels, x)']}
+                self.performance_stats['system_health'] = 'unhealthy'
+                logging.warning("Homeostatic control skipped: graph not ready")
+                record_simulation_warning()
         
         # Check graph size limits
         if self.step_counter % 100 == 0:
-            node_count = len(self.graph.node_labels)
+            node_count = len(self.graph.node_labels) if graph_ready else 0
             if node_count > 100000:
                 logging.warning(f"Graph size limit reached: {node_count} nodes")
                 self._prune_graph_if_needed()
@@ -662,7 +686,9 @@ class SimulationManager:
             return 0
         if not hasattr(self.graph, 'edge_index'):
             return 0
-        return self.graph.edge_index.shape[1] if self.graph.edge_index.numel() > 0 else 0
+        if not isinstance(self.graph.edge_index, torch.Tensor) or self.graph.edge_index.numel() == 0:
+            return 0
+        return self.graph.edge_index.shape[1]
     
     def _has_visual_data(self) -> bool:
         """Check if visual data is available with simplified conditional."""
@@ -739,7 +765,10 @@ class SimulationManager:
             except Exception as e:
                 consecutive_failures += 1
                 logging.error(f"Simulation loop error: {e}")
-                record_simulation_error()
+                try:
+                    record_simulation_error()
+                except Exception as record_e:
+                    logging.error(f"Failed to record error: {record_e}")
                 if consecutive_failures >= max_consecutive_failures:
                     logging.error("Too many consecutive errors, stopping simulation")
                     self.is_running = False
@@ -778,10 +807,18 @@ class SimulationManager:
             if graph is None:
                 log_step("Graph is None in _update_sensory_features")
                 return False
-            from ui.screen_graph import capture_screen, create_pixel_gray_graph
+            resolution_scale = self.get_config('General', 'resolution_scale', 1.0, float)
             if self.step_counter % 100 != 0:
                 return True
-            arr = capture_screen(scale=scale)
+            try:
+                from ui.screen_graph import capture_screen, create_pixel_gray_graph
+                arr = capture_screen(scale=resolution_scale)
+            except (ImportError, Exception) as e:
+                logging.warning(f"Screen capture unavailable: {e}, using fallback")
+                arr = None  # or generate dummy data if needed
+                return self._fallback_sensory_update()
+            if arr is None:
+                return self._fallback_sensory_update()
             if hasattr(self, 'visual_energy_bridge') and self.visual_energy_bridge is not None:
                 try:
                     graph = self.visual_energy_bridge.process_visual_to_enhanced_energy(
@@ -946,6 +983,10 @@ class SimulationManager:
             self.graph = apply_energy_behavior(self.graph)
             self.graph = update_membrane_potentials(self.graph)
             self.graph = apply_refractory_periods(self.graph)
+            try:
+                self.event_bus.emit('ENERGY_UPDATE', {'graph': self.graph})
+            except Exception:
+                pass  # Fallback: direct energy calls if any
         except Exception as e:
             logging.error(f"Error in energy dynamics: {e}")
             self.graph = apply_energy_behavior(self.graph)
@@ -1335,11 +1376,11 @@ class SimulationManager:
             return False
         return True
     def _create_default_config(self):
-
+    
         self._config_parser['General'] = {'resolution_scale': '0.25'}
         self._config_parser['PixelNodes'] = {'pixel_threshold': '128'}
         self._config_parser['DynamicNodes'] = {'dynamic_node_percentage': '0.01'}
-        self._config_parser['Processing'] = {'update_interval': '0.5'}
+        self._config_parser['Processing'] = {'update_interval': '0.016'}
         self._config_parser['EnhancedNodes'] = {
             'oscillator_frequency': '0.1',
             'integrator_threshold': '0.8',
@@ -1524,18 +1565,34 @@ class SimulationManager:
         except Exception as e:
             log_step("Graph reference clearing error", error=str(e))
     def _break_system_references(self, system):
-        try:
-            if hasattr(system, '__dict__'):
-                for attr_name in list(system.__dict__.keys()):
-                    attr_value = system.__dict__[attr_name]
-                    if hasattr(attr_value, '__dict__') and hasattr(attr_value, 'parent'):
-                        if attr_value.parent is system:
-                            attr_value.parent = None
-                    elif isinstance(attr_value, (list, tuple, set)):
-                        if len(attr_value) > 1000:
-                            system.__dict__[attr_name] = []
-        except Exception as e:
-            log_step("System reference breaking error", error=str(e))
+            try:
+                if hasattr(system, '__dict__'):
+                    for attr_name in list(system.__dict__.keys()):
+                        attr_value = system.__dict__[attr_name]
+                        if hasattr(attr_value, '__dict__') and hasattr(attr_value, 'parent'):
+                            if attr_value.parent is system:
+                                attr_value.parent = None
+                        elif isinstance(attr_value, (list, tuple, set)):
+                            if len(attr_value) > 1000:
+                                system.__dict__[attr_name] = []
+            except Exception as e:
+                log_step("System reference breaking error", error=str(e))
+    
+    def run_profiled_simulation(self, num_steps: int = 1000, output_path: str = "neural_sim_trace.json") -> None:
+        """Run simulation with torch.profiler for performance analysis on medium graph."""
+        # Ensure medium graph
+        self.initialize_graph()
+        with profile(
+            activities=[ProfilerActivity.CPU],
+            record_shapes=True,
+            profile_memory=True,
+            with_stack=True
+        ) as prof:
+            for step in range(num_steps):
+                with record_function("simulation_step"):
+                    self.run_single_step()
+        prof.export_chrome_trace(output_path)
+        logging.info(f"Profiler trace exported to {output_path} for analysis in chrome://tracing")
 _global_simulation_manager = None
 
 

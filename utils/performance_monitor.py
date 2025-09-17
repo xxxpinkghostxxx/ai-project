@@ -4,7 +4,7 @@ import threading
 import logging
 from datetime import datetime
 from typing import Dict, Any, Optional, List, Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from collections import deque
 import gc
 
@@ -26,7 +26,14 @@ try:
 except ImportError:
     gputil = None
     GPUTIL_AVAILABLE = False
-RESOURCE_AVAILABLE = False
+
+try:
+    from resource import getrusage, RUSAGE_SELF
+    RESOURCE_AVAILABLE = True
+except ImportError:
+    getrusage = None
+    RUSAGE_SELF = None
+    RESOURCE_AVAILABLE = False
 @dataclass
 
 
@@ -102,14 +109,11 @@ class PerformanceMonitor:
         try:
             if PSUTIL_AVAILABLE:
                 self.current_metrics.cpu_count = psutil.cpu_count()
-                self.current_metrics.memory_available_mb = psutil.virtual_memory().total / (1024 * 1024)
             else:
                 self.current_metrics.cpu_count = os.cpu_count() or 1
-                self.current_metrics.memory_available_mb = 0.0
         except Exception as e:
             logging.error(f"Failed to initialize system info: {e}")
             self.current_metrics.cpu_count = 1
-            self.current_metrics.memory_available_mb = 0.0
     def start_monitoring(self) -> None:
         with self._lock:
             if self._monitoring:
@@ -157,7 +161,8 @@ class PerformanceMonitor:
         self._update_network_metrics()
         self._update_system_health()
         self.current_metrics.timestamp = datetime.now()
-        self.metrics_history.append(self.current_metrics)
+        snapshot = PerformanceMetrics(**asdict(self.current_metrics))
+        self.metrics_history.append(snapshot)
         self.last_update_time = current_time
     def _update_memory_metrics(self) -> None:
         try:
@@ -173,7 +178,7 @@ class PerformanceMonitor:
                 if self.current_metrics.memory_usage_mb > self.current_metrics.memory_peak_mb:
                     self.current_metrics.memory_peak_mb = self.current_metrics.memory_usage_mb
             elif RESOURCE_AVAILABLE:
-                memory_usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+                memory_usage = getrusage(RUSAGE_SELF).ru_maxrss
                 self.current_metrics.memory_usage_mb = memory_usage / 1024
             else:
                 self.current_metrics.memory_usage_mb = 0.0

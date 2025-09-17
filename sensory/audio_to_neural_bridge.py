@@ -21,17 +21,25 @@ except ImportError:
     LIBROSA_AVAILABLE = False
     logging.warning("librosa not available. Audio feature extraction will use fallbacks.")
 
+import sounddevice as sd
+import threading
+from utils.event_bus import get_event_bus
+import time
+
 
 class AudioToNeuralBridge:
     def __init__(self, neural_simulation=None):
         self.neural_simulation = neural_simulation
         self.audio_features_cache = {}
         self.sensory_node_mapping = {}
-        self.sample_rate = 44100
         self.n_fft = 2048
         self.hop_length = 512
         self.n_mels = 128
         self.n_mfcc = 13
+        self.stream = None
+        self.running = False
+        self.sample_rate = 22050
+        self.blocksize = 1024
         log_step("AudioToNeuralBridge initialized")
 
     def process_audio_to_sensory_nodes(self, audio_data: np.ndarray) -> List[Dict[str, Any]]:
@@ -286,6 +294,71 @@ class AudioToNeuralBridge:
             'n_mels': self.n_mels,
             'n_mfcc': self.n_mfcc
         }
+
+    def start_stream(self):
+        if self.running:
+            return
+        try:
+            self.stream = sd.InputStream(
+                callback=self._audio_callback,
+                channels=1,
+                samplerate=self.sample_rate,
+                blocksize=self.blocksize
+            )
+            self.stream.start()
+            self.running = True
+            log_step("Audio stream started")
+        except Exception as e:
+            log_step("Failed to start audio stream, using simulation", error=str(e))
+            self._start_simulated_audio()
+
+    def stop_stream(self):
+        if self.running:
+            if self.stream:
+                self.stream.stop()
+                self.stream.close()
+            self.running = False
+            log_step("Audio stream stopped")
+
+    def _audio_callback(self, indata, frames, time_info, status):
+        if status:
+            log_step("Audio stream status error", status=status)
+        audio_data = indata[:, 0]
+        features = self._extract_mel_features_for_stream(audio_data)
+        if features is not None and features.size > 0:
+            timestamp = time_info['inputBufferAdcTime']
+            bus = get_event_bus()
+            bus.emit('SENSORY_INPUT_AUDIO', {'features': features, 'timestamp': timestamp})
+
+    def _extract_mel_features_for_stream(self, audio_data):
+        try:
+            if not LIBROSA_AVAILABLE:
+                return np.random.rand(128 * 10).astype(np.float32)  # fallback random
+            mel = librosa.feature.melspectrogram(
+                y=audio_data,
+                sr=self.sample_rate,
+                n_mels=128,
+                hop_length=512
+            )
+            mel_max = np.max(mel)
+            log_mel = librosa.power_to_db(mel, ref=mel_max if mel_max > 0 else 1.0)
+            return log_mel.flatten().astype(np.float32)
+        except Exception as e:
+            log_step("Error in audio feature extraction for stream", error=str(e))
+            return None
+
+    def _start_simulated_audio(self):
+        def simulated_loop():
+            while self.running:
+                fake_audio = np.random.randn(self.blocksize).astype(np.float32)
+                features = self._extract_mel_features_for_stream(fake_audio)
+                if features is not None:
+                    timestamp = time.time()
+                    bus = get_event_bus()
+                    bus.emit('SENSORY_INPUT_AUDIO', {'features': features, 'timestamp': timestamp})
+                time.sleep(self.blocksize / self.sample_rate)
+        thread = threading.Thread(target=simulated_loop, daemon=True)
+        thread.start()
     def _process_audio_with_enhanced_dynamics(self, graph: Data, audio_data: np.ndarray,
                                             audio_sensory_nodes: List[Dict[str, Any]]) -> Data:
 

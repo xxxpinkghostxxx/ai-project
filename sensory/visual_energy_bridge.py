@@ -7,6 +7,11 @@ from typing import Dict, Any, List, Optional, Tuple, Callable
 from torch_geometric.data import Data
 
 from utils.logging_utils import log_step
+
+import cv2
+import threading
+import time
+from utils.event_bus import get_event_bus
 try:
     from neural.enhanced_neural_integration import create_enhanced_neural_integration
 
@@ -39,6 +44,9 @@ class VisualEnergyBridge:
             except Exception as e:
                 log_step("Failed to connect to enhanced neural integration", error=str(e))
                 self.enhanced_integration = None
+        self.capture = None
+        self.prev_frame = None
+        self.running = False
         log_step("VisualEnergyBridge initialized")
     def process_visual_to_enhanced_energy(self, graph: Data, screen_data: np.ndarray,
                                         step: int) -> Data:
@@ -319,6 +327,71 @@ class VisualEnergyBridge:
         self.visual_sensitivity = max(0.0, min(1.0, sensitivity))
     def set_pattern_threshold(self, threshold: float):
         self.pattern_threshold = max(0.0, min(1.0, threshold))
+
+    def start_stream(self):
+        if self.running:
+            return
+        try:
+            self.capture = cv2.VideoCapture(0)
+            if not self.capture.isOpened():
+                raise Exception("Cannot open webcam")
+            self.running = True
+            thread = threading.Thread(target=self._visual_loop, daemon=True)
+            thread.start()
+            log_step("Visual stream started")
+        except Exception as e:
+            log_step("Failed to start visual stream, using simulation", error=str(e))
+            self._start_simulated_visual()
+
+    def stop_stream(self):
+        if self.running:
+            self.running = False
+            if self.capture:
+                self.capture.release()
+            self.capture = None
+            self.prev_frame = None
+            log_step("Visual stream stopped")
+
+    def _visual_loop(self):
+        while self.running:
+            ret, frame = self.capture.read()
+            if not ret:
+                time.sleep(0.03)  # ~30fps
+                continue
+            energy = self._compute_visual_energy(frame)
+            timestamp = time.time()
+            bus = get_event_bus()
+            bus.emit('SENSORY_INPUT_VISUAL', {'energy': float(energy), 'timestamp': timestamp})
+            self.prev_frame = frame.copy()
+            time.sleep(0.03)
+
+    def _compute_visual_energy(self, frame):
+        try:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            edges = cv2.Canny(gray, 50, 150)
+            edge_energy = np.mean(edges) / 255.0
+            if self.prev_frame is not None:
+                prev_gray = cv2.cvtColor(self.prev_frame, cv2.COLOR_BGR2GRAY)
+                motion = cv2.absdiff(gray, prev_gray)
+                motion_energy = np.mean(motion) / 255.0
+            else:
+                motion_energy = 0.0
+            total_energy = (edge_energy + motion_energy) / 2.0
+            return total_energy
+        except Exception as e:
+            log_step("Error computing visual energy", error=str(e))
+            return 0.5  # neutral
+
+    def _start_simulated_visual(self):
+        def simulated_loop():
+            while self.running:
+                energy = np.random.uniform(0.0, 1.0)
+                timestamp = time.time()
+                bus = get_event_bus()
+                bus.emit('SENSORY_INPUT_VISUAL', {'energy': energy, 'timestamp': timestamp})
+                time.sleep(0.03)
+        thread = threading.Thread(target=simulated_loop, daemon=True)
+        thread.start()
 
 
 def create_visual_energy_bridge(enhanced_integration=None) -> VisualEnergyBridge:

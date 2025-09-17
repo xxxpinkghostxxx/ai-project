@@ -1,6 +1,7 @@
 
 import time
 import numpy as np
+import numba as nb
 from typing import Dict, Any, List, Optional
 
 from torch_geometric.data import Data
@@ -10,6 +11,7 @@ from utils.logging_utils import log_step
 from config.unified_config_manager import get_learning_config, get_system_constants, get_enhanced_nodes_config
 from energy.energy_constants import ConnectionConstants
 from energy.node_access_layer import NodeAccessLayer
+from utils.event_bus import get_event_bus
 
 
 class EnhancedNeuralDynamics:
@@ -64,6 +66,7 @@ class EnhancedNeuralDynamics:
             'consolidation_events': 0,
             'ei_balance_adjustments': 0
         }
+        self.event_bus = get_event_bus()
         log_step("EnhancedNeuralDynamics initialized")
     def update_neural_dynamics(self, graph: Data, step: int) -> Data:
         """Update neural dynamics with input validation."""
@@ -134,6 +137,10 @@ class EnhancedNeuralDynamics:
                 self.spike_times[node_id].append(current_time)
                 self.stats['total_spikes'] += 1
                 log_step("Spike occurred", node_id=node_id, membrane_potential=v_mem)
+                try:
+                    self.event_bus.emit('SPIKE', {'node_id': node_id, 'timestamp': current_time})
+                except Exception:
+                    pass  # Fallback: direct calls already handled
             if refractory_timer > 0:
                 access_layer.update_node_property(node_id, 'refractory_timer',
                                                 max(0.0, refractory_timer - 0.01))
@@ -181,8 +188,24 @@ class EnhancedNeuralDynamics:
                     self.stats['theta_bursts'] += 1
                     self._tag_connections_for_ltp(graph, node_id)
         return graph
+    @staticmethod
+    @nb.jit(nopython=True)
+    def compute_stdp_weight_change(source_times, target_times, ltp_rate, ltd_rate, tau_plus, tau_minus, stdp_window):
+        weight_change = 0.0
+        n_source = len(source_times)
+        n_target = len(target_times)
+        for i in range(n_source):
+            for j in range(n_target):
+                delta_t = target_times[j] - source_times[i]
+                if 0 < delta_t < stdp_window:
+                    weight_change += ltp_rate * np.exp(-delta_t / tau_plus)
+                elif -stdp_window < delta_t < 0:
+                    weight_change -= ltd_rate * np.exp(-delta_t / tau_minus)
+        return weight_change
+    
+    
     def _apply_stdp_learning(self, graph: Data, step: int) -> Data:
-
+    
         if not hasattr(graph, 'edge_attributes'):
             return graph
         current_time = time.time()
@@ -195,16 +218,12 @@ class EnhancedNeuralDynamics:
                            if current_time - t < self.stdp_window / 1000.0]
             if not source_spikes or not target_spikes:
                 continue
-            weight_change = 0.0
-            for source_time in source_spikes:
-                for target_time in target_spikes:
-                    delta_t = target_time - source_time
-                    if 0 < delta_t < self.stdp_window / 1000.0:
-                        ltp_strength = self.ltp_rate * np.exp(-delta_t * 1000.0 / self.tau_plus)
-                        weight_change += ltp_strength
-                    elif -self.stdp_window / 1000.0 < delta_t < 0:
-                        ltd_strength = self.ltd_rate * np.exp(delta_t * 1000.0 / self.tau_minus)
-                        weight_change -= ltd_strength
+            source_array = np.array(source_spikes, dtype=np.float64)
+            target_array = np.array(target_spikes, dtype=np.float64)
+            stdp_window_s = self.stdp_window / 1000.0
+            tau_plus_s = self.tau_plus / 1000.0
+            tau_minus_s = self.tau_minus / 1000.0
+            weight_change = self.compute_stdp_weight_change(source_array, target_array, self.ltp_rate, self.ltd_rate, tau_plus_s, tau_minus_s, stdp_window_s)
             if abs(weight_change) > 0.001:
                 new_weight = max(ConnectionConstants.WEIGHT_MIN,
                                min(ConnectionConstants.WEIGHT_CAP_MAX,

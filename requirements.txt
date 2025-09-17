@@ -12,3 +12,5 @@ sounddevice
 websockets
 networkx
 numba
+mypy
+pytest-cov

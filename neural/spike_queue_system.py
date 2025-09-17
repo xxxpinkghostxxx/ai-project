@@ -7,6 +7,7 @@ from typing import Dict, Any, List, Optional, Tuple, Callable
 from dataclasses import dataclass
 from enum import Enum
 import logging
+import numba as nb
 from utils.logging_utils import log_step
 
 
@@ -233,47 +234,62 @@ class SpikePropagator:
         try:
             if not self.simulation_manager:
                 return False
-            access_layer = self.simulation_manager.get_access_layer()
-            if not access_layer:
-                return False
-            target_node = access_layer.get_node_by_id(spike.target_node_id)
-            if not target_node:
-                return False
-            synaptic_input = spike.amplitude * spike.weight
-            if spike.spike_type == SpikeType.INHIBITORY:
-                synaptic_input = -synaptic_input
-            elif spike.spike_type == SpikeType.MODULATORY:
-                synaptic_input *= 0.5
-            current_input = target_node.get('synaptic_input', 0.0)
-            new_input = current_input + synaptic_input
-            access_layer.update_node_property(spike.target_node_id, 'synaptic_input', new_input)
-            membrane_potential = target_node.get('membrane_potential', 0.0)
-            new_membrane_potential = membrane_potential + (synaptic_input * 0.1)
-            access_layer.update_node_property(spike.target_node_id, 'membrane_potential',
-                                            min(new_membrane_potential, 1.0))
-            spike_count = target_node.get('spike_count', 0)
-            access_layer.update_node_property(spike.target_node_id, 'spike_count', spike_count + 1)
+            self.simulation_manager.event_bus.emit('SPIKE', {'source_id': spike.source_node_id, 'node_id': spike.target_node_id, 'timestamp': spike.timestamp})
             return True
-        except Exception as e:
-            log_step(f"Error applying synaptic transmission: {e}")
-            return False
+        except Exception:
+            # Fallback to direct processing
+            try:
+                if not self.simulation_manager:
+                    return False
+                access_layer = self.simulation_manager.get_access_layer()
+                if not access_layer:
+                    return False
+                target_node = access_layer.get_node_by_id(spike.target_node_id)
+                if not target_node:
+                    return False
+                synaptic_input = spike.amplitude * spike.weight
+                if spike.spike_type == SpikeType.INHIBITORY:
+                    synaptic_input = -synaptic_input
+                elif spike.spike_type == SpikeType.MODULATORY:
+                    synaptic_input *= 0.5
+                current_input = target_node.get('synaptic_input', 0.0)
+                new_input = current_input + synaptic_input
+                access_layer.update_node_property(spike.target_node_id, 'synaptic_input', new_input)
+                membrane_potential = target_node.get('membrane_potential', 0.0)
+                new_membrane_potential = membrane_potential + (synaptic_input * 0.1)
+                access_layer.update_node_property(spike.target_node_id, 'membrane_potential',
+                                                min(new_membrane_potential, 1.0))
+                spike_count = target_node.get('spike_count', 0)
+                access_layer.update_node_property(spike.target_node_id, 'spike_count', spike_count + 1)
+                return True
+            except Exception as e:
+                log_step(f"Error applying synaptic transmission: {e}")
+                return False
     def _check_for_cascading_spikes(self, spike: Spike):
         try:
             if not self.simulation_manager:
                 return
-            access_layer = self.simulation_manager.get_access_layer()
-            if not access_layer:
-                return
-            target_node = access_layer.get_node_by_id(spike.target_node_id)
-            if not target_node:
-                return
-            threshold = target_node.get('threshold', 0.5)
-            membrane_potential = target_node.get('membrane_potential', 0.0)
-            if membrane_potential >= threshold:
-                self._schedule_cascading_spike(spike.target_node_id, spike.timestamp)
-                access_layer.update_node_property(spike.target_node_id, 'membrane_potential', 0.0)
-        except Exception as e:
-            log_step(f"Error checking for cascading spikes: {e}")
+            # Emit for cascading check; subscriber can handle
+            self.simulation_manager.event_bus.emit('SPIKE', {'node_id': spike.target_node_id, 'timestamp': spike.timestamp, 'check_cascade': True})
+            return
+        except Exception:
+            # Fallback to direct
+            try:
+                if not self.simulation_manager:
+                    return
+                access_layer = self.simulation_manager.get_access_layer()
+                if not access_layer:
+                    return
+                target_node = access_layer.get_node_by_id(spike.target_node_id)
+                if not target_node:
+                    return
+                threshold = target_node.get('threshold', 0.5)
+                membrane_potential = target_node.get('membrane_potential', 0.0)
+                if membrane_potential >= threshold:
+                    self._schedule_cascading_spike(spike.target_node_id, spike.timestamp)
+                    access_layer.update_node_property(spike.target_node_id, 'membrane_potential', 0.0)
+            except Exception as e:
+                log_step(f"Error checking for cascading spikes: {e}")
     def _schedule_cascading_spike(self, node_id: int, timestamp: float):
         try:
             try:
@@ -292,13 +308,17 @@ class SpikePropagator:
                 return
         except Exception as e:
             log_step(f"Error scheduling cascading spike: {e}")
-    def _calculate_propagation_delay(self, source_id: int, target_id: int) -> float:
-        delay = self.base_propagation_delay
+    @staticmethod
+    @nb.jit(nopython=True)
+    def calculate_propagation_delay(source_id: int, target_id: int, base_delay: float, max_delay: float, avg_synaptic: float) -> float:
         distance = abs(target_id - source_id)
-        distance_delay = min(distance * 0.0001, self.max_propagation_delay)
-        import random
-        synaptic_delay = random.uniform(*self.synaptic_delay_range)
-        return delay + distance_delay + synaptic_delay
+        distance_delay = min(float(distance) * 0.0001, max_delay)
+        return base_delay + distance_delay + avg_synaptic
+    
+    
+    def _calculate_propagation_delay(self, source_id: int, target_id: int) -> float:
+        avg_synaptic = (self.synaptic_delay_range[0] + self.synaptic_delay_range[1]) / 2.0
+        return self.calculate_propagation_delay(source_id, target_id, self.base_propagation_delay, self.max_propagation_delay, avg_synaptic)
     def _get_refractory_period(self, node_id: int) -> float:
         return self.refractory_periods.get(node_id, 0.002)
     def _get_propagation_speed(self, source_id: int, target_id: int) -> float:
