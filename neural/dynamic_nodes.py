@@ -1,8 +1,7 @@
 import torch
 import numpy as np
-
-
-MAX_DYNAMIC_ENERGY = 1.0
+from energy.energy_behavior import get_node_energy_cap
+import logging
 
 
 def add_dynamic_nodes(graph, num_dynamic=None):
@@ -13,17 +12,16 @@ def add_dynamic_nodes(graph, num_dynamic=None):
         [lbl for lbl in graph.node_labels if lbl.get("type", "sensory") == "sensory"]
     )
     if num_dynamic is None:
-        num_dynamic = 4 * num_sensory
-    dynamic_energies = np.random.uniform(
-        0, MAX_DYNAMIC_ENERGY, size=(num_dynamic, 1)
-    ).astype(np.float32)
-    dynamic_features = torch.tensor(dynamic_energies, dtype=torch.float32)
-    graph.x = torch.cat([graph.x, dynamic_features], dim=0)
+        num_dynamic = max(5, 4 * num_sensory)  # Ensure at least 5 initial dynamic nodes
+    energy_cap = get_node_energy_cap()
+    initial_energy = min(100.0, energy_cap)
+    dynamic_energies = torch.full((num_dynamic, 1), initial_energy, dtype=torch.float32)
+    graph.x = torch.cat([graph.x, dynamic_energies], dim=0)
     for i in range(num_dynamic):
         node_id = id_manager.generate_unique_id("dynamic")
-        energy = float(dynamic_energies[i, 0])
-        membrane_potential = min(energy / MAX_DYNAMIC_ENERGY, 1.0)
-        initial_state = "active" if energy > 0.3 else "inactive"
+        energy = float(initial_energy)
+        membrane_potential = min(energy / energy_cap if energy_cap > 0 else 0.0, 1.0)
+        initial_state = "active"
         node_index = len(graph.node_labels)
         graph.node_labels.append({
             "id": node_id,
@@ -32,7 +30,7 @@ def add_dynamic_nodes(graph, num_dynamic=None):
             "energy": energy,
             "state": initial_state,
             "membrane_potential": membrane_potential,
-            "threshold": 0.3,
+            "threshold": 0.5,
             "refractory_timer": 0.0,
             "last_activation": 0,
             "plasticity_enabled": True,
@@ -52,4 +50,9 @@ def add_dynamic_nodes(graph, num_dynamic=None):
         })
         id_manager.register_node_index(node_id, node_index)
     assert len(graph.node_labels) == graph.x.shape[0], "Node label and feature count mismatch after dynamic node addition"
+    # Ensure edge_index is set if missing
+    if not hasattr(graph, 'edge_index') or graph.edge_index.numel() == 0:
+        graph.edge_index = torch.empty((2, 0), dtype=torch.long)
+
+    logging.info(f"Added {num_dynamic} dynamic nodes with energy {initial_energy}")
     return graph

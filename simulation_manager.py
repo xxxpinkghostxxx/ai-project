@@ -521,9 +521,24 @@ class SimulationManager:
         """Process homeostatic control updates."""
         health_status = {'status': 'unknown', 'warnings': []}
         
-        graph_ready = (self.graph is not None and
-                       hasattr(self.graph, 'node_labels') and self.graph.node_labels is not None and
-                       hasattr(self.graph, 'x') and self.graph.x is not None)
+        graph = self.graph
+        if not hasattr(graph, 'node_labels'):
+            graph.node_labels = []
+            logging.info("Added missing graph.node_labels in _process_homeostatic_control")
+        if not hasattr(graph, 'x'):
+            graph.x = torch.empty((0,1), dtype=torch.float32)
+            logging.info("Added missing graph.x in _process_homeostatic_control")
+        if not hasattr(graph, 'edge_index'):
+            graph.edge_index = torch.empty((2,0), dtype=torch.long)
+            logging.info("Added missing graph.edge_index in _process_homeostatic_control")
+
+        if len(graph.node_labels) == 0 and self.step_counter < 10:
+            self._add_initial_dynamic_nodes()
+            logging.info(f"Initialized graph with {len(graph.node_labels)} nodes")
+        
+        graph_ready = (graph is not None and
+                       hasattr(graph, 'node_labels') and graph.node_labels is not None and
+                       hasattr(graph, 'x') and graph.x is not None)
         
         if self.step_counter % self.homeostasis_update_interval == 0:
             if graph_ready:
@@ -697,6 +712,44 @@ class SimulationManager:
     def _has_audio_data(self) -> bool:
         """Check if audio data is available with simplified conditional."""
         return hasattr(self, 'last_audio_data') and self.last_audio_data is not None
+
+    def _add_initial_dynamic_nodes(self, num_nodes=3):
+        """Add initial dynamic nodes if graph is empty."""
+        from energy.energy_behavior import get_node_energy_cap
+        graph = self.graph
+        energy_cap = get_node_energy_cap()
+        initial_energy = min(100.0, energy_cap)
+        energies = torch.full((num_nodes, 1), initial_energy, dtype=torch.float32)
+
+        if len(graph.x) == 0 or graph.x.shape[0] == 0:
+            graph.x = energies
+        else:
+            graph.x = torch.cat([graph.x, energies], dim=0)
+
+        id_manager = self.id_manager
+        offset = len(graph.node_labels)
+        for i in range(num_nodes):
+            node_id = id_manager.generate_unique_id("dynamic")
+            node_label = {
+                'id': node_id,
+                'type': 'dynamic',
+                'behavior': 'dynamic',
+                'energy': float(initial_energy),
+                'state': 'active',
+                'membrane_potential': initial_energy / energy_cap if energy_cap > 0 else 0.0,
+                'threshold': 0.5,
+                'refractory_timer': 0.0,
+                'last_activation': 0,
+                'plasticity_enabled': True,
+                'eligibility_trace': 0.0,
+                'last_update': 0,
+            }
+            graph.node_labels.append(node_label)
+            node_index = offset + i
+            id_manager.register_node_index(node_id, node_index)
+
+        if not hasattr(graph, 'edge_index') or graph.edge_index.numel() == 0:
+            graph.edge_index = torch.empty((2, 0), dtype=torch.long)
     def start_simulation(self, run_in_thread: bool = True):
 
         with self._lock:

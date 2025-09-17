@@ -355,6 +355,7 @@ class HomeostasisController:
         total_energy = float(torch.sum(graph.x[:, 0]).item())
         num_nodes = len(graph.node_labels)
         avg_energy = total_energy / num_nodes if num_nodes > 0 else 0
+        connection_density = 0.0
         if avg_energy < 10.0:
             warnings.append("Low average energy - network may be dying")
             health_score *= 0.5
