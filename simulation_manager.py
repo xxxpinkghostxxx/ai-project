@@ -3,7 +3,7 @@ Legacy compatibility stub for simulation_manager.
 This module was removed during reorg; kept as a thin facade to avoid IDE errors.
 """
 
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from utils.logging_utils import log_step
 
 
@@ -59,6 +59,9 @@ from neural.death_and_birth_logic import birth_new_dynamic_nodes, remove_dead_dy
 from neural.connection_logic import intelligent_connection_formation
 from ui.screen_graph import RESOLUTION_SCALE
 from utils.error_handling_utils import safe_execute, safe_initialize_component, safe_process_step, safe_callback_execution
+from utils.common_utils import safe_hasattr
+
+from typing import Callable
 
 
 
@@ -1371,24 +1374,24 @@ class SimulationManager:
                 self.get_config_section(section)
     def get_config(self, section: str, key: str, default: Any = None, value_type: type = str) -> Any:
 
-        from config.config_manager import get_config as config_get
+        from config.unified_config_manager import get_config as config_get
         return config_get(section, key, default, value_type)
     def get_config_section(self, section: str) -> Dict[str, Any]:
 
-        from config.config_manager import get_config as config_get
+        from config.unified_config_manager import get_config as config_get
         config = config_get(section, '', {})
         return config if isinstance(config, dict) else {}
     def set_config(self, section: str, key: str, value: Any):
 
-        from config.config_manager import config
+        from config.unified_config_manager import config
         config.set(section, key, value)
     def save_config(self):
 
-        from config.config_manager import config
+        from config.unified_config_manager import config
         config.save()
     def reload_config(self):
 
-        from config.config_manager import config
+        from config.unified_config_manager import config
         config.reload()
     def append_log_line(self, line: str):
 

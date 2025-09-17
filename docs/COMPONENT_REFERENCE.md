@@ -91,7 +91,7 @@
 
 ## System Management Modules
 
-### 9. Performance Monitor (`performance_monitor.py`)
+### 9. Performance Monitor (`utils/performance_monitor.py`)
 **Purpose**: Real-time system performance monitoring
 **Key Classes**:
 - `PerformanceMonitor`: Main performance monitoring class
@@ -103,20 +103,20 @@
 - `get_current_metrics()`: Gets current performance metrics
 - `get_performance_summary()`: Gets performance summary
 
-### 10. Error Handler (`error_handler.py`)
+### 10. Unified Error Handler (`utils/unified_error_handler.py`)
 **Purpose**: Graceful error handling and recovery
 **Key Classes**:
-- `ErrorHandler`: Main error handling class
+- `UnifiedErrorHandler`: Main error handling class
 
 **Key Methods**:
 - `handle_error()`: Handles errors with recovery
 - `get_system_health()`: Gets system health status
 - `add_error_callback()`: Adds error callbacks
 
-### 11. Config Manager (`config_manager.py`)
+### 11. Unified Config Manager (`config/unified_config_manager.py`)
 **Purpose**: Centralized configuration management
 **Key Classes**:
-- `ConfigManager`: Main configuration manager
+- `UnifiedConfigManager`: Main configuration manager
 
 **Key Methods**:
 - `get()`: Gets configuration values
@@ -155,7 +155,7 @@
 
 ## Event and Processing Modules
 
-### 15. Event Driven System (`event_driven_system.py`)
+### 15. Event Driven System (`neural/event_driven_system.py`)
 **Purpose**: Event-based processing architecture
 **Key Classes**:
 - `EventDrivenSystem`: Main event system coordinator
@@ -167,7 +167,7 @@
 - `schedule_event()`: Schedules events
 - `schedule_spike()`: Schedules spike events
 
-### 16. Spike Queue System (`spike_queue_system.py`)
+### 16. Spike Queue System (`neural/spike_queue_system.py`)
 **Purpose**: Spike event processing and propagation
 **Key Classes**:
 - `SpikeQueueSystem`: Main spike processing coordinator

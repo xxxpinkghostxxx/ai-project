@@ -394,12 +394,12 @@ class UnifiedTestFramework:
         """Test critical module imports."""
         try:
             import simulation_manager
-            import behavior_engine
-            import energy_behavior
-            import connection_logic
-            import main_graph
-            import node_access_layer
-            import node_id_manager
+            import neural.behavior_engine
+            import energy.energy_behavior
+            import neural.connection_logic
+            import core.main_graph
+            import energy.node_access_layer
+            import energy.node_id_manager
             
             return True, {'imports': 'successful'}
         except ImportError as e:
@@ -451,7 +451,7 @@ class UnifiedTestFramework:
         """Test single simulation step execution."""
         try:
             from simulation_manager import create_simulation_manager
-            from main_graph import initialize_main_graph
+            from core.main_graph import initialize_main_graph
             
             sim_manager = create_simulation_manager()
             graph = initialize_main_graph(scale=0.25)
@@ -470,7 +470,7 @@ class UnifiedTestFramework:
         """Test simulation progression over multiple steps."""
         try:
             from simulation_manager import create_simulation_manager
-            from main_graph import initialize_main_graph
+            from core.main_graph import initialize_main_graph
             
             sim_manager = create_simulation_manager()
             graph = initialize_main_graph(scale=0.25)
@@ -493,8 +493,8 @@ class UnifiedTestFramework:
     def _test_energy_behavior(self) -> Tuple[bool, Dict[str, Any]]:
         """Test energy behavior and dynamics."""
         try:
-            from energy_behavior import get_node_energy_cap, apply_energy_behavior
-            from main_graph import initialize_main_graph
+            from energy.energy_behavior import get_node_energy_cap, apply_energy_behavior
+            from core.main_graph import initialize_main_graph
             
             graph = initialize_main_graph(scale=0.25)
             energy_cap = get_node_energy_cap()
@@ -512,8 +512,8 @@ class UnifiedTestFramework:
     def _test_connection_logic(self) -> Tuple[bool, Dict[str, Any]]:
         """Test connection logic and formation."""
         try:
-            from connection_logic import create_basic_connections, get_edge_attributes
-            from main_graph import initialize_main_graph
+            from neural.connection_logic import create_basic_connections, get_edge_attributes
+            from core.main_graph import initialize_main_graph
             
             graph = initialize_main_graph(scale=0.25)
             initial_edges = graph.edge_index.shape[1] if hasattr(graph, 'edge_index') else 0
@@ -532,8 +532,8 @@ class UnifiedTestFramework:
     def _test_ui_components(self) -> Tuple[bool, Dict[str, Any]]:
         """Test UI components and functionality."""
         try:
-            from ui_engine import create_main_window, update_ui_display
-            from ui_state_manager import get_ui_state_manager
+            from ui.ui_engine import create_main_window, update_ui_display
+            from ui.ui_state_manager import get_ui_state_manager
             
             ui_state = get_ui_state_manager()
             
@@ -546,7 +546,7 @@ class UnifiedTestFramework:
     def _test_performance_monitoring(self) -> Tuple[bool, Dict[str, Any]]:
         """Test performance monitoring systems."""
         try:
-            from unified_performance_system import get_performance_monitor
+            from utils.unified_performance_system import get_performance_monitor
             
             monitor = get_performance_monitor()
             metrics = monitor.get_current_metrics()
@@ -561,7 +561,7 @@ class UnifiedTestFramework:
     def _test_error_handling(self) -> Tuple[bool, Dict[str, Any]]:
         """Test error handling and recovery."""
         try:
-            from unified_error_handler import get_error_handler, safe_execute
+            from utils.unified_error_handler import get_error_handler, safe_execute
             
             error_handler = get_error_handler()
             

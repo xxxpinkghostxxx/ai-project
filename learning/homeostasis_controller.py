@@ -5,7 +5,7 @@ import time
 import numpy as np
 import torch
 
-from config.config_manager import get_homeostasis_config, config
+from config.unified_config_manager import get_homeostasis_config, config
 from utils.logging_utils import log_step
 from neural.death_and_birth_logic import get_node_birth_threshold, get_node_death_threshold
 
@@ -433,6 +433,37 @@ class HomeostasisController:
             trends['variance_slope'] = variance_trend
         return trends
 
+    def _calculate_current_metrics(self, graph):
+        """Helper to calculate current energy metrics for validation."""
+        if not hasattr(graph, 'network_metrics') or not graph.network_metrics:
+            total_energy = float(torch.sum(graph.x[:, 0]).item()) if hasattr(graph, 'x') else 0.0
+            num_nodes = len(graph.node_labels)
+            avg_energy = total_energy / num_nodes if num_nodes > 0 else 0.0
+            energy_ratio = avg_energy / 244.0 if total_energy > 0 else 0.0
+            energy_variance = float(torch.var(graph.x[:, 0]).item()) if hasattr(graph, 'x') and len(graph.x) > 1 else 0.0
+        else:
+            try:
+                metrics = graph.network_metrics.calculate_comprehensive_metrics(graph)
+                energy_metrics = metrics.get('energy_balance', {})
+                energy_ratio = energy_metrics.get('energy_ratio', 0.0)
+                energy_variance = energy_metrics.get('energy_variance', 0.0)
+            except:
+                energy_ratio = 0.0
+                energy_variance = 0.0
+        return {'energy_ratio': energy_ratio, 'energy_variance': energy_variance}
+
+    def _calculate_current_criticality_metrics(self, graph):
+        """Helper to calculate current criticality metrics for validation."""
+        if not hasattr(graph, 'network_metrics') or not graph.network_metrics:
+            branching_ratio = 0.0
+        else:
+            try:
+                metrics = graph.network_metrics.calculate_comprehensive_metrics(graph)
+                branching_ratio = metrics.get('criticality', 0.0)
+            except:
+                branching_ratio = 0.0
+        return {'branching_ratio': branching_ratio}
+
 
 def calculate_network_stability(graph):
     """Calculates overall network stability score based on energy and connectivity."""
@@ -488,34 +519,3 @@ def detect_network_anomalies(graph):
                 anomalies.append(f"Behavior imbalance: {behavior} dominates")
                 anomalies.append(f"({count}/{total_nodes})")
     return anomalies
-
-def _calculate_current_metrics(self, graph):
-    """Helper to calculate current energy metrics for validation."""
-    if not hasattr(graph, 'network_metrics') or not graph.network_metrics:
-        total_energy = float(torch.sum(graph.x[:, 0]).item()) if hasattr(graph, 'x') else 0.0
-        num_nodes = len(graph.node_labels)
-        avg_energy = total_energy / num_nodes if num_nodes > 0 else 0.0
-        energy_ratio = avg_energy / 244.0 if total_energy > 0 else 0.0
-        energy_variance = float(torch.var(graph.x[:, 0]).item()) if hasattr(graph, 'x') and len(graph.x) > 1 else 0.0
-    else:
-        try:
-            metrics = graph.network_metrics.calculate_comprehensive_metrics(graph)
-            energy_metrics = metrics.get('energy_balance', {})
-            energy_ratio = energy_metrics.get('energy_ratio', 0.0)
-            energy_variance = energy_metrics.get('energy_variance', 0.0)
-        except:
-            energy_ratio = 0.0
-            energy_variance = 0.0
-    return {'energy_ratio': energy_ratio, 'energy_variance': energy_variance}
-
-def _calculate_current_criticality_metrics(self, graph):
-    """Helper to calculate current criticality metrics for validation."""
-    if not hasattr(graph, 'network_metrics') or not graph.network_metrics:
-        branching_ratio = 0.0
-    else:
-        try:
-            metrics = graph.network_metrics.calculate_comprehensive_metrics(graph)
-            branching_ratio = metrics.get('criticality', 0.0)
-        except:
-            branching_ratio = 0.0
-    return {'branching_ratio': branching_ratio}

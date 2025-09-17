@@ -1,9 +1,10 @@
-
 import torch
 from typing import Dict, Any, Optional, Union
 from torch_geometric.data import Data
-from config_manager import get_system_constants
-from energy_behavior import get_node_energy_cap
+from config.unified_config_manager import get_system_constants
+import logging
+from energy.energy_behavior import get_node_energy_cap
+from energy.node_id_manager import get_id_manager
 
 
 def get_max_dynamic_energy() -> float:
@@ -19,7 +20,7 @@ def get_new_node_energy_fraction() -> float:
 
 
 def get_node_birth_threshold() -> float:
-    from config.config_manager import get_config
+    from config.unified_config_manager import get_config
     return get_config('NodeLifecycle', 'birth_threshold', 0.8, float)
 
 
@@ -28,7 +29,7 @@ def get_node_birth_cost() -> float:
 
 
 def get_node_death_threshold() -> float:
-    from config.config_manager import get_config
+    from config.unified_config_manager import get_config
     return get_config('NodeLifecycle', 'death_threshold', 0.0, float)
 
 
@@ -39,7 +40,6 @@ def get_energy_cap_255() -> float:
 
 def handle_node_death(graph: Data, node_id: int, strategy: Optional[Union[str, callable]] = None) -> Data:
 
-    import logging
     try:
         if not hasattr(graph, 'node_labels') or node_id >= len(graph.node_labels):
             logging.warning(f"Invalid node_id {node_id} for death handling")
@@ -89,7 +89,6 @@ def handle_node_death(graph: Data, node_id: int, strategy: Optional[Union[str, c
 
 def handle_node_birth(graph: Data, birth_params: Optional[Dict[str, Any]] = None) -> Data:
 
-    import logging
     try:
         if birth_params is None:
             memory_influenced_params = analyze_memory_patterns_for_birth(graph)
@@ -140,7 +139,6 @@ def remove_node_from_graph(graph: Data, node_id: int) -> bool:
                                           new_edge_index[1] - 1, new_edge_index[1])
             graph.edge_index = new_edge_index
         # Update ID manager to reflect the new indices
-        from node_id_manager import get_id_manager
         id_manager = get_id_manager()
         for new_idx, label in enumerate(graph.node_labels):
             old_id = label.get("id")
@@ -159,7 +157,6 @@ def remove_node_from_graph(graph: Data, node_id: int) -> bool:
 
 def create_new_node(graph: Data, birth_params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     try:
-        from node_id_manager import get_id_manager
         id_manager = get_id_manager()
         
         # Check if we can expand the graph
@@ -219,7 +216,6 @@ def add_node_to_graph(graph: Data, new_node: Dict[str, Any]) -> bool:
 
 def remove_dead_dynamic_nodes(graph: Data) -> Data:
 
-    import logging
     if (
         not hasattr(graph, "node_labels")
         or not hasattr(graph, "x")
@@ -244,8 +240,6 @@ def remove_dead_dynamic_nodes(graph: Data) -> Data:
         | (torch.isin(edge_index[1], torch.tensor(to_remove)))
     )
     graph.edge_index = edge_index[:, mask]
-    # Update ID manager to reflect the new indices
-    from node_id_manager import get_id_manager
     id_manager = get_id_manager()
     for new_idx, label in enumerate(graph.node_labels):
         old_id = label.get("id")
@@ -262,8 +256,6 @@ def birth_new_dynamic_nodes(graph: Data) -> Data:
 
     if not hasattr(graph, "node_labels") or not hasattr(graph, "x"):
         return graph
-    import logging
-    from node_id_manager import get_id_manager
     id_manager = get_id_manager()
     
     # Check if we can expand the graph
@@ -301,7 +293,6 @@ def birth_new_dynamic_nodes(graph: Data) -> Data:
             x[idx] = min(new_parent_energy, energy_cap)
             new_energy = min(energy * energy_fraction, energy_cap)
             new_features.append([new_energy])
-            from node_id_manager import get_id_manager
             id_manager = get_id_manager()
             new_node_id = id_manager.generate_unique_id("dynamic")
             new_node_index = num_nodes + len(new_labels)
@@ -331,7 +322,6 @@ def birth_new_dynamic_nodes(graph: Data) -> Data:
                 "v_dend": 0.0
             })
             id_manager.register_node_index(new_node_id, new_node_index)
-            import logging
             logging.info(
                 f"[BIRTH] Node {idx} spawned new node {new_node_id} with energy {new_energy:.2f} (parent energy now {x[idx].item():.2f})"
             )

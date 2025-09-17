@@ -66,10 +66,10 @@ This system implements a sophisticated neural simulation that combines:
 - **Sensory Workspace Mapper** (`sensory_workspace_mapper.py`): Sensory-to-workspace mapping
 
 #### System Management
-- **Performance Monitor** (`performance_monitor.py`): Real-time system monitoring
-- **Error Handler** (`error_handler.py`): Graceful error handling and recovery
-- **Configuration Manager** (`config_manager.py`): Centralized configuration
-- **Event-Driven System** (`event_driven_system.py`): Event-based processing
+- **Performance Monitor** (`utils/performance_monitor.py`): Real-time system monitoring
+- **Unified Error Handler** (`utils/unified_error_handler.py`): Graceful error handling and recovery
+- **Unified Config Manager** (`config/unified_config_manager.py`): Centralized configuration
+- **Event-Driven System** (`neural/event_driven_system.py`): Event-based processing
 
 ## 🚀 Quick Start
 
@@ -88,7 +88,7 @@ pip install -r requirements.txt
 
 3. **Run the simulation**:
 ```bash
-python unified_launcher.py
+python core/unified_launcher.py
 ```
 
 ### Basic Usage
@@ -249,17 +249,36 @@ This system is designed for:
 
 ## 📁 Project Structure
 
+The project has been restructured with consolidated directories for better organization. Key consolidations include unified configuration in `config/` and unified utilities (including error handling) in `utils/`.
+
 ```
 ai-project/
-├── simulation_manager.py          # Main simulation coordinator
-├── enhanced_neural_*.py          # Advanced neural systems
-├── behavior_engine.py            # Node behavior management
-├── energy_*.py                   # Energy dynamics
-├── learning_*.py                 # Learning mechanisms
-├── memory_system.py              # Memory formation
-├── sensory_*.py                  # Sensory integration
-├── ui_*.py                       # User interface
-├── config.ini                    # Configuration
+├── core/
+│   ├── simulation_manager.py     # Main simulation coordinator
+│   ├── unified_launcher.py       # Launch scripts
+│   └── main_graph.py             # Graph utilities
+├── config/
+│   ├── unified_config_manager.py # Unified configuration management
+│   └── config.ini                # Configuration file
+├── utils/
+│   ├── unified_error_handler.py  # Unified error handling
+│   ├── performance_monitor.py    # Performance monitoring
+│   └── other_utils.py            # Common utilities (logging, stats, etc.)
+├── neural/
+│   ├── enhanced_neural_*.py      # Advanced neural systems and dynamics
+│   └── behavior_engine.py        # Node behavior management
+├── energy/
+│   └── energy_*.py               # Energy dynamics and constants
+├── learning/
+│   └── learning_*.py             # Learning mechanisms and memory
+├── sensory/
+│   └── sensory_*.py              # Sensory integration (visual, audio)
+├── ui/
+│   └── ui_*.py                   # User interface and visualization
+├── docs/
+│   └── *.md                      # Documentation
+├── tests/
+│   └── *.py                      # Testing framework
 ├── requirements.txt              # Dependencies
 └── README.md                     # This file
 ```

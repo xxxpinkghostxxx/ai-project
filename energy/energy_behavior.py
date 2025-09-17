@@ -3,7 +3,7 @@ import time
 
 
 
-from config.config_manager import get_learning_config, get_system_constants
+from config.unified_config_manager import get_learning_config, get_system_constants
 
 
 
@@ -15,7 +15,8 @@ from energy_constants import (
     EnergyConstants, OscillatorConstants, IntegratorConstants,
     RelayConstants, HighwayConstants
 )
-from common_utils import safe_hasattr
+from utils.logging_utils import log_step
+from utils.common_utils import safe_hasattr
 _energy_cap_cache = None
 _energy_cap_cache_time = 0
 _energy_cap_cache_ttl = 300

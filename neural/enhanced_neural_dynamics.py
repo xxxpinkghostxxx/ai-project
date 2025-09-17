@@ -7,7 +7,7 @@ from torch_geometric.data import Data
 from collections import defaultdict, deque
 
 from utils.logging_utils import log_step
-from config.config_manager import get_learning_config, get_system_constants, get_enhanced_nodes_config
+from config.unified_config_manager import get_learning_config, get_system_constants, get_enhanced_nodes_config
 from energy.energy_constants import ConnectionConstants
 from energy.node_access_layer import NodeAccessLayer
 

@@ -128,7 +128,7 @@ class UnifiedLauncher:
             return False
     def _launch_test_suite(self) -> bool:
         try:
-            from unified_test_suite import run_unified_tests
+            from tests.unified_test_suite import run_unified_tests
             results = run_unified_tests()
             return results['success_rate'] > 0.8
         except Exception as e:

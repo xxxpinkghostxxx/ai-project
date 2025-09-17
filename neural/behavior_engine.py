@@ -1,15 +1,15 @@
-
 import time
 import numpy as np
 import torch
 from typing import Dict, Any, List, Optional, Tuple, Callable
+from utils.logging_utils import log_step
 
 from torch_geometric.data import Data
 
-from config.config_manager import get_enhanced_nodes_config, get_system_constants
+from config.unified_config_manager import get_enhanced_nodes_config, get_system_constants
 
 try:
-
+    from utils.unified_error_handler import get_error_handler
     ERROR_HANDLER_AVAILABLE = True
 except ImportError:
     ERROR_HANDLER_AVAILABLE = False
@@ -32,8 +32,7 @@ def get_refractory_period() -> float:
     constants = get_system_constants()
     return constants.get('refractory_period', 0.1)
 from energy.energy_behavior import get_node_energy_cap
-from utils.statistics_utils import StatisticsManager, create_standard_stats
-
+from utils.statistics_utils import create_standard_stats
 
 
 class BehaviorCache:
@@ -172,7 +171,7 @@ class BehaviorEngine:
         log_step(f"Updating {behavior} node behavior", node_id=node_id, step=step)
         
         try:
-            updated_node = handler(node_id, graph, step, access_layer)
+            handler(node_id, graph, step, access_layer)
             access_layer.update_node_property(node_id, 'last_update', step)
             self.behavior_stats['basic_updates'] += 1
             return True
@@ -225,6 +224,10 @@ class BehaviorEngine:
         if access_layer is None:
             from energy.node_access_layer import NodeAccessLayer
             access_layer = NodeAccessLayer(graph)
+        refractory_timer = access_layer.get_node_property(node_id, 'refractory_timer', 0.0)
+        if refractory_timer > 0:
+            access_layer.update_node_property(node_id, 'refractory_timer', max(0.0, refractory_timer - get_time_step()))
+            return
         energy = access_layer.get_node_energy(node_id)
         if energy is not None:
             access_layer.update_node_property(node_id, 'membrane_potential', min(energy / get_energy_cap_255(), 1.0))
@@ -347,11 +350,11 @@ class BehaviorEngine:
         energy = access_layer.get_node_energy(node_id)
         if energy is not None:
             access_layer.update_node_property(node_id, 'membrane_potential', min(energy / get_node_energy_cap(), 1.0))
-            if membrane_potential >= threshold and refractory_timer <= 0:
+            if membrane_potential >= threshold:
                 boosted_energy = min(get_node_energy_cap(), energy * highway_energy_boost)
                 access_layer.set_node_energy(node_id, boosted_energy)
                 access_layer.update_node_property(node_id, 'refractory_timer', 0.5)
-                access_layer.update_node_property(node_id, 'last_activation', step)
+                access_layer.update_node_property(node_id, 'last_activation', time.time())
                 access_layer.update_node_property(node_id, 'state', 'regulating')
                 self.behavior_stats['highway_regulations'] += 1
             else:
@@ -373,13 +376,13 @@ class BehaviorEngine:
         energy = access_layer.get_node_energy(node_id)
         if energy is not None:
             access_layer.update_node_property(node_id, 'membrane_potential', min(energy / get_node_energy_cap(), 1.0))
-            if membrane_potential >= threshold and refractory_timer <= 0:
+            if membrane_potential >= threshold:
                 if workspace_capacity >= 2.0:
                     synthesis_success = np.random.random() < (workspace_creativity * workspace_focus * 0.1)
                     if synthesis_success:
                         access_layer.update_node_property(node_id, 'state', 'synthesizing')
                         access_layer.update_node_property(node_id, 'refractory_timer', 1.0 / workspace_creativity)
-                        access_layer.update_node_property(node_id, 'last_activation', step)
+                        access_layer.update_node_property(node_id, 'last_activation', time.time())
                         self.behavior_stats['workspace_syntheses'] += 1
                     else:
                         access_layer.update_node_property(node_id, 'state', 'planning')
@@ -428,6 +431,7 @@ class BehaviorEngine:
                     log_step("Enhanced integration missing reset_integration_statistics method")
             except Exception as e:
                 log_step("Error resetting enhanced statistics", error=str(e))
+
 
 
 def should_transition_to_learning(node: Dict[str, Any]) -> bool:

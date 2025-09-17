@@ -1,12 +1,13 @@
 
 import numpy as np
+import torch
 import logging
 from typing import Dict, Any, List, Optional, Tuple, Callable
 
 from collections import defaultdict, deque
 
 from utils.logging_utils import log_runtime, log_step
-from config.config_manager import get_network_metrics_config
+from config.unified_config_manager import get_network_metrics_config
 
 
 class NetworkMetrics:

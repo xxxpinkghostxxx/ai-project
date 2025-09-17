@@ -1,6 +1,7 @@
 
 import time
 import numpy as np
+from utils.logging_utils import log_step
 
 
 DEFAULT_MEMORY_STRENGTH = 1.0

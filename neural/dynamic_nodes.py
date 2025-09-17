@@ -7,7 +7,7 @@ MAX_DYNAMIC_ENERGY = 1.0
 
 def add_dynamic_nodes(graph, num_dynamic=None):
 
-    from node_id_manager import get_id_manager
+    from energy.node_id_manager import get_id_manager
     id_manager = get_id_manager()
     num_sensory = len(
         [lbl for lbl in graph.node_labels if lbl.get("type", "sensory") == "sensory"]

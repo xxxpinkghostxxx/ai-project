@@ -85,7 +85,7 @@ def create_pixel_gray_graph(arr):
     num_nodes = h * w
     node_features = arr.flatten().reshape(-1, 1)
     node_labels = []
-    from node_id_manager import get_id_manager
+    from energy.node_id_manager import get_id_manager
     id_manager = get_id_manager()
     for y in range(h):
         for x in range(w):

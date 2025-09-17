@@ -70,13 +70,13 @@ sim_manager.stop_simulation()
 ### Launch Options
 ```bash
 # Launch with UI
-python unified_launcher.py --profile ui
+python core/unified_launcher.py --profile ui
 
 # Launch test suite
-python unified_launcher.py --profile test
+python core/unified_launcher.py --profile test
 
 # Launch headless
-python unified_launcher.py --profile headless
+python core/unified_launcher.py --profile headless
 ```
 
 ## System Architecture
@@ -137,6 +137,22 @@ Input Data → Sensory Processing → Neural Dynamics → Learning → Memory �
 Visual/Audio → Feature Extraction → STDP/IEG → Hebbian → Storage → Visualization
 ```
 
+### Project Structure Summary
+
+The project features a cleaned-up folder structure with consolidations in key areas:
+
+- **config/**: Unified configuration management via `unified_config_manager.py`, with `config.ini` for settings.
+- **utils/**: Consolidated utilities including `unified_error_handler.py` for error handling, `performance_monitor.py`, logging, and statistics utilities.
+- **core/**: Core simulation files like `simulation_manager.py` and `unified_launcher.py`.
+- **neural/**: Advanced neural systems (dynamics, connections, behaviors, events).
+- **energy/**: Energy management modules.
+- **learning/**: Learning and memory systems.
+- **sensory/**: Sensory integration (visual, audio).
+- **ui/**: User interface and visualization.
+- **docs/** and **tests/**: Documentation and testing.
+
+This structure eliminates redundant files and centralizes functionality without referencing removed items like old config or error handlers.
+
 ## API Reference
 
 ### Core Classes
@@ -192,7 +208,7 @@ apply_energy_behavior(graph, behavior_params=None) -> Data
 
 ## Configuration
 
-### Configuration File (`config.ini`)
+### Configuration File (`config/config.ini`)
 The system uses a comprehensive configuration file for all parameters:
 
 ```ini
@@ -251,7 +267,7 @@ export NEURAL_LOG_LEVEL=INFO
 #### 3. Import Errors
 **Problem**: Module import failures
 **Solution**:
-- Run `python unified_launcher.py --test-imports`
+- Run `python core/unified_launcher.py --test-imports`
 - Check requirements.txt installation
 - Verify Python version compatibility
 

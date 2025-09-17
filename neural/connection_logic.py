@@ -6,9 +6,9 @@ import logging
 import threading
 
 from utils.logging_utils import log_step
-from energy_constants import ConnectionConstants
+from energy.energy_constants import ConnectionConstants
 from utils.common_utils import safe_hasattr
-from energy_behavior import get_node_energy_cap
+from energy.energy_behavior import get_node_energy_cap
 
 
 def get_max_dynamic_energy():
