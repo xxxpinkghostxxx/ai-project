@@ -8,6 +8,7 @@ from torch_geometric.data import Data
 from collections import defaultdict, deque
 
 from utils.logging_utils import log_step
+import logging
 from config.unified_config_manager import get_learning_config, get_system_constants, get_enhanced_nodes_config
 from energy.energy_constants import ConnectionConstants
 from energy.node_access_layer import NodeAccessLayer
@@ -209,7 +210,7 @@ class EnhancedNeuralDynamics:
         if not hasattr(graph, 'edge_attributes'):
             return graph
         current_time = time.time()
-        for edge in graph.edge_attributes:
+        for edge_idx, edge in enumerate(graph.edge_attributes):
             source_id = edge.source
             target_id = edge.target
             source_spikes = [t for t in self.spike_times[source_id]
@@ -218,6 +219,9 @@ class EnhancedNeuralDynamics:
                            if current_time - t < self.stdp_window / 1000.0]
             if not source_spikes or not target_spikes:
                 continue
+                
+            # Diagnostic: Log STDP attempt
+            logging.debug(f"[DYNAMICS] STDP for edge {edge_idx}: source={source_id} ({len(source_spikes)} spikes), target={target_id} ({len(target_spikes)} spikes)")
             source_array = np.array(source_spikes, dtype=np.float64)
             target_array = np.array(target_spikes, dtype=np.float64)
             stdp_window_s = self.stdp_window / 1000.0
@@ -225,17 +229,21 @@ class EnhancedNeuralDynamics:
             tau_minus_s = self.tau_minus / 1000.0
             weight_change = self.compute_stdp_weight_change(source_array, target_array, self.ltp_rate, self.ltd_rate, tau_plus_s, tau_minus_s, stdp_window_s)
             if abs(weight_change) > 0.001:
+                # Check if source/target nodes still exist (post-death validation)
+                access_layer = NodeAccessLayer(graph)
+                source_node = access_layer.get_node_by_id(source_id)
+                target_node = access_layer.get_node_by_id(target_id)
+                if source_node is None or target_node is None:
+                    logging.warning(f"[DYNAMICS] Skipping STDP for invalid edge {edge_idx}: source_id={source_id} (valid={source_node is not None}), target_id={target_id} (valid={target_node is not None})")
+                    continue
+                
                 new_weight = max(ConnectionConstants.WEIGHT_MIN,
                                min(ConnectionConstants.WEIGHT_CAP_MAX,
                                    edge.weight + weight_change))
                 edge.weight = new_weight
                 edge.update_eligibility_trace(weight_change)
                 self.stats['stdp_events'] += 1
-                log_step("STDP weight update",
-                        source_id=source_id,
-                        target_id=target_id,
-                        weight_change=weight_change,
-                        new_weight=new_weight)
+                logging.info(f"[DYNAMICS] STDP weight update: source={source_id}, target={target_id}, change={weight_change:.4f}, new_weight={new_weight:.4f}")
         return graph
     def _update_ieg_tagging(self, graph: Data, step: int) -> Data:
 

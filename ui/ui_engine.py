@@ -30,7 +30,9 @@ CONSTANTS = {
     'ENERGY_TEXT_TAG': 'energy_text',
     'CONNECTIONS_TEXT_TAG': 'connections_text',
     'SIMULATION_STATUS_RUNNING': 'Running',
-    'SIMULATION_STATUS_STOPPED': 'Stopped'
+    'SIMULATION_STATUS_STOPPED': 'Stopped',
+    'LOGS_MODAL_TAG': 'logs_modal',
+    'LOGS_TEXT_TAG': 'logs_text'
 }
 
 def get_simulation_running():
@@ -64,149 +66,227 @@ def create_main_window():
         # Main tabs
         with dpg.tab_bar():
             with dpg.tab(label="Dashboard"):
-                dpg.add_text(default_value="Neural Simulation Dashboard")
+                dpg.add_text(default_value="Neural Simulation Dashboard", tag="dashboard_title")
                 dpg.add_separator()
                 
-                # Control panel
-                with dpg.group(horizontal=True):
-                    dpg.add_button(label="Start", callback=start_simulation_callback, width=100)
-                    dpg.add_button(label="Stop", callback=stop_simulation_callback, width=100)
-                    dpg.add_button(label="Reset", callback=reset_simulation_callback, width=100)
+                with dpg.child_window(height=-1, width=-1, tag="dashboard_scroll", no_scrollbar=False, border=False):
                     
-                    # Neural map slot selector
-                    dpg.add_text("Map Slot:")
-                    slot_input = dpg.add_input_int(tag="map_slot", default_value=0, width=50)
-                    dpg.add_button(label="Save Neural Map", callback=lambda: save_neural_map_callback(dpg.get_value(slot_input)), width=150)
-                    dpg.add_button(label="Load Neural Map", callback=lambda: load_neural_map_callback(dpg.get_value(slot_input)), width=150)
-                
-                # Status panel
-                with dpg.child_window(height=120, width=-1, tag="status_panel"):
-                    dpg.add_text(default_value="Status: ", tag=CONSTANTS['STATUS_TEXT_TAG'])
-                    dpg.add_text(default_value="Nodes: ", tag=CONSTANTS['NODES_TEXT_TAG'])
-                    dpg.add_text(default_value="Edges: ", tag=CONSTANTS['EDGES_TEXT_TAG'])
-                    dpg.add_text(default_value="Step Count: ", tag="step_count_text")
-                    dpg.add_text(default_value="Health: ", tag="health_text")
-                
-                # Live metrics
-                with dpg.child_window(height=250, width=-1, tag="metrics_panel"):
-                    dpg.add_text(default_value="Live Metrics:")
-                    dpg.add_text(default_value="Energy: ", tag=CONSTANTS['ENERGY_TEXT_TAG'])
-                    dpg.add_text(default_value="Connections: ", tag=CONSTANTS['CONNECTIONS_TEXT_TAG'])
-                    dpg.add_text(default_value="Criticality: ", tag="criticality_text")
-                    dpg.add_text(default_value="EI Ratio: ", tag="ei_ratio_text")
+                    # Control panel with improved spacing
+                    with dpg.group(horizontal=True):
+                        start_btn = dpg.add_button(label="Start", callback=start_simulation_callback, width=100)
+                        stop_btn = dpg.add_button(label="Stop", callback=stop_simulation_callback, width=100)
+                        reset_btn = dpg.add_button(label="Reset", callback=reset_simulation_callback, width=100)
+                        view_logs_btn = dpg.add_button(label="View Logs", callback=view_logs_callback, width=100)
+                        
+                        # Neural map slot selector
+                        dpg.add_text("Map Slot:")
+                        slot_input = dpg.add_input_int(tag="map_slot", default_value=0, width=50)
+                        save_btn = dpg.add_button(label="Save Neural Map", callback=lambda: save_neural_map_callback(dpg.get_value("map_slot")), width=150)
+                        load_btn = dpg.add_button(label="Load Neural Map", callback=lambda: load_neural_map_callback(dpg.get_value("map_slot")), width=150)
+                    
+                    # Tooltips for control panel (moved outside group for container balance)
+                    with dpg.tooltip(parent=start_btn):
+                        dpg.add_text("Begin the neural simulation")
+                    with dpg.tooltip(parent=stop_btn):
+                        dpg.add_text("Stop the current simulation")
+                    with dpg.tooltip(parent=reset_btn):
+                        dpg.add_text("Reset simulation state and clear data")
+                    with dpg.tooltip(parent=view_logs_btn):
+                        dpg.add_text("Open detailed event logs")
+                    with dpg.tooltip(parent=slot_input):
+                        dpg.add_text("Select neural map slot (0-9)")
+                    with dpg.tooltip(parent=save_btn):
+                        dpg.add_text("Save current graph to selected slot")
+                    with dpg.tooltip(parent=load_btn):
+                        dpg.add_text("Load graph from selected slot")
+                    
                     dpg.add_separator()
-                    dpg.add_text(default_value="Recent Events:")
-                    dpg.add_input_text(default_value="", tag="events_log", multiline=True, readonly=True, height=120)
+                    
+                    # Status panel - responsive height
+                    with dpg.child_window(height=-1, width=-1, tag="status_panel", border=True):
+                        dpg.add_text(default_value="Status: ", tag=CONSTANTS['STATUS_TEXT_TAG'])
+                        dpg.add_text(default_value="Nodes: ", tag=CONSTANTS['NODES_TEXT_TAG'])
+                        dpg.add_text(default_value="Edges: ", tag=CONSTANTS['EDGES_TEXT_TAG'])
+                        dpg.add_text(default_value="Step Count: ", tag="step_count_text")
+                        dpg.add_text(default_value="Health: ", tag="health_text")
+                    
+                    dpg.add_separator()
+                    
+                    # Live metrics - responsive
+                    with dpg.child_window(height=-1, width=-1, tag="metrics_panel", border=True):
+                        dpg.add_text(default_value="Live Metrics:")
+                        dpg.add_text(default_value="Energy: ", tag=CONSTANTS['ENERGY_TEXT_TAG'])
+                        dpg.add_text(default_value="Connections: ", tag=CONSTANTS['CONNECTIONS_TEXT_TAG'])
+                        dpg.add_text(default_value="Criticality: ", tag="criticality_text")
+                        dpg.add_text(default_value="EI Ratio: ", tag="ei_ratio_text")
+                        dpg.add_separator()
+                        dpg.add_text(default_value="Recent Events:")
+                        events_log = dpg.add_input_text(default_value="", tag="events_log", multiline=True, readonly=True, height=120)
+                        with dpg.tooltip(parent=events_log):
+                            dpg.add_text("Recent simulation events and logs")
 
             with dpg.tab(label="Graph Visualization"):
                 dpg.add_text(default_value="Neural Graph Visualization")
                 dpg.add_separator()
                 
-                # Graph controls
-                with dpg.group(horizontal=True):
-                    dpg.add_checkbox(label="Show Nodes", tag="show_nodes", default_value=True, callback=lambda: update_graph_visualization())
-                    dpg.add_checkbox(label="Show Edges", tag="show_edges", default_value=True, callback=lambda: update_graph_visualization())
-                    dpg.add_checkbox(label="Color by Energy", tag="color_energy", default_value=True, callback=lambda: update_graph_visualization())
-                    dpg.add_slider_float(label="Node Size", tag="node_size", default_value=2.0, min_value=0.5, max_value=10.0, callback=lambda: update_graph_visualization())
-                    dpg.add_slider_float(label="Edge Thickness", tag="edge_thickness", default_value=1.0, min_value=0.1, max_value=5.0, callback=lambda: update_graph_visualization())
-                
-                # Visualization area
-                dpg.add_drawlist(width=-1, height=600, tag="graph_view")
-                
-                dpg.add_text(default_value="Zoom: Use mouse wheel | Pan: Drag with right mouse button | Controls update live")
+                with dpg.child_window(height=-1, width=-1, tag="graph_scroll", no_scrollbar=False, horizontal_scrollbar=True, border=False):
+                    
+                    # Graph controls with tooltips
+                    with dpg.group(horizontal=True):
+                        show_nodes_cb = dpg.add_checkbox(label="Show Nodes", tag="show_nodes", default_value=True, callback=lambda: update_graph_visualization())
+                        with dpg.tooltip(parent=show_nodes_cb):
+                            dpg.add_text("Toggle visibility of neural nodes")
+                        show_edges_cb = dpg.add_checkbox(label="Show Edges", tag="show_edges", default_value=True, callback=lambda: update_graph_visualization())
+                        with dpg.tooltip(parent=show_edges_cb):
+                            dpg.add_text("Toggle visibility of connections")
+                        color_energy_cb = dpg.add_checkbox(label="Color by Energy", tag="color_energy", default_value=True, callback=lambda: update_graph_visualization())
+                        with dpg.tooltip(parent=color_energy_cb):
+                            dpg.add_text("Color nodes based on energy levels")
+                        node_size_slider = dpg.add_slider_float(label="Node Size", tag="node_size", default_value=2.0, min_value=0.5, max_value=10.0, callback=lambda: update_graph_visualization())
+                        with dpg.tooltip(parent=node_size_slider):
+                            dpg.add_text("Adjust size of node circles")
+                        edge_thickness_slider = dpg.add_slider_float(label="Edge Thickness", tag="edge_thickness", default_value=1.0, min_value=0.1, max_value=5.0, callback=lambda: update_graph_visualization())
+                        with dpg.tooltip(parent=edge_thickness_slider):
+                            dpg.add_text("Adjust thickness of connection lines")
+                    
+                    dpg.add_separator()
+                    
+                    # Visualization area - responsive height
+                    with dpg.child_window(height=-1, width=-1, no_scrollbar=False, horizontal_scrollbar=True, border=True, tag="graph_container"):
+                        dpg.add_drawlist(width=-1, height=-1, tag="graph_view")
+                    
+                    dpg.add_text(default_value="Zoom: Use mouse wheel | Pan: Drag with right mouse button | Controls update live", color=[150, 150, 150, 255])
 
             with dpg.tab(label="Metrics & Plots"):
                 dpg.add_text(default_value="Real-time Metrics and Historical Plots")
                 dpg.add_separator()
                 
-                # Plots
-                with dpg.plot(label="Energy History", height=300, width=-1, tag="energy_plot"):
-                    dpg.add_plot_legend()
-                    dpg.add_plot_axis(dpg.mvXAxis, label="Time Steps", tag="energy_axis")
-                    dpg.add_line_series([], [], label="Average Energy", tag="energy_series", parent="energy_axis")
-                
-                with dpg.plot(label="Node Activity", height=300, width=-1, tag="activity_plot"):
-                    dpg.add_plot_legend()
-                    dpg.add_plot_axis(dpg.mvXAxis, label="Time Steps", tag="activity_axis")
-                    dpg.add_line_series([], [], label="Active Nodes", tag="activity_series", parent="activity_axis")
-                
-                with dpg.plot(label="Performance", height=300, width=-1, tag="performance_plot"):
-                    dpg.add_plot_legend()
-                    dpg.add_plot_axis(dpg.mvXAxis, label="Time Steps", tag="perf_axis")
-                    dpg.add_line_series([], [], label="Step Time (ms)", tag="perf_series", parent="perf_axis")
+                with dpg.child_window(height=-1, width=-1, tag="metrics_scroll", no_scrollbar=False, horizontal_scrollbar=True, border=False):
+                    
+                    # Plots - responsive heights
+                    with dpg.group(horizontal=False):
+                        dpg.add_text("Energy History Plot - Hover for values")
+                        energy_plot = dpg.add_plot(label="Energy History", height=200, width=-1, tag="energy_plot")
+                        dpg.add_plot_legend(parent=energy_plot)
+                        dpg.add_plot_axis(dpg.mvXAxis, label="Time Steps", tag="energy_axis", parent=energy_plot)
+                        dpg.add_line_series([], [], label="Average Energy", tag="energy_series", parent="energy_axis")
+                        
+                        dpg.add_text("Node Activity Plot - Hover for values")
+                        activity_plot = dpg.add_plot(label="Node Activity", height=200, width=-1, tag="activity_plot")
+                        dpg.add_plot_legend(parent=activity_plot)
+                        dpg.add_plot_axis(dpg.mvXAxis, label="Time Steps", tag="activity_axis", parent=activity_plot)
+                        dpg.add_line_series([], [], label="Active Nodes", tag="activity_series", parent="activity_axis")
+                        
+                        dpg.add_text("Performance Plot - Hover for values")
+                        perf_plot = dpg.add_plot(label="Performance", height=200, width=-1, tag="performance_plot")
+                        dpg.add_plot_legend(parent=perf_plot)
+                        dpg.add_plot_axis(dpg.mvXAxis, label="Time Steps", tag="perf_axis", parent=perf_plot)
+                        dpg.add_line_series([], [], label="Step Time (ms)", tag="perf_series", parent="perf_axis")
 
             with dpg.tab(label="Controls & Configuration"):
                 dpg.add_text(default_value="Simulation Controls and Parameters")
                 dpg.add_separator()
                 
-                # Parameter sliders
-                learning_header = dpg.add_collapsing_header(label="Learning Parameters")
-                with dpg.group(parent=learning_header):
-                    dpg.add_slider_float(label="LTP Rate", tag="ltp_rate", default_value=0.02, min_value=0.001, max_value=0.1)
-                    dpg.add_slider_float(label="LTD Rate", tag="ltd_rate", default_value=0.01, min_value=0.001, max_value=0.1)
-                    dpg.add_slider_float(label="STDP Window (ms)", tag="stdp_window", default_value=20.0, min_value=5.0, max_value=50.0)
-                
-                energy_header = dpg.add_collapsing_header(label="Energy Parameters")
-                with dpg.group(parent=energy_header):
-                    dpg.add_slider_float(label="Birth Threshold", tag="birth_threshold", default_value=0.8, min_value=0.5, max_value=1.0)
-                    dpg.add_slider_float(label="Death Threshold", tag="death_threshold", default_value=0.0, min_value=0.0, max_value=0.5)
-                    dpg.add_slider_int(label="Update Interval", tag="update_interval", default_value=50, min_value=10, max_value=200)
-                
-                viz_header = dpg.add_collapsing_header(label="Visualization")
-                with dpg.group(parent=viz_header):
-                    dpg.add_color_edit(label="Node Active Color", tag="node_active_color", default_value=[0, 255, 0, 255])
-                    dpg.add_color_edit(label="Node Inactive Color", tag="node_inactive_color", default_value=[128, 128, 128, 255])
-                    dpg.add_color_edit(label="Edge Color", tag="edge_color", default_value=[255, 255, 255, 255])
-                
-                dpg.add_separator()
-                dpg.add_button(label="Apply Changes", callback=apply_config_changes)
-                dpg.add_button(label="Reset to Defaults", callback=reset_to_defaults)
+                with dpg.child_window(height=-1, width=-1, tag="controls_scroll", no_scrollbar=False, horizontal_scrollbar=True, border=False):
+                    
+                    # Parameter sliders with tooltips
+                    learning_header = dpg.add_collapsing_header(label="Learning Parameters")
+                    with dpg.tooltip(parent=learning_header):
+                        dpg.add_text("Adjust synaptic plasticity rates")
+                    with dpg.group(parent=learning_header):
+                        ltp_slider = dpg.add_slider_float(label="LTP Rate", tag="ltp_rate", default_value=0.02, min_value=0.001, max_value=0.1)
+                        with dpg.tooltip(parent=ltp_slider):
+                            dpg.add_text("Long-term potentiation learning rate")
+                        ltd_slider = dpg.add_slider_float(label="LTD Rate", tag="ltd_rate", default_value=0.01, min_value=0.001, max_value=0.1)
+                        with dpg.tooltip(parent=ltd_slider):
+                            dpg.add_text("Long-term depression learning rate")
+                        stdp_slider = dpg.add_slider_float(label="STDP Window (ms)", tag="stdp_window", default_value=20.0, min_value=5.0, max_value=50.0)
+                        with dpg.tooltip(parent=stdp_slider):
+                            dpg.add_text("Spike-timing dependent plasticity temporal window")
+                    
+                    energy_header = dpg.add_collapsing_header(label="Energy Parameters")
+                    with dpg.tooltip(parent=energy_header):
+                        dpg.add_text("Configure node birth and death thresholds")
+                    with dpg.group(parent=energy_header):
+                        birth_slider = dpg.add_slider_float(label="Birth Threshold", tag="birth_threshold", default_value=0.8, min_value=0.5, max_value=1.0)
+                        with dpg.tooltip(parent=birth_slider):
+                            dpg.add_text("Energy level required for new node creation")
+                        death_slider = dpg.add_slider_float(label="Death Threshold", tag="death_threshold", default_value=0.0, min_value=0.0, max_value=0.5)
+                        with dpg.tooltip(parent=death_slider):
+                            dpg.add_text("Energy level below which nodes die")
+                        update_slider = dpg.add_slider_int(label="Update Interval", tag="update_interval", default_value=50, min_value=10, max_value=200)
+                        with dpg.tooltip(parent=update_slider):
+                            dpg.add_text("Simulation update frequency in ms")
+                    
+                    viz_header = dpg.add_collapsing_header(label="Visualization")
+                    with dpg.tooltip(parent=viz_header):
+                        dpg.add_text("Customize visual appearance of graph elements")
+                    with dpg.group(parent=viz_header):
+                        active_color = dpg.add_color_edit(label="Node Active Color", tag="node_active_color", default_value=[0, 255, 0, 255])
+                        with dpg.tooltip(parent=active_color):
+                            dpg.add_text("Color for active/high-energy nodes")
+                        inactive_color = dpg.add_color_edit(label="Node Inactive Color", tag="node_inactive_color", default_value=[128, 128, 128, 255])
+                        with dpg.tooltip(parent=inactive_color):
+                            dpg.add_text("Color for inactive/low-energy nodes")
+                        edge_color_edit = dpg.add_color_edit(label="Edge Color", tag="edge_color", default_value=[255, 255, 255, 255])
+                        with dpg.tooltip(parent=edge_color_edit):
+                            dpg.add_text("Color for connection edges")
+                    
+                    dpg.add_separator()
+                    apply_btn = dpg.add_button(label="Apply Changes", callback=apply_config_changes)
+                    with dpg.tooltip(parent=apply_btn):
+                        dpg.add_text("Apply all parameter changes to simulation")
+                    reset_btn_config = dpg.add_button(label="Reset to Defaults", callback=reset_to_defaults)
+                    with dpg.tooltip(parent=reset_btn_config):
+                        dpg.add_text("Restore all parameters to default values")
 
             with dpg.tab(label="Help & Legend"):
                 dpg.add_text(default_value="Neural Simulation Legend")
                 dpg.add_separator()
                 
-                with dpg.group(horizontal=True):
-                    with dpg.child_window(width=200, height=300):
-                        dpg.add_text(default_value="Node Types:")
-                        dpg.add_text(default_value="• Sensory: Blue circles")
-                        dpg.add_text(default_value="• Dynamic: Green circles")
-                        dpg.add_text(default_value="• Oscillator: Pulsing yellow")
-                        dpg.add_text(default_value="• Integrator: Purple diamonds")
-                        dpg.add_text(default_value="• Relay: Orange squares")
-                        
-                        dpg.add_separator()
-                        dpg.add_text(default_value="Node States:")
-                        dpg.add_text(default_value="• Active: Bright color")
-                        dpg.add_text(default_value="• Inactive: Dimmed color")
-                        dpg.add_text(default_value="• Dying: Red tint")
-                        dpg.add_text(default_value="• Newborn: Flashing")
-                        
-                        dpg.add_separator()
-                        dpg.add_text(default_value="Edge Types:")
-                        dpg.add_text(default_value="• Excitatory: Solid green")
-                        dpg.add_text(default_value="• Inhibitory: Dashed red")
-                        dpg.add_text(default_value="• Modulatory: Dotted blue")
+                with dpg.child_window(height=-1, width=-1, tag="help_scroll", no_scrollbar=False, horizontal_scrollbar=True, border=False):
                     
-                    with dpg.child_window(width=200, height=300):
-                        dpg.add_text(default_value="Energy Levels:")
-                        dpg.add_text(default_value="• Low (<0.3): Dark")
-                        dpg.add_text(default_value="• Medium (0.3-0.7): Medium brightness")
-                        dpg.add_text(default_value="• High (>0.7): Bright/glowing")
+                    with dpg.group(horizontal=True):
+                        with dpg.child_window(width=200, height=300):
+                            dpg.add_text(default_value="Node Types:")
+                            dpg.add_text(default_value="• Sensory: Blue circles")
+                            dpg.add_text(default_value="• Dynamic: Green circles")
+                            dpg.add_text(default_value="• Oscillator: Pulsing yellow")
+                            dpg.add_text(default_value="• Integrator: Purple diamonds")
+                            dpg.add_text(default_value="• Relay: Orange squares")
+                            
+                            dpg.add_separator()
+                            dpg.add_text(default_value="Node States:")
+                            dpg.add_text(default_value="• Active: Bright color")
+                            dpg.add_text(default_value="• Inactive: Dimmed color")
+                            dpg.add_text(default_value="• Dying: Red tint")
+                            dpg.add_text(default_value="• Newborn: Flashing")
+                            
+                            dpg.add_separator()
+                            dpg.add_text(default_value="Edge Types:")
+                            dpg.add_text(default_value="• Excitatory: Solid green")
+                            dpg.add_text(default_value="• Inhibitory: Dashed red")
+                            dpg.add_text(default_value="• Modulatory: Dotted blue")
                         
-                        dpg.add_separator()
-                        dpg.add_text(default_value="Learning Indicators:")
-                        dpg.add_text(default_value="• LTP Active: Green glow on edges")
-                        dpg.add_text(default_value="• LTD Active: Red glow on edges")
-                        dpg.add_text(default_value="• Memory Trace: Blue outline on nodes")
-                        dpg.add_text(default_value="• IEG Tagged: Yellow star")
-                        
-                        dpg.add_separator()
-                        dpg.add_text(default_value="Controls:")
-                        dpg.add_text(default_value="• Mouse wheel: Zoom")
-                        dpg.add_text(default_value="• Right drag: Pan")
-                        dpg.add_text(default_value="• Checkboxes: Toggle layers")
-                        dpg.add_text(default_value="• Sliders: Adjust visuals")
+                        with dpg.child_window(width=200, height=300):
+                            dpg.add_text(default_value="Energy Levels:")
+                            dpg.add_text(default_value="• Low (<0.3): Dark")
+                            dpg.add_text(default_value="• Medium (0.3-0.7): Medium brightness")
+                            dpg.add_text(default_value="• High (>0.7): Bright/glowing")
+                            
+                            dpg.add_separator()
+                            dpg.add_text(default_value="Learning Indicators:")
+                            dpg.add_text(default_value="• LTP Active: Green glow on edges")
+                            dpg.add_text(default_value="• LTD Active: Red glow on edges")
+                            dpg.add_text(default_value="• Memory Trace: Blue outline on nodes")
+                            dpg.add_text(default_value="• IEG Tagged: Yellow star")
+                            
+                            dpg.add_separator()
+                            dpg.add_text(default_value="Controls:")
+                            dpg.add_text(default_value="• Mouse wheel: Zoom")
+                            dpg.add_text(default_value="• Right drag: Pan")
+                            dpg.add_text(default_value="• Checkboxes: Toggle layers")
+                            dpg.add_text(default_value="• Sliders: Adjust visuals")
 
 def get_manager():
     global _manager
@@ -540,29 +620,74 @@ def update_frame():
     update_graph_visualization()
  
  
+
 def create_ui():
     dpg.create_context()
     dpg.create_viewport(title="Neural Simulation System - Enhanced UI", width=1600, height=1000)
+    dpg.set_viewport_resizable(True)
     
-    # Setup theme for better visuals
-    with dpg.theme(tag="dark_theme"):
+    # Setup enhanced modern theme
+    with dpg.theme(tag="modern_neural_theme"):
         with dpg.theme_component(dpg.mvAll):
-            dpg.add_theme_color(dpg.mvThemeCol_WindowBg, [20, 20, 30, 255])
-            dpg.add_theme_color(dpg.mvThemeCol_TitleBg, [50, 50, 70, 255])
-            dpg.add_theme_color(dpg.mvThemeCol_TitleBgActive, [70, 70, 90, 255])
-            dpg.add_theme_color(dpg.mvThemeCol_Button, [60, 60, 80, 255])
-            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, [80, 80, 100, 255])
-            dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, [100, 100, 120, 255])
-            dpg.add_theme_color(dpg.mvThemeCol_FrameBg, [40, 40, 50, 255])
-            dpg.add_theme_color(dpg.mvThemeCol_PlotLines, [100, 200, 255, 255])
-    
-    dpg.bind_theme("dark_theme")
+            # Background and windows
+            dpg.add_theme_color(dpg.mvThemeCol_WindowBg, [15, 20, 35, 255])  # Deep navy
+            dpg.add_theme_color(dpg.mvThemeCol_ChildBg, [25, 30, 45, 255])
+            dpg.add_theme_color(dpg.mvThemeCol_PopupBg, [25, 30, 45, 255])
+            
+            # Title bars
+            dpg.add_theme_color(dpg.mvThemeCol_TitleBg, [40, 50, 70, 255])
+            dpg.add_theme_color(dpg.mvThemeCol_TitleBgActive, [60, 70, 90, 255])
+            
+            # Buttons - Neural green accents
+            dpg.add_theme_color(dpg.mvThemeCol_Button, [40, 70, 50, 255])
+            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, [50, 90, 70, 255])
+            dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, [60, 110, 90, 255])
+            
+            # Frames and inputs
+            dpg.add_theme_color(dpg.mvThemeCol_FrameBg, [30, 40, 55, 255])
+            dpg.add_theme_color(dpg.mvThemeCol_FrameBgHovered, [40, 50, 65, 255])
+            dpg.add_theme_color(dpg.mvThemeCol_FrameBgActive, [50, 60, 75, 255])
+            
+            # Sliders and plots
+            dpg.add_theme_color(dpg.mvThemeCol_SliderGrab, [100, 200, 150, 255])
+            dpg.add_theme_color(dpg.mvThemeCol_SliderGrabActive, [120, 220, 170, 255])
+            dpg.add_theme_color(dpg.mvThemeCol_PlotLines, [100, 200, 150, 255])
+            dpg.add_theme_color(dpg.mvThemeCol_PlotHistogram, [60, 150, 100, 255])
+            
+            # Text and selections
+            dpg.add_theme_color(dpg.mvThemeCol_Text, [220, 220, 230, 255])
+            dpg.add_theme_color(dpg.mvThemeCol_Header, [50, 70, 90, 255])
+            dpg.add_theme_color(dpg.mvThemeCol_HeaderHovered, [60, 80, 100, 255])
+            dpg.add_theme_color(dpg.mvThemeCol_HeaderActive, [70, 90, 110, 255])
+            
+            # Tab bar
+            dpg.add_theme_color(dpg.mvThemeCol_Tab, [30, 40, 55, 255])
+            dpg.add_theme_color(dpg.mvThemeCol_TabHovered, [40, 50, 65, 255])
+            dpg.add_theme_color(dpg.mvThemeCol_TabActive, [50, 60, 75, 255])
+            dpg.add_theme_color(dpg.mvThemeCol_TabUnfocused, [25, 30, 45, 255])
+            dpg.add_theme_color(dpg.mvThemeCol_TabUnfocusedActive, [35, 40, 55, 255])
+            
+            # Rounding for modern look
+            dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 4)
+            dpg.add_theme_style(dpg.mvStyleVar_WindowRounding, 6)
+            dpg.add_theme_style(dpg.mvStyleVar_PopupRounding, 4)
+            dpg.add_theme_style(dpg.mvStyleVar_TabRounding, 4)
+            
+            # Spacing and padding
+            dpg.add_theme_style(dpg.mvStyleVar_ItemSpacing, 8, 4)
+            dpg.add_theme_style(dpg.mvStyleVar_ItemInnerSpacing, 6, 4)
+            dpg.add_theme_style(dpg.mvStyleVar_WindowPadding, 10, 10)
+            dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 6, 4)
+            dpg.add_theme_style(dpg.mvStyleVar_CellPadding, 4, 2)
+            
+    dpg.bind_theme("modern_neural_theme")
+    dpg.set_global_font_scale(1.2)
     
     create_main_window()
-    dpg.set_primary_window(CONSTANTS['MAIN_WINDOW_TAG'], value=True)
+    dpg.set_primary_window(CONSTANTS['MAIN_WINDOW_TAG'], True)
     
     # Create about dialog window
-    with dpg.window(label="About Neural Simulation", modal=True, show=False, tag="about_dialog"):
+    with dpg.window(label="About Neural Simulation", modal=True, show=False, tag="about_dialog", no_move=True):
         dpg.add_text(default_value="Neural Simulation System v2.0")
         dpg.add_text(default_value="Enhanced UI with real-time visualization")
         dpg.add_text(default_value="Features:")
@@ -573,7 +698,19 @@ def create_ui():
         dpg.add_text(default_value="• Advanced learning visualization")
         dpg.add_separator()
         dpg.add_text(default_value="Built with Dear PyGui and PyTorch Geometric")
-        dpg.add_button(label="Close", callback=lambda: dpg.configure_item("about_dialog", show=False))
+        close_about = dpg.add_button(label="Close", callback=lambda: dpg.configure_item("about_dialog", show=False))
+        with dpg.tooltip(parent=close_about):
+            dpg.add_text("Close this dialog")
+    
+    # Create logs modal
+    with dpg.window(label="Event Logs", modal=True, show=False, tag=CONSTANTS['LOGS_MODAL_TAG'], no_move=True):
+        dpg.add_text("Detailed Simulation Logs:")
+        dpg.add_separator()
+        logs_text = dpg.add_input_text(default_value="No logs available.", tag=CONSTANTS['LOGS_TEXT_TAG'], multiline=True, readonly=True, height=400, width=600)
+        with dpg.tooltip(parent=logs_text):
+            dpg.add_text("Scrollable log of recent events")
+        dpg.add_separator()
+        dpg.add_button(label="Close", callback=lambda: dpg.configure_item(CONSTANTS['LOGS_MODAL_TAG'], show=False))
     
     # Add menu bar
     main_menu = dpg.add_menu_bar(parent=CONSTANTS['MAIN_WINDOW_TAG'], tag="main_menu")
@@ -599,6 +736,19 @@ def create_ui():
     
     dpg.destroy_context()
 
+
+def view_logs_callback():
+    """Callback to show logs modal."""
+    try:
+        current_logs = dpg.get_value("events_log")
+        dpg.set_value(CONSTANTS['LOGS_TEXT_TAG'], current_logs + "\n--- Additional system logs ---\n" + logging.getLogger().getEffectiveLevel())
+        dpg.configure_item(CONSTANTS['LOGS_MODAL_TAG'], show=True)
+    except Exception as e:
+        dpg.set_value("events_log", f"Log view error: {str(e)}")
+
+def run_ui():
+    """Entry point for launcher to run the UI."""
+    create_ui()
 
 def export_metrics():
     global _manager

@@ -1,5 +1,6 @@
 
 import time
+import torch
 
 
 
@@ -132,9 +133,15 @@ def apply_energy_behavior(graph, behavior_params=None, _recursion_depth=0):
     if not hasattr(graph, 'node_labels') or not hasattr(graph, 'x') or graph.x is None:
         return graph
     if hasattr(graph, 'x') and graph.x is not None:
+        log_step("Before tensor ops", shape=graph.x.shape if hasattr(graph, 'x') else None, device=graph.x.device if hasattr(graph, 'x') and graph.x is not None else None, num_nodes=len(graph.node_labels))
         current_energies = graph.x[:, 0]
+        log_step("After slice", shape=current_energies.shape)
         current_energies.mul_(0.99)
+        log_step("After mul_")
         current_energies.clamp_(min=0.0)
+        log_step("After clamp_")
+        if torch.isnan(current_energies).any():
+            log_step("NaN detected after ops")
         energy_cap = _ENERGY_CAP_PRECACHED
         if energy_cap <= 0:
             energy_cap = 1.0

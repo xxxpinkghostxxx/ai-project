@@ -1,9 +1,11 @@
-
 from ui.screen_graph import capture_screen, create_pixel_gray_graph, RESOLUTION_SCALE
 from neural.dynamic_nodes import add_dynamic_nodes
 from utils.pattern_consolidation_utils import create_workspace_node, create_sensory_node, create_dynamic_node
 import torch
+import logging
+import threading
 
+ 
 
 
 def create_workspace_grid():
@@ -90,7 +92,7 @@ def create_test_graph(num_sensory=100, num_dynamic=20):
     from energy.node_id_manager import get_id_manager
     
     id_manager = get_id_manager()
-    x = torch.randn(num_sensory + num_dynamic, 1)
+    x = torch.abs(torch.randn(num_sensory + num_dynamic, 1)) * 100  # Positive initial energies 0-100
     node_labels = []
     
     # Create sensory nodes
@@ -155,7 +157,7 @@ def create_test_graph_with_workspace(num_sensory=100, num_dynamic=20, num_worksp
     from energy.node_id_manager import get_id_manager
     
     id_manager = get_id_manager()
-    x = torch.randn(num_sensory + num_dynamic + num_workspace, 1)
+    x = torch.abs(torch.randn(num_sensory + num_dynamic + num_workspace, 1)) * 100  # Positive initial
     node_labels = []
     
     # Create sensory nodes with spatial coordinates
@@ -250,6 +252,68 @@ def initialize_main_graph(scale=RESOLUTION_SCALE):
     main_graph = add_dynamic_nodes(pixel_graph)
     workspace_graph = create_workspace_grid()
     full_graph = merge_graphs(main_graph, workspace_graph)
+    if len(full_graph.node_labels) == 0:
+        full_graph = add_dynamic_nodes(full_graph, num_dynamic=5)
+
+    # Fast initialization of sparse random edges with bounded average out-degree
+    import numpy as np
+    from neural.connection_logic import EnhancedEdge
+
+    num_nodes = full_graph.x.shape[0]
+    edge_list = []
+
+    # Ensure edge attribute containers exist
+    if not hasattr(full_graph, 'edge_attributes'):
+        full_graph.edge_attributes = []
+    if not hasattr(full_graph, '_edge_attributes_lock'):
+        full_graph._edge_attributes_lock = threading.Lock()
+
+    # Parameters for faster initialization
+    avg_out_degree = 4  # default average number of outgoing edges per node
+    # Soft cap to prevent pathological startup times on very large graphs
+    max_initial_edges = max(10000, min(num_nodes * avg_out_degree, 50000))
+    seen = set()
+
+    if num_nodes > 1:
+        logging.info(f"[INIT] Generating initial edges with avg_out_degree={avg_out_degree}, num_nodes={num_nodes}")
+        for i in range(num_nodes):
+            # Sample an out-degree around the target average; clamp within valid range
+            deg = int(np.random.poisson(avg_out_degree))
+            if deg <= 0:
+                continue
+            deg = min(deg, num_nodes - 1)
+
+            # Choose distinct targets excluding self efficiently
+            # Sample from [0, num_nodes-2], then shift indices >= i by +1 to skip self
+            targets = np.random.choice(num_nodes - 1, size=min(deg, num_nodes - 1), replace=False)
+            targets = targets + (targets >= i)
+
+            for j in targets:
+                key = (i, int(j))
+                if key in seen:
+                    continue
+                seen.add(key)
+
+                edge_list.append([i, int(j)])
+                edge_type = np.random.choice(['excitatory', 'inhibitory'])
+                weight = float(np.random.uniform(0.1, 1.0))
+                edge = EnhancedEdge(i, int(j), weight=weight, edge_type=edge_type)
+                with full_graph._edge_attributes_lock:
+                    full_graph.edge_attributes.append(edge)
+
+                # Periodic progress logging and soft cap enforcement
+                if len(edge_list) % 10000 == 0:
+                    logging.info(f"[INIT] Edge generation progress: {len(edge_list)} edges")
+                if len(edge_list) >= max_initial_edges:
+                    break
+
+            if len(edge_list) >= max_initial_edges:
+                break
+
+    full_graph.edge_index = torch.tensor(edge_list, dtype=torch.long).t().contiguous() if edge_list else torch.empty((2, 0), dtype=torch.long).contiguous()
+    edge_count = full_graph.edge_index.shape[1]
+    density = (edge_count / (num_nodes * (num_nodes - 1))) if num_nodes > 1 else 0.0
+    logging.info(f"Graph created with {len(full_graph.node_labels)} nodes and {edge_count} initial edges (density: {density:.6f})")
     return full_graph
 if __name__ == "__main__":
     import time
@@ -263,3 +327,6 @@ if __name__ == "__main__":
             time.sleep(0.5)
     except KeyboardInterrupt:
         print("Stopped.")
+    except Exception as e:
+        print(f"Unexpected error in main loop: {e}")
+        time.sleep(1.0)  # Brief pause before potential restart

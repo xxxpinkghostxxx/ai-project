@@ -83,7 +83,7 @@ def test_critical_imports() -> Tuple[bool, Dict[str, Any]]:
         "numpy", "torch", "torch_geometric.data",
         "simulation_manager", "ui.ui_engine", "neural.behavior_engine",
         "energy.node_access_layer", "energy.energy_behavior", "neural.connection_logic",
-        "energy.node_id_manager", "config.config_manager", "utils.performance_monitor",
+        "energy.node_id_manager", "config.unified_config_manager", "utils.performance_monitor",
         "neural.spike_queue_system", "neural.event_driven_system", "learning.live_hebbian_learning",
         "neural.neural_map_persistence", "sensory.sensory_workspace_mapper", "sensory.visual_energy_bridge",
         "sensory.audio_to_neural_bridge", "neural.enhanced_neural_integration", "neural.workspace_engine",

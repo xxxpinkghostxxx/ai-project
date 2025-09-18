@@ -211,11 +211,17 @@ class HomeostasisController:
             new_death_threshold = min(new_death_threshold, 50.0)
             new_birth_threshold = current_birth_threshold - (adaptive_rate * 50.0)
             new_birth_threshold = max(new_birth_threshold, 50.0)
+            # Modulate learning rate: high energy, slightly increase plasticity for adaptation
+            current_plasticity_rate = get_config('Learning', 'plasticity_rate', 0.01, float)
+            new_plasticity_rate = min(current_plasticity_rate + (adaptive_rate * 0.01), 0.1)
+            config.set_value('Learning', 'plasticity_rate', new_plasticity_rate)
             log_step("Energy reduction regulation applied",
                     old_death_threshold=current_death_threshold,
                     new_death_threshold=new_death_threshold,
                     old_birth_threshold=current_birth_threshold,
-                    new_birth_threshold=new_birth_threshold)
+                    new_birth_threshold=new_birth_threshold,
+                    old_plasticity_rate=current_plasticity_rate,
+                    new_plasticity_rate=new_plasticity_rate)
             config.set_value('NodeLifecycle', 'death_threshold', new_death_threshold)
             config.set_value('NodeLifecycle', 'birth_threshold', new_birth_threshold)
         elif regulation_type == 'increase_energy':
@@ -225,11 +231,17 @@ class HomeostasisController:
             new_death_threshold = max(new_death_threshold, 0.0)
             new_birth_threshold = current_birth_threshold + (adaptive_rate * 50.0)
             new_birth_threshold = min(new_birth_threshold, 300.0)
+            # Modulate learning rate: low energy, decrease plasticity to conserve resources
+            current_plasticity_rate = get_config('Learning', 'plasticity_rate', 0.01, float)
+            new_plasticity_rate = max(current_plasticity_rate - (adaptive_rate * 0.005), 0.001)
+            config.set_value('Learning', 'plasticity_rate', new_plasticity_rate)
             log_step("Energy increase regulation applied",
                     old_death_threshold=current_death_threshold,
                     new_death_threshold=new_death_threshold,
                     old_birth_threshold=current_birth_threshold,
-                    new_birth_threshold=new_birth_threshold)
+                    new_birth_threshold=new_birth_threshold,
+                    old_plasticity_rate=current_plasticity_rate,
+                    new_plasticity_rate=new_plasticity_rate)
             config.set_value('NodeLifecycle', 'death_threshold', new_death_threshold)
             config.set_value('NodeLifecycle', 'birth_threshold', new_birth_threshold)
         if not hasattr(graph, 'homeostasis_data'):

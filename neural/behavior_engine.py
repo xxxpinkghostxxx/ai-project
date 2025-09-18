@@ -1,4 +1,5 @@
 import time
+import logging
 import numpy as np
 import torch
 from typing import Dict, Any, List, Optional, Tuple, Callable
@@ -220,18 +221,27 @@ class BehaviorEngine:
             log_step(f"Recovery failed for node {node_id}", error=str(e))
             return False
     def update_sensory_node(self, node_id: int, graph: Data, step: int, access_layer=None) -> None:
-
+        logging.debug(f"update_sensory_node: node_id={node_id}, step={step}")
         if access_layer is None:
             from energy.node_access_layer import NodeAccessLayer
             access_layer = NodeAccessLayer(graph)
         refractory_timer = access_layer.get_node_property(node_id, 'refractory_timer', 0.0)
+        logging.debug(f"Sensory node {node_id}: refractory_timer={refractory_timer}")
         if refractory_timer > 0:
-            access_layer.update_node_property(node_id, 'refractory_timer', max(0.0, refractory_timer - get_time_step()))
+            new_refractory = max(0.0, refractory_timer - get_time_step())
+            access_layer.update_node_property(node_id, 'refractory_timer', new_refractory)
+            logging.debug(f"Sensory node {node_id}: updated refractory to {new_refractory}")
             return
+        logging.debug(f"Sensory node {node_id}: getting energy")
         energy = access_layer.get_node_energy(node_id)
+        logging.debug(f"Sensory node {node_id}: energy={energy}")
         if energy is not None:
-            access_layer.update_node_property(node_id, 'membrane_potential', min(energy / get_energy_cap_255(), 1.0))
+            membrane = min(energy / get_energy_cap_255(), 1.0)
+            access_layer.update_node_property(node_id, 'membrane_potential', membrane)
             access_layer.update_node_property(node_id, 'state', 'active')
+            logging.debug(f"Sensory node {node_id}: set membrane={membrane}, state=active")
+        else:
+            logging.warning(f"Sensory node {node_id}: energy is None, skipping update")
     def update_dynamic_node(self, node_id: int, graph: Data, step: int, access_layer=None) -> None:
 
         if access_layer is None:

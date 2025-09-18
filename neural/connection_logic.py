@@ -91,7 +91,7 @@ def create_weighted_connection(graph, source_id, target_id, weight, edge_type='e
         if source_index >= len(graph.node_labels) or target_index >= len(graph.node_labels):
             logging.error(f"Node indices out of bounds: source_index={source_index}, target_index={target_index}, graph_size={len(graph.node_labels)}")
             return graph
-        edge = EnhancedEdge(source_id, target_id, weight, edge_type)
+        edge = EnhancedEdge(source_index, target_index, weight, edge_type)
         new_edge = torch.tensor([[source_index], [target_index]], dtype=torch.long)
         if graph.edge_index.numel() == 0:
             graph.edge_index = new_edge
@@ -103,6 +103,9 @@ def create_weighted_connection(graph, source_id, target_id, weight, edge_type='e
             graph._edge_attributes_lock = threading.RLock()
         with graph._edge_attributes_lock:
             graph.edge_attributes.append(edge)
+        
+        # Diagnostic log for connection creation
+        logging.info(f"[CONNECTION] Created edge: source={source_id} (idx={source_index}) to target={target_id} (idx={target_index}), type={edge_type}, weight={weight}")
         return graph
     except Exception as e:
         logging.error(f"Error creating connection between {source_id} and {target_id}: {e}")
@@ -238,11 +241,18 @@ def intelligent_connection_formation(graph):
                     dynamic_id = dynamic_node.get('id')
                     if dynamic_id is None:
                         continue
+                    dynamic_energy = graph.x[dynamic_idx, 0].item() if hasattr(graph, 'x') else 0.0
+                    energy_cap = get_node_energy_cap()
+                    energy_mod = (sensory_energy + dynamic_energy) / (2 * energy_cap) if energy_cap > 0 else 1.0
                     connection_types = ['excitatory', 'modulatory', 'plastic']
                     connection_type = connection_types[connections_created % len(connection_types)]
-                    weight = 0.3 + (connections_created * 0.1)
+                    base_weight = 0.3 + (connections_created * 0.1)
+                    weight = base_weight * max(0.5, energy_mod)  # Modulate by energy, min 0.5 to avoid too weak
                     create_weighted_connection(graph, sensory_id, dynamic_id, weight, connection_type)
                     connections_created += 1
+                    
+                    # Diagnostic: Log sensory-dynamic connection
+                    logging.info(f"[FORMATION] Sensory-dynamic connection created: {sensory_id} -> {dynamic_id}, type={connection_type}, weight={weight}, energy_mod={energy_mod:.2f}")
     if len(dynamic_nodes) > 1 and connections_created < max_connections:
         limited_dynamic = dynamic_nodes[:3]
         for i, node1_idx in enumerate(limited_dynamic):
@@ -270,9 +280,17 @@ def intelligent_connection_formation(graph):
                     if cluster_similarity and affinity_compatible and position_proximity:
                         connection_types = ['excitatory', 'inhibitory', 'plastic', 'burst']
                         connection_type = connection_types[connections_created % len(connection_types)]
-                        weight = 0.2 + (connections_created * 0.05)
+                        energy1 = graph.x[node1_idx, 0].item() if hasattr(graph, 'x') else 0.0
+                        energy2 = graph.x[node2_idx, 0].item() if hasattr(graph, 'x') else 0.0
+                        energy_cap = get_node_energy_cap()
+                        energy_mod = (energy1 + energy2) / (2 * energy_cap) if energy_cap > 0 else 1.0
+                        base_weight = 0.2 + (connections_created * 0.05)
+                        weight = base_weight * max(0.5, energy_mod)  # Modulate by energy, min 0.5
                         create_weighted_connection(graph, node1_id, node2_id, weight, connection_type)
                         connections_created += 1
+                        
+                        # Diagnostic: Log dynamic-dynamic connection
+                        logging.info(f"[FORMATION] Dynamic-dynamic connection created: {node1_id} -> {node2_id}, type={connection_type}, weight={weight}, energy_mod={energy_mod:.2f}, criteria: cluster_sim={cluster_similarity}, affinity_compat={affinity_compatible}, pos_prox={position_proximity}")
     oscillator_nodes = [i for i, node in enumerate(graph.node_labels) if node.get('behavior') == 'oscillator']
     integrator_nodes = [i for i, node in enumerate(graph.node_labels) if node.get('behavior') == 'integrator']
     if oscillator_nodes and integrator_nodes:
@@ -287,7 +305,15 @@ def intelligent_connection_formation(graph):
                     int_id = int_node.get('id')
                     if int_id is None:
                         continue
-                    create_weighted_connection(graph, osc_id, int_id, 0.4, 'excitatory')
+                    osc_energy = graph.x[osc_idx, 0].item() if hasattr(graph, 'x') else 0.0
+                    int_energy = graph.x[int_idx, 0].item() if hasattr(graph, 'x') else 0.0
+                    energy_cap = get_node_energy_cap()
+                    energy_mod = (osc_energy + int_energy) / (2 * energy_cap) if energy_cap > 0 else 1.0
+                    weight = 0.4 * max(0.5, energy_mod)
+                    create_weighted_connection(graph, osc_id, int_id, weight, 'excitatory')
+                    
+                    # Diagnostic: Log oscillator-integrator connection
+                    logging.info(f"[FORMATION] Oscillator-integrator connection created: {osc_id} -> {int_id}, weight={weight}, energy_mod={energy_mod:.2f}, excitatory")
     relay_nodes = [i for i, node in enumerate(graph.node_labels) if node.get('behavior') == 'relay']
     highway_nodes = [i for i, node in enumerate(graph.node_labels) if node.get('behavior') == 'highway']
     if relay_nodes and highway_nodes:
@@ -302,7 +328,15 @@ def intelligent_connection_formation(graph):
                     highway_id = highway_node.get('id')
                     if highway_id is None:
                         continue
-                    create_weighted_connection(graph, relay_id, highway_id, 0.6, 'excitatory')
+                    relay_energy = graph.x[relay_idx, 0].item() if hasattr(graph, 'x') else 0.0
+                    highway_energy = graph.x[highway_idx, 0].item() if hasattr(graph, 'x') else 0.0
+                    energy_cap = get_node_energy_cap()
+                    energy_mod = (relay_energy + highway_energy) / (2 * energy_cap) if energy_cap > 0 else 1.0
+                    weight = 0.6 * max(0.5, energy_mod)
+                    create_weighted_connection(graph, relay_id, highway_id, weight, 'excitatory')
+                    
+                    # Diagnostic: Log relay-highway connection
+                    logging.info(f"[FORMATION] Relay-highway connection created: {relay_id} -> {highway_id}, weight={weight}, energy_mod={energy_mod:.2f}, excitatory")
     import random
     num_random_connections = min(10, num_nodes // 5)
     for _ in range(num_random_connections):
@@ -314,7 +348,15 @@ def intelligent_connection_formation(graph):
             source_id = source_node.get('id')
             target_id = target_node.get('id')
             if source_id and target_id is not None:
-                create_weighted_connection(graph, source_id, target_id, 0.2, 'excitatory')
+                source_energy = graph.x[source_idx, 0].item() if hasattr(graph, 'x') else 0.0
+                target_energy = graph.x[target_idx, 0].item() if hasattr(graph, 'x') else 0.0
+                energy_cap = get_node_energy_cap()
+                energy_mod = (source_energy + target_energy) / (2 * energy_cap) if energy_cap > 0 else 1.0
+                weight = 0.2 * max(0.5, energy_mod)
+                create_weighted_connection(graph, source_id, target_id, weight, 'excitatory')
+                
+                # Diagnostic: Log random connection
+                logging.info(f"[FORMATION] Random connection created: {source_id} -> {target_id}, weight={weight}, energy_mod={energy_mod:.2f}, excitatory")
     return graph
 
 

@@ -126,6 +126,8 @@ class PerformanceMonitor:
             )
             self._monitor_thread.start()
             logging.info("Performance monitoring started")
+            # Added log to confirm thread start
+            logging.info(f"Monitor thread started: alive={self._monitor_thread.is_alive() if self._monitor_thread else False}")
     def stop_monitoring(self) -> None:
         with self._lock:
             if not self._monitoring:
@@ -135,6 +137,7 @@ class PerformanceMonitor:
                 self._monitor_thread.join(timeout=2.0)
             logging.info("Performance monitoring stopped")
     def _monitoring_loop(self) -> None:
+        logging.info("Performance monitoring loop started")
         while self._monitoring:
             try:
                 self._update_metrics()
@@ -143,6 +146,7 @@ class PerformanceMonitor:
             except Exception as e:
                 logging.error(f"Error in monitoring loop: {e}")
                 time.sleep(self.update_interval)
+        logging.info("Performance monitoring loop stopped")
     def _update_metrics(self) -> None:
         current_time = time.time()
         self.current_metrics.total_runtime = current_time - self.start_time
@@ -164,6 +168,9 @@ class PerformanceMonitor:
         snapshot = PerformanceMetrics(**asdict(self.current_metrics))
         self.metrics_history.append(snapshot)
         self.last_update_time = current_time
+        # Added periodic log every 10 updates (approx every 10s default interval)
+        if len(self.metrics_history) % 10 == 0:
+            logging.debug(f"Metrics updated: FPS={self.current_metrics.fps:.2f}, CPU={self.current_metrics.cpu_percent:.1f}%, Mem={self.current_metrics.memory_percent:.1f}%, Steps={self.total_steps}")
     def _update_memory_metrics(self) -> None:
         try:
             current_time = time.time()
@@ -332,6 +339,8 @@ class PerformanceMonitor:
         try:
             alert_message = f"Performance {severity.upper()}: {alert_type} - {data}"
             logging.warning(alert_message)
+            # Added log for alert visibility
+            logging.info(f"Performance alert triggered: {severity} - {alert_type} - {data}")
             for callback in self.alert_callbacks:
                 try:
                     callback(severity, alert_type, data)
@@ -355,6 +364,9 @@ class PerformanceMonitor:
                 self.current_metrics.fps = 1.0 / avg_step_time if avg_step_time > 0 else 0.0
             else:
                 self.current_metrics.fps = 0.0
+            # Added log for step recording confirmation (debug to avoid spam)
+            if self.total_steps % 100 == 0:
+                logging.debug(f"Recorded step {self.total_steps}: time={step_time:.4f}s, FPS={self.current_metrics.fps:.2f}, nodes={node_count}")
     def record_error(self) -> None:
         with self._lock:
             self.error_count += 1

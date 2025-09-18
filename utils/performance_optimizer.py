@@ -13,6 +13,7 @@ from collections import deque, defaultdict
 from enum import Enum
 import numpy as np
 import weakref
+from utils.unified_error_handler import ErrorSeverity
 
 class OptimizationLevel(Enum):
     """Performance optimization levels."""
@@ -103,7 +104,9 @@ class PerformanceMonitor:
                 self._check_thresholds(metrics)
                 time.sleep(self.update_interval)
             except Exception as e:
-                print(f"Error in performance monitoring: {e}")
+                from utils.unified_error_handler import get_error_handler
+                error_handler = get_error_handler()
+                error_handler.handle_error(e, "performance_monitoring_loop", severity=ErrorSeverity.MEDIUM)
                 time.sleep(1)
     
     def _collect_metrics(self) -> PerformanceMetrics:
@@ -174,7 +177,9 @@ class PerformanceMonitor:
             try:
                 callback(threshold_name, metrics)
             except Exception as e:
-                print(f"Error in threshold callback: {e}")
+                from utils.unified_error_handler import get_error_handler
+                error_handler = get_error_handler()
+                error_handler.handle_error(e, "threshold_callback", severity=ErrorSeverity.LOW)
     
     def add_threshold_callback(self, threshold_name: str, callback: Callable):
         """Add a callback for threshold violations."""
@@ -433,7 +438,9 @@ class AdaptiveProcessor:
                     remaining_time -= actual_time
                 except Exception as e:
                     results[name] = None
-                    print(f"Error processing component {name}: {e}")
+                    from utils.unified_error_handler import get_error_handler
+                    error_handler = get_error_handler()
+                    error_handler.handle_error(e, f"adaptive_processing_{name}", severity=ErrorSeverity.MEDIUM)
             else:
                 # Skip this component if not enough time
                 results[name] = None

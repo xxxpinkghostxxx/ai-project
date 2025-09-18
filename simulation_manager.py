@@ -2,11 +2,13 @@
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from neural.dynamic_nodes import add_dynamic_nodes
 
 from typing import Optional, Dict, Any, List, Callable
 
 from utils.logging_utils import log_step
 from utils.performance_monitor import PerformanceMonitor, record_simulation_step, record_simulation_error, record_simulation_warning
+from utils.unified_performance_system import get_adaptive_processor
 
 import time
 import threading
@@ -17,6 +19,7 @@ import numpy as np
 import configparser
 import os
 import functools
+import asyncio
 
 
 # Minimal performance hooks used by legacy references
@@ -70,6 +73,10 @@ class SimulationManager:
         self._initialize_callbacks()
         self._load_configuration()
         self._validate_initialization()
+        # Initialize adaptive processor
+        adaptive = get_adaptive_processor()
+        adaptive.enable_adaptive_processing()
+        logging.info(f"AdaptiveProcessor enabled: adaptive_enabled={adaptive.adaptive_enabled if hasattr(adaptive, 'adaptive_enabled') else 'unknown'}")
     
     def _initialize_basic_properties(self, config: Optional[Dict[str, Any]]):
         """Initialize basic properties and threading."""
@@ -86,6 +93,7 @@ class SimulationManager:
         self.last_visual_data = None
         self.last_audio_data = None
         self.update_interval = self.get_config('Processing', 'update_interval', 0.016, float)  # Default ~60 FPS
+        self.headless = False  # Flag for non-GUI runs
     
     def _initialize_core_engines(self):
         """Initialize core simulation engines."""
@@ -169,9 +177,12 @@ class SimulationManager:
             self.performance_monitor = PerformanceMonitor(update_interval=update_interval)
             self.performance_monitor.start_monitoring()
             logging.info("Performance monitor created and started")
+            # Added log to confirm init
+            logging.info(f"PerformanceMonitor active: monitoring={self.performance_monitor._monitoring if hasattr(self.performance_monitor, '_monitoring') else 'unknown'}")
             return self.performance_monitor
         except Exception as e:
             logging.warning(f"Failed to create performance monitor: {e}")
+            logging.error(f"PerformanceMonitor init exception details: {type(e).__name__}: {str(e)}")
             return None
 
     def _initialize_performance_tracking(self):
@@ -195,8 +206,9 @@ class SimulationManager:
             'uptime': 0.0
         }
         self.memory_update_interval = 10
-        self.homeostasis_update_interval = 20
+        self.homeostasis_update_interval = 10
         self.event_processing_interval = 5
+        self.frame_counter = 0
         self.config_file = 'config.ini'
     
     def _initialize_callbacks(self):
@@ -324,10 +336,13 @@ class SimulationManager:
         try:
             from core.main_graph import initialize_main_graph
             graph = initialize_main_graph()
+            if len(graph.node_labels) == 0:
+                graph = add_dynamic_nodes(graph, num_dynamic=100)  # Reduced from 230400 to prevent crashes on large graph
             if self.id_manager is not None:
                 graph_size = len(graph.node_labels) if hasattr(graph, 'node_labels') else 0
                 self.id_manager.set_max_graph_size(graph_size)
                 log_step("Graph size limit set in ID manager", graph_size=graph_size)
+            logging.debug(f"Graph created with {len(graph.node_labels)} nodes")
             self.set_graph(graph)
             logging.info("Graph initialized successfully")
             return True
@@ -340,7 +355,7 @@ class SimulationManager:
         self.metrics_callbacks.append(callback)
     def add_error_callback(self, callback: Callable):
         self.error_callbacks.append(callback)
-    def run_single_step(self) -> bool:
+    async def run_single_step(self) -> bool:
         """Execute a single simulation step with error handling."""
         assert self.graph is not None, "Graph must be initialized before running simulation step"
         assert hasattr(self, 'step_counter'), "Step counter must be initialized"
@@ -352,6 +367,7 @@ class SimulationManager:
         try:
             step_start_time = time.time()
             self.step_counter += 1
+            self.frame_counter += 1
             
             # Process all simulation components
             self._process_sensory_input()
@@ -363,14 +379,25 @@ class SimulationManager:
             self._process_workspace_systems()
             self._process_node_lifecycle()
             self._process_memory_systems()
-            self._process_homeostatic_control()
-            self._process_visual_systems()
-            self._process_metrics_and_callbacks()
-            try:
-                self.event_bus.emit('GRAPH_UPDATE', {'graph': self.graph})
-                self.event_bus.emit('UI_REFRESH', {})
-            except Exception:
-                pass  # Fallback: direct UI updates if any
+            if self.step_counter % 10 == 0:
+                if not get_adaptive_processor().should_skip('homeostatic', cpu_threshold=80):
+                    self._process_homeostatic_control()
+            if self.step_counter % 10 == 0:
+                if not get_adaptive_processor().should_skip('visual', cpu_threshold=80):
+                    self._process_visual_systems()
+            if self.frame_counter % 10 == 0:
+                skip_metrics = get_adaptive_processor().should_skip('metrics', cpu_threshold=80)
+                logging.debug(f"Metrics processing check: frame_counter={self.frame_counter}, skip={skip_metrics}")
+                if not skip_metrics:
+                    self._process_metrics_and_callbacks()
+                else:
+                    logging.warning("Metrics processing skipped due to adaptive processor")
+            if not self.headless:
+                try:
+                    self.event_bus.emit('GRAPH_UPDATE', {'graph': self.graph})
+                    self.event_bus.emit('UI_REFRESH', {})
+                except Exception:
+                    pass  # Fallback: direct UI updates if any
             
             # Update performance statistics
             self._update_step_statistics(step_start_time)
@@ -494,15 +521,25 @@ class SimulationManager:
         """Process node birth and death."""
         if self.step_counter % 50 == 0 and len(self.graph.node_labels) < 50000:
             try:
-                birth_new_dynamic_nodes(self.graph)
+                self.graph = self.birth_new_dynamic_nodes(self.graph)
+                # Trigger connections for new nodes
+                self.graph = intelligent_connection_formation(self.graph)
             except Exception as e:
                 logging.warning(f"Node birth failed: {e}")
         
         if self.step_counter % 50 == 0:
             try:
-                remove_dead_dynamic_nodes(self.graph)
+                self.graph = self.remove_dead_dynamic_nodes(self.graph)
             except Exception as e:
                 logging.warning(f"Node death failed: {e}")
+
+    def birth_new_dynamic_nodes(self, graph):
+        from neural.death_and_birth_logic import birth_new_dynamic_nodes
+        return birth_new_dynamic_nodes(graph)
+
+    def remove_dead_dynamic_nodes(self, graph):
+        from neural.death_and_birth_logic import remove_dead_dynamic_nodes
+        return remove_dead_dynamic_nodes(graph)
 
     def _process_memory_systems(self):
         """Process memory system updates."""
@@ -607,12 +644,29 @@ class SimulationManager:
         """Process metrics calculation and callbacks."""
         if self.step_counter % 200 == 0:
             try:
+                import json
+                import time
+                logging.info(f"Calculating metrics at step {self.step_counter}, graph nodes: {len(self.graph.node_labels) if self.graph else 0}")
                 metrics = self.network_metrics.calculate_comprehensive_metrics(self.graph)
                 self.performance_stats['last_metrics'] = metrics
+                logging.info(f"Metrics calculated: criticality={metrics.get('criticality', 'N/A')}, connectivity={metrics.get('connectivity', {}).get('density', 'N/A') if isinstance(metrics.get('connectivity'), dict) else 'N/A'}")
                 self._execute_metrics_callbacks(metrics)
                 self._log_step_metrics(metrics)
+                # Save metrics to JSON
+                timestamp = time.strftime("%Y%m%d_%H%M%S")
+                data = {
+                    'timestamp': time.time(),
+                    'step': self.step_counter,
+                    'performance_stats': self.performance_stats.copy(),
+                    'network_metrics': metrics
+                }
+                filename = f"simulation_metrics_{timestamp}.json"
+                with open(filename, 'w') as f:
+                    json.dump(data, f, indent=2, default=str)
+                logging.info(f"Metrics saved to {filename}")
             except Exception as e:
-                logging.warning(f"Metrics calculation failed: {e}")
+                logging.warning(f"Metrics calculation or save failed: {e}")
+                logging.error(f"Metrics calc exception details: {type(e).__name__}: {str(e)}")
 
     def _execute_metrics_callbacks(self, metrics):
         """Execute metrics callbacks with error handling."""
@@ -655,6 +709,7 @@ class SimulationManager:
         # Record step metrics
         node_count = self._get_node_count()
         edge_count = self._get_edge_count()
+        logging.debug(f"Recording simulation step: time={step_time:.4f}s, nodes={node_count}, edges={edge_count}")
         record_simulation_step(step_time, node_count, edge_count)
         
         # Update performance monitor
@@ -666,7 +721,10 @@ class SimulationManager:
         
         # Record final step metrics
         if self.performance_monitor:
+            logging.debug(f"PerformanceMonitor recording step: time={step_time:.4f}s")
             self.performance_monitor.record_step(step_time, node_count, edge_count)
+        else:
+            logging.warning("PerformanceMonitor is None, cannot record step")
 
     def _execute_step_callbacks(self):
         """Execute step callbacks with error handling."""
@@ -713,7 +771,7 @@ class SimulationManager:
         """Check if audio data is available with simplified conditional."""
         return hasattr(self, 'last_audio_data') and self.last_audio_data is not None
 
-    def _add_initial_dynamic_nodes(self, num_nodes=3):
+    def _add_initial_dynamic_nodes(self, num_nodes=5):
         """Add initial dynamic nodes if graph is empty."""
         from energy.energy_behavior import get_node_energy_cap
         graph = self.graph
@@ -750,6 +808,7 @@ class SimulationManager:
 
         if not hasattr(graph, 'edge_index') or graph.edge_index.numel() == 0:
             graph.edge_index = torch.empty((2, 0), dtype=torch.long)
+        logging.debug(f"Graph created with {len(graph.node_labels)} nodes")
     def start_simulation(self, run_in_thread: bool = True):
 
         with self._lock:
@@ -759,19 +818,22 @@ class SimulationManager:
             if self.graph is None:
                 logging.error("No graph set for simulation")
                 return
+            if not hasattr(self.graph, 'node_labels') or not hasattr(self.graph, 'x'):
+                logging.error("Graph missing required attributes: node_labels or x")
+                return
             self.is_running = True
             self.simulation_running = True
             self.step_counter = 0
         if run_in_thread:
             self.simulation_thread = threading.Thread(
-                target=self._simulation_loop,
+                target=lambda: asyncio.run(self._simulation_coroutine()),
                 daemon=True,
                 name="SimulationThread"
             )
             self.simulation_thread.start()
             log_step("Simulation started in background thread with performance monitoring")
         else:
-            self._simulation_loop()
+            asyncio.run(self._simulation_coroutine())
     def stop_simulation(self):
         with self._lock:
             if not self.is_running:
@@ -781,9 +843,56 @@ class SimulationManager:
             self.simulation_running = False
             if self.simulation_thread and self.simulation_thread.is_alive():
                 self.simulation_thread.join(timeout=2.0)
-            log_step("Simulation stopped",
-                    total_steps=self.step_counter,
-                    avg_step_time=self.performance_stats['avg_step_time'])
+            log_step("Simulation stopped", total_steps=self.step_counter)
+    async def _simulation_coroutine(self):
+        log_step("Async simulation coroutine started")
+        max_iterations = 100000
+        iteration_count = 0
+        last_health_check = time.time()
+        consecutive_failures = 0
+        max_consecutive_failures = 100
+        while self.is_running and iteration_count < max_iterations:
+            try:
+                loop_start = time.time()
+                iteration_count += 1
+                if iteration_count % 1000 == 0:
+                    current_time = time.time()
+                    if current_time - last_health_check > 300:
+                        log_step("Simulation health check", iterations=iteration_count,
+                                elapsed=current_time - last_health_check)
+                        last_health_check = current_time
+                success = await self.run_single_step()
+                if not success:
+                    consecutive_failures += 1
+                    logging.error(f"Simulation step failed (failure #{consecutive_failures})")
+                    if consecutive_failures >= max_consecutive_failures:
+                        logging.error("Too many consecutive failures, stopping simulation")
+                        self.is_running = False
+                        break
+                else:
+                    consecutive_failures = 0
+                elapsed = time.time() - loop_start
+                sleep_time = max(0, self.update_interval - elapsed)
+                if sleep_time > 0:
+                    await asyncio.sleep(sleep_time)
+            except Exception as e:
+                consecutive_failures += 1
+                logging.error(f"Simulation loop error: {e}")
+                try:
+                    record_simulation_error()
+                except Exception as record_e:
+                    logging.error(f"Failed to record error: {record_e}")
+                if consecutive_failures >= max_consecutive_failures:
+                    logging.error("Too many consecutive errors, stopping simulation")
+                    self.is_running = False
+                    break
+                await asyncio.sleep(0.1)
+        if iteration_count >= max_iterations:
+            log_step("Simulation coroutine ended due to iteration limit", iterations=iteration_count)
+        elif consecutive_failures >= max_consecutive_failures:
+            log_step("Simulation coroutine ended due to consecutive failures", failures=consecutive_failures)
+        else:
+            log_step("Simulation coroutine ended normally")
     def _simulation_loop(self):
         log_step("Simulation loop started")
         max_iterations = 100000
@@ -865,7 +974,10 @@ class SimulationManager:
                 return True
             try:
                 from ui.screen_graph import capture_screen, create_pixel_gray_graph
+                import cv2
                 arr = capture_screen(scale=resolution_scale)
+                if arr is not None:
+                    arr = cv2.resize(arr, (0,0), fx=0.25, fy=0.25)
             except (ImportError, Exception) as e:
                 logging.warning(f"Screen capture unavailable: {e}, using fallback")
                 arr = None  # or generate dummy data if needed
@@ -988,6 +1100,7 @@ class SimulationManager:
             log_step("Graph consistency repair error", error=str(e))
     def _update_node_behaviors(self):
         try:
+            logging.info(f"Entering _update_node_behaviors: step={self.step_counter}, graph nodes={len(self.graph.node_labels) if self.graph else 0}, graph.x shape={self.graph.x.shape if hasattr(self.graph, 'x') and self.graph.x is not None else 'None'}")
             if not self._validate_graph_consistency():
                 log_step("Graph consistency validation failed, attempting repair")
                 self._repair_graph_consistency()
@@ -996,20 +1109,38 @@ class SimulationManager:
                     return
             num_nodes = len(self.graph.node_labels)
             if num_nodes == 0:
+                logging.warning("No nodes to update")
                 return
             if not hasattr(self, '_access_layer') or self._access_layer is None:
                 from energy.node_access_layer import NodeAccessLayer
+                logging.info("Creating new NodeAccessLayer")
                 self._access_layer = NodeAccessLayer(self.graph)
             access_layer = self._access_layer
+            logging.info(f"NodeAccessLayer ready: active_ids len={len(access_layer.id_manager.get_all_active_ids()) if hasattr(access_layer, 'id_manager') else 'N/A'}")
             nodes_to_update = min(50, num_nodes)
+            logging.info(f"Updating first {nodes_to_update} nodes")
             for idx in range(nodes_to_update):
-                node = self.graph.node_labels[idx]
-                node_id = node.get('id')
-                if node_id is None:
+                try:
+                    node = self.graph.node_labels[idx]
+                    node_id = node.get('id')
+                    if node_id is None:
+                        logging.warning(f"Node at idx {idx} has no id, skipping")
+                        continue
+                    logging.debug(f"Updating node idx={idx}, id={node_id}, type={node.get('type', 'unknown')}")
+                    index = access_layer.id_manager.get_node_index(node_id) if hasattr(access_layer, 'id_manager') else None
+                    logging.debug(f"Node {node_id} index from id_manager: {index}")
+                    success = self.behavior_engine.update_node_behavior(node_id, self.graph, self.step_counter, access_layer)
+                    if not success:
+                        logging.warning(f"update_node_behavior failed for node_id={node_id} (idx={idx})")
+                    else:
+                        logging.debug(f"Successfully updated node_id={node_id} (idx={idx})")
+                except Exception as node_e:
+                    import traceback
+                    logging.error(f"Exception updating node idx={idx}, id={node.get('id', 'unknown')}: {node_e}")
+                    logging.error(traceback.format_exc())
+                    # Continue to next node instead of crashing
                     continue
-                success = self.behavior_engine.update_node_behavior(node_id, self.graph, self.step_counter, access_layer)
-                if not success:
-                    pass
+            logging.info(f"Completed updating {nodes_to_update} nodes")
             if (self.enhanced_integration is not None and
                 self.step_counter % 3 == 0):
                 try:
@@ -1020,17 +1151,25 @@ class SimulationManager:
                     logging.error(f"Error in enhanced neural integration: {e}")
                     self.error_count += 1
         except Exception as e:
-            logging.error(f"Error in behavior engine update: {e}")
+            import traceback
+            logging.error(f"Overall error in _update_node_behaviors: {e}")
+            logging.error(traceback.format_exc())
+            # Fallback to simple random energy update for first 10 dynamic nodes
+            logging.info("Falling back to simple energy updates for first 10 dynamic nodes")
             for idx in range(0, min(10, len(self.graph.node_labels))):
-                node = self.graph.node_labels[idx]
-                if node.get('type') == 'dynamic':
-                    current_energy = self.graph.x[idx, 0].item()
-                    import random
-                    energy_change = random.uniform(-0.01, 0.01)
-                    new_energy = max(0, min(current_energy + energy_change, 1.0))
-                    self.graph.x[idx, 0] = new_energy
-                    if 'membrane_potential' in node:
-                        node['membrane_potential'] = new_energy
+                try:
+                    node = self.graph.node_labels[idx]
+                    if node.get('type') == 'dynamic' and hasattr(self.graph, 'x') and idx < self.graph.x.shape[0]:
+                        current_energy = self.graph.x[idx, 0].item()
+                        import random
+                        energy_change = random.uniform(-0.01, 0.01)
+                        new_energy = max(0, min(current_energy + energy_change, 1.0))
+                        self.graph.x[idx, 0] = new_energy
+                        if 'membrane_potential' in node:
+                            node['membrane_potential'] = new_energy
+                        logging.debug(f"Fallback update: idx={idx}, old_energy={current_energy}, new_energy={new_energy}")
+                except Exception as fallback_e:
+                    logging.error(f"Fallback update failed for idx={idx}: {fallback_e}")
     def _apply_energy_dynamics(self):
         try:
             self.graph = apply_energy_behavior(self.graph)
@@ -1631,7 +1770,7 @@ class SimulationManager:
             except Exception as e:
                 log_step("System reference breaking error", error=str(e))
     
-    def run_profiled_simulation(self, num_steps: int = 1000, output_path: str = "neural_sim_trace.json") -> None:
+    async def run_profiled_simulation(self, num_steps: int = 1000, output_path: str = "neural_sim_trace.json") -> None:
         """Run simulation with torch.profiler for performance analysis on medium graph."""
         # Ensure medium graph
         self.initialize_graph()
@@ -1643,7 +1782,7 @@ class SimulationManager:
         ) as prof:
             for step in range(num_steps):
                 with record_function("simulation_step"):
-                    self.run_single_step()
+                    await self.run_single_step()
         prof.export_chrome_trace(output_path)
         logging.info(f"Profiler trace exported to {output_path} for analysis in chrome://tracing")
 _global_simulation_manager = None

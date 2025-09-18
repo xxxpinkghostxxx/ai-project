@@ -24,6 +24,7 @@ class EnhancedConnection:
         self.max_weight = kwargs.get('max_weight', ConnectionConstants.WEIGHT_CAP_MAX)
         self.min_weight = kwargs.get('min_weight', ConnectionConstants.WEIGHT_MIN)
         self.plasticity_enabled = kwargs.get('plasticity_enabled', True)
+        self.plasticity_tag = False
         self.learning_rate = kwargs.get('learning_rate', 0.01)
         self.eligibility_trace = 0.0
         self.last_activity = 0.0
@@ -283,7 +284,12 @@ class EnhancedConnectionSystem:
                 continue
         for i in reversed(connections_to_remove):
             connection = self.connections[i]
-            self.remove_connection(connection.source_id, connection.target_id)
+            source_id = connection.source_id
+            target_id = connection.target_id
+            self.remove_connection(source_id, target_id)
+            
+            # Diagnostic log for prune
+            log_step(f"[PRUNE] Weak connection pruned: {source_id} -> {target_id}, weight={connection.weight}, reason={'low_weight' if abs(connection.weight) < ConnectionConstants.WEIGHT_MIN else 'high_fatigue'}, fatigue={connection.fatigue_level}")
     def set_neuromodulator_level(self, neuromodulator: str, level: float):
         if neuromodulator in self.neuromodulators:
             self.neuromodulators[neuromodulator] = max(0.0, min(1.0, level))

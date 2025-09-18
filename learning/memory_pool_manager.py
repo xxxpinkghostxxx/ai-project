@@ -154,7 +154,9 @@ class MemoryPoolManager:
                 self.cleanup_all_pools()
                 time.sleep(30)  # Cleanup every 30 seconds
             except Exception as e:
-                print(f"Error in cleanup loop: {e}")
+                from utils.unified_error_handler import get_error_handler
+                error_handler = get_error_handler()
+                error_handler.handle_error(e, "memory_pool_cleanup_loop", severity=ErrorSeverity.MEDIUM)
                 time.sleep(5)
     
     def cleanup_all_pools(self) -> int:

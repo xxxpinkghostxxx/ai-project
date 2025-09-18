@@ -496,9 +496,26 @@ class AdaptiveProcessor:
             'memory_critical': 95.0
         }
     
+    def should_skip(self, component: str, cpu_threshold: float = 80.0) -> bool:
+        """Determine if a component should be skipped based on CPU load."""
+        if not self.adaptive_enabled:
+            logging.debug(f"AdaptiveProcessor: should_skip for {component} - adaptive not enabled, returning False")
+            return False
+        metrics = self.monitor.get_current_metrics()
+        cpu = metrics.cpu_percent
+        skip = cpu > cpu_threshold
+        essential = ['neural_dynamics', 'energy_behavior', 'connection_logic']
+        if skip and component not in essential:
+            logging.info(f"AdaptiveProcessor: should_skip({component}) = True (CPU={cpu:.1f}%, threshold={cpu_threshold}, not essential)")
+            return True
+        else:
+            logging.debug(f"AdaptiveProcessor: should_skip({component}) = False (CPU={cpu:.1f}%, threshold={cpu_threshold}, {'essential' if component in essential else 'enabled'})")
+            return False
+    
     def enable_adaptive_processing(self):
         """Enable adaptive processing."""
         self.adaptive_enabled = True
+        logging.info("AdaptiveProcessor: enable_adaptive_processing called, adaptive_enabled=True")
         log_step("Adaptive processing enabled")
     
     def disable_adaptive_processing(self):
@@ -624,6 +641,7 @@ def get_adaptive_processor() -> AdaptiveProcessor:
     if _adaptive_processor is None:
         monitor = get_performance_monitor()
         _adaptive_processor = AdaptiveProcessor(monitor)
+        logging.info("AdaptiveProcessor: Global instance created and initialized")
     return _adaptive_processor
 
 

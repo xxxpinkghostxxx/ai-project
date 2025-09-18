@@ -66,7 +66,7 @@ class VisualEnergyBridge:
             log_step("Error in visual to enhanced energy processing", error=str(e))
             return graph
     def _extract_visual_features(self, screen_data: np.ndarray) -> Dict[str, Any]:
-
+ 
         try:
             features = {}
             features['mean_intensity'] = np.mean(screen_data)
@@ -79,39 +79,50 @@ class VisualEnergyBridge:
                 edge_magnitude = np.sqrt(grad_x**2 + grad_y**2)
                 features['edge_density'] = np.mean(edge_magnitude)
                 features['edge_variance'] = np.var(edge_magnitude)
-            if screen_data.shape[0] > 2 and screen_data.shape[1] > 2:
-                downsample_factor = max(4, min(screen_data.shape) // 50)
-                small_data = screen_data[::downsample_factor, ::downsample_factor]
-                patch_size = 3
-                if small_data.shape[0] >= patch_size and small_data.shape[1] >= patch_size:
-                    num_patches = min(100, (small_data.shape[0] - patch_size) * (small_data.shape[1] - patch_size))
-                    patch_stds = []
-                    for _ in range(num_patches):
-                        i = np.random.randint(0, small_data.shape[0] - patch_size + 1)
-                        j = np.random.randint(0, small_data.shape[1] - patch_size + 1)
-                        patch = small_data[i:i+patch_size, j:j+patch_size]
-                        patch_stds.append(np.std(patch))
-                    features['texture_mean'] = np.mean(patch_stds) if patch_stds else 0.0
-                    features['texture_std'] = np.std(patch_stds) if patch_stds else 0.0
-                else:
-                    features['texture_mean'] = 0.0
-                    features['texture_std'] = 0.0
-            if screen_data.shape[0] > 8 and screen_data.shape[1] > 8:
-                fft_downsample = max(2, min(screen_data.shape) // 32)
-                fft_data = screen_data[::fft_downsample, ::fft_downsample]
-                if fft_data.size < 10000:
-                    fft = np.fft.fft2(fft_data)
-                    fft_magnitude = np.abs(fft)
-                    features['high_freq_energy'] = np.mean(fft_magnitude[fft_magnitude.shape[0]//2:, :])
-                    features['low_freq_energy'] = np.mean(fft_magnitude[:fft_magnitude.shape[0]//2, :])
-                else:
-                    features['high_freq_energy'] = 0.0
-                    features['low_freq_energy'] = 0.0
-            if hasattr(self, 'previous_screen_data') and self.previous_screen_data is not None:
-                motion = np.abs(screen_data - self.previous_screen_data)
-                features['motion_magnitude'] = np.mean(motion)
-                features['motion_variance'] = np.var(motion)
-            self.previous_screen_data = screen_data.copy()
+            motion_magnitude = 0.0
+            if self.prev_frame is not None:
+                diff = cv2.absdiff(screen_data, self.prev_frame)
+                motion_magnitude = np.mean(diff)
+                features['motion_magnitude'] = motion_magnitude
+                features['motion_variance'] = np.var(diff)
+            else:
+                features['motion_magnitude'] = 0.0
+                features['motion_variance'] = 0.0
+            if motion_magnitude >= 10:
+                if screen_data.shape[0] > 2 and screen_data.shape[1] > 2:
+                    downsample_factor = max(4, min(screen_data.shape) // 50)
+                    small_data = screen_data[::downsample_factor, ::downsample_factor]
+                    patch_size = 3
+                    if small_data.shape[0] >= patch_size and small_data.shape[1] >= patch_size:
+                        num_patches = min(100, (small_data.shape[0] - patch_size) * (small_data.shape[1] - patch_size))
+                        patch_stds = []
+                        for _ in range(num_patches):
+                            i = np.random.randint(0, small_data.shape[0] - patch_size + 1)
+                            j = np.random.randint(0, small_data.shape[1] - patch_size + 1)
+                            patch = small_data[i:i+patch_size, j:j+patch_size]
+                            patch_stds.append(np.std(patch))
+                        features['texture_mean'] = np.mean(patch_stds) if patch_stds else 0.0
+                        features['texture_std'] = np.std(patch_stds) if patch_stds else 0.0
+                    else:
+                        features['texture_mean'] = 0.0
+                        features['texture_std'] = 0.0
+                if screen_data.shape[0] > 8 and screen_data.shape[1] > 8:
+                    fft_downsample = max(2, min(screen_data.shape) // 32)
+                    fft_data = screen_data[::fft_downsample, ::fft_downsample]
+                    if fft_data.size < 10000:
+                        fft = np.fft.fft2(fft_data)
+                        fft_magnitude = np.abs(fft)
+                        features['high_freq_energy'] = np.mean(fft_magnitude[fft_magnitude.shape[0]//2:, :])
+                        features['low_freq_energy'] = np.mean(fft_magnitude[:fft_magnitude.shape[0]//2, :])
+                    else:
+                        features['high_freq_energy'] = 0.0
+                        features['low_freq_energy'] = 0.0
+            else:
+                features['texture_mean'] = 0.0
+                features['texture_std'] = 0.0
+                features['high_freq_energy'] = 0.0
+                features['low_freq_energy'] = 0.0
+            self.prev_frame = screen_data.copy()
             return features
         except Exception as e:
             log_step("Error extracting visual features", error=str(e))

@@ -1,6 +1,7 @@
 
 import sys
 import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from typing import Dict, Any, List, Optional, Tuple, Callable
 
 import logging
@@ -21,22 +22,8 @@ class UnifiedLauncher:
         self.profiles = {
             'full': {
                 'description': 'Full UI with all features',
-                'ui_module': 'ui_engine',
+                'ui_module': 'ui.ui_engine',
                 'ui_function': 'run_ui',
-                'performance_mode': False,
-                'logging_level': 'INFO'
-            },
-            'optimized': {
-                'description': 'Optimized UI with performance tuning',
-                'ui_module': 'ui_engine',
-                'ui_function': 'run_ui',
-                'performance_mode': True,
-                'logging_level': 'WARNING'
-            },
-            'test': {
-                'description': 'Run test suite',
-                'test_module': 'unified_test_suite',
-                'test_function': 'run_unified_tests',
                 'performance_mode': False,
                 'logging_level': 'INFO'
             }
@@ -45,18 +32,18 @@ class UnifiedLauncher:
         print_info("Testing critical imports...")
         critical_modules = [
             'numpy', 'torch', 'dearpygui',
-            'simulation_manager', 'ui_engine'
+            'simulation_manager', 'ui.ui_engine'
         ]
         failed_imports = []
         for module_name in critical_modules:
             try:
                 __import__(module_name)
-                print(f"  ✓ {module_name}")
+                print(f"  [OK] {module_name}")
             except ImportError as e:
-                print(f"  ✗ {module_name}: {e}")
+                print(f"  [FAIL] {module_name}: {e}")
                 failed_imports.append(module_name)
             except Exception as e:
-                print(f"  ⚠ {module_name}: {e}")
+                print(f"  [WARN] {module_name}: {e}")
                 failed_imports.append(module_name)
         if failed_imports:
             print(f"\nFailed to import: {', '.join(failed_imports)}")
@@ -115,9 +102,7 @@ class UnifiedLauncher:
             self.apply_performance_optimizations()
         logging.getLogger().setLevel(getattr(logging, config['logging_level']))
         try:
-            if profile == 'test':
-                return self._launch_test_suite()
-            elif 'ui_module' in config:
+            if 'ui_module' in config:
                 return self._launch_ui(config)
             else:
                 print(f"Invalid configuration for profile: {profile}")
@@ -125,14 +110,6 @@ class UnifiedLauncher:
         except Exception as e:
             print(f"Launch failed: {e}")
             traceback.print_exc()
-            return False
-    def _launch_test_suite(self) -> bool:
-        try:
-            from tests.unified_test_suite import run_unified_tests
-            results = run_unified_tests()
-            return results['success_rate'] > 0.8
-        except Exception as e:
-            print(f"Test suite launch failed: {e}")
             return False
     def _launch_ui(self, config: Dict[str, Any]) -> bool:
         try:
@@ -159,28 +136,18 @@ class UnifiedLauncher:
         for profile, config in self.profiles.items():
             print_info(f"  {profile:12} - {config['description']}")
         print_info("\nUsage:")
-        print_info("  python unified_launcher.py [profile]")
+        print_info("  python unified_launcher.py")
         print_info("  python unified_launcher.py --help")
-        print_info("  python unified_launcher.py --list")
-        print_info("\nExamples:")
-        print_info("  python unified_launcher.py minimal    # Launch minimal UI")
-        print_info("  python unified_launcher.py full       # Launch full UI")
-        print_info("  python unified_launcher.py optimized  # Launch optimized UI")
-        print_info("  python unified_launcher.py test       # Run test suite")
+        print_info("\nLaunches the full UI by default.")
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Unified Launcher for Neural Simulation System')
-    parser.add_argument('profile', nargs='?', default='minimal',
-                       help='Launch profile (minimal, full, optimized, test)')
-    parser.add_argument('--list', action='store_true', help='List available profiles')
-    parser.add_argument('--help-profiles', action='store_true', help='Show detailed profile help')
-    args = parser.parse_args()
     launcher = UnifiedLauncher()
-    if args.list or args.help_profiles:
+    if '--help' in sys.argv:
         launcher.show_help()
         return 0
-    success = launcher.launch_with_profile(args.profile)
+    profile = 'full'
+    success = launcher.launch_with_profile(profile)
     return 0 if success else 1
 if __name__ == "__main__":
     sys.exit(main())

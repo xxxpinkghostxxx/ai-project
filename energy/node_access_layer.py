@@ -17,7 +17,7 @@ class NodeAccessLayer:
         self._cache_valid = False
         log_step("NodeAccessLayer initialized", graph_nodes=len(graph.node_labels) if hasattr(graph, 'node_labels') else 0)
     def get_node_by_id(self, node_id: int) -> Optional[Dict[str, Any]]:
-
+ 
         if not isinstance(node_id, (int, np.integer)):
             logging.warning(f"Invalid node ID type: {type(node_id)}")
             return None
@@ -28,24 +28,24 @@ class NodeAccessLayer:
         if not hasattr(self.graph, 'node_labels') or not self.graph.node_labels:
             logging.warning("Graph has no node_labels")
             return None
-        if node_id < 0 or node_id >= len(self.graph.node_labels):
+        
+        index = self.id_manager.get_node_index(node_id)
+        if index is None:
             if not hasattr(self, '_invalid_id_count'):
                 self._invalid_id_count = 0
             self._invalid_id_count += 1
             if self._invalid_id_count % 1000 == 0:
-                logging.warning(f"Invalid node ID: {node_id} (max: {len(self.graph.node_labels)-1}) - {self._invalid_id_count} total invalid IDs")
+                logging.warning(f"Invalid node ID: {node_id} (not found in ID manager) - {self._invalid_id_count} total invalid IDs")
             return None
         
-        # Additional validation: check if ID is actually registered
-        if not self.id_manager.is_valid_id(node_id):
-            logging.warning(f"Node ID {node_id} is not registered in ID manager")
+        # Safety check
+        if index < 0 or index >= len(self.graph.node_labels):
+            logging.warning(f"Index {index} out of range for node ID: {node_id} (max index: {len(self.graph.node_labels)-1})")
             return None
+        
         if self._cache_valid and node_id in self._node_cache:
             return self._node_cache[node_id]
-        index = node_id
-        if index >= len(self.graph.node_labels):
-            logging.warning(f"Index {index} out of range for node ID: {node_id}")
-            return None
+        
         node = self.graph.node_labels[index]
         if self._cache_valid:
             self._node_cache[node_id] = node
@@ -126,7 +126,7 @@ class NodeAccessLayer:
         try:
             if node_id is None or not isinstance(node_id, int):
                 return False
-            return 0 <= node_id < len(self.node_labels)
+            return self.id_manager.is_valid_id(node_id)
         except (TypeError, ValueError, AttributeError):
             return False
     def get_node_count_by_type(self, node_type: str) -> int:

@@ -2,33 +2,64 @@ import torch
 from torch_geometric.data import Data
 from energy.node_id_manager import get_id_manager
 from neural.dynamic_nodes import add_dynamic_nodes
+from core.main_graph import initialize_main_graph
+from neural.network_metrics import NetworkMetrics
+from neural.death_and_birth_logic import birth_new_dynamic_nodes, remove_dead_dynamic_nodes
+import logging
 
-# Create a dummy pixel_graph with some sensory nodes
-id_manager = get_id_manager()
-num_sensory = 10
-x = torch.randn(num_sensory, 1)
-node_labels = []
-for i in range(num_sensory):
-    node_id = id_manager.generate_unique_id("sensory")
-    node_labels.append({
-        'id': node_id,
-        'type': 'sensory',
-        'behavior': 'sensory',
-        'energy': float(x[i, 0]),
-        'state': 'active',
-        'membrane_potential': 0.0,
-        'threshold': 0.3,
-        'refractory_timer': 0.0,
-        'last_activation': 0,
-        'plasticity_enabled': True,
-        'eligibility_trace': 0.0,
-        'last_update': 0
-    })
-    id_manager.register_node_index(node_id, i)
-
-pixel_graph = Data(x=x, edge_index=torch.empty((2, 0), dtype=torch.long), node_labels=node_labels)
+logging.basicConfig(level=logging.INFO)
 
 # Initialize graph
-graph = add_dynamic_nodes(pixel_graph)
-print(f"Graph initialized successfully with {len(graph.x)} nodes")
-print("Logging from add_dynamic_nodes executed without error")
+print("--- Initializing Graph ---")
+graph = initialize_main_graph(scale=0.1)
+print(f"Graph initialized with {len(graph.x)} nodes")
+
+# Initial Metrics
+print("\n--- Calculating Initial Metrics ---")
+metrics_calculator = NetworkMetrics()
+initial_metrics = metrics_calculator.calculate_comprehensive_metrics(graph)
+connectivity = initial_metrics.get('connectivity', {})
+print(f"Initial Edges: {connectivity.get('num_edges')}, Density: {connectivity.get('density')}")
+
+# Simulate Birth
+print("\n--- Simulating Node Birth ---")
+graph = birth_new_dynamic_nodes(graph)
+print(f"Graph after birth has {len(graph.x)} nodes")
+
+# Metrics after Birth
+print("\n--- Calculating Metrics After Birth ---")
+post_birth_metrics = metrics_calculator.calculate_comprehensive_metrics(graph)
+connectivity = post_birth_metrics.get('connectivity', {})
+print(f"Post-Birth Edges: {connectivity.get('num_edges')}, Density: {connectivity.get('density')}")
+
+# Simulate Death
+print("\n--- Simulating Node Death ---")
+# Make some nodes eligible for removal
+for i in range(min(10, len(graph.node_labels))):
+    if graph.node_labels[i].get("type") == "dynamic":
+        graph.x[i] = 0.01
+
+graph = remove_dead_dynamic_nodes(graph)
+print(f"Graph after death has {len(graph.x)} nodes")
+
+# Metrics after Death
+print("\n--- Calculating Metrics After Death ---")
+post_death_metrics = metrics_calculator.calculate_comprehensive_metrics(graph)
+connectivity = post_death_metrics.get('connectivity', {})
+print(f"Post-Death Edges: {connectivity.get('num_edges')}, Density: {connectivity.get('density')}")
+
+print("\n--- Verification ---")
+if initial_metrics['connectivity']['num_edges'] > 0:
+    print("✅ Initial edge creation successful.")
+else:
+    print("❌ Initial edge creation failed.")
+
+if post_birth_metrics['connectivity']['num_edges'] > initial_metrics['connectivity']['num_edges']:
+    print("✅ Edge count increased after birth.")
+else:
+    print("❌ Edge count did not increase after birth.")
+
+if post_death_metrics['connectivity']['num_edges'] > 0 and post_death_metrics['connectivity']['num_edges'] < post_birth_metrics['connectivity']['num_edges']:
+     print("✅ Edges persisted and were correctly remapped after death.")
+else:
+     print("❌ Edges did not persist or remap correctly after death.")
