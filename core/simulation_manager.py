@@ -45,7 +45,11 @@ from utils.static_allocator import StaticAllocator
 
 from neural.death_and_birth_logic import birth_new_dynamic_nodes, remove_dead_dynamic_nodes
 from neural.connection_logic import intelligent_connection_formation
-from utils.error_handling_utils import safe_execute, safe_initialize_component, safe_process_step, safe_callback_execution
+from utils.error_handling_utils import (
+    safe_execute, safe_initialize_component, safe_process_step, safe_callback_execution,
+    handle_errors, performance_monitor, memory_guard, thread_safe_operation,
+    ErrorContext, safe_tensor_operation, get_resource_manager
+)
 from utils.common_utils import safe_hasattr
 
 from typing import Callable
@@ -261,9 +265,11 @@ class SimulationManager:
 
         def create_visual_bridge():
             from sensory.visual_energy_bridge import create_visual_energy_bridge
+            # Try to get enhanced integration, but don't fail if it's not available yet
+            enhanced_integration = getattr(self, 'enhanced_integration', None)
             return safe_initialize_component(
                 "Visual energy bridge",
-                lambda: create_visual_energy_bridge(self.enhanced_integration),
+                lambda: create_visual_energy_bridge(enhanced_integration),
                 None
             )
 
@@ -300,6 +306,13 @@ class SimulationManager:
             priority=6
         )
 
+        # Ensure enhanced integration is loaded before visual energy bridge
+        self.lazy_loader.lazy_load(
+            'enhanced_neural_integration',
+            create_enhanced_integration,
+            priority=7
+        )
+
         self.lazy_loader.lazy_load(
             'sensory_workspace_mapper',
             create_sensory_mapper,
@@ -332,8 +345,10 @@ class SimulationManager:
     def _create_performance_monitor(self):
         """Create and initialize performance monitor with config."""
         try:
+            # Explicitly import the correct PerformanceMonitor class
+            from utils.performance_monitor import PerformanceMonitor as PerfMonitor
             update_interval = self.get_config('Performance', 'update_interval', 1.0, float)
-            self.performance_monitor = PerformanceMonitor(update_interval=update_interval)
+            self.performance_monitor = PerfMonitor(update_interval=update_interval)
             self.performance_monitor.start_monitoring()
             logging.info("Performance monitor created and started")
             # Added log to confirm init
@@ -515,66 +530,66 @@ class SimulationManager:
         self.metrics_callbacks.append(callback)
     def add_error_callback(self, callback: Callable):
         self.error_callbacks.append(callback)
+    @performance_monitor
+    @memory_guard(memory_limit_mb=500)
+    @handle_errors(context="simulation step", log_level="warning", re_raise=False)
     async def run_single_step(self) -> bool:
-        """Execute a single simulation step with error handling."""
-        assert self.graph is not None, "Graph must be initialized before running simulation step"
-        assert hasattr(self, 'step_counter'), "Step counter must be initialized"
-        assert self.step_counter >= 0, "Step counter must be non-negative"
-        
-        if self.graph is None:
-            return False
-        
-        try:
-            step_start_time = time.time()
-            self.step_counter += 1
-            self.frame_counter += 1
-            
-            # Process all simulation components
-            self._process_sensory_input()
-            self._process_event_system()
-            self._process_spike_system()
-            self._process_audio_input()
-            self._process_neural_dynamics()
-            self._process_learning_systems()
-            self._process_workspace_systems()
-            self._process_node_lifecycle()
-            self._process_memory_systems()
-            if self.step_counter % 10 == 0:
-                if not get_adaptive_processor().should_skip('homeostatic', cpu_threshold=80):
-                    self._process_homeostatic_control()
-            if self.step_counter % 10 == 0:
-                if not get_adaptive_processor().should_skip('visual', cpu_threshold=80):
-                    self._process_visual_systems()
-            if self.frame_counter % 10 == 0:
-                skip_metrics = get_adaptive_processor().should_skip('metrics', cpu_threshold=80)
-                logging.debug(f"Metrics processing check: frame_counter={self.frame_counter}, skip={skip_metrics}")
-                if not skip_metrics:
-                    self._process_metrics_and_callbacks()
-                else:
-                    logging.warning("Metrics processing skipped due to adaptive processor")
-            if not self.headless:
-                try:
-                    self.event_bus.emit('GRAPH_UPDATE', {'graph': self.graph})
-                    self.event_bus.emit('UI_REFRESH', {})
-                except Exception:
-                    pass  # Fallback: direct UI updates if any
-            
-            # Update performance statistics
-            self._update_step_statistics(step_start_time)
-            return True
-            
-        except (ValueError, TypeError, AttributeError, RuntimeError) as e:
-            logging.warning(f"Simulation step error (non-critical): {e}")
-            try:
-                record_simulation_error()
-            except Exception as record_e:
-                logging.error(f"Failed to record error: {record_e}")
-            self._handle_step_error(e)
-            return True
-        except Exception as e:
-            logging.error(f"Unexpected simulation step error: {e}")
-            record_simulation_error()
-            raise
+        """Execute a single simulation step with optimized performance and error handling."""
+        with self._lock:
+            # Optimized assertions and early returns
+            graph = self.graph
+            if graph is None:
+                return False
+
+            with ErrorContext("simulation step execution"):
+                step_start_time = time.time()
+                self.step_counter += 1
+                self.frame_counter += 1
+
+                # Cache frequently used values to avoid repeated computations
+                step_counter = self.step_counter
+                frame_counter = self.frame_counter
+                headless = self.headless
+
+                # Process simulation components with optimized order and error isolation
+                self._safe_process_component(self._process_sensory_input, "sensory input")
+                self._safe_process_component(self._process_event_system, "event system")
+                self._safe_process_component(self._process_spike_system, "spike system")
+                self._safe_process_component(self._process_audio_input, "audio input")
+                self._safe_process_component(self._process_neural_dynamics, "neural dynamics")
+                self._safe_process_component(self._process_learning_systems, "learning systems")
+                self._safe_process_component(self._process_workspace_systems, "workspace systems")
+                self._safe_process_component(self._process_node_lifecycle, "node lifecycle")
+                self._safe_process_component(self._process_memory_systems, "memory systems")
+
+                # Optimized periodic processing with reduced overhead
+                if step_counter % 10 == 0:
+                    adaptive = get_adaptive_processor()
+                    if not adaptive.should_skip('homeostatic', cpu_threshold=80):
+                        self._safe_process_component(self._process_homeostatic_control, "homeostatic control")
+                    if not adaptive.should_skip('visual', cpu_threshold=80):
+                        self._safe_process_component(self._process_visual_systems, "visual systems")
+
+                # Further optimized metrics processing
+                if frame_counter % 10 == 0:
+                    adaptive = get_adaptive_processor()
+                    if not adaptive.should_skip('metrics', cpu_threshold=80):
+                        self._safe_process_component(self._process_metrics_and_callbacks, "metrics processing")
+                    elif frame_counter % 100 == 0:  # Reduced frequency for skip warnings
+                        logging.debug("Metrics processing skipped due to adaptive processor")
+
+                # Optimized UI updates with error isolation
+                if not headless:
+                    try:
+                        event_bus = self.event_bus
+                        event_bus.emit('GRAPH_UPDATE', {'graph': graph})
+                        event_bus.emit('UI_REFRESH', {})
+                    except Exception:
+                        pass  # Silent fallback for UI updates
+
+                # Update performance statistics
+                self._update_step_statistics(step_start_time)
+                return True
 
     def _process_sensory_input(self):
         """Process sensory input updates."""
@@ -654,20 +669,28 @@ class SimulationManager:
             logging.warning(f"Energy dynamics failed: {e}")
 
     def _process_learning_systems(self):
-        """Process learning system updates."""
-        if self.step_counter % 5 == 0:
+        """Process learning system updates with optimized batching."""
+        # Cache frequently accessed attributes to avoid repeated attribute lookups
+        step_counter = self.step_counter
+        graph = self.graph
+
+        if step_counter % 5 == 0:
             try:
-                self.graph = intelligent_connection_formation(self.graph)
+                # Batch connection formation and consolidation
+                graph = intelligent_connection_formation(graph)
+                graph = self.learning_engine.consolidate_connections(graph)
+                self.graph = graph
             except Exception as e:
-                logging.warning(f"Connection formation failed: {e}")
-            
+                logging.warning(f"Learning system batch processing failed: {e}")
+
+        # Optimize Hebbian learning frequency and caching
+        if (hasattr(self, 'live_hebbian_learning') and
+            self.live_hebbian_learning is not None and
+            step_counter % 3 == 0):
             try:
-                self.graph = self.learning_engine.consolidate_connections(self.graph)
+                self.graph = self.live_hebbian_learning.apply_continuous_learning(graph, step_counter)
             except Exception as e:
-                logging.warning(f"Learning consolidation failed: {e}")
-        
-        if hasattr(self, 'live_hebbian_learning') and self.live_hebbian_learning is not None and self.step_counter % 3 == 0:
-            self.graph = self.live_hebbian_learning.apply_continuous_learning(self.graph, self.step_counter)
+                logging.warning(f"Hebbian learning failed: {e}")
 
     def _process_workspace_systems(self):
         """Process workspace system updates."""
@@ -801,32 +824,42 @@ class SimulationManager:
                 logging.warning(f"Sensory workspace mapping failed: {e}")
 
     def _process_metrics_and_callbacks(self):
-        """Process metrics calculation and callbacks."""
+        """Process metrics calculation and callbacks with optimized performance."""
         if self.step_counter % 200 == 0:
             try:
-                import json
-                import time
-                logging.info(f"Calculating metrics at step {self.step_counter}, graph nodes: {len(self.graph.node_labels) if self.graph else 0}")
-                metrics = self.network_metrics.calculate_comprehensive_metrics(self.graph)
-                self.performance_stats['last_metrics'] = metrics
-                logging.info(f"Metrics calculated: criticality={metrics.get('criticality', 'N/A')}, connectivity={metrics.get('connectivity', {}).get('density', 'N/A') if isinstance(metrics.get('connectivity'), dict) else 'N/A'}")
+                # Cache frequently accessed data to avoid repeated computations
+                graph = self.graph
+                step_counter = self.step_counter
+                performance_stats = self.performance_stats
+
+                # Only log basic info to reduce I/O overhead
+                node_count = len(graph.node_labels) if graph and hasattr(graph, 'node_labels') else 0
+                logging.debug(f"Calculating metrics at step {step_counter}, nodes: {node_count}")
+
+                # Calculate metrics once and cache results
+                metrics = self.network_metrics.calculate_comprehensive_metrics(graph)
+                performance_stats['last_metrics'] = metrics
+
+                # Extract key metrics efficiently
+                criticality = metrics.get('criticality', 0.0)
+                connectivity = metrics.get('connectivity', {})
+                density = connectivity.get('density', 0.0) if isinstance(connectivity, dict) else 0.0
+
+                logging.info(f"Metrics: criticality={criticality:.3f}, density={density:.3f}")
+
+                # Execute callbacks with error isolation
                 self._execute_metrics_callbacks(metrics)
+
+                # Log metrics only if needed (reduce overhead)
                 self._log_step_metrics(metrics)
-                # Save metrics to JSON
-                timestamp = time.strftime("%Y%m%d_%H%M%S")
-                data = {
-                    'timestamp': time.time(),
-                    'step': self.step_counter,
-                    'performance_stats': self.performance_stats.copy(),
-                    'network_metrics': metrics
-                }
-                filename = f"simulation_metrics_{timestamp}.json"
-                with open(filename, 'w') as f:
-                    json.dump(data, f, indent=2, default=str)
-                logging.info(f"Metrics saved to {filename}")
+
+                # Optimized metrics saving - only save periodically
+                if step_counter % 1000 == 0:  # Save every 1000 steps instead of 200
+                    self._save_metrics_snapshot(metrics)
+
             except Exception as e:
-                logging.warning(f"Metrics calculation or save failed: {e}")
-                logging.error(f"Metrics calc exception details: {type(e).__name__}: {str(e)}")
+                logging.warning(f"Metrics calculation failed: {e}")
+                # Don't log full exception details in performance-critical path
 
     def _execute_metrics_callbacks(self, metrics):
         """Execute metrics callbacks with error handling."""
@@ -843,9 +876,41 @@ class SimulationManager:
 
     def _log_step_metrics(self, metrics):
         """Log step metrics information."""
-        logging.info(f"[SIMULATION] Step {self.step_counter}: Criticality={metrics['criticality']:.3f}, "
-                   f"Connectivity={metrics['connectivity']['density']:.3f}, "
-                   f"Energy Variance={metrics['energy_balance']['energy_variance']:.2f}")
+        criticality = metrics.get('criticality', 0.0)
+        connectivity = metrics.get('connectivity', {})
+        density = connectivity.get('density', 0.0) if isinstance(connectivity, dict) else 0.0
+        energy_balance = metrics.get('energy_balance', {})
+        energy_variance = energy_balance.get('energy_variance', 0.0) if isinstance(energy_balance, dict) else 0.0
+
+        logging.info(f"[SIMULATION] Step {self.step_counter}: Criticality={criticality:.3f}, "
+                    f"Density={density:.3f}, Energy Variance={energy_variance:.2f}")
+
+    def _save_metrics_snapshot(self, metrics):
+        """Save metrics snapshot to file with optimized I/O."""
+        try:
+            import json
+            import time
+
+            # Create data structure once
+            data = {
+                'timestamp': time.time(),
+                'step': self.step_counter,
+                'performance_stats': self.performance_stats.copy(),
+                'network_metrics': metrics
+            }
+
+            # Generate filename
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            filename = f"simulation_metrics_{timestamp}.json"
+
+            # Write with minimal overhead
+            with open(filename, 'w') as f:
+                json.dump(data, f, indent=2, default=str)
+
+            logging.info(f"Metrics saved to {filename}")
+
+        except Exception as e:
+            logging.warning(f"Metrics save failed: {e}")
 
     def _update_step_statistics(self, step_start_time):
         """Update step performance statistics."""
@@ -896,6 +961,16 @@ class SimulationManager:
             except Exception as e:
                 logging.error(f"Unexpected step callback error: {e}")
                 raise
+
+    def _safe_process_component(self, component_func: Callable, component_name: str):
+        """Safely process a simulation component with error isolation."""
+        try:
+            component_func()
+        except Exception as e:
+            # Log component-specific error but don't crash the entire step
+            logging.warning(f"Component '{component_name}' failed: {e}")
+            self.error_count += 1
+            # Continue with other components
 
     def _handle_step_error(self, error):
         """Handle step errors with callbacks."""
@@ -1188,29 +1263,59 @@ class SimulationManager:
     def update_audio_data(self, audio_data):
         self.last_audio_data = audio_data
     def _validate_graph_consistency(self) -> bool:
-        if self.graph is None:
+        """Optimized graph consistency validation with reduced overhead."""
+        graph = self.graph
+        if graph is None:
             return False
+
         try:
-            if not hasattr(self.graph, 'node_labels') or not hasattr(self.graph, 'x'):
+            # Cache attribute checks to avoid repeated lookups
+            if not hasattr(graph, 'node_labels') or not hasattr(graph, 'x'):
                 return False
-            if len(self.graph.node_labels) != self.graph.x.shape[0]:
-                log_step("Graph consistency error: node_labels and graph.x size mismatch",
-                        labels_count=len(self.graph.node_labels),
-                        x_shape=self.graph.x.shape)
+
+            node_labels = graph.node_labels
+            graph_x = graph.x
+            labels_count = len(node_labels)
+
+            # Check size consistency
+            if labels_count != graph_x.shape[0]:
+                if self.step_counter % 100 == 0:  # Reduce logging frequency
+                    log_step("Graph consistency error: size mismatch",
+                            labels_count=labels_count, x_shape=graph_x.shape)
                 return False
-            if torch.isnan(self.graph.x).any() or torch.isinf(self.graph.x).any():
-                log_step("Graph consistency error: NaN or infinite values in graph.x")
-                return False
-            if hasattr(self.graph, 'edge_index') and self.graph.edge_index.numel() > 0:
-                max_index = len(self.graph.node_labels) - 1
-                if torch.max(self.graph.edge_index) > max_index:
-                    log_step("Graph consistency error: edge_index contains invalid node indices",
-                            max_edge_index=torch.max(self.graph.edge_index).item(),
-                            max_valid_index=max_index)
+
+            # Check for NaN/inf values (only sample for performance)
+            if labels_count > 1000:
+                # For large graphs, sample check to reduce computation
+                sample_indices = torch.randperm(labels_count)[:min(100, labels_count)]
+                sample_x = graph_x[sample_indices]
+                if torch.isnan(sample_x).any() or torch.isinf(sample_x).any():
+                    if self.step_counter % 100 == 0:
+                        log_step("Graph consistency error: NaN/inf values detected in sample")
                     return False
+            else:
+                # Full check for smaller graphs
+                if torch.isnan(graph_x).any() or torch.isinf(graph_x).any():
+                    if self.step_counter % 100 == 0:
+                        log_step("Graph consistency error: NaN/inf values in graph.x")
+                    return False
+
+            # Check edge indices (only if edges exist)
+            if hasattr(graph, 'edge_index') and graph.edge_index.numel() > 0:
+                edge_index = graph.edge_index
+                max_index = labels_count - 1
+                if torch.max(edge_index) > max_index:
+                    if self.step_counter % 100 == 0:
+                        log_step("Graph consistency error: invalid edge indices",
+                                max_edge_index=torch.max(edge_index).item(),
+                                max_valid_index=max_index)
+                    return False
+
             return True
+
         except Exception as e:
-            log_step("Graph consistency validation error", error=str(e))
+            if self.step_counter % 100 == 0:  # Reduce error logging frequency
+                log_step("Graph consistency validation error", error=str(e))
             return False
     def _repair_graph_consistency(self):
         if self.graph is None:
@@ -1358,19 +1463,26 @@ class SimulationManager:
                     logging.error(f"Fallback update failed for idx={idx}: {fallback_e}")
 
     def _update_node_behaviors_batch(self):
-        """Optimized batch processing for node behavior updates."""
+        """Optimized batch processing for node behavior updates with performance improvements."""
         try:
-            num_nodes = len(self.graph.node_labels)
+            # Cache frequently accessed attributes to avoid repeated lookups
+            graph = self.graph
+            node_labels = graph.node_labels
+            num_nodes = len(node_labels)
             batch_size = min(self.batch_size, num_nodes)
+            step_counter = self.step_counter
 
-            # Collect nodes to update in batches
+            # Pre-allocate batch list to avoid dynamic resizing
             node_updates = []
+
+            # Use more efficient iteration and caching
             for idx in range(0, num_nodes, batch_size):
                 batch_end = min(idx + batch_size, num_nodes)
                 batch_nodes = []
 
+                # Process batch with minimal attribute lookups
                 for node_idx in range(idx, batch_end):
-                    node = self.graph.node_labels[node_idx]
+                    node = node_labels[node_idx]
                     node_id = node.get('id')
                     if node_id is not None:
                         batch_nodes.append((node_id, node_idx, node))
@@ -1378,17 +1490,20 @@ class SimulationManager:
                 if batch_nodes:
                     node_updates.append(batch_nodes)
 
-            # Process batches
+            # Process batches with error handling
             for batch in node_updates:
-                self._process_node_batch(batch)
-
-            # Update enhanced integration if available
-            if (hasattr(self, 'enhanced_integration') and self.enhanced_integration is not None and
-                self.step_counter % 3 == 0):
                 try:
-                    self.graph = self.enhanced_integration.integrate_with_existing_system(
-                        self.graph, self.step_counter
-                    )
+                    self._process_node_batch(batch)
+                except Exception as batch_error:
+                    logging.warning(f"Batch processing failed for batch of {len(batch)} nodes: {batch_error}")
+
+            # Optimized enhanced integration check
+            if (hasattr(self, 'enhanced_integration') and
+                self.enhanced_integration is not None and
+                step_counter % 3 == 0):
+                try:
+                    graph = self.enhanced_integration.integrate_with_existing_system(graph, step_counter)
+                    self.graph = graph
                 except Exception as e:
                     logging.error(f"Error in enhanced neural integration: {e}")
                     self.error_count += 1
@@ -2075,6 +2190,11 @@ class SimulationManager:
             self.live_hebbian_learning = None
             self.neural_map_persistence = None
             self.error_handler = None
+
+            # Clean up lazy loader components
+            if hasattr(self, 'lazy_loader') and self.lazy_loader:
+                self.lazy_loader.cleanup()
+
             self.performance_stats.clear()
             import gc
             gc.collect()
@@ -2188,6 +2308,13 @@ def get_simulation_manager() -> SimulationManager:
     if _global_simulation_manager is None:
         _global_simulation_manager = SimulationManager()
     return _global_simulation_manager
+
+def cleanup_global_simulation_manager():
+    """Clean up the global simulation manager instance."""
+    global _global_simulation_manager
+    if _global_simulation_manager is not None:
+        _global_simulation_manager.cleanup()
+        _global_simulation_manager = None
 
 
 def create_simulation_manager(config: Optional[Dict[str, Any]] = None) -> SimulationManager:

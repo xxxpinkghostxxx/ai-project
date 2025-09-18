@@ -472,3 +472,16 @@ def record_simulation_error() -> None:
 def record_simulation_warning() -> None:
     monitor = get_performance_monitor()
     monitor.record_warning()
+
+
+def create_performance_monitor(update_interval: float = 1.0) -> PerformanceMonitor:
+    """
+    Create a new PerformanceMonitor instance.
+
+    Args:
+        update_interval: Update interval in seconds
+
+    Returns:
+        PerformanceMonitor: New performance monitor instance
+    """
+    return PerformanceMonitor(update_interval=update_interval)

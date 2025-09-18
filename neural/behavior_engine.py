@@ -221,70 +221,88 @@ class BehaviorEngine:
             log_step(f"Recovery failed for node {node_id}", error=str(e))
             return False
     def update_sensory_node(self, node_id: int, graph: Data, step: int, access_layer=None) -> None:
-        logging.debug(f"update_sensory_node: node_id={node_id}, step={step}")
+        """Optimized sensory node update with reduced logging overhead."""
         if access_layer is None:
             from energy.node_access_layer import NodeAccessLayer
             access_layer = NodeAccessLayer(graph)
+
+        # Cache time step to avoid repeated function calls
+        time_step = get_time_step()
+
         refractory_timer = access_layer.get_node_property(node_id, 'refractory_timer', 0.0)
-        logging.debug(f"Sensory node {node_id}: refractory_timer={refractory_timer}")
         if refractory_timer > 0:
-            new_refractory = max(0.0, refractory_timer - get_time_step())
+            new_refractory = max(0.0, refractory_timer - time_step)
             access_layer.update_node_property(node_id, 'refractory_timer', new_refractory)
-            logging.debug(f"Sensory node {node_id}: updated refractory to {new_refractory}")
             return
-        logging.debug(f"Sensory node {node_id}: getting energy")
+
         energy = access_layer.get_node_energy(node_id)
-        logging.debug(f"Sensory node {node_id}: energy={energy}")
         if energy is not None:
-            membrane = min(energy / get_energy_cap_255(), 1.0)
+            # Cache energy cap to avoid repeated function calls
+            energy_cap = get_energy_cap_255()
+            membrane = min(energy / energy_cap, 1.0)
             access_layer.update_node_property(node_id, 'membrane_potential', membrane)
             access_layer.update_node_property(node_id, 'state', 'active')
-            logging.debug(f"Sensory node {node_id}: set membrane={membrane}, state=active")
-        else:
-            logging.warning(f"Sensory node {node_id}: energy is None, skipping update")
+        # Removed excessive debug logging for performance
     def update_dynamic_node(self, node_id: int, graph: Data, step: int, access_layer=None) -> None:
-
+        """Optimized dynamic node update with cached values and reduced overhead."""
         if access_layer is None:
             from energy.node_access_layer import NodeAccessLayer
             access_layer = NodeAccessLayer(graph)
+
+        # Cache frequently used values
         energy = access_layer.get_node_energy(node_id)
         if energy is not None:
-            access_layer.update_node_property(node_id, 'membrane_potential', min(energy / get_node_energy_cap(), 1.0))
+            # Cache energy cap to avoid repeated function calls
+            energy_cap = get_node_energy_cap()
+            membrane_potential = min(energy / energy_cap, 1.0)
+            access_layer.update_node_property(node_id, 'membrane_potential', membrane_potential)
+
             threshold = access_layer.get_node_property(node_id, 'threshold', 0.3)
-            if energy >= threshold:
-                access_layer.update_node_property(node_id, 'state', 'active')
-            else:
-                access_layer.update_node_property(node_id, 'state', 'inactive')
+            new_state = 'active' if energy >= threshold else 'inactive'
+            access_layer.update_node_property(node_id, 'state', new_state)
+
+            # Handle refractory period
             refractory_timer = access_layer.get_node_property(node_id, 'refractory_timer', 0.0)
             if refractory_timer > 0:
-                access_layer.update_node_property(node_id, 'refractory_timer', max(0.0, refractory_timer - get_time_step()))
+                time_step = get_time_step()
+                new_refractory = max(0.0, refractory_timer - time_step)
+                access_layer.update_node_property(node_id, 'refractory_timer', new_refractory)
     def update_oscillator_node(self, node_id: int, graph: Data, step: int, access_layer=None) -> None:
-
+        """Optimized oscillator node update with cached values and reduced logging."""
         if access_layer is None:
             from energy.node_access_layer import NodeAccessLayer
             access_layer = NodeAccessLayer(graph)
+
+        # Cache frequently used values
         config = get_enhanced_nodes_config_cached()
+        time_step = get_time_step()
+        refractory_period = get_refractory_period()
+
         oscillation_freq = access_layer.get_node_property(node_id, 'oscillation_freq', config['oscillator_frequency'])
         threshold = access_layer.get_node_property(node_id, 'threshold', 0.8)
         refractory_timer = access_layer.get_node_property(node_id, 'refractory_timer', 0.0)
         membrane_potential = access_layer.get_node_property(node_id, 'membrane_potential', 0.0)
+
         if refractory_timer > 0:
-            access_layer.update_node_property(node_id, 'refractory_timer', max(0.0, refractory_timer - get_time_step()))
+            new_refractory = max(0.0, refractory_timer - time_step)
+            access_layer.update_node_property(node_id, 'refractory_timer', new_refractory)
             return
-        energy_increment = oscillation_freq * get_time_step() * 0.1
+
+        energy_increment = oscillation_freq * time_step * 0.1
         membrane_potential += energy_increment
+
         if membrane_potential >= threshold:
             access_layer.update_node_property(node_id, 'last_activation', time.time())
-            access_layer.update_node_property(node_id, 'refractory_timer', get_refractory_period())
+            access_layer.update_node_property(node_id, 'refractory_timer', refractory_period)
             access_layer.update_node_property(node_id, 'membrane_potential', 0.0)
             access_layer.update_node_property(node_id, 'state', 'active')
             self.behavior_stats['oscillator_activations'] += 1
-            log_step("Oscillator activated",
-                    node_id=node_id,
-                    frequency=oscillation_freq,
-                    step=step)
+            # Reduced logging frequency for performance
+            if step % 100 == 0:
+                log_step("Oscillator activated", node_id=node_id, frequency=oscillation_freq, step=step)
         else:
             access_layer.update_node_property(node_id, 'state', 'inactive')
+
         access_layer.update_node_property(node_id, 'membrane_potential', min(membrane_potential, 1.0))
     def update_integrator_node(self, node_id: int, graph: Data, step: int, access_layer=None) -> None:
 

@@ -15,20 +15,19 @@ This guide will help you quickly set up and use the optimized neural simulation 
 ## 1. Apply Optimizations
 
 ```python
-from utils.optimization_applier import apply_optimizations, OptimizationConfig
+# The system now includes built-in optimizations
+from core.simulation_manager import SimulationManager
 
-# Quick setup with default optimizations
-config = OptimizationConfig()
-applier = apply_optimizations(config)
+# Create simulation manager (optimizations are built-in)
+sim_manager = SimulationManager()
 
-print("Optimizations applied successfully!")
-print(applier.get_optimization_summary())
+print("Simulation manager created with built-in optimizations!")
 ```
 
 ## 2. Run Optimized Simulation
 
 ```python
-from simulation_manager import SimulationManager
+from core.simulation_manager import SimulationManager
 
 # Create optimized simulation manager
 sim_manager = SimulationManager()

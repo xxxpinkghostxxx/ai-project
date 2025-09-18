@@ -125,41 +125,57 @@ def update_node_energy_with_learning(graph, node_id, delta_energy):
 
 
 def apply_energy_behavior(graph, behavior_params=None, _recursion_depth=0):
-
+    """Optimized energy behavior application with reduced overhead."""
     MAX_RECURSION_DEPTH = 10
     if _recursion_depth > MAX_RECURSION_DEPTH:
-        log_step("Energy behavior recursion limit reached", depth=_recursion_depth)
+        # Reduced logging frequency for performance
+        if _recursion_depth % 10 == 0:
+            log_step("Energy behavior recursion limit reached", depth=_recursion_depth)
         return graph
+
     if not hasattr(graph, 'node_labels') or not hasattr(graph, 'x') or graph.x is None:
         return graph
-    if hasattr(graph, 'x') and graph.x is not None:
-        log_step("Before tensor ops", shape=graph.x.shape if hasattr(graph, 'x') else None, device=graph.x.device if hasattr(graph, 'x') and graph.x is not None else None, num_nodes=len(graph.node_labels))
-        current_energies = graph.x[:, 0]
-        log_step("After slice", shape=current_energies.shape)
-        current_energies.mul_(0.99)
-        log_step("After mul_")
-        current_energies.clamp_(min=0.0)
-        log_step("After clamp_")
-        if torch.isnan(current_energies).any():
-            log_step("NaN detected after ops")
-        energy_cap = _ENERGY_CAP_PRECACHED
-        if energy_cap <= 0:
-            energy_cap = 1.0
-        membrane_potentials = current_energies / energy_cap
-        membrane_potentials.clamp_(max=1.0)
-        if len(graph.node_labels) > 10000:
-            sample_size = min(10, len(graph.node_labels))
-            for i in range(sample_size):
-                node_idx = i * (len(graph.node_labels) // sample_size)
-                if node_idx < len(graph.node_labels):
-                    node = graph.node_labels[node_idx]
-                    if 'membrane_potential' in node:
-                        node['membrane_potential'] = float(membrane_potentials[node_idx].item())
-        else:
-            for i in range(len(graph.node_labels)):
-                node = graph.node_labels[i]
+
+    # Cache frequently used values
+    node_labels = graph.node_labels
+    graph_x = graph.x
+    num_nodes = len(node_labels)
+
+    # Optimized tensor operations with minimal logging
+    current_energies = graph_x[:, 0]
+    current_energies.mul_(0.99)  # Apply decay
+    current_energies.clamp_(min=0.0)  # Ensure non-negative
+
+    # Check for NaN only periodically to reduce overhead
+    if _recursion_depth % 100 == 0 and torch.isnan(current_energies).any():
+        log_step("NaN detected in energy tensor")
+
+    # Cache energy cap
+    energy_cap = _ENERGY_CAP_PRECACHED
+    if energy_cap <= 0:
+        energy_cap = 1.0
+
+    # Calculate membrane potentials
+    membrane_potentials = current_energies / energy_cap
+    membrane_potentials.clamp_(max=1.0)
+
+    # Optimized membrane potential updates
+    if num_nodes > 10000:
+        # For large graphs, sample updates to reduce overhead
+        sample_size = min(10, num_nodes)
+        step_size = max(1, num_nodes // sample_size)
+        for i in range(0, num_nodes, step_size):
+            if i < num_nodes:
+                node = node_labels[i]
                 if 'membrane_potential' in node:
                     node['membrane_potential'] = float(membrane_potentials[i].item())
+    else:
+        # For smaller graphs, update all nodes
+        for i in range(num_nodes):
+            node = node_labels[i]
+            if 'membrane_potential' in node:
+                node['membrane_potential'] = float(membrane_potentials[i].item())
+
     return graph
 
 
@@ -374,31 +390,56 @@ def emit_energy_pulse(graph, source_node_id, _recursion_depth=0):
 
 
 def update_membrane_potentials(graph):
-
+    """Optimized membrane potential updates with reduced overhead."""
     if not hasattr(graph, 'node_labels') or not hasattr(graph, 'x'):
         return graph
-    if len(graph.node_labels) > 1000:
+
+    # Cache frequently used values
+    node_labels = graph.node_labels
+    num_nodes = len(node_labels)
+
+    # Skip for very large graphs to maintain performance
+    if num_nodes > 1000:
         return graph
+
     from energy.node_access_layer import NodeAccessLayer
     access_layer = NodeAccessLayer(graph)
-    sample_size = min(10, len(graph.node_labels))
+
     try:
         all_node_ids = access_layer.get_all_active_ids()
         if not all_node_ids:
             return graph
-        sample_step = max(1, len(all_node_ids) // sample_size)
-        sampled_ids = all_node_ids[::sample_step][:sample_size]
+
+        # Optimized sampling with better distribution
+        sample_size = min(10, len(all_node_ids))
+        if sample_size >= len(all_node_ids):
+            # Update all nodes if sample size equals or exceeds total
+            sampled_ids = all_node_ids
+        else:
+            # Use more efficient sampling
+            sample_step = max(1, len(all_node_ids) // sample_size)
+            sampled_ids = all_node_ids[::sample_step][:sample_size]
+
+        # Cache energy cap to avoid repeated function calls
+        energy_cap = _ENERGY_CAP_PRECACHED
+        if energy_cap <= 0:
+            energy_cap = 1.0
+
+        membrane_cap = EnergyConstants.MEMBRANE_POTENTIAL_CAP
+
+        # Batch process sampled nodes
         for node_id in sampled_ids:
             if access_layer.is_valid_node_id(node_id):
                 energy = access_layer.get_node_energy(node_id)
                 if energy is not None:
-                    energy_cap = _ENERGY_CAP_PRECACHED
-                    if energy_cap <= 0:
-                        energy_cap = 1.0
-                    membrane_potential = min(energy / energy_cap, EnergyConstants.MEMBRANE_POTENTIAL_CAP)
+                    membrane_potential = min(energy / energy_cap, membrane_cap)
                     access_layer.update_node_property(node_id, 'membrane_potential', membrane_potential)
+
     except Exception as e:
-        log_step("Membrane potential update failed, skipping", error=str(e))
+        # Reduced logging frequency for performance
+        if num_nodes % 100 == 0:
+            log_step("Membrane potential update failed, skipping", error=str(e))
+
     return graph
 
 

@@ -8,6 +8,7 @@ This system implements a sophisticated neural simulation that combines:
 - **Biologically-inspired neural networks** with energy-based dynamics
 - **Real-time visualization** using DearPyGui
 - **Advanced learning mechanisms** including STDP, Hebbian learning, and memory formation
+- **Energy-modulated learning** where energy levels directly influence synaptic plasticity
 - **Event-driven architecture** for efficient processing
 - **Multi-modal sensory integration** (visual and audio)
 - **Homeostatic regulation** and criticality maintenance
@@ -16,54 +17,53 @@ This system implements a sophisticated neural simulation that combines:
 
 ### Core Components
 
-#### 1. Simulation Manager (`simulation_manager.py`)
+#### 1. Simulation Manager (`core/simulation_manager.py`)
 - Central coordinator for all neural systems
 - Orchestrates simulation loop and component lifecycles
 - Manages configuration and error handling
-- Integrates enhanced neural processes
+- Integrates enhanced neural processes with lazy loading
 
-#### 2. Enhanced Neural Integration (`enhanced_neural_integration.py`)
-- Integrates all enhanced neural systems
-- Manages neural dynamics, connections, and behaviors
-- Provides unified interface for advanced features
+#### 2. Energy System (`energy/`)
+- **Energy Behavior** (`energy/energy_behavior.py`): Energy flow and consumption
+- **Energy Constants** (`energy/energy_constants.py`): Centralized energy parameters
+- **Node Access Layer** (`energy/node_access_layer.py`): ID-based node operations
+- **Energy System Validator** (`energy/energy_system_validator.py`): Energy integration validation
 
-#### 3. Neural Dynamics (`enhanced_neural_dynamics.py`)
-- Implements STDP (Spike-Timing Dependent Plasticity)
-- IEG (Immediate Early Gene) tagging for plasticity gating
-- Theta-burst stimulation for LTP induction
-- Membrane dynamics and spike generation
+#### 3. Neural Dynamics (`neural/`)
+- **Behavior Engine** (`neural/behavior_engine.py`): Node behavior management
+- **Connection Logic** (`neural/connection_logic.py`): Intelligent connection formation
+- **Network Metrics** (`neural/network_metrics.py`): Network analysis and metrics
+- **Event-Driven System** (`neural/event_driven_system.py`): Event-based processing
 
-#### 4. Node Behaviors (`enhanced_node_behaviors.py`)
-- Sophisticated biological node types:
-  - **Oscillators**: Generate rhythmic activity
-  - **Integrators**: Accumulate and consolidate information
-  - **Relays**: Amplify and transmit signals
-  - **Highways**: High-capacity energy distribution
-  - **Workspace**: Imagination and flexible thinking
+#### 4. Learning Systems (`learning/`)
+- **Learning Engine** (`learning/learning_engine.py`): STDP and pattern learning
+- **Live Hebbian Learning** (`learning/live_hebbian_learning.py`): Real-time learning with energy modulation
+- **Memory System** (`learning/memory_system.py`): Memory formation and persistence
+- **Homeostasis Controller** (`learning/homeostasis_controller.py`): Energy balance regulation
 
-#### 5. Connection System (`enhanced_connection_system.py`)
-- Advanced connection types:
-  - Excitatory, inhibitory, modulatory
-  - Plastic connections with STDP
-  - Burst connections for theta rhythms
-  - Gated connections with neuromodulation
+#### 5. Sensory Integration (`sensory/`)
+- **Visual Energy Bridge** (`sensory/visual_energy_bridge.py`): Visual input processing
+- **Audio to Neural Bridge** (`sensory/audio_to_neural_bridge.py`): Audio feature extraction
+- **Sensory Workspace Mapper** (`sensory/sensory_workspace_mapper.py`): Sensory-to-workspace mapping
 
 ### Supporting Systems
 
 #### Energy Management
-- **Energy Behavior** (`energy_behavior.py`): Energy flow and consumption
-- **Energy Constants** (`energy_constants.py`): Centralized energy parameters
-- **Node Access Layer** (`node_access_layer.py`): ID-based node operations
+- **Energy Behavior** (`energy/energy_behavior.py`): Energy flow and consumption
+- **Energy Constants** (`energy/energy_constants.py`): Centralized energy parameters
+- **Node Access Layer** (`energy/node_access_layer.py`): ID-based node operations
+- **Energy System Validator** (`energy/energy_system_validator.py`): Energy integration validation
 
 #### Learning & Memory
-- **Learning Engine** (`learning_engine.py`): STDP and pattern learning
-- **Memory System** (`memory_system.py`): Memory formation and persistence
-- **Live Hebbian Learning** (`live_hebbian_learning.py`): Real-time learning
+- **Learning Engine** (`learning/learning_engine.py`): STDP and pattern learning
+- **Memory System** (`learning/memory_system.py`): Memory formation and persistence
+- **Live Hebbian Learning** (`learning/live_hebbian_learning.py`): Real-time learning with energy modulation
+- **Homeostasis Controller** (`learning/homeostasis_controller.py`): Energy balance regulation
 
 #### Sensory Integration
-- **Visual Energy Bridge** (`visual_energy_bridge.py`): Visual input processing
-- **Audio to Neural Bridge** (`audio_to_neural_bridge.py`): Audio feature extraction
-- **Sensory Workspace Mapper** (`sensory_workspace_mapper.py`): Sensory-to-workspace mapping
+- **Visual Energy Bridge** (`sensory/visual_energy_bridge.py`): Visual input processing
+- **Audio to Neural Bridge** (`sensory/audio_to_neural_bridge.py`): Audio feature extraction
+- **Sensory Workspace Mapper** (`sensory/sensory_workspace_mapper.py`): Sensory-to-workspace mapping
 
 #### System Management
 - **Performance Monitor** (`utils/performance_monitor.py`): Real-time system monitoring
@@ -94,8 +94,8 @@ python core/unified_launcher.py
 ### Basic Usage
 
 ```python
-from simulation_manager import create_simulation_manager
-from main_graph import initialize_main_graph
+from core.simulation_manager import create_simulation_manager
+from core.main_graph import initialize_main_graph
 
 # Create simulation manager
 sim_manager = create_simulation_manager()
@@ -139,7 +139,7 @@ relay_amplification = 1.5
 
 ```python
 # Create enhanced neural integration
-from enhanced_neural_integration import create_enhanced_neural_integration
+from neural.enhanced_neural_integration import create_enhanced_neural_integration
 
 integration = create_enhanced_neural_integration()
 
@@ -162,7 +162,7 @@ integration.create_enhanced_connection(
 
 ```python
 # Visual processing
-from visual_energy_bridge import create_visual_energy_bridge
+from sensory.visual_energy_bridge import create_visual_energy_bridge
 
 visual_bridge = create_visual_energy_bridge(integration)
 graph = visual_bridge.process_visual_to_enhanced_energy(
@@ -170,7 +170,7 @@ graph = visual_bridge.process_visual_to_enhanced_energy(
 )
 
 # Audio processing
-from audio_to_neural_bridge import create_audio_to_neural_bridge
+from sensory.audio_to_neural_bridge import create_audio_to_neural_bridge
 
 audio_bridge = create_audio_to_neural_bridge()
 sensory_nodes = audio_bridge.process_audio_to_sensory_nodes(audio_data)
@@ -180,15 +180,34 @@ sensory_nodes = audio_bridge.process_audio_to_sensory_nodes(audio_data)
 
 ```python
 # Memory formation
-from memory_system import MemorySystem
+from learning.memory_system import MemorySystem
 
 memory_system = MemorySystem()
 memory_system.form_memory_traces(graph)
 
-# Live Hebbian learning
-from live_hebbian_learning import create_live_hebbian_learning
+# Live Hebbian learning with energy modulation
+from learning.live_hebbian_learning import create_live_hebbian_learning
 
 learning = create_live_hebbian_learning(sim_manager)
+graph = learning.apply_continuous_learning(graph, step)
+```
+
+### Energy-Learning Integration
+
+```python
+# Energy-modulated learning where energy levels influence synaptic plasticity
+from learning.live_hebbian_learning import create_live_hebbian_learning
+
+learning = create_live_hebbian_learning(sim_manager)
+
+# Enable energy modulation for biologically realistic learning
+learning.energy_learning_modulation = True
+
+# Learning rates automatically adjust based on node energy levels:
+# - High energy nodes (0.8+): 95% of base learning rate
+# - Medium energy nodes (0.5): 75% of base learning rate
+# - Low energy nodes (0.1): 55% of base learning rate
+
 graph = learning.apply_continuous_learning(graph, step)
 ```
 
@@ -197,7 +216,7 @@ graph = learning.apply_continuous_learning(graph, step)
 ### Performance Monitoring
 
 ```python
-from performance_monitor import get_performance_monitor
+from utils.performance_monitor import get_performance_monitor
 
 monitor = get_performance_monitor()
 metrics = monitor.get_current_metrics()
@@ -210,7 +229,7 @@ print(f"FPS: {metrics.fps:.1f}")
 ### Network Metrics
 
 ```python
-from network_metrics import create_network_metrics
+from neural.network_metrics import create_network_metrics
 
 metrics = create_network_metrics()
 criticality = metrics.calculate_criticality(graph)
@@ -263,22 +282,53 @@ ai-project/
 ├── utils/
 │   ├── unified_error_handler.py  # Unified error handling
 │   ├── performance_monitor.py    # Performance monitoring
+│   ├── lazy_loader.py            # Lazy loading system
+│   ├── performance_cache.py      # Performance caching
+│   ├── static_allocator.py       # Memory allocation
 │   └── other_utils.py            # Common utilities (logging, stats, etc.)
 ├── neural/
-│   ├── enhanced_neural_*.py      # Advanced neural systems and dynamics
-│   └── behavior_engine.py        # Node behavior management
+│   ├── behavior_engine.py        # Node behavior management
+│   ├── connection_logic.py       # Intelligent connection formation
+│   ├── network_metrics.py        # Network analysis and metrics
+│   ├── event_driven_system.py    # Event-based processing
+│   └── spike_queue_system.py     # Spike processing system
 ├── energy/
-│   └── energy_*.py               # Energy dynamics and constants
+│   ├── energy_behavior.py        # Energy flow and consumption
+│   ├── energy_constants.py       # Centralized energy parameters
+│   ├── node_access_layer.py      # ID-based node operations
+│   ├── node_id_manager.py        # Node ID management
+│   └── energy_system_validator.py # Energy integration validation
 ├── learning/
-│   └── learning_*.py             # Learning mechanisms and memory
+│   ├── learning_engine.py        # STDP and pattern learning
+│   ├── live_hebbian_learning.py  # Real-time learning with energy modulation
+│   ├── memory_system.py          # Memory formation and persistence
+│   └── homeostasis_controller.py # Energy balance regulation
 ├── sensory/
-│   └── sensory_*.py              # Sensory integration (visual, audio)
+│   ├── visual_energy_bridge.py   # Visual input processing
+│   ├── audio_to_neural_bridge.py # Audio feature extraction
+│   └── sensory_workspace_mapper.py # Sensory-to-workspace mapping
 ├── ui/
-│   └── ui_*.py                   # User interface and visualization
+│   ├── ui_engine.py              # User interface and visualization
+│   ├── ui_state_manager.py       # UI state management
+│   └── screen_graph.py           # Screen capture utilities
 ├── docs/
-│   └── *.md                      # Documentation
+│   ├── README.md                 # Main documentation
+│   ├── CONSOLIDATED_DOCUMENTATION.md # Complete API reference
+│   ├── ENERGY_LEARNING_INTEGRATION.md # Energy-learning integration
+│   ├── OPTIMIZATION_REPORT.md    # Performance optimizations
+│   ├── QUICK_START_GUIDE.md      # Quick start guide
+│   └── other_docs.md             # Additional documentation
 ├── tests/
-│   └── *.py                      # Testing framework
+│   ├── comprehensive_simulation_test.py # Comprehensive testing
+│   ├── comprehensive_test_framework.py  # Test framework
+│   ├── debug_simulation_manager.py      # Debug utilities
+│   ├── simple_energy_test.py            # Energy system tests
+│   ├── test_energy_learning.py          # Energy-learning tests
+│   └── other_tests.py                    # Additional tests
+├── analysis/
+│   ├── comprehensive_test_report.json   # Test reports
+│   ├── energy_validation_report.json    # Energy validation
+│   └── simulation_metrics_*.json        # Performance metrics
 ├── requirements.txt              # Dependencies
 └── README.md                     # This file
 ```

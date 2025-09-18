@@ -10,64 +10,193 @@ from utils.logging_utils import log_step
 
 from config.unified_config_manager import get_learning_config
 from utils.event_bus import get_event_bus
-from typing import Dict, Any
+from typing import Dict, Any, Optional, List, Tuple, Union
 
 
 class LearningEngine:
+    """
+    Advanced learning engine that implements energy-modulated synaptic plasticity.
 
-    def __init__(self):
+    This engine handles STDP (Spike-Timing Dependent Plasticity), memory consolidation,
+    and energy-based learning modulation to create biologically plausible learning dynamics.
+    """
+
+    def __init__(self) -> None:
+        """
+        Initialize the LearningEngine with configuration parameters.
+
+        Sets up learning rates, thresholds, and event handling for synaptic plasticity.
+        """
         config = get_learning_config()
-        self.learning_rate = config.get('plasticity_rate', 0.01)
-        self.eligibility_decay = config.get('eligibility_decay', 0.95)
-        self.stdp_window = config.get('stdp_window', 20.0)
-        self.ltp_rate = config.get('ltp_rate', 0.02)
-        self.ltd_rate = config.get('ltd_rate', 0.01)
-        self.plasticity_threshold = 0.1
-        self.consolidation_threshold = 0.5
-        self.learning_stats = {
+
+        # Core learning parameters
+        self.learning_rate: float = config.get('plasticity_rate', 0.01)
+        self.eligibility_decay: float = config.get('eligibility_decay', 0.95)
+        self.stdp_window: float = config.get('stdp_window', 20.0)  # milliseconds
+        self.ltp_rate: float = config.get('ltp_rate', 0.02)  # Long-term potentiation rate
+        self.ltd_rate: float = config.get('ltd_rate', 0.01)  # Long-term depression rate
+
+        # Learning thresholds
+        self.plasticity_threshold: float = 0.1
+        self.consolidation_threshold: float = 0.5
+
+        # Energy modulation settings
+        self.energy_learning_modulation: bool = True
+
+        # Learning statistics tracking
+        self.learning_stats: Dict[str, Union[int, float]] = {
             'stdp_events': 0,
             'weight_changes': 0,
             'consolidation_events': 0,
             'memory_traces_formed': 0,
-            'total_weight_change': 0.0
+            'total_weight_change': 0.0,
+            'energy_modulated_events': 0
         }
-        self.memory_traces = {}
-        self.memory_decay_rate = 0.99
-        self.event_bus = get_event_bus()
-        self.sim_manager = None
-        self.event_bus.subscribe('SPIKE', self._on_spike)
-    def apply_timing_learning(self, pre_node: Any, post_node: Any, edge: Any, delta_t: float) -> float:
 
-        if abs(delta_t) <= self.stdp_window / 1000.0:
+        # Memory system
+        self.memory_traces: Dict[int, Dict[str, Any]] = {}
+        self.memory_decay_rate: float = 0.99
+
+        # Event handling
+        self.event_bus = get_event_bus()
+        self.simulation_manager: Optional[Any] = None
+        self.event_bus.subscribe('SPIKE', self._on_spike)
+    def _get_node_energy(self, node: Optional[Dict[str, Any]]) -> float:
+        """
+        Get energy level for a node.
+
+        Args:
+            node: Node dictionary containing energy information
+
+        Returns:
+            float: Energy level of the node, or 0.0 if unavailable
+        """
+        if node is None:
+            return 0.0
+        return node.get('energy', node.get('membrane_potential', 0.0))
+
+    def _calculate_energy_modulated_rate(self, pre_node: Optional[Dict[str, Any]],
+                                        post_node: Optional[Dict[str, Any]],
+                                        base_rate: float) -> float:
+        """
+        Calculate learning rate modulated by node energy levels.
+
+        Higher energy nodes exhibit enhanced synaptic plasticity, creating a biologically
+        plausible mechanism where active neurons learn more effectively.
+
+        Args:
+            pre_node: Pre-synaptic node dictionary
+            post_node: Post-synaptic node dictionary
+            base_rate: Base learning rate to modulate
+
+        Returns:
+            float: Energy-modulated learning rate
+        """
+        if not self.energy_learning_modulation:
+            return base_rate
+
+        try:
+            pre_energy = self._get_node_energy(pre_node)
+            post_energy = self._get_node_energy(post_node)
+
+            # Calculate average energy for modulation
+            avg_energy = (pre_energy + post_energy) / 2.0
+
+            # Get energy cap for normalization
+            energy_cap = 1.0  # Default fallback
+            try:
+                from energy.energy_behavior import get_node_energy_cap
+                energy_cap = get_node_energy_cap()
+            except ImportError:
+                energy_cap = 1.0  # Default when module unavailable
+
+            # Normalize energy and apply modulation
+            # Range: 0.5x to 1.0x base rate based on energy level
+            normalized_energy = min(avg_energy / energy_cap, 1.0) if energy_cap > 0 else 0.5
+            modulated_rate = base_rate * (0.5 + 0.5 * normalized_energy)
+
+            return modulated_rate
+
+        except Exception as e:
+            log_step("Error calculating energy-modulated rate", error=str(e))
+            return base_rate
+
+    def apply_timing_learning(self, pre_node: Optional[Dict[str, Any]],
+                            post_node: Optional[Dict[str, Any]],
+                            edge: Optional[Any],
+                            delta_t: float) -> float:
+        """
+        Apply Spike-Timing Dependent Plasticity (STDP) learning.
+
+        Implements energy-modulated STDP where synaptic strength changes based on
+        the relative timing of pre- and post-synaptic spikes, with modulation by
+        the energy levels of the connected neurons.
+
+        Args:
+            pre_node: Pre-synaptic neuron node data
+            post_node: Post-synaptic neuron node data
+            edge: Synaptic connection edge object
+            delta_t: Time difference between spikes (post - pre) in seconds
+
+        Returns:
+            float: Weight change applied to the synapse
+        """
+        # Convert STDP window from milliseconds to seconds for comparison
+        stdp_window_seconds = self.stdp_window / 1000.0
+
+        if abs(delta_t) <= stdp_window_seconds:
             if delta_t > 0:
-                weight_change = self.ltp_rate * np.exp(-delta_t / 0.01)
+                # Long-Term Potentiation (LTP): Pre before Post
+                modulated_ltp_rate = self._calculate_energy_modulated_rate(pre_node, post_node, self.ltp_rate)
+                weight_change = modulated_ltp_rate * np.exp(-delta_t / 0.01)
+
                 self.learning_stats['stdp_events'] += 1
-                log_step("LTP applied",
-                        pre_id=pre_node.get('id', '?'),
-                        post_id=post_node.get('id', '?'),
-                        delta_t=delta_t,
-                        weight_change=weight_change)
+                if modulated_ltp_rate != self.ltp_rate:
+                    self.learning_stats['energy_modulated_events'] += 1
+
+                # Log LTP event with reduced frequency for performance
+                if self.learning_stats['stdp_events'] % 100 == 0:
+                    log_step("LTP applied with energy modulation",
+                            pre_id=pre_node.get('id', '?') if pre_node else '?',
+                            post_id=post_node.get('id', '?') if post_node else '?',
+                            delta_t=delta_t,
+                            weight_change=weight_change,
+                            modulated_rate=modulated_ltp_rate)
             else:
-                weight_change = -self.ltd_rate * np.exp(delta_t / 0.01)
+                # Long-Term Depression (LTD): Post before Pre
+                modulated_ltd_rate = self._calculate_energy_modulated_rate(pre_node, post_node, self.ltd_rate)
+                weight_change = -modulated_ltd_rate * np.exp(delta_t / 0.01)
+
                 self.learning_stats['stdp_events'] += 1
-                log_step("LTD applied",
-                        pre_id=pre_node.get('id', '?'),
-                        post_id=post_node.get('id', '?'),
-                        delta_t=delta_t,
-                        weight_change=weight_change)
-            edge.eligibility_trace += weight_change
+                if modulated_ltd_rate != self.ltd_rate:
+                    self.learning_stats['energy_modulated_events'] += 1
+
+                # Log LTD event with reduced frequency for performance
+                if self.learning_stats['stdp_events'] % 100 == 0:
+                    log_step("LTD applied with energy modulation",
+                            pre_id=pre_node.get('id', '?') if pre_node else '?',
+                            post_id=post_node.get('id', '?') if post_node else '?',
+                            delta_t=delta_t,
+                            weight_change=weight_change,
+                            modulated_rate=modulated_ltd_rate)
+
+            # Update edge eligibility trace if edge exists
+            if edge:
+                edge.eligibility_trace += weight_change
+
             return weight_change
-        return 0.0
+
+        return 0.0  # No learning if timing difference is too large
 
     def _on_spike(self, event_type: str, data: Dict[str, Any]) -> None:
         """Handle SPIKE event and apply timing learning."""
         try:
             node_id = data['node_id']
             source_id = data.get('source_id', node_id)
-            if self.sim_manager is None:
-                from simulation_manager import get_simulation_manager
-                self.sim_manager = get_simulation_manager()
-            access_layer = self.sim_manager.get_access_layer()
+            if self.simulation_manager is None:
+                from core.simulation_manager import get_simulation_manager
+                self.simulation_manager = get_simulation_manager()
+            access_layer = self.simulation_manager.get_access_layer()
             if access_layer:
                 pre_node = access_layer.get_node_by_id(source_id)
                 post_node = access_layer.get_node_by_id(node_id)
@@ -77,8 +206,8 @@ class LearningEngine:
                 change = self.apply_timing_learning(pre_node, post_node, edge, delta_t)
                 if change != 0.0:
                     self.emit_learning_update(source_id, node_id, change)
-        except Exception:
-            pass  # Fallback: no action
+        except Exception as e:
+            log_step("Error emitting learning update event", error=str(e), source_id=source_id, target_id=node_id)
 
     def emit_learning_update(self, source_id: int, target_id: int, weight_change: float) -> None:
         """Emit LEARNING_UPDATE event."""
@@ -88,8 +217,8 @@ class LearningEngine:
                 'target_id': target_id,
                 'weight_change': weight_change
             })
-        except Exception:
-            pass  # Fallback: no action
+        except Exception as e:
+            log_step("Error handling spike event", error=str(e), source_id=source_id, target_id=target_id)
 
     def consolidate_connections(self, graph: Any) -> Any:
 
@@ -99,7 +228,30 @@ class LearningEngine:
         total_weight_change = 0.0
         for edge_idx, edge in enumerate(graph.edge_attributes):
             if edge.eligibility_trace > self.consolidation_threshold:
-                weight_change = edge.eligibility_trace * self.learning_rate
+                # Energy-modulated consolidation
+                base_weight_change = edge.eligibility_trace * self.learning_rate
+
+                # Get energy levels of connected nodes for modulation
+                pre_energy = 0.0
+                post_energy = 0.0
+                if hasattr(graph, 'node_labels') and edge.source < len(graph.node_labels) and edge.target < len(graph.node_labels):
+                    pre_node = graph.node_labels[edge.source]
+                    post_node = graph.node_labels[edge.target]
+                    pre_energy = self._get_node_energy(pre_node)
+                    post_energy = self._get_node_energy(post_node)
+
+                # Modulate consolidation by average energy
+                energy_cap = 1.0
+                try:
+                    from energy.energy_behavior import get_node_energy_cap
+                    energy_cap = get_node_energy_cap()
+                except ImportError:
+                    energy_cap = 1.0  # Default energy cap when module not available
+
+                avg_energy = (pre_energy + post_energy) / 2.0
+                energy_factor = min(avg_energy / energy_cap, 1.0) if energy_cap > 0 else 0.5
+                weight_change = base_weight_change * (0.5 + 0.5 * energy_factor)  # Range: 0.5x to 1.0x
+
                 new_weight = edge.weight + weight_change
                 new_weight = max(0.1, min(5.0, new_weight))
                 actual_change = new_weight - edge.weight
@@ -108,13 +260,16 @@ class LearningEngine:
                 consolidated_count += 1
                 total_weight_change += actual_change
                 self.learning_stats['consolidation_events'] += 1
+                if energy_factor > 0.5:
+                    self.learning_stats['energy_modulated_events'] += 1
                 self.emit_learning_update(edge.source, edge.target, actual_change)
-                log_step("Connection consolidated",
+                log_step("Connection consolidated with energy modulation",
                         edge_idx=edge_idx,
                         source=edge.source,
                         target=edge.target,
                         weight_change=actual_change,
-                        new_weight=new_weight)
+                        new_weight=new_weight,
+                        energy_factor=energy_factor)
         self.learning_stats['weight_changes'] += consolidated_count
         self.learning_stats['total_weight_change'] += total_weight_change
         return graph
@@ -136,10 +291,24 @@ class LearningEngine:
 
         last_activation = node.get('last_activation', 0)
         current_time = time.time()
-        if (current_time - last_activation < 10.0 and
-            node.get('energy', 0.0) > 0.3):
-            return True
-        return False
+        energy = self._get_node_energy(node)
+
+        # Energy-modulated stability criteria
+        energy_cap = 1.0
+        try:
+            from energy.energy_behavior import get_node_energy_cap
+            energy_cap = get_node_energy_cap()
+        except ImportError:
+            energy_cap = 1.0  # Default energy cap when module not available
+
+        # Higher energy nodes have lower stability threshold (more plastic)
+        stability_threshold = 0.3 + (0.4 * (1.0 - min(energy / energy_cap, 1.0))) if energy_cap > 0 else 0.3
+
+        time_since_activation = current_time - last_activation
+        time_criterion = time_since_activation < 10.0
+        energy_criterion = energy > stability_threshold
+
+        return time_criterion and energy_criterion
     def _create_memory_trace(self, node_idx: int, graph: Any) -> None:
 
         incoming_edges = []
@@ -194,7 +363,8 @@ class LearningEngine:
             'weight_changes': 0,
             'consolidation_events': 0,
             'memory_traces_formed': 0,
-            'total_weight_change': 0.0
+            'total_weight_change': 0.0,
+            'energy_modulated_events': 0
         }
     def get_memory_trace_count(self) -> int:
         return len(self.memory_traces)

@@ -82,14 +82,14 @@ class PerformanceMonitor:
         self.process = psutil.Process()
         self.initial_memory = self.process.memory_info().rss / 1024 / 1024
     
-    def start_monitoring(self):
+    def start(self):
         """Start performance monitoring."""
         if not self.running:
             self.running = True
             self.monitor_thread = threading.Thread(target=self._monitoring_loop, daemon=True)
             self.monitor_thread.start()
     
-    def stop_monitoring(self):
+    def stop(self):
         """Stop performance monitoring."""
         self.running = False
         if self.monitor_thread and self.monitor_thread.is_alive():

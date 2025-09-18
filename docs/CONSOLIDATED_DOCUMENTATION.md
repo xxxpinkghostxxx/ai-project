@@ -93,38 +93,42 @@ The central coordinator that orchestrates all neural systems and manages the sim
 - Performance monitoring and statistics
 - Error handling and recovery
 
-#### 2. Neural Dynamics (`enhanced_neural_dynamics.py`)
-Implements advanced neural dynamics including STDP, IEG tagging, and theta-burst stimulation.
+#### 2. Neural Dynamics (`neural/`)
+Implements neural processing and behavior management.
 
 **Key Features:**
-- Membrane potential dynamics
-- Synaptic transmission modeling
-- Plasticity mechanisms
-- Homeostatic control
+- Node behavior management via `behavior_engine.py`
+- Intelligent connection formation via `connection_logic.py`
+- Network analysis and metrics via `network_metrics.py`
+- Event-driven processing via `event_driven_system.py`
+- Spike processing via `spike_queue_system.py`
 
-#### 3. Learning Engine (`learning_engine.py`)
-Handles various learning mechanisms including Hebbian learning and memory formation.
-
-**Key Features:**
-- STDP learning implementation
-- Memory trace formation
-- Pattern recognition
-- Connection consolidation
-
-#### 4. Event System (`event_driven_system.py`)
-Event-driven processing architecture for efficient neural simulation.
+#### 3. Learning Engine (`learning/`)
+Handles various learning mechanisms including energy-modulated Hebbian learning.
 
 **Key Features:**
-- Priority-based event scheduling
-- Spike event processing
-- Synaptic transmission events
-- Memory formation events
+- STDP learning implementation via `learning_engine.py`
+- Energy-modulated Hebbian learning via `live_hebbian_learning.py`
+- Memory trace formation via `memory_system.py`
+- Homeostatic regulation via `homeostasis_controller.py`
+- Pattern recognition and connection consolidation
 
-#### 5. Visualization (`ui_engine.py`)
+#### 4. Energy System (`energy/`)
+Central energy management and integration system.
+
+**Key Features:**
+- Energy flow and consumption via `energy_behavior.py`
+- Energy constants and parameters via `energy_constants.py`
+- Node access layer via `node_access_layer.py`
+- Node ID management via `node_id_manager.py`
+- Energy integration validation via `energy_system_validator.py`
+
+#### 5. Visualization (`ui/`)
 Real-time visualization and user interface components.
 
 **Key Features:**
-- Dynamic graph visualization
+- Dynamic graph visualization via `ui_engine.py`
+- UI state management via `ui_state_manager.py`
 - Performance metrics display
 - Interactive controls
 - Real-time data feeds
@@ -139,17 +143,19 @@ Visual/Audio → Feature Extraction → STDP/IEG → Hebbian → Storage → Vis
 
 ### Project Structure Summary
 
-The project features a cleaned-up folder structure with consolidations in key areas:
+The project features a well-organized folder structure with specialized directories:
 
 - **config/**: Unified configuration management via `unified_config_manager.py`, with `config.ini` for settings.
-- **utils/**: Consolidated utilities including `unified_error_handler.py` for error handling, `performance_monitor.py`, logging, and statistics utilities.
+- **utils/**: Consolidated utilities including `unified_error_handler.py` for error handling, `performance_monitor.py`, `lazy_loader.py`, `performance_cache.py`, `static_allocator.py`, logging, and statistics utilities.
 - **core/**: Core simulation files like `simulation_manager.py` and `unified_launcher.py`.
-- **neural/**: Advanced neural systems (dynamics, connections, behaviors, events).
-- **energy/**: Energy management modules.
-- **learning/**: Learning and memory systems.
-- **sensory/**: Sensory integration (visual, audio).
-- **ui/**: User interface and visualization.
-- **docs/** and **tests/**: Documentation and testing.
+- **neural/**: Neural systems including `behavior_engine.py`, `connection_logic.py`, `network_metrics.py`, `event_driven_system.py`, and `spike_queue_system.py`.
+- **energy/**: Energy management modules including `energy_behavior.py`, `energy_constants.py`, `node_access_layer.py`, `node_id_manager.py`, and `energy_system_validator.py`.
+- **learning/**: Learning and memory systems including `learning_engine.py`, `live_hebbian_learning.py` (with energy modulation), `memory_system.py`, and `homeostasis_controller.py`.
+- **sensory/**: Sensory integration (visual, audio) with `visual_energy_bridge.py`, `audio_to_neural_bridge.py`, and `sensory_workspace_mapper.py`.
+- **ui/**: User interface and visualization with `ui_engine.py`, `ui_state_manager.py`, and `screen_graph.py`.
+- **docs/**: Comprehensive documentation including README, API references, and specialized guides.
+- **tests/**: Testing framework with comprehensive simulation tests, debug utilities, and energy-learning integration tests.
+- **analysis/**: Analysis and report files including test reports, energy validation reports, and performance metrics.
 
 This structure eliminates redundant files and centralizes functionality without referencing removed items like old config or error handlers.
 
@@ -172,20 +178,42 @@ class SimulationManager:
 
 #### Enhanced Neural Integration
 ```python
-class EnhancedNeuralIntegration:
-    def integrate_with_existing_system(self, graph: Data, step: int) -> Data
-    def create_enhanced_node(self, graph: Data, node_id: int, **kwargs) -> bool
-    def create_enhanced_connection(self, graph: Data, source_id: int, target_id: int, **kwargs) -> bool
-    def set_neuromodulator_level(self, neuromodulator: str, level: float) -> None
+# Enhanced neural integration is handled through multiple specialized systems:
+
+# Node Behavior Management
+from neural.behavior_engine import BehaviorEngine
+behavior_engine = BehaviorEngine()
+success = behavior_engine.update_node_behavior(node_id, graph, step, access_layer)
+
+# Connection Logic
+from neural.connection_logic import intelligent_connection_formation
+graph = intelligent_connection_formation(graph)
+
+# Network Metrics
+from neural.network_metrics import NetworkMetrics
+metrics = NetworkMetrics()
+criticality = metrics.calculate_criticality(graph)
 ```
 
 #### Learning Engine
 ```python
-class LearningEngine:
-    def apply_timing_learning(self, pre_node, post_node, edge, delta_t) -> None
-    def consolidate_connections(self, graph: Data) -> Data
-    def form_memory_traces(self, graph: Data) -> Data
-    def apply_memory_influence(self, graph: Data) -> Data
+# Learning Engine - STDP and pattern learning
+from learning.learning_engine import LearningEngine
+learning_engine = LearningEngine()
+graph = learning_engine.consolidate_connections(graph)
+graph = learning_engine.apply_memory_influence(graph)
+
+# Live Hebbian Learning with energy modulation
+from learning.live_hebbian_learning import create_live_hebbian_learning
+learning = create_live_hebbian_learning(simulation_manager)
+learning.energy_learning_modulation = True  # Enable energy-based learning
+graph = learning.apply_continuous_learning(graph, step)
+
+# Memory System
+from learning.memory_system import MemorySystem
+memory_system = MemorySystem()
+graph = memory_system.form_memory_traces(graph)
+graph = memory_system.consolidate_memories(graph)
 ```
 
 ### Utility Functions
@@ -308,36 +336,35 @@ sim.stop_simulation()
 
 ### Enhanced Neural Dynamics
 ```python
-from enhanced_neural_integration import create_enhanced_neural_integration
+from neural.behavior_engine import BehaviorEngine
+from energy.node_access_layer import NodeAccessLayer
 
-# Create enhanced integration
-enhanced = create_enhanced_neural_integration()
+# Create behavior engine and access layer
+behavior_engine = BehaviorEngine()
+access_layer = NodeAccessLayer(graph)
 
-# Set neuromodulator levels
-enhanced.set_neuromodulator_level('dopamine', 0.8)
-enhanced.set_neuromodulator_level('serotonin', 0.6)
+# Update node behavior
+success = behavior_engine.update_node_behavior(node_id, graph, step, access_layer)
 
-# Integrate with existing system
-graph = enhanced.integrate_with_existing_system(graph, step=0)
+# Get node energy and properties
+energy = access_layer.get_node_energy(node_id)
+behavior = access_layer.get_node_property(node_id, 'behavior')
 ```
 
-### Custom Node Behaviors
+### Energy-Modulated Learning
 ```python
-from enhanced_node_behaviors import create_enhanced_node_behavior_system
+from learning.live_hebbian_learning import create_live_hebbian_learning
 
-# Create behavior system
-behavior_system = create_enhanced_node_behavior_system()
+# Create learning system with energy modulation
+learning = create_live_hebbian_learning(simulation_manager)
+learning.energy_learning_modulation = True
 
-# Create custom node behavior
-node_behavior = behavior_system.create_node_behavior(
-    node_id=1,
-    node_type='oscillator',
-    oscillation_freq=2.0,
-    threshold=0.7
-)
+# Learning rates automatically adjust based on energy:
+# - High energy nodes (0.8+): 95% of base learning rate
+# - Medium energy nodes (0.5): 75% of base learning rate
+# - Low energy nodes (0.1): 55% of base learning rate
 
-# Update behavior
-success = node_behavior.update_behavior(graph, step=0, access_layer)
+graph = learning.apply_continuous_learning(graph, step)
 ```
 
 ---

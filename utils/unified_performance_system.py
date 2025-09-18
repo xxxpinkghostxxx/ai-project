@@ -134,7 +134,7 @@ class PerformanceMonitor:
             self.initial_memory = 0
             self.cpu_count = 1
     
-    def start_monitoring(self):
+    def start(self):
         """Start performance monitoring."""
         if not self.running and self.monitor_thread is None:
             self.running = True
@@ -142,7 +142,7 @@ class PerformanceMonitor:
             self.monitor_thread.start()
             log_step("Performance monitoring started")
     
-    def stop_monitoring(self):
+    def stop(self):
         """Stop performance monitoring."""
         self.running = False
         if self.monitor_thread and self.monitor_thread.is_alive():

@@ -1,14 +1,14 @@
 {
   "validation_summary": {
-    "timestamp": "2025-09-18T01:59:48.843403",
-    "overall_score": 100.0,
-    "validations_passed": 7,
+    "timestamp": "2025-09-18T00:16:24.476075",
+    "overall_score": 85.71428571428571,
+    "validations_passed": 6,
     "total_validations": 7
   },
   "energy_roles_validated": {
     "input_processor": true,
     "processing_driver": true,
-    "learning_enabler": true,
+    "learning_enabler": false,
     "output_generator": true,
     "system_coordinator": true,
     "conservation_maintainer": true,
@@ -30,15 +30,6 @@
       ]
     },
     {
-      "module": "learning_systems",
-      "energy_role": "learning_enabler",
-      "description": "Energy drives learning and connection formation (effects: ['connection_formation'])",
-      "effects": [
-        "connection_formation"
-      ],
-      "statistical_evidence": []
-    },
-    {
       "module": "system_outputs",
       "energy_role": "output_generator",
       "description": "Energy generates 1 types of outputs",
@@ -49,13 +40,12 @@
     {
       "module": "system_coordination",
       "energy_role": "coordinator",
-      "description": "Energy coordinates 5 system aspects",
+      "description": "Energy coordinates 4 system aspects",
       "coordination_effects": [
-        "energy_differentiation",
         "energy_range_maintenance",
-        "temporal_coordination",
         "high_energy_activation",
-        "low_energy_conservation"
+        "temporal_coordination",
+        "energy_differentiation"
       ]
     },
     {
@@ -63,26 +53,25 @@
       "energy_role": "conservation_maintenance",
       "description": "Energy conserved with 1.0% change",
       "conservation_metrics": {
-        "initial_total": 4.999999955296516,
-        "final_total": 4.950000032782555,
-        "change_percent": 0.9999984592199187
+        "initial_total": 25001639.69466263,
+        "final_total": 24751623.795836926,
+        "change_percent": 0.999998007646989
       }
     },
     {
       "module": "adaptive_systems",
       "energy_role": "adaptation_driver",
-      "description": "Energy drives 2 adaptation mechanisms",
+      "description": "Energy drives 1 adaptation mechanisms",
       "adaptation_mechanisms": [
-        "plasticity_modulation",
         "behavior_switching"
       ],
-      "changes_made": 4
+      "changes_made": 230400
     }
   ],
   "energy_flow_analysis": {
-    "flow_paths_identified": 7,
-    "energy_as_central_integrator": true,
+    "flow_paths_identified": 6,
+    "energy_as_central_integrator": false,
     "system_coherence": true
   },
-  "conclusion": "EXCELLENT: Energy is confirmed as the central integrator powering all neural simulation modules."
+  "conclusion": "VERY GOOD: Energy effectively integrates most system modules with minor gaps."
 }

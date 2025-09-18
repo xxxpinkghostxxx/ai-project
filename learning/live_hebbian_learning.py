@@ -15,24 +15,28 @@ class LiveHebbianLearning:
 
         self.simulation_manager = simulation_manager
         self.learning_active = True
-        self.learning_rate = 0.01
+        self.base_learning_rate = 0.01  # Base learning rate
+        self.learning_rate = 0.01       # Current learning rate (energy-modulated)
         self.stdp_window = 0.1
         self.eligibility_decay = 0.95
         self.weight_cap = 5.0
         self.weight_min = 0.1
+        self.energy_learning_modulation = True  # Enable energy-based learning modulation
         self.learning_stats = {
             'total_weight_changes': 0,
             'stdp_events': 0,
             'connection_strengthened': 0,
             'connection_weakened': 0,
-            'learning_rate_updates': 0
+            'learning_rate_updates': 0,
+            'energy_modulated_events': 0
         }
         self.node_activity_history = {}
         self.edge_activity_history = {}
         self.last_activity_time = {}
-        log_step("LiveHebbianLearning initialized",
-                learning_rate=self.learning_rate,
-                stdp_window=self.stdp_window)
+        log_step("LiveHebbianLearning initialized with energy modulation",
+                base_learning_rate=self.base_learning_rate,
+                stdp_window=self.stdp_window,
+                energy_modulation=self.energy_learning_modulation)
     def apply_continuous_learning(self, graph: Data, step: int) -> Data:
 
         if not self.learning_active:
@@ -53,11 +57,24 @@ class LiveHebbianLearning:
             current_time = time.time()
             if hasattr(graph, 'x') and graph.x is not None:
                 all_energies = graph.x[:, 0]
-                default_threshold = 0.5
-                active_mask = all_energies > default_threshold
-                active_indices = torch.where(active_mask)[0]
-                max_nodes_to_process = min(100, len(active_indices))
-                selected_indices = active_indices[:max_nodes_to_process]
+
+                # Energy-based activity detection
+                if self.energy_learning_modulation:
+                    # Use energy levels directly - higher energy = more likely to be active
+                    # Sample nodes based on energy probability distribution
+                    energy_probs = all_energies / all_energies.sum() if all_energies.sum() > 0 else torch.ones_like(all_energies) / len(all_energies)
+                    max_nodes_to_process = min(100, len(all_energies))
+
+                    # Sample nodes proportionally to their energy levels
+                    selected_indices = torch.multinomial(energy_probs, max_nodes_to_process, replacement=False)
+                else:
+                    # Fallback to threshold-based detection
+                    default_threshold = 0.5
+                    active_mask = all_energies > default_threshold
+                    active_indices = torch.where(active_mask)[0]
+                    max_nodes_to_process = min(100, len(active_indices))
+                    selected_indices = active_indices[:max_nodes_to_process]
+
                 for idx in selected_indices:
                     node_id = graph.node_labels[idx].get('id', idx.item())
                     if node_id not in self.node_activity_history:
@@ -100,6 +117,54 @@ class LiveHebbianLearning:
         except Exception as e:
             log_step("Error applying STDP learning", error=str(e))
             return graph
+    def _get_node_energy(self, node_id: int) -> float:
+        """Get energy level for a node from the simulation manager."""
+        try:
+            if self.simulation_manager and hasattr(self.simulation_manager, 'graph'):
+                graph = self.simulation_manager.graph
+                if hasattr(graph, 'node_labels'):
+                    # Find node by ID
+                    for idx, node in enumerate(graph.node_labels):
+                        if node.get('id') == node_id:
+                            if hasattr(graph, 'x') and idx < len(graph.x):
+                                return graph.x[idx, 0].item()
+                            return node.get('energy', 0.0)
+            return 0.0
+        except Exception as e:
+            log_step("Error getting node energy", error=str(e))
+            return 0.0
+
+    def _calculate_energy_modulated_learning_rate(self, source_id: int, target_id: int) -> float:
+        """Calculate learning rate modulated by node energy levels."""
+        if not self.energy_learning_modulation:
+            return self.base_learning_rate
+
+        try:
+            source_energy = self._get_node_energy(source_id)
+            target_energy = self._get_node_energy(target_id)
+
+            # Energy modulation: higher energy = higher learning rate
+            # Base learning rate is modulated by average energy of pre/post synaptic neurons
+            avg_energy = (source_energy + target_energy) / 2.0
+
+            # Get energy cap for normalization
+            energy_cap = 1.0  # Default, will be updated if available
+            try:
+                from energy.energy_behavior import get_node_energy_cap
+                energy_cap = get_node_energy_cap()
+            except ImportError:
+                pass
+
+            # Normalize energy and apply modulation
+            normalized_energy = min(avg_energy / energy_cap, 1.0) if energy_cap > 0 else 0.5
+            modulated_rate = self.base_learning_rate * (0.5 + 0.5 * normalized_energy)  # Range: 0.5x to 1.0x base rate
+
+            return modulated_rate
+
+        except Exception as e:
+            log_step("Error calculating energy-modulated learning rate", error=str(e))
+            return self.base_learning_rate
+
     def _calculate_stdp_change(self, source_id: int, target_id: int, current_time: float) -> float:
 
         try:
@@ -107,16 +172,25 @@ class LiveHebbianLearning:
             target_activity = self.node_activity_history.get(target_id, [])
             if not source_activity or not target_activity:
                 return 0.0
+
+            # Get energy-modulated learning rate
+            energy_modulated_rate = self._calculate_energy_modulated_learning_rate(source_id, target_id)
+
             stdp_change = 0.0
             for source_time in source_activity:
                 for target_time in target_activity:
                     time_diff = target_time - source_time
                     if 0 < time_diff < self.stdp_window:
                         ltp_strength = np.exp(-time_diff / (self.stdp_window / 3))
-                        stdp_change += self.learning_rate * ltp_strength
+                        stdp_change += energy_modulated_rate * ltp_strength
                     elif -self.stdp_window < time_diff < 0:
                         ltd_strength = np.exp(time_diff / (self.stdp_window / 3))
-                        stdp_change -= self.learning_rate * ltd_strength * 0.5
+                        stdp_change -= energy_modulated_rate * ltd_strength * 0.5
+
+            # Track energy-modulated events
+            if abs(stdp_change) > 0.001:
+                self.learning_stats['energy_modulated_events'] += 1
+
             return stdp_change
         except Exception as e:
             log_step("Error calculating STDP change", error=str(e))
@@ -185,7 +259,8 @@ class LiveHebbianLearning:
             'connection_strengthened': 0,
             'connection_weakened': 0,
             'learning_rate_updates': 0,
-            'learning_efficiency': 0.0
+            'learning_efficiency': 0.0,
+            'energy_modulated_events': 0
         }
     def set_learning_rate(self, learning_rate: float):
         self.learning_rate = max(0.001, min(0.1, learning_rate))
@@ -196,11 +271,13 @@ class LiveHebbianLearning:
     def get_learning_parameters(self) -> Dict[str, float]:
         return {
             'learning_rate': self.learning_rate,
+            'base_learning_rate': self.base_learning_rate,
             'stdp_window': self.stdp_window,
             'eligibility_decay': self.eligibility_decay,
             'weight_cap': self.weight_cap,
             'weight_min': self.weight_min,
-            'learning_active': self.learning_active
+            'learning_active': self.learning_active,
+            'energy_learning_modulation': self.energy_learning_modulation
         }
     def cleanup(self):
         self.node_activity_history.clear()

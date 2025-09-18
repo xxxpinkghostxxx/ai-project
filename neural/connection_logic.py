@@ -245,10 +245,12 @@ def intelligent_connection_formation(graph):
                     dynamic_energy = graph.x[dynamic_idx, 0].item() if hasattr(graph, 'x') else 0.0
                     energy_cap = get_node_energy_cap()
                     energy_mod = (sensory_energy + dynamic_energy) / (2 * energy_cap) if energy_cap > 0 else 1.0
+                    # Enhanced energy modulation for learning
+                    energy_factor = max(0.1, min(2.0, energy_mod * 2.0))  # Range: 0.1 to 2.0
                     connection_types = ['excitatory', 'modulatory', 'plastic']
                     connection_type = connection_types[connections_created % len(connection_types)]
                     base_weight = 0.3 + (connections_created * 0.1)
-                    weight = base_weight * max(0.5, energy_mod)  # Modulate by energy, min 0.5 to avoid too weak
+                    weight = base_weight * energy_factor  # Stronger energy modulation
                     create_weighted_connection(graph, sensory_id, dynamic_id, weight, connection_type)
                     connections_created += 1
                     
@@ -286,8 +288,10 @@ def intelligent_connection_formation(graph):
                         energy2 = graph.x[node2_idx, 0].item() if hasattr(graph, 'x') else 0.0
                         energy_cap = get_node_energy_cap()
                         energy_mod = (energy1 + energy2) / (2 * energy_cap) if energy_cap > 0 else 1.0
+                        # Enhanced energy modulation for learning
+                        energy_factor = max(0.1, min(3.0, energy_mod * 3.0))  # Range: 0.1 to 3.0 for stronger effects
                         base_weight = 0.2 + (connections_created * 0.05)
-                        weight = base_weight * max(0.5, energy_mod)  # Modulate by energy, min 0.5
+                        weight = base_weight * energy_factor  # Stronger energy modulation
                         create_weighted_connection(graph, node1_id, node2_id, weight, connection_type)
                         connections_created += 1
                         
@@ -357,7 +361,9 @@ def intelligent_connection_formation(graph):
                 target_energy = graph.x[target_idx, 0].item() if hasattr(graph, 'x') else 0.0
                 energy_cap = get_node_energy_cap()
                 energy_mod = (source_energy + target_energy) / (2 * energy_cap) if energy_cap > 0 else 1.0
-                weight = 0.2 * max(0.5, energy_mod)
+                # Enhanced energy modulation for learning
+                energy_factor = max(0.1, min(2.5, energy_mod * 2.5))  # Range: 0.1 to 2.5
+                weight = 0.2 * energy_factor  # Stronger energy modulation
                 create_weighted_connection(graph, source_id, target_id, weight, 'excitatory')
                 
                 # Diagnostic: Log random connection
