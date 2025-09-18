@@ -47,8 +47,9 @@ class NetworkMetrics:
         if total_activations > 0:
             branching_ratio = new_activations / total_activations
             self._update_activation_patterns(current_patterns)
-            logging.info(f"[NETWORK_METRICS] Criticality: total={total_activations}, "
-                        f"new={new_activations}, ratio={branching_ratio:.3f}")
+            if logging.getLogger().isEnabledFor(logging.DEBUG):
+                logging.debug(f"[NETWORK_METRICS] Criticality: total={total_activations}, "
+                            f"new={new_activations}, ratio={branching_ratio:.3f}")
             log_step("calculate_criticality end")
             return branching_ratio
         log_step("calculate_criticality end - no activations")
@@ -79,8 +80,9 @@ class NetworkMetrics:
             'max_degree': degree_distribution.get('max_degree', 0),
             'min_degree': degree_distribution.get('min_degree', 0)
         }
-        logging.info(f"[NETWORK_METRICS] Connectivity: nodes={num_nodes}, edges={num_edges}, "
-                    f"density={density:.3f}, clustering={clustering_coeff:.3f}")
+        if logging.getLogger().isEnabledFor(logging.DEBUG):
+            logging.debug(f"[NETWORK_METRICS] Connectivity: nodes={num_nodes}, edges={num_edges}, "
+                        f"density={density:.3f}, clustering={clustering_coeff:.3f}")
         log_step("analyze_connectivity end")
         return connectivity_metrics
     @log_runtime
@@ -112,8 +114,9 @@ class NetworkMetrics:
         }
         conservation_status = self._check_energy_conservation(graph, total_energy)
         energy_distribution.update(conservation_status)
-        logging.info(f"[NETWORK_METRICS] Energy: total={total_energy:.2f}, "
-                    f"variance={energy_variance:.2f}, entropy={energy_entropy:.3f}")
+        if logging.getLogger().isEnabledFor(logging.DEBUG):
+            logging.debug(f"[NETWORK_METRICS] Energy: total={total_energy:.2f}, "
+                        f"variance={energy_variance:.2f}, entropy={energy_entropy:.3f}")
         log_step("measure_energy_balance end")
         return energy_distribution
     @log_runtime
@@ -141,8 +144,9 @@ class NetworkMetrics:
         self.last_metrics = comprehensive_metrics
         self.metric_updates += 1
         self.calculation_times.append(performance_metrics['calculation_time'])
-        logging.info(f"[NETWORK_METRICS] Comprehensive metrics calculated in "
-                    f"{performance_metrics['calculation_time']:.4f}s")
+        if logging.getLogger().isEnabledFor(logging.DEBUG):
+            logging.debug(f"[NETWORK_METRICS] Comprehensive metrics calculated in "
+                        f"{performance_metrics['calculation_time']:.4f}s")
         log_step("calculate_comprehensive_metrics end")
         return comprehensive_metrics
     def get_metrics_trends(self, window_size: int = 10) -> Dict[str, List[float]]:

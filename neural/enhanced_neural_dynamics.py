@@ -2,6 +2,7 @@
 import time
 import numpy as np
 import numba as nb
+import torch
 from typing import Dict, Any, List, Optional
 
 from torch_geometric.data import Data
@@ -385,7 +386,35 @@ class EnhancedNeuralDynamics:
         avg_degree = sum(node_degrees.values()) / len(node_degrees)
         return min(2.0, avg_degree / 10.0)
     def _adjust_criticality(self, graph: Data, current_criticality: float):
-        pass
+        """Minimal safe implementation for criticality adjustment."""
+        if not hasattr(graph, 'edge_attributes'):
+            return
+        
+        # Simple adjustment: add/remove random edges to move toward target
+        target_diff = self.criticality_target - current_criticality
+        if abs(target_diff) < 0.1:  # Close enough
+            return
+            
+        # Add or remove a few edges based on direction
+        if target_diff > 0:  # Need to increase criticality
+            # Add a few random edges
+            for _ in range(3):
+                if len(graph.node_labels) > 1:
+                    source = np.random.randint(0, len(graph.node_labels))
+                    target = np.random.randint(0, len(graph.node_labels))
+                    if source != target:
+                        # Simple edge addition (minimal implementation)
+                        if hasattr(graph, 'edge_index') and graph.edge_index.numel() > 0:
+                            new_edge = torch.tensor([[source], [target]], dtype=torch.long)
+                            graph.edge_index = torch.cat([graph.edge_index, new_edge], dim=1)
+        else:  # Need to decrease criticality
+            # Remove a few random edges
+            if hasattr(graph, 'edge_index') and graph.edge_index.numel() > 0:
+                num_edges = graph.edge_index.shape[1]
+                if num_edges > 0:
+                    remove_count = min(3, num_edges)
+                    keep_indices = np.random.choice(num_edges, num_edges - remove_count, replace=False)
+                    graph.edge_index = graph.edge_index[:, keep_indices]
     def set_neuromodulator_level(self, neuromodulator: str, level: float):
         level = max(0.0, min(1.0, level))
         if neuromodulator == 'dopamine':

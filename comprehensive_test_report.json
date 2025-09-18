@@ -1,0 +1,32 @@
+{
+  "summary": {
+    "total_tests": 10,
+    "passed": 6,
+    "failed": 4,
+    "success_rate": 60.0,
+    "timestamp": "2025-09-17T23:38:50.902993"
+  },
+  "performance_metrics": {
+    "connection_formation_time": 0.0006504058837890625,
+    "connectivity_ratio": 0.04,
+    "hebbian_learning_time": 0.0037055015563964844,
+    "large_graph_creation_time": 1.3764619827270508,
+    "large_graph_update_time": 0.1578681468963623,
+    "spatial_query_time": 0.0025730133056640625,
+    "nodes_created": 10000,
+    "spatial_query_results": 1257,
+    "sensory_processing_time": 0.0013813972473144531,
+    "stability_test_time": 0.5168814659118652,
+    "stability_rate": 1.0,
+    "stable_steps": 50
+  },
+  "errors": [
+    "Simulation Initialization: 'list' object has no attribute 'get'",
+    "Energy Dynamics: Energy did not change during simulation",
+    "Optimization Performance: 'list' object has no attribute 'get'",
+    "Memory Management: Pool 'neural_nodes' not found"
+  ],
+  "recommendations": [
+    "Fix 4 failed tests"
+  ]
+}

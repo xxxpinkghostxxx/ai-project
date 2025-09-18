@@ -105,7 +105,8 @@ def create_weighted_connection(graph, source_id, target_id, weight, edge_type='e
             graph.edge_attributes.append(edge)
         
         # Diagnostic log for connection creation
-        logging.info(f"[CONNECTION] Created edge: source={source_id} (idx={source_index}) to target={target_id} (idx={target_index}), type={edge_type}, weight={weight}")
+        if logging.getLogger().isEnabledFor(logging.DEBUG):
+            logging.debug(f"[CONNECTION] Created edge: source={source_id} (idx={source_index}) to target={target_id} (idx={target_index}), type={edge_type}, weight={weight}")
         return graph
     except Exception as e:
         logging.error(f"Error creating connection between {source_id} and {target_id}: {e}")
@@ -252,7 +253,8 @@ def intelligent_connection_formation(graph):
                     connections_created += 1
                     
                     # Diagnostic: Log sensory-dynamic connection
-                    logging.info(f"[FORMATION] Sensory-dynamic connection created: {sensory_id} -> {dynamic_id}, type={connection_type}, weight={weight}, energy_mod={energy_mod:.2f}")
+                    if logging.getLogger().isEnabledFor(logging.DEBUG):
+                        logging.debug(f"[FORMATION] Sensory-dynamic connection created: {sensory_id} -> {dynamic_id}, type={connection_type}, weight={weight}, energy_mod={energy_mod:.2f}")
     if len(dynamic_nodes) > 1 and connections_created < max_connections:
         limited_dynamic = dynamic_nodes[:3]
         for i, node1_idx in enumerate(limited_dynamic):
@@ -290,7 +292,8 @@ def intelligent_connection_formation(graph):
                         connections_created += 1
                         
                         # Diagnostic: Log dynamic-dynamic connection
-                        logging.info(f"[FORMATION] Dynamic-dynamic connection created: {node1_id} -> {node2_id}, type={connection_type}, weight={weight}, energy_mod={energy_mod:.2f}, criteria: cluster_sim={cluster_similarity}, affinity_compat={affinity_compatible}, pos_prox={position_proximity}")
+                        if logging.getLogger().isEnabledFor(logging.DEBUG):
+                            logging.debug(f"[FORMATION] Dynamic-dynamic connection created: {node1_id} -> {node2_id}, type={connection_type}, weight={weight}, energy_mod={energy_mod:.2f}, criteria: cluster_sim={cluster_similarity}, affinity_compat={affinity_compatible}, pos_prox={position_proximity}")
     oscillator_nodes = [i for i, node in enumerate(graph.node_labels) if node.get('behavior') == 'oscillator']
     integrator_nodes = [i for i, node in enumerate(graph.node_labels) if node.get('behavior') == 'integrator']
     if oscillator_nodes and integrator_nodes:
@@ -313,7 +316,8 @@ def intelligent_connection_formation(graph):
                     create_weighted_connection(graph, osc_id, int_id, weight, 'excitatory')
                     
                     # Diagnostic: Log oscillator-integrator connection
-                    logging.info(f"[FORMATION] Oscillator-integrator connection created: {osc_id} -> {int_id}, weight={weight}, energy_mod={energy_mod:.2f}, excitatory")
+                    if logging.getLogger().isEnabledFor(logging.DEBUG):
+                        logging.debug(f"[FORMATION] Oscillator-integrator connection created: {osc_id} -> {int_id}, weight={weight}, energy_mod={energy_mod:.2f}, excitatory")
     relay_nodes = [i for i, node in enumerate(graph.node_labels) if node.get('behavior') == 'relay']
     highway_nodes = [i for i, node in enumerate(graph.node_labels) if node.get('behavior') == 'highway']
     if relay_nodes and highway_nodes:
@@ -336,7 +340,8 @@ def intelligent_connection_formation(graph):
                     create_weighted_connection(graph, relay_id, highway_id, weight, 'excitatory')
                     
                     # Diagnostic: Log relay-highway connection
-                    logging.info(f"[FORMATION] Relay-highway connection created: {relay_id} -> {highway_id}, weight={weight}, energy_mod={energy_mod:.2f}, excitatory")
+                    if logging.getLogger().isEnabledFor(logging.DEBUG):
+                        logging.debug(f"[FORMATION] Relay-highway connection created: {relay_id} -> {highway_id}, weight={weight}, energy_mod={energy_mod:.2f}, excitatory")
     import random
     num_random_connections = min(10, num_nodes // 5)
     for _ in range(num_random_connections):
@@ -356,7 +361,8 @@ def intelligent_connection_formation(graph):
                 create_weighted_connection(graph, source_id, target_id, weight, 'excitatory')
                 
                 # Diagnostic: Log random connection
-                logging.info(f"[FORMATION] Random connection created: {source_id} -> {target_id}, weight={weight}, energy_mod={energy_mod:.2f}, excitatory")
+                if logging.getLogger().isEnabledFor(logging.DEBUG):
+                    logging.debug(f"[FORMATION] Random connection created: {source_id} -> {target_id}, weight={weight}, energy_mod={energy_mod:.2f}, excitatory")
     return graph
 
 

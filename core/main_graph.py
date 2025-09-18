@@ -319,12 +319,16 @@ if __name__ == "__main__":
     import time
     print("Press Ctrl+C to stop.")
     try:
-        while True:
+        max_iterations = 1000  # Add graceful exit condition
+        iteration_count = 0
+        while iteration_count < max_iterations:
             graph = initialize_main_graph()
             print(f"Graph: {len(graph.x)} nodes (including dynamic nodes)")
             print(f"First 6 node labels: {graph.node_labels[:6]}")
             print(f"Last 6 node labels: {graph.node_labels[-6:]}")
             time.sleep(0.5)
+            iteration_count += 1
+        print(f"Test completed after {max_iterations} iterations")
     except KeyboardInterrupt:
         print("Stopped.")
     except Exception as e:

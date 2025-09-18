@@ -60,10 +60,11 @@ class SimulationManager:
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         """Initialize SimulationManager with NASA-compliant structure."""
         self._initialize_basic_properties(config)
+        self._initialize_performance_optimizations()
         self._initialize_core_engines()
-        self._initialize_optional_components()
-        self._initialize_enhanced_systems()
-        self._initialize_sensory_systems()
+        self._initialize_optional_components_lazy()
+        self._initialize_enhanced_systems_lazy()
+        self._initialize_sensory_systems_lazy()
         self._initialize_performance_tracking()
         from utils.event_bus import get_event_bus
         self.event_bus = get_event_bus()
@@ -94,6 +95,17 @@ class SimulationManager:
         self.last_audio_data = None
         self.update_interval = self.get_config('Processing', 'update_interval', 0.016, float)  # Default ~60 FPS
         self.headless = False  # Flag for non-GUI runs
+
+        # Performance optimization flags
+        self.use_lazy_loading = True
+        self.use_caching = True
+        self.use_batch_processing = True
+        self.batch_size = 1000
+
+        # Error tracking
+        self.error_count = 0
+        self.consecutive_errors = 0
+        self.max_consecutive_errors = 10
     
     def _initialize_core_engines(self):
         """Initialize core simulation engines."""
@@ -112,8 +124,81 @@ class SimulationManager:
             None
         )
     
+    def _initialize_performance_optimizations(self):
+        """Initialize performance optimization systems."""
+        from utils.lazy_loader import get_lazy_loader
+        from utils.performance_cache import get_performance_cache_manager
+        from neural.optimized_node_manager import get_optimized_node_manager
+
+        self.lazy_loader = get_lazy_loader()
+        self.cache_manager = get_performance_cache_manager()
+        self.node_manager = get_optimized_node_manager()
+
+        # Preload critical components
+        if self.use_lazy_loading:
+            self.lazy_loader.lazy_load('simulation_manager', lambda: self, priority=10)
+            self.lazy_loader.lazy_load('performance_monitor', lambda: self._create_performance_monitor(), priority=8)
+
+    def _initialize_optional_components_lazy(self):
+        """Initialize optional components with lazy loading."""
+        if not self.use_lazy_loading:
+            # Fallback to original implementation
+            self._initialize_optional_components()
+            return
+
+        # Lazy load optional components
+        self.lazy_loader.lazy_load(
+            'audio_to_neural_bridge',
+            lambda: self._safe_initialize_component(
+                "audio_to_neural_bridge",
+                lambda: self._create_audio_bridge(),
+                critical=False
+            ),
+            priority=3
+        )
+
+        self.lazy_loader.lazy_load(
+            'live_hebbian_learning',
+            lambda: self._safe_initialize_component(
+                "live_hebbian_learning",
+                lambda: self._create_hebbian_learning(),
+                critical=False
+            ),
+            priority=3
+        )
+
+        self.lazy_loader.lazy_load(
+            'neural_map_persistence',
+            lambda: self._safe_initialize_component(
+                "neural_map_persistence",
+                lambda: self._create_neural_persistence(),
+                critical=False
+            ),
+            priority=2
+        )
+
+        self.lazy_loader.lazy_load(
+            'event_driven_system',
+            lambda: self._safe_initialize_component(
+                "event_driven_system",
+                lambda: self._create_event_system(),
+                critical=False
+            ),
+            priority=4
+        )
+
+        self.lazy_loader.lazy_load(
+            'spike_queue_system',
+            lambda: self._safe_initialize_component(
+                "spike_queue_system",
+                lambda: self._create_spike_system(),
+                critical=False
+            ),
+            priority=4
+        )
+
     def _initialize_optional_components(self):
-        """Initialize optional components with error handling."""
+        """Original implementation for fallback."""
         self.audio_to_neural_bridge = self._safe_initialize_component(
             "audio_to_neural_bridge",
             lambda: self._create_audio_bridge(),
@@ -140,15 +225,89 @@ class SimulationManager:
             critical=False
         )
     
+    def _initialize_enhanced_systems_lazy(self):
+        """Initialize enhanced neural systems with lazy loading."""
+        if not self.use_lazy_loading:
+            # Fallback to original implementation
+            self._initialize_enhanced_systems()
+            return
+
+        def create_enhanced_integration():
+            integration = self._create_enhanced_neural_integration()
+            if integration:
+                self.behavior_engine.enhanced_integration = integration
+                logging.info("Enhanced neural integration initialized")
+            return integration
+
+        self.lazy_loader.lazy_load(
+            'enhanced_neural_integration',
+            create_enhanced_integration,
+            priority=5
+        )
+
     def _initialize_enhanced_systems(self):
-        """Initialize enhanced neural systems."""
+        """Original implementation for fallback."""
         self.enhanced_integration = self._create_enhanced_neural_integration()
         if self.enhanced_integration:
             self.behavior_engine.enhanced_integration = self.enhanced_integration
             logging.info("Enhanced neural integration initialized")
     
+    def _initialize_sensory_systems_lazy(self):
+        """Initialize sensory processing systems with lazy loading."""
+        if not self.use_lazy_loading:
+            # Fallback to original implementation
+            self._initialize_sensory_systems()
+            return
+
+        def create_visual_bridge():
+            from sensory.visual_energy_bridge import create_visual_energy_bridge
+            return safe_initialize_component(
+                "Visual energy bridge",
+                lambda: create_visual_energy_bridge(self.enhanced_integration),
+                None
+            )
+
+        def create_sensory_mapper():
+            try:
+                from sensory.sensory_workspace_mapper import create_sensory_workspace_mapper
+                mapper = create_sensory_workspace_mapper()
+                logging.info("Sensory workspace mapper initialized")
+                return mapper
+            except ImportError:
+                logging.info("Sensory workspace mapper not available")
+                return None
+            except Exception as e:
+                logging.warning(f"Failed to initialize sensory workspace mapper: {e}")
+                return None
+
+        # Ensure enhanced integration is loaded first
+        def create_enhanced_integration():
+            integration = self._create_enhanced_neural_integration()
+            if integration:
+                self.behavior_engine.enhanced_integration = integration
+                logging.info("Enhanced neural integration initialized")
+            return integration
+
+        self.lazy_loader.lazy_load(
+            'enhanced_neural_integration',
+            create_enhanced_integration,
+            priority=7
+        )
+
+        self.lazy_loader.lazy_load(
+            'visual_energy_bridge',
+            create_visual_bridge,
+            priority=6
+        )
+
+        self.lazy_loader.lazy_load(
+            'sensory_workspace_mapper',
+            create_sensory_mapper,
+            priority=6
+        )
+
     def _initialize_sensory_systems(self):
-        """Initialize sensory processing systems."""
+        """Original implementation for fallback."""
         # Visual energy bridge
         from sensory.visual_energy_bridge import create_visual_energy_bridge
         self.visual_energy_bridge = safe_initialize_component(
@@ -156,7 +315,7 @@ class SimulationManager:
             lambda: create_visual_energy_bridge(self.enhanced_integration),
             None
         )
-        
+
         # Sensory workspace mapper
         self.sensory_workspace_mapper = None
         try:
@@ -340,8 +499,9 @@ class SimulationManager:
                 graph = add_dynamic_nodes(graph, num_dynamic=100)  # Reduced from 230400 to prevent crashes on large graph
             if self.id_manager is not None:
                 graph_size = len(graph.node_labels) if hasattr(graph, 'node_labels') else 0
-                self.id_manager.set_max_graph_size(graph_size)
-                log_step("Graph size limit set in ID manager", graph_size=graph_size)
+                max_size = max(graph_size, 500000)  # Allow for sensory expansion
+                self.id_manager.set_max_graph_size(max_size)
+                log_step("Graph size limit set in ID manager", graph_size=graph_size, max_size=max_size)
             logging.debug(f"Graph created with {len(graph.node_labels)} nodes")
             self.set_graph(graph)
             logging.info("Graph initialized successfully")
@@ -432,7 +592,7 @@ class SimulationManager:
 
     def _process_event_system(self):
         """Process event-driven system updates."""
-        if self.event_driven_system is not None:
+        if hasattr(self, 'event_driven_system') and self.event_driven_system is not None:
             try:
                 events_processed = self.process_events(max_events=1000)
                 if events_processed > 0:
@@ -450,7 +610,7 @@ class SimulationManager:
 
     def _process_spike_system(self):
         """Process spike queue system updates."""
-        if self.spike_queue_system is not None:
+        if hasattr(self, 'spike_queue_system') and self.spike_queue_system is not None:
             try:
                 spikes_processed = self.spike_queue_system.process_spikes(max_spikes=1000)
                 if spikes_processed > 0:
@@ -460,7 +620,7 @@ class SimulationManager:
 
     def _process_audio_input(self):
         """Process audio input integration."""
-        if (self.audio_to_neural_bridge is not None and
+        if (hasattr(self, 'audio_to_neural_bridge') and self.audio_to_neural_bridge is not None and
             hasattr(self, 'last_audio_data') and
             self.last_audio_data is not None):
             try:
@@ -478,7 +638,7 @@ class SimulationManager:
         except Exception as e:
             logging.warning(f"Node behavior update failed: {e}")
         
-        if (self.enhanced_integration is not None and
+        if (hasattr(self, 'enhanced_integration') and self.enhanced_integration is not None and
             self.step_counter % 2 == 0):
             try:
                 self.graph = self.enhanced_integration.integrate_with_existing_system(
@@ -506,7 +666,7 @@ class SimulationManager:
             except Exception as e:
                 logging.warning(f"Learning consolidation failed: {e}")
         
-        if self.live_hebbian_learning is not None and self.step_counter % 3 == 0:
+        if hasattr(self, 'live_hebbian_learning') and self.live_hebbian_learning is not None and self.step_counter % 3 == 0:
             self.graph = self.live_hebbian_learning.apply_continuous_learning(self.graph, self.step_counter)
 
     def _process_workspace_systems(self):
@@ -842,7 +1002,7 @@ class SimulationManager:
             self.is_running = False
             self.simulation_running = False
             if self.simulation_thread and self.simulation_thread.is_alive():
-                self.simulation_thread.join(timeout=2.0)
+                self.simulation_thread.join(timeout=10.0)  # Increased timeout for safety
             log_step("Simulation stopped", total_steps=self.step_counter)
     async def _simulation_coroutine(self):
         log_step("Async simulation coroutine started")
@@ -1100,25 +1260,41 @@ class SimulationManager:
             log_step("Graph consistency repair error", error=str(e))
     def _update_node_behaviors(self):
         try:
-            logging.info(f"Entering _update_node_behaviors: step={self.step_counter}, graph nodes={len(self.graph.node_labels) if self.graph else 0}, graph.x shape={self.graph.x.shape if hasattr(self.graph, 'x') and self.graph.x is not None else 'None'}")
+            if logging.getLogger().isEnabledFor(logging.DEBUG):
+                logging.debug(f"Entering _update_node_behaviors: step={self.step_counter}, graph nodes={len(self.graph.node_labels) if self.graph else 0}, graph.x shape={self.graph.x.shape if hasattr(self.graph, 'x') and self.graph.x is not None else 'None'}")
+
             if not self._validate_graph_consistency():
                 log_step("Graph consistency validation failed, attempting repair")
                 self._repair_graph_consistency()
                 if not self._validate_graph_consistency():
                     log_step("Graph consistency repair failed, skipping node behavior update")
                     return
+
             num_nodes = len(self.graph.node_labels)
             if num_nodes == 0:
                 logging.warning("No nodes to update")
                 return
+
+            # Use optimized batch processing if enabled
+            if self.use_batch_processing and hasattr(self, 'node_manager'):
+                self._update_node_behaviors_batch()
+                return
+
+            # Original implementation for fallback
             if not hasattr(self, '_access_layer') or self._access_layer is None:
                 from energy.node_access_layer import NodeAccessLayer
-                logging.info("Creating new NodeAccessLayer")
+                if logging.getLogger().isEnabledFor(logging.DEBUG):
+                    logging.debug("Creating new NodeAccessLayer")
                 self._access_layer = NodeAccessLayer(self.graph)
+
             access_layer = self._access_layer
-            logging.info(f"NodeAccessLayer ready: active_ids len={len(access_layer.id_manager.get_all_active_ids()) if hasattr(access_layer, 'id_manager') else 'N/A'}")
+            if logging.getLogger().isEnabledFor(logging.DEBUG):
+                logging.debug(f"NodeAccessLayer ready: active_ids len={len(access_layer.id_manager.get_all_active_ids()) if hasattr(access_layer, 'id_manager') else 'N/A'}")
+
             nodes_to_update = min(50, num_nodes)
-            logging.info(f"Updating first {nodes_to_update} nodes")
+            if logging.getLogger().isEnabledFor(logging.DEBUG):
+                logging.debug(f"Updating first {nodes_to_update} nodes")
+
             for idx in range(nodes_to_update):
                 try:
                     node = self.graph.node_labels[idx]
@@ -1126,9 +1302,14 @@ class SimulationManager:
                     if node_id is None:
                         logging.warning(f"Node at idx {idx} has no id, skipping")
                         continue
-                    logging.debug(f"Updating node idx={idx}, id={node_id}, type={node.get('type', 'unknown')}")
+
+                    if logging.getLogger().isEnabledFor(logging.DEBUG):
+                        logging.debug(f"Updating node idx={idx}, id={node_id}, type={node.get('type', 'unknown')}")
+
                     index = access_layer.id_manager.get_node_index(node_id) if hasattr(access_layer, 'id_manager') else None
-                    logging.debug(f"Node {node_id} index from id_manager: {index}")
+                    if logging.getLogger().isEnabledFor(logging.DEBUG):
+                        logging.debug(f"Node {node_id} index from id_manager: {index}")
+
                     success = self.behavior_engine.update_node_behavior(node_id, self.graph, self.step_counter, access_layer)
                     if not success:
                         logging.warning(f"update_node_behavior failed for node_id={node_id} (idx={idx})")
@@ -1140,8 +1321,10 @@ class SimulationManager:
                     logging.error(traceback.format_exc())
                     # Continue to next node instead of crashing
                     continue
+
             logging.info(f"Completed updating {nodes_to_update} nodes")
-            if (self.enhanced_integration is not None and
+
+            if (hasattr(self, 'enhanced_integration') and self.enhanced_integration is not None and
                 self.step_counter % 3 == 0):
                 try:
                     self.graph = self.enhanced_integration.integrate_with_existing_system(
@@ -1150,12 +1333,14 @@ class SimulationManager:
                 except Exception as e:
                     logging.error(f"Error in enhanced neural integration: {e}")
                     self.error_count += 1
+
         except Exception as e:
             import traceback
             logging.error(f"Overall error in _update_node_behaviors: {e}")
             logging.error(traceback.format_exc())
             # Fallback to simple random energy update for first 10 dynamic nodes
-            logging.info("Falling back to simple energy updates for first 10 dynamic nodes")
+            if logging.getLogger().isEnabledFor(logging.INFO):
+                logging.info("Falling back to simple energy updates for first 10 dynamic nodes")
             for idx in range(0, min(10, len(self.graph.node_labels))):
                 try:
                     node = self.graph.node_labels[idx]
@@ -1167,7 +1352,217 @@ class SimulationManager:
                         self.graph.x[idx, 0] = new_energy
                         if 'membrane_potential' in node:
                             node['membrane_potential'] = new_energy
-                        logging.debug(f"Fallback update: idx={idx}, old_energy={current_energy}, new_energy={new_energy}")
+                        if logging.getLogger().isEnabledFor(logging.DEBUG):
+                            logging.debug(f"Fallback update: idx={idx}, old_energy={current_energy}, new_energy={new_energy}")
+                except Exception as fallback_e:
+                    logging.error(f"Fallback update failed for idx={idx}: {fallback_e}")
+
+    def _update_node_behaviors_batch(self):
+        """Optimized batch processing for node behavior updates."""
+        try:
+            num_nodes = len(self.graph.node_labels)
+            batch_size = min(self.batch_size, num_nodes)
+
+            # Collect nodes to update in batches
+            node_updates = []
+            for idx in range(0, num_nodes, batch_size):
+                batch_end = min(idx + batch_size, num_nodes)
+                batch_nodes = []
+
+                for node_idx in range(idx, batch_end):
+                    node = self.graph.node_labels[node_idx]
+                    node_id = node.get('id')
+                    if node_id is not None:
+                        batch_nodes.append((node_id, node_idx, node))
+
+                if batch_nodes:
+                    node_updates.append(batch_nodes)
+
+            # Process batches
+            for batch in node_updates:
+                self._process_node_batch(batch)
+
+            # Update enhanced integration if available
+            if (hasattr(self, 'enhanced_integration') and self.enhanced_integration is not None and
+                self.step_counter % 3 == 0):
+                try:
+                    self.graph = self.enhanced_integration.integrate_with_existing_system(
+                        self.graph, self.step_counter
+                    )
+                except Exception as e:
+                    logging.error(f"Error in enhanced neural integration: {e}")
+                    self.error_count += 1
+
+        except Exception as e:
+            logging.error(f"Error in batch node behavior update: {e}")
+            # Fallback to original method
+            self._update_node_behaviors_fallback()
+
+    def _process_node_batch(self, batch_nodes):
+        """Process a batch of nodes for behavior updates."""
+        try:
+            # Extract node IDs for batch processing
+            node_ids = [node_id for node_id, _, _ in batch_nodes]
+
+            # Try to get cached data first
+            if self.use_caching:
+                cached_data = {}
+                for node_id in node_ids:
+                    cached = self.cache_manager.get_node_data(node_id)
+                    if cached:
+                        cached_data[node_id] = cached
+
+                # Use cached data where available
+                for node_id, node_idx, node in batch_nodes:
+                    if node_id in cached_data:
+                        # Apply cached updates
+                        self._apply_cached_node_update(node_id, cached_data[node_id])
+                        continue
+
+                    # Process uncached nodes
+                    self._process_single_node(node_id, node_idx, node)
+            else:
+                # Process all nodes without caching
+                for node_id, node_idx, node in batch_nodes:
+                    self._process_single_node(node_id, node_idx, node)
+
+        except Exception as e:
+            logging.error(f"Error processing node batch: {e}")
+
+    def _process_single_node(self, node_id, node_idx, node):
+        """Process a single node for behavior update."""
+        try:
+            if not hasattr(self, '_access_layer') or self._access_layer is None:
+                from energy.node_access_layer import NodeAccessLayer
+                self._access_layer = NodeAccessLayer(self.graph)
+
+            success = self.behavior_engine.update_node_behavior(
+                node_id, self.graph, self.step_counter, self._access_layer
+            )
+
+            if not success:
+                logging.warning(f"update_node_behavior failed for node_id={node_id}")
+            else:
+                # Cache successful updates
+                if self.use_caching:
+                    node_data = {
+                        'energy': node.get('energy', 0.0),
+                        'membrane_potential': node.get('membrane_potential', 0.0),
+                        'last_update': self.step_counter
+                    }
+                    self.cache_manager.cache_node_data(node_id, node_data)
+
+        except Exception as e:
+            logging.error(f"Error processing node {node_id}: {e}")
+
+    def _apply_cached_node_update(self, node_id, cached_data):
+        """Apply cached node update data."""
+        try:
+            # Find node in graph
+            for idx, node in enumerate(self.graph.node_labels):
+                if node.get('id') == node_id:
+                    # Apply cached data
+                    if 'energy' in cached_data and hasattr(self.graph, 'x') and idx < self.graph.x.shape[0]:
+                        self.graph.x[idx, 0] = cached_data['energy']
+                        node['energy'] = cached_data['energy']
+
+                    if 'membrane_potential' in cached_data:
+                        node['membrane_potential'] = cached_data['membrane_potential']
+
+                    node['last_update'] = cached_data.get('last_update', self.step_counter)
+                    break
+
+        except Exception as e:
+            logging.error(f"Error applying cached update for node {node_id}: {e}")
+
+    def _update_node_behaviors_fallback(self):
+        """Fallback node behavior update method."""
+        try:
+            if not self._validate_graph_consistency():
+                log_step("Graph consistency validation failed, attempting repair")
+                self._repair_graph_consistency()
+                if not self._validate_graph_consistency():
+                    log_step("Graph consistency repair failed, skipping node behavior update")
+                    return
+
+            num_nodes = len(self.graph.node_labels)
+            if num_nodes == 0:
+                logging.warning("No nodes to update")
+                return
+
+            if not hasattr(self, '_access_layer') or self._access_layer is None:
+                from energy.node_access_layer import NodeAccessLayer
+                if logging.getLogger().isEnabledFor(logging.DEBUG):
+                    logging.debug("Creating new NodeAccessLayer")
+                self._access_layer = NodeAccessLayer(self.graph)
+
+            access_layer = self._access_layer
+            if logging.getLogger().isEnabledFor(logging.DEBUG):
+                logging.debug(f"NodeAccessLayer ready: active_ids len={len(access_layer.id_manager.get_all_active_ids()) if hasattr(access_layer, 'id_manager') else 'N/A'}")
+
+            nodes_to_update = min(50, num_nodes)
+            if logging.getLogger().isEnabledFor(logging.DEBUG):
+                logging.debug(f"Updating first {nodes_to_update} nodes")
+
+            for idx in range(nodes_to_update):
+                try:
+                    node = self.graph.node_labels[idx]
+                    node_id = node.get('id')
+                    if node_id is None:
+                        logging.warning(f"Node at idx {idx} has no id, skipping")
+                        continue
+
+                    if logging.getLogger().isEnabledFor(logging.DEBUG):
+                        logging.debug(f"Updating node idx={idx}, id={node_id}, type={node.get('type', 'unknown')}")
+
+                    index = access_layer.id_manager.get_node_index(node_id) if hasattr(access_layer, 'id_manager') else None
+                    if logging.getLogger().isEnabledFor(logging.DEBUG):
+                        logging.debug(f"Node {node_id} index from id_manager: {index}")
+
+                    success = self.behavior_engine.update_node_behavior(node_id, self.graph, self.step_counter, access_layer)
+                    if not success:
+                        logging.warning(f"update_node_behavior failed for node_id={node_id} (idx={idx})")
+                    else:
+                        logging.debug(f"Successfully updated node_id={node_id} (idx={idx})")
+                except Exception as node_e:
+                    import traceback
+                    logging.error(f"Exception updating node idx={idx}, id={node.get('id', 'unknown')}: {node_e}")
+                    logging.error(traceback.format_exc())
+                    # Continue to next node instead of crashing
+                    continue
+
+            logging.info(f"Completed updating {nodes_to_update} nodes")
+
+            if (hasattr(self, 'enhanced_integration') and self.enhanced_integration is not None and
+                self.step_counter % 3 == 0):
+                try:
+                    self.graph = self.enhanced_integration.integrate_with_existing_system(
+                        self.graph, self.step_counter
+                    )
+                except Exception as e:
+                    logging.error(f"Error in enhanced neural integration: {e}")
+                    self.error_count += 1
+
+        except Exception as e:
+            import traceback
+            logging.error(f"Overall error in fallback node behavior update: {e}")
+            logging.error(traceback.format_exc())
+            # Fallback to simple random energy update for first 10 dynamic nodes
+            if logging.getLogger().isEnabledFor(logging.INFO):
+                logging.info("Falling back to simple energy updates for first 10 dynamic nodes")
+            for idx in range(0, min(10, len(self.graph.node_labels))):
+                try:
+                    node = self.graph.node_labels[idx]
+                    if node.get('type') == 'dynamic' and hasattr(self.graph, 'x') and idx < self.graph.x.shape[0]:
+                        current_energy = self.graph.x[idx, 0].item()
+                        import random
+                        energy_change = random.uniform(-0.01, 0.01)
+                        new_energy = max(0, min(current_energy + energy_change, 1.0))
+                        self.graph.x[idx, 0] = new_energy
+                        if 'membrane_potential' in node:
+                            node['membrane_potential'] = new_energy
+                        if logging.getLogger().isEnabledFor(logging.DEBUG):
+                            logging.debug(f"Fallback update: idx={idx}, old_energy={current_energy}, new_energy={new_energy}")
                 except Exception as fallback_e:
                     logging.error(f"Fallback update failed for idx={idx}: {fallback_e}")
     def _apply_energy_dynamics(self):
@@ -1222,7 +1617,7 @@ class SimulationManager:
     def save_neural_map(self, slot_number=None, metadata=None):
 
         try:
-            if self.graph and self.neural_map_persistence is not None:
+            if self.graph and hasattr(self, 'neural_map_persistence') and self.neural_map_persistence is not None:
                 return self.neural_map_persistence.save_neural_map(
                     self.graph, slot_number, metadata
                 )
@@ -1233,7 +1628,7 @@ class SimulationManager:
     def load_neural_map(self, slot_number):
 
         try:
-            if self.neural_map_persistence is not None:
+            if hasattr(self, 'neural_map_persistence') and self.neural_map_persistence is not None:
                 loaded_graph = self.neural_map_persistence.load_neural_map(slot_number)
                 if loaded_graph is not None:
                     self.graph = loaded_graph
@@ -1246,7 +1641,7 @@ class SimulationManager:
     def get_neural_map_slots(self):
 
         try:
-            if self.neural_map_persistence is not None:
+            if hasattr(self, 'neural_map_persistence') and self.neural_map_persistence is not None:
                 return self.neural_map_persistence.list_available_slots()
             return {}
         except Exception as e:
@@ -1255,7 +1650,7 @@ class SimulationManager:
     def get_hebbian_learning_stats(self):
 
         try:
-            if self.live_hebbian_learning is not None:
+            if hasattr(self, 'live_hebbian_learning') and self.live_hebbian_learning is not None:
                 return self.live_hebbian_learning.get_learning_statistics()
             return {}
         except Exception as e:
@@ -1264,23 +1659,23 @@ class SimulationManager:
     def set_hebbian_learning_rate(self, learning_rate):
 
         try:
-            if self.live_hebbian_learning is not None:
+            if hasattr(self, 'live_hebbian_learning') and self.live_hebbian_learning is not None:
                 self.live_hebbian_learning.set_learning_rate(learning_rate)
         except Exception as e:
             log_step("Error setting Hebbian learning rate", error=str(e))
     def create_enhanced_node(self, node_id: int, node_type: str = 'dynamic',
-                           subtype: str = 'standard', **kwargs) -> bool:
+                            subtype: str = 'standard', **kwargs) -> bool:
 
-        if self.enhanced_integration is None:
+        if not hasattr(self, 'enhanced_integration') or self.enhanced_integration is None:
             log_step("Enhanced integration not available", node_id=node_id)
             return False
         return self._create_enhanced_node(
             self.graph, node_id, node_type, subtype, **kwargs
         )
     def create_enhanced_connection(self, source_id: int, target_id: int,
-                                 connection_type: str = 'excitatory', **kwargs) -> bool:
+                                  connection_type: str = 'excitatory', **kwargs) -> bool:
 
-        if self.enhanced_integration is None:
+        if not hasattr(self, 'enhanced_integration') or self.enhanced_integration is None:
             log_step("Enhanced integration not available", source_id=source_id, target_id=target_id)
             return False
         return self._create_enhanced_connection(
@@ -1300,7 +1695,7 @@ class SimulationManager:
             return self.behavior_engine.get_enhanced_statistics()
         return {}
     def get_event_driven_statistics(self):
-        if self.event_driven_system is not None:
+        if hasattr(self, 'event_driven_system') and self.event_driven_system is not None:
             return self.event_driven_system.get_statistics()
         return {}
     def get_access_layer(self):
@@ -1309,22 +1704,22 @@ class SimulationManager:
             return NodeAccessLayer(self.graph)
         return None
     def schedule_spike_event(self, node_id: int, timestamp: float = None, priority: int = 1):
-        if self.event_driven_system is not None:
+        if hasattr(self, 'event_driven_system') and self.event_driven_system is not None:
             self.event_driven_system.schedule_spike(node_id, timestamp, priority)
     def schedule_energy_transfer_event(self, source_id: int, target_id: int, amount: float, timestamp: float = None):
-        if self.event_driven_system is not None:
+        if hasattr(self, 'event_driven_system') and self.event_driven_system is not None:
             self.event_driven_system.schedule_energy_transfer(source_id, target_id, amount, timestamp)
     def process_events(self, max_events: int = None):
-        if self.event_driven_system is not None:
+        if hasattr(self, 'event_driven_system') and self.event_driven_system is not None:
             return self.event_driven_system.process_events(max_events)
         return 0
     def get_spike_queue_statistics(self):
-        if self.spike_queue_system is not None:
+        if hasattr(self, 'spike_queue_system') and self.spike_queue_system is not None:
             return self.spike_queue_system.get_statistics()
         return {}
     def schedule_spike(self, source_id: int, target_id: int, spike_type: str = 'excitatory',
                       amplitude: float = 1.0, weight: float = 1.0, timestamp: float = None):
-        if self.spike_queue_system is not None:
+        if hasattr(self, 'spike_queue_system') and self.spike_queue_system is not None:
             from neural.spike_queue_system import SpikeType
             spike_type_enum = SpikeType.EXCITATORY
             if spike_type.lower() == 'inhibitory':
@@ -1338,7 +1733,7 @@ class SimulationManager:
             )
         return False
     def get_spike_queue_size(self):
-        if self.spike_queue_system is not None:
+        if hasattr(self, 'spike_queue_system') and self.spike_queue_system is not None:
             return self.spike_queue_system.get_queue_size()
         return 0
     def get_sensory_workspace_statistics(self):

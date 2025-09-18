@@ -9,6 +9,7 @@ from typing import Dict, List, Any, Optional, TypeVar, Generic
 from collections import defaultdict, deque
 from dataclasses import dataclass
 import weakref
+from utils.unified_error_handler import ErrorSeverity
 
 T = TypeVar('T')
 
@@ -145,7 +146,7 @@ class MemoryPoolManager:
         """Stop background cleanup thread."""
         self.running = False
         if self.cleanup_thread and self.cleanup_thread.is_alive():
-            self.cleanup_thread.join(timeout=5.0)
+            self.cleanup_thread.join(timeout=10.0)  # Increased timeout for safety
     
     def _cleanup_loop(self) -> None:
         """Background cleanup loop."""

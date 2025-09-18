@@ -134,17 +134,25 @@ class PerformanceMonitor:
                 return
             self._monitoring = False
             if self._monitor_thread and self._monitor_thread.is_alive():
-                self._monitor_thread.join(timeout=2.0)
+                self._monitor_thread.join(timeout=5.0)  # Increased timeout for safety
             logging.info("Performance monitoring stopped")
     def _monitoring_loop(self) -> None:
         logging.info("Performance monitoring loop started")
+        max_consecutive_errors = 10  # Add graceful exit condition
+        consecutive_errors = 0
         while self._monitoring:
             try:
                 self._update_metrics()
                 self._check_thresholds()
                 time.sleep(self.update_interval)
+                consecutive_errors = 0  # Reset on success
             except Exception as e:
                 logging.error(f"Error in monitoring loop: {e}")
+                consecutive_errors += 1
+                if consecutive_errors >= max_consecutive_errors:
+                    logging.error(f"Too many consecutive errors ({max_consecutive_errors}), stopping monitoring")
+                    self._monitoring = False
+                    break
                 time.sleep(self.update_interval)
         logging.info("Performance monitoring loop stopped")
     def _update_metrics(self) -> None:
@@ -170,7 +178,8 @@ class PerformanceMonitor:
         self.last_update_time = current_time
         # Added periodic log every 10 updates (approx every 10s default interval)
         if len(self.metrics_history) % 10 == 0:
-            logging.debug(f"Metrics updated: FPS={self.current_metrics.fps:.2f}, CPU={self.current_metrics.cpu_percent:.1f}%, Mem={self.current_metrics.memory_percent:.1f}%, Steps={self.total_steps}")
+            if logging.getLogger().isEnabledFor(logging.DEBUG):
+                logging.debug(f"Metrics updated: FPS={self.current_metrics.fps:.2f}, CPU={self.current_metrics.cpu_percent:.1f}%, Mem={self.current_metrics.memory_percent:.1f}%, Steps={self.total_steps}")
     def _update_memory_metrics(self) -> None:
         try:
             current_time = time.time()
@@ -366,7 +375,8 @@ class PerformanceMonitor:
                 self.current_metrics.fps = 0.0
             # Added log for step recording confirmation (debug to avoid spam)
             if self.total_steps % 100 == 0:
-                logging.debug(f"Recorded step {self.total_steps}: time={step_time:.4f}s, FPS={self.current_metrics.fps:.2f}, nodes={node_count}")
+                if logging.getLogger().isEnabledFor(logging.DEBUG):
+                    logging.debug(f"Recorded step {self.total_steps}: time={step_time:.4f}s, FPS={self.current_metrics.fps:.2f}, nodes={node_count}")
     def record_error(self) -> None:
         with self._lock:
             self.error_count += 1

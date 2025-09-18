@@ -93,7 +93,7 @@ class PerformanceMonitor:
         """Stop performance monitoring."""
         self.running = False
         if self.monitor_thread and self.monitor_thread.is_alive():
-            self.monitor_thread.join(timeout=5.0)
+            self.monitor_thread.join(timeout=10.0)  # Increased timeout for safety
     
     def _monitoring_loop(self):
         """Main monitoring loop."""
