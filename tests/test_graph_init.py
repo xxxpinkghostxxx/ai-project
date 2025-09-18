@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import torch
 from torch_geometric.data import Data
 from energy.node_id_manager import get_id_manager
@@ -50,16 +54,16 @@ print(f"Post-Death Edges: {connectivity.get('num_edges')}, Density: {connectivit
 
 print("\n--- Verification ---")
 if initial_metrics['connectivity']['num_edges'] > 0:
-    print("✅ Initial edge creation successful.")
+    print("[PASS] Initial edge creation successful.")
 else:
-    print("❌ Initial edge creation failed.")
+    print("[FAIL] Initial edge creation failed.")
 
 if post_birth_metrics['connectivity']['num_edges'] > initial_metrics['connectivity']['num_edges']:
-    print("✅ Edge count increased after birth.")
+    print("[PASS] Edge count increased after birth.")
 else:
-    print("❌ Edge count did not increase after birth.")
+    print("[FAIL] Edge count did not increase after birth.")
 
 if post_death_metrics['connectivity']['num_edges'] > 0 and post_death_metrics['connectivity']['num_edges'] < post_birth_metrics['connectivity']['num_edges']:
-     print("✅ Edges persisted and were correctly remapped after death.")
+     print("[PASS] Edges persisted and were correctly remapped after death.")
 else:
-     print("❌ Edges did not persist or remap correctly after death.")
+     print("[FAIL] Edges did not persist or remap correctly after death.")

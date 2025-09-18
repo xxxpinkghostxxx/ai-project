@@ -622,7 +622,7 @@ def get_performance_monitor() -> PerformanceMonitor:
     global _performance_monitor
     if _performance_monitor is None:
         _performance_monitor = PerformanceMonitor()
-        _performance_monitor.start_monitoring()
+        _performance_monitor.start()
     return _performance_monitor
 
 
@@ -648,11 +648,11 @@ def get_adaptive_processor() -> AdaptiveProcessor:
 def cleanup_performance_systems():
     """Cleanup all performance systems."""
     global _performance_monitor, _performance_optimizer, _adaptive_processor
-    
+
     if _performance_monitor:
-        _performance_monitor.stop_monitoring()
+        _performance_monitor.stop()
         _performance_monitor = None
-    
+
     _performance_optimizer = None
     _adaptive_processor = None
 

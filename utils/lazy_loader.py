@@ -23,7 +23,7 @@ class LazyLoader:
         self._dependencies: Dict[str, list] = {}
     
     def lazy_load(self, component_name: str, factory_func: Callable[[], Any],
-                   priority: int = 0, dependencies: list = None) -> Any:
+                    priority: int = 0, dependencies: list = None) -> Any:
         """
         Get a component, loading it lazily if not already loaded.
 
@@ -223,5 +223,5 @@ def create_lazy_performance_monitor():
     """Lazy factory for performance monitor."""
     from utils.performance_monitor import PerformanceMonitor as PerfMonitor
     monitor = PerfMonitor()
-    monitor.start_monitoring()
+    # Don't start monitoring here - let the SimulationManager handle it
     return monitor

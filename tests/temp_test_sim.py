@@ -1,15 +1,18 @@
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import asyncio
 import faulthandler
 faulthandler.enable()  # Enable fault handler for segfault tracebacks
-from simulation_manager import get_simulation_manager
+from core.simulation_manager import get_simulation_manager
 import logging
 logging.basicConfig(level=logging.DEBUG, format='%(levelname)s: %(message)s')  # More verbose for diagnosis
 
 async def test_sim():
     print('Starting test_sim')
     try:
-        from simulation_manager import get_simulation_manager
-        print('Imported simulation_manager')
+        print('Using pre-imported simulation_manager')
     except Exception as e:
         print(f'Import error: {e}')
         import traceback

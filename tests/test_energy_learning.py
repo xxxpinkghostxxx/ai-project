@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from learning.live_hebbian_learning import create_live_hebbian_learning
 from learning.learning_engine import LearningEngine
-from ..core.simulation_manager import SimulationManager
+from core.simulation_manager import SimulationManager
 
 def test_energy_modulated_learning():
     """Test that learning rates are modulated by energy levels."""

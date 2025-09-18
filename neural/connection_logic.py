@@ -9,6 +9,7 @@ from utils.logging_utils import log_step
 from energy.energy_constants import ConnectionConstants
 from utils.common_utils import safe_hasattr
 from energy.energy_behavior import get_node_energy_cap
+from utils.connection_validator import get_connection_validator
 
 
 def get_max_dynamic_energy():
@@ -67,49 +68,73 @@ class EnhancedEdge:
 
 
 def create_weighted_connection(graph, source_id, target_id, weight, edge_type='excitatory'):
+    """Create a weighted connection with centralized validation."""
+
+    # Get the centralized validator
+    validator = get_connection_validator()
+
+    # Perform comprehensive validation
+    validation_result = validator.validate_connection(
+        graph, source_id, target_id, edge_type, weight
+    )
+
+    # Log validation results
+    if not validation_result['is_valid']:
+        for error in validation_result['errors']:
+            logging.error(f"Connection validation failed: {error}")
+        return graph
+
+    if validation_result['warnings']:
+        for warning in validation_result['warnings']:
+            logging.warning(f"Connection validation warning: {warning}")
+
+    if validation_result['suggestions']:
+        for suggestion in validation_result['suggestions']:
+            logging.info(f"Connection suggestion: {suggestion}")
 
     try:
         from energy.node_id_manager import get_id_manager
         id_manager = get_id_manager()
         source_index = id_manager.get_node_index(source_id)
         target_index = id_manager.get_node_index(target_id)
+
+        # Double-check indices (should be validated by validator, but safety check)
         if source_index is None or target_index is None:
-            if not hasattr(create_weighted_connection, '_warning_count'):
-                create_weighted_connection._warning_count = 0
-            create_weighted_connection._warning_count += 1
-            if create_weighted_connection._warning_count <= 5:
-                from energy.node_id_manager import get_id_manager
-                id_mgr = get_id_manager()
-                stats = id_mgr.get_statistics()
-                logging.warning(f"Invalid node IDs for connection: source={source_id}, target={target_id}")
-                logging.warning(f"ID Manager stats: {stats}")
-            elif create_weighted_connection._warning_count == 6:
-                logging.warning("Suppressing further connection validation warnings to prevent spam")
+            logging.error(f"ID manager returned None indices after validation: source={source_id}, target={target_id}")
             return graph
-        
+
         # Validate indices are within bounds
         if source_index >= len(graph.node_labels) or target_index >= len(graph.node_labels):
             logging.error(f"Node indices out of bounds: source_index={source_index}, target_index={target_index}, graph_size={len(graph.node_labels)}")
             return graph
+
+        # Create the edge
         edge = EnhancedEdge(source_index, target_index, weight, edge_type)
         new_edge = torch.tensor([[source_index], [target_index]], dtype=torch.long)
+
+        # Add to graph edge index
         if graph.edge_index.numel() == 0:
             graph.edge_index = new_edge
         else:
             graph.edge_index = torch.cat([graph.edge_index, new_edge], dim=1)
+
+        # Add to edge attributes with thread safety
         if not hasattr(graph, 'edge_attributes'):
             graph.edge_attributes = []
         if not hasattr(graph, '_edge_attributes_lock'):
             graph._edge_attributes_lock = threading.RLock()
+
         with graph._edge_attributes_lock:
             graph.edge_attributes.append(edge)
-        
+
         # Diagnostic log for connection creation
         if logging.getLogger().isEnabledFor(logging.DEBUG):
-            logging.debug(f"[CONNECTION] Created edge: source={source_id} (idx={source_index}) to target={target_id} (idx={target_index}), type={edge_type}, weight={weight}")
+            logging.debug(f"[CONNECTION] Created validated edge: source={source_id} (idx={source_index}) to target={target_id} (idx={target_index}), type={edge_type}, weight={weight}")
+
         return graph
+
     except Exception as e:
-        logging.error(f"Error creating connection between {source_id} and {target_id}: {e}")
+        logging.error(f"Error creating validated connection between {source_id} and {target_id}: {e}")
         return graph
 
 
@@ -200,6 +225,7 @@ def create_basic_connections(graph):
 
 
 def intelligent_connection_formation(graph):
+    """Create intelligent connections with centralized validation."""
 
     if not hasattr(graph, "node_labels") or not hasattr(graph, "x"):
         return graph
@@ -209,14 +235,18 @@ def intelligent_connection_formation(graph):
     if num_nodes > 50000:
         log_step(f"Skipping intelligent connections for large graph ({num_nodes} nodes) to maintain performance")
         return graph
+
+    validator = get_connection_validator()
     max_connections = 50
     sensory_sample_size = 10
     dynamic_sample_size = 20
+
     import random
     all_indices = list(range(num_nodes))
     random.shuffle(all_indices)
     sensory_nodes = []
     dynamic_nodes = []
+
     for idx in all_indices[:1000]:
         node = graph.node_labels[idx]
         node_type = node.get('type', 'unknown')
@@ -226,6 +256,7 @@ def intelligent_connection_formation(graph):
             dynamic_nodes.append(idx)
         if len(sensory_nodes) >= sensory_sample_size and len(dynamic_nodes) >= dynamic_sample_size:
             break
+
     connections_created = 0
     if sensory_nodes and dynamic_nodes and connections_created < max_connections:
         for sensory_idx in sensory_nodes:
@@ -251,12 +282,23 @@ def intelligent_connection_formation(graph):
                     connection_type = connection_types[connections_created % len(connection_types)]
                     base_weight = 0.3 + (connections_created * 0.1)
                     weight = base_weight * energy_factor  # Stronger energy modulation
-                    create_weighted_connection(graph, sensory_id, dynamic_id, weight, connection_type)
-                    connections_created += 1
-                    
-                    # Diagnostic: Log sensory-dynamic connection
-                    if logging.getLogger().isEnabledFor(logging.DEBUG):
-                        logging.debug(f"[FORMATION] Sensory-dynamic connection created: {sensory_id} -> {dynamic_id}, type={connection_type}, weight={weight}, energy_mod={energy_mod:.2f}")
+
+                    # Use centralized validation
+                    validation_result = validator.validate_connection(
+                        graph, sensory_id, dynamic_id, connection_type, weight
+                    )
+
+                    if validation_result['is_valid']:
+                        graph = create_weighted_connection(graph, sensory_id, dynamic_id, weight, connection_type)
+                        connections_created += 1
+
+                        # Diagnostic: Log sensory-dynamic connection
+                        if logging.getLogger().isEnabledFor(logging.DEBUG):
+                            logging.debug(f"[FORMATION] Sensory-dynamic connection created: {sensory_id} -> {dynamic_id}, type={connection_type}, weight={weight}, energy_mod={energy_mod:.2f}")
+                    else:
+                        # Log validation failures
+                        for error in validation_result['errors']:
+                            logging.warning(f"Connection validation failed: {error}")
     if len(dynamic_nodes) > 1 and connections_created < max_connections:
         limited_dynamic = dynamic_nodes[:3]
         for i, node1_idx in enumerate(limited_dynamic):
@@ -292,12 +334,23 @@ def intelligent_connection_formation(graph):
                         energy_factor = max(0.1, min(3.0, energy_mod * 3.0))  # Range: 0.1 to 3.0 for stronger effects
                         base_weight = 0.2 + (connections_created * 0.05)
                         weight = base_weight * energy_factor  # Stronger energy modulation
-                        create_weighted_connection(graph, node1_id, node2_id, weight, connection_type)
-                        connections_created += 1
-                        
-                        # Diagnostic: Log dynamic-dynamic connection
-                        if logging.getLogger().isEnabledFor(logging.DEBUG):
-                            logging.debug(f"[FORMATION] Dynamic-dynamic connection created: {node1_id} -> {node2_id}, type={connection_type}, weight={weight}, energy_mod={energy_mod:.2f}, criteria: cluster_sim={cluster_similarity}, affinity_compat={affinity_compatible}, pos_prox={position_proximity}")
+
+                        # Use centralized validation
+                        validation_result = validator.validate_connection(
+                            graph, node1_id, node2_id, connection_type, weight
+                        )
+
+                        if validation_result['is_valid']:
+                            graph = create_weighted_connection(graph, node1_id, node2_id, weight, connection_type)
+                            connections_created += 1
+
+                            # Diagnostic: Log dynamic-dynamic connection
+                            if logging.getLogger().isEnabledFor(logging.DEBUG):
+                                logging.debug(f"[FORMATION] Dynamic-dynamic connection created: {node1_id} -> {node2_id}, type={connection_type}, weight={weight}, energy_mod={energy_mod:.2f}, criteria: cluster_sim={cluster_similarity}, affinity_compat={affinity_compatible}, pos_prox={position_proximity}")
+                        else:
+                            # Log validation failures
+                            for error in validation_result['errors']:
+                                logging.warning(f"Dynamic connection validation failed: {error}")
     oscillator_nodes = [i for i, node in enumerate(graph.node_labels) if node.get('behavior') == 'oscillator']
     integrator_nodes = [i for i, node in enumerate(graph.node_labels) if node.get('behavior') == 'integrator']
     if oscillator_nodes and integrator_nodes:
@@ -317,11 +370,22 @@ def intelligent_connection_formation(graph):
                     energy_cap = get_node_energy_cap()
                     energy_mod = (osc_energy + int_energy) / (2 * energy_cap) if energy_cap > 0 else 1.0
                     weight = 0.4 * max(0.5, energy_mod)
-                    create_weighted_connection(graph, osc_id, int_id, weight, 'excitatory')
-                    
-                    # Diagnostic: Log oscillator-integrator connection
-                    if logging.getLogger().isEnabledFor(logging.DEBUG):
-                        logging.debug(f"[FORMATION] Oscillator-integrator connection created: {osc_id} -> {int_id}, weight={weight}, energy_mod={energy_mod:.2f}, excitatory")
+
+                    # Use centralized validation
+                    validation_result = validator.validate_connection(
+                        graph, osc_id, int_id, 'excitatory', weight
+                    )
+
+                    if validation_result['is_valid']:
+                        graph = create_weighted_connection(graph, osc_id, int_id, weight, 'excitatory')
+
+                        # Diagnostic: Log oscillator-integrator connection
+                        if logging.getLogger().isEnabledFor(logging.DEBUG):
+                            logging.debug(f"[FORMATION] Oscillator-integrator connection created: {osc_id} -> {int_id}, weight={weight}, energy_mod={energy_mod:.2f}, excitatory")
+                    else:
+                        # Log validation failures
+                        for error in validation_result['errors']:
+                            logging.warning(f"Oscillator-integrator connection validation failed: {error}")
     relay_nodes = [i for i, node in enumerate(graph.node_labels) if node.get('behavior') == 'relay']
     highway_nodes = [i for i, node in enumerate(graph.node_labels) if node.get('behavior') == 'highway']
     if relay_nodes and highway_nodes:
@@ -341,11 +405,22 @@ def intelligent_connection_formation(graph):
                     energy_cap = get_node_energy_cap()
                     energy_mod = (relay_energy + highway_energy) / (2 * energy_cap) if energy_cap > 0 else 1.0
                     weight = 0.6 * max(0.5, energy_mod)
-                    create_weighted_connection(graph, relay_id, highway_id, weight, 'excitatory')
-                    
-                    # Diagnostic: Log relay-highway connection
-                    if logging.getLogger().isEnabledFor(logging.DEBUG):
-                        logging.debug(f"[FORMATION] Relay-highway connection created: {relay_id} -> {highway_id}, weight={weight}, energy_mod={energy_mod:.2f}, excitatory")
+
+                    # Use centralized validation
+                    validation_result = validator.validate_connection(
+                        graph, relay_id, highway_id, 'excitatory', weight
+                    )
+
+                    if validation_result['is_valid']:
+                        graph = create_weighted_connection(graph, relay_id, highway_id, weight, 'excitatory')
+
+                        # Diagnostic: Log relay-highway connection
+                        if logging.getLogger().isEnabledFor(logging.DEBUG):
+                            logging.debug(f"[FORMATION] Relay-highway connection created: {relay_id} -> {highway_id}, weight={weight}, energy_mod={energy_mod:.2f}, excitatory")
+                    else:
+                        # Log validation failures
+                        for error in validation_result['errors']:
+                            logging.warning(f"Relay-highway connection validation failed: {error}")
     import random
     num_random_connections = min(10, num_nodes // 5)
     for _ in range(num_random_connections):
@@ -364,11 +439,22 @@ def intelligent_connection_formation(graph):
                 # Enhanced energy modulation for learning
                 energy_factor = max(0.1, min(2.5, energy_mod * 2.5))  # Range: 0.1 to 2.5
                 weight = 0.2 * energy_factor  # Stronger energy modulation
-                create_weighted_connection(graph, source_id, target_id, weight, 'excitatory')
-                
-                # Diagnostic: Log random connection
-                if logging.getLogger().isEnabledFor(logging.DEBUG):
-                    logging.debug(f"[FORMATION] Random connection created: {source_id} -> {target_id}, weight={weight}, energy_mod={energy_mod:.2f}, excitatory")
+
+                # Use centralized validation
+                validation_result = validator.validate_connection(
+                    graph, source_id, target_id, 'excitatory', weight
+                )
+
+                if validation_result['is_valid']:
+                    graph = create_weighted_connection(graph, source_id, target_id, weight, 'excitatory')
+
+                    # Diagnostic: Log random connection
+                    if logging.getLogger().isEnabledFor(logging.DEBUG):
+                        logging.debug(f"[FORMATION] Random connection created: {source_id} -> {target_id}, weight={weight}, energy_mod={energy_mod:.2f}, excitatory")
+                else:
+                    # Log validation failures
+                    for error in validation_result['errors']:
+                        logging.warning(f"Random connection validation failed: {error}")
     return graph
 
 

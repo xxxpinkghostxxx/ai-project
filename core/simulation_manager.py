@@ -4,7 +4,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from neural.dynamic_nodes import add_dynamic_nodes
 
-from typing import Optional, Dict, Any, List, Callable
+from typing import Optional, Dict, Any, List, Callable, Union, Tuple
 
 from utils.logging_utils import log_step
 from utils.performance_monitor import PerformanceMonitor, record_simulation_step, record_simulation_error, record_simulation_warning
@@ -51,6 +51,10 @@ from utils.error_handling_utils import (
     ErrorContext, safe_tensor_operation, get_resource_manager
 )
 from utils.common_utils import safe_hasattr
+from utils.graph_integrity_manager import get_graph_integrity_manager
+from utils.graph_merger import get_graph_merger
+from utils.continuous_graph_validator import get_continuous_graph_validator
+from utils.memory_manager import get_memory_manager
 
 from typing import Callable
 
@@ -78,6 +82,23 @@ class SimulationManager:
         self._initialize_callbacks()
         self._load_configuration()
         self._validate_initialization()
+
+        # Initialize graph integrity manager
+        self.integrity_manager = get_graph_integrity_manager()
+        logging.info("Graph integrity manager initialized")
+
+        # Initialize graph merger
+        self.graph_merger = get_graph_merger()
+        logging.info("Graph merger initialized")
+
+        # Initialize continuous graph validator
+        self.continuous_validator = get_continuous_graph_validator()
+        logging.info("Continuous graph validator initialized")
+
+        # Initialize memory manager
+        self.memory_manager = get_memory_manager()
+        logging.info("Memory manager initialized")
+
         # Initialize adaptive processor
         adaptive = get_adaptive_processor()
         adaptive.enable_adaptive_processing()
@@ -138,10 +159,20 @@ class SimulationManager:
         self.cache_manager = get_performance_cache_manager()
         self.node_manager = get_optimized_node_manager()
 
+        # Clear any cached performance_monitor from lazy loader to avoid conflicts
+        if 'performance_monitor' in self.lazy_loader._loaded_components:
+            del self.lazy_loader._loaded_components['performance_monitor']
+            print("DEBUG: Cleared cached performance_monitor from lazy loader")
+
         # Preload critical components
         if self.use_lazy_loading:
             self.lazy_loader.lazy_load('simulation_manager', lambda: self, priority=10)
-            self.lazy_loader.lazy_load('performance_monitor', lambda: self._create_performance_monitor(), priority=8)
+            # Create performance monitor directly to avoid lazy loading issues
+            self.performance_monitor = self._create_performance_monitor()
+            if self.performance_monitor:
+                logging.info("Performance monitor created successfully")
+            else:
+                logging.warning("Failed to create performance monitor")
 
     def _initialize_optional_components_lazy(self):
         """Initialize optional components with lazy loading."""
@@ -286,7 +317,7 @@ class SimulationManager:
                 logging.warning(f"Failed to initialize sensory workspace mapper: {e}")
                 return None
 
-        # Ensure enhanced integration is loaded first
+        # Ensure enhanced integration is loaded first (single registration)
         def create_enhanced_integration():
             integration = self._create_enhanced_neural_integration()
             if integration:
@@ -294,6 +325,7 @@ class SimulationManager:
                 logging.info("Enhanced neural integration initialized")
             return integration
 
+        # Register enhanced integration only once
         self.lazy_loader.lazy_load(
             'enhanced_neural_integration',
             create_enhanced_integration,
@@ -304,13 +336,6 @@ class SimulationManager:
             'visual_energy_bridge',
             create_visual_bridge,
             priority=6
-        )
-
-        # Ensure enhanced integration is loaded before visual energy bridge
-        self.lazy_loader.lazy_load(
-            'enhanced_neural_integration',
-            create_enhanced_integration,
-            priority=7
         )
 
         self.lazy_loader.lazy_load(
@@ -345,30 +370,47 @@ class SimulationManager:
     def _create_performance_monitor(self):
         """Create and initialize performance monitor with config."""
         try:
-            # Explicitly import the correct PerformanceMonitor class
-            from utils.performance_monitor import PerformanceMonitor as PerfMonitor
+            # Import the correct PerformanceMonitor class and avoid conflicts
+            import importlib
+            perf_monitor_module = importlib.import_module('utils.performance_monitor')
+            PerfMonitor = perf_monitor_module.PerformanceMonitor
+
             update_interval = self.get_config('Performance', 'update_interval', 1.0, float)
-            self.performance_monitor = PerfMonitor(update_interval=update_interval)
-            self.performance_monitor.start_monitoring()
-            logging.info("Performance monitor created and started")
+            monitor = PerfMonitor(update_interval=update_interval)
+
+            # Verify the object has the expected methods
+            if not hasattr(monitor, 'start_monitoring'):
+                logging.error(f"PerformanceMonitor object missing start_monitoring method. Type: {type(monitor)}")
+                logging.error(f"PerformanceMonitor MRO: {type(monitor).__mro__}")
+                return None
+
+            # Only start monitoring if not already started
+            if not hasattr(monitor, '_monitoring') or not monitor._monitoring:
+                monitor.start_monitoring()
+                logging.info("Performance monitor created and started")
+            else:
+                logging.info("Performance monitor already running, using existing instance")
+
             # Added log to confirm init
-            logging.info(f"PerformanceMonitor active: monitoring={self.performance_monitor._monitoring if hasattr(self.performance_monitor, '_monitoring') else 'unknown'}")
-            return self.performance_monitor
+            logging.info(f"PerformanceMonitor active: monitoring={monitor._monitoring if hasattr(monitor, '_monitoring') else 'unknown'}")
+            return monitor
         except Exception as e:
             logging.warning(f"Failed to create performance monitor: {e}")
             logging.error(f"PerformanceMonitor init exception details: {type(e).__name__}: {str(e)}")
+            import traceback
+            logging.error(f"Traceback: {traceback.format_exc()}")
             return None
 
     def _initialize_performance_tracking(self):
         """Initialize performance tracking systems."""
-        self.performance_monitor = self._safe_initialize_component(
-            "performance_monitor",
-            lambda: self._create_performance_monitor(),
-            critical=False
-        )
+        # Performance monitor is already created in _initialize_performance_optimizations
+        # Just set up the callback methods
         if self.performance_monitor:
             self.performance_monitor.record_error = record_simulation_error
             self.performance_monitor.record_warning = record_simulation_warning
+            logging.info("Performance monitor callbacks configured")
+        else:
+            logging.warning("Performance monitor not available for callback configuration")
         self.performance_stats = {
             'total_steps': 0,
             'avg_step_time': 0.0,
@@ -497,15 +539,54 @@ class SimulationManager:
         except Exception as e:
             logging.error(f"Reinitialization with defaults failed for {component_name}: {e}")
         return None
-    def set_graph(self, graph):
+    def set_graph(self, graph) -> None:
+        """Set the simulation graph with validation, integrity checking, and versioning."""
+        if graph is None:
+            logging.warning("Attempted to set None graph")
+            return
 
         with self._lock:
-            self.graph = graph
-        if self.graph is not None:
-            self.graph.simulation_step = self.step_counter
-            self.graph.simulation_running = self.is_running
-            log_step("Graph attached to simulation manager",
-                    nodes=len(self.graph.node_labels) if hasattr(self.graph, 'node_labels') else 0)
+            try:
+                # Validate graph structure before setting
+                if not hasattr(graph, 'node_labels'):
+                    logging.error("Graph missing required 'node_labels' attribute")
+                    return
+
+                # Check integrity before setting new graph
+                if self.graph is not None:
+                    integrity_result = self.integrity_manager.check_integrity(self.graph, self.id_manager)
+                    if not integrity_result['is_integrity_intact']:
+                        logging.warning("Graph integrity violations detected before setting new graph")
+                        for violation in integrity_result['violations']:
+                            if violation.severity == 'critical':
+                                logging.error(f"Critical integrity violation: {violation.description}")
+
+                self.graph = graph
+
+                # Initialize graph metadata
+                self.graph.simulation_step = getattr(self.graph, 'simulation_step', self.step_counter)
+                self.graph.simulation_running = getattr(self.graph, 'simulation_running', self.is_running)
+
+                # Clear any cached validation results since graph changed
+                if hasattr(self, '_consistency_cache'):
+                    self._consistency_cache.clear()
+
+                # Create new version for integrity tracking
+                version_metadata = {
+                    'set_by': 'set_graph',
+                    'step_counter': self.step_counter,
+                    'simulation_running': self.is_running
+                }
+                version_id = self.integrity_manager.create_version(graph, self.id_manager, version_metadata)
+
+                node_count = len(self.graph.node_labels) if hasattr(self.graph, 'node_labels') else 0
+                log_step("Graph attached to simulation manager",
+                        nodes=node_count, version=version_id)
+
+            except Exception as e:
+                logging.error(f"Error setting graph: {e}")
+                # Don't set the graph if there was an error
+                return
     def initialize_graph(self):
         try:
             from core.main_graph import initialize_main_graph
@@ -570,6 +651,10 @@ class SimulationManager:
                     if not adaptive.should_skip('visual', cpu_threshold=80):
                         self._safe_process_component(self._process_visual_systems, "visual systems")
 
+                    # Periodic integrity check
+                    if not adaptive.should_skip('integrity', cpu_threshold=90):
+                        self._safe_process_component(self._check_graph_integrity, "graph integrity")
+
                 # Further optimized metrics processing
                 if frame_counter % 10 == 0:
                     adaptive = get_adaptive_processor()
@@ -577,6 +662,12 @@ class SimulationManager:
                         self._safe_process_component(self._process_metrics_and_callbacks, "metrics processing")
                     elif frame_counter % 100 == 0:  # Reduced frequency for skip warnings
                         logging.debug("Metrics processing skipped due to adaptive processor")
+
+                # Periodic memory maintenance
+                if step_counter % 100 == 0:  # Every 100 steps
+                    adaptive = get_adaptive_processor()
+                    if not adaptive.should_skip('memory', cpu_threshold=90):
+                        self._safe_process_component(self._perform_periodic_memory_maintenance, "memory maintenance")
 
                 # Optimized UI updates with error isolation
                 if not headless:
@@ -807,7 +898,7 @@ class SimulationManager:
                     )
             except Exception as e:
                 logging.warning(f"Visual energy bridge processing failed: {e}")
-        
+
         if (self.step_counter % 10 == 0 and
             hasattr(self, 'sensory_workspace_mapper') and
             self.sensory_workspace_mapper is not None):
@@ -823,39 +914,114 @@ class SimulationManager:
             except Exception as e:
                 logging.warning(f"Sensory workspace mapping failed: {e}")
 
+    def _check_graph_integrity(self):
+        """Check graph integrity and create versions periodically."""
+        try:
+            # Check integrity every 100 steps
+            if self.step_counter % 100 == 0:
+                integrity_result = self.integrity_manager.check_integrity(self.graph, self.id_manager)
+                if not integrity_result['is_integrity_intact']:
+                    logging.warning("Graph integrity violations detected during simulation")
+                    for violation in integrity_result['violations']:
+                        if violation.severity == 'critical':
+                            logging.error(f"Critical integrity violation: {violation.description}")
+                        elif violation.severity == 'warning':
+                            logging.warning(f"Integrity warning: {violation.description}")
+
+            # Create version snapshot every 500 steps
+            if self.step_counter % 500 == 0:
+                version_metadata = {
+                    'step': self.step_counter,
+                    'simulation_running': self.is_running,
+                    'performance_stats': self.performance_stats.copy()
+                }
+                version_id = self.integrity_manager.create_version(
+                    self.graph, self.id_manager, version_metadata
+                )
+                logging.info(f"Graph version snapshot created: {version_id} at step {self.step_counter}")
+
+        except Exception as e:
+            logging.warning(f"Graph integrity check failed: {e}")
+
+    def _perform_periodic_memory_maintenance(self):
+        """Perform periodic memory maintenance."""
+        try:
+            # Check memory status
+            memory_status = self.memory_manager.monitor.check_memory_thresholds()
+
+            # Perform maintenance if memory usage is high
+            if memory_status['status'] in ['warning', 'critical']:
+                maintenance_result = self.memory_manager.perform_memory_maintenance()
+                if maintenance_result.get('maintenance_actions'):
+                    logging.info("Memory maintenance performed due to high usage",
+                               status=memory_status['status'],
+                               actions=len(maintenance_result['maintenance_actions']))
+            elif self.step_counter % 1000 == 0:  # Regular maintenance every 1000 steps
+                # Perform lighter maintenance
+                gc_stats = self.memory_manager.optimizer.force_garbage_collection()
+                if gc_stats.get('collected_objects', 0) > 0:
+                    logging.debug("Regular garbage collection performed",
+                                collected=gc_stats['collected_objects'])
+
+        except Exception as e:
+            logging.warning(f"Memory maintenance failed: {e}")
+
     def _process_metrics_and_callbacks(self):
-        """Process metrics calculation and callbacks with optimized performance."""
-        if self.step_counter % 200 == 0:
+        """Process metrics calculation and callbacks with optimized performance and caching."""
+        step_counter = self.step_counter
+
+        # Use different frequencies for different operations to reduce load
+        should_calculate_metrics = step_counter % 200 == 0
+        should_save_snapshot = step_counter % 1000 == 0
+
+        if should_calculate_metrics or should_save_snapshot:
             try:
                 # Cache frequently accessed data to avoid repeated computations
                 graph = self.graph
-                step_counter = self.step_counter
                 performance_stats = self.performance_stats
 
-                # Only log basic info to reduce I/O overhead
-                node_count = len(graph.node_labels) if graph and hasattr(graph, 'node_labels') else 0
-                logging.debug(f"Calculating metrics at step {step_counter}, nodes: {node_count}")
+                # Use optimized node count method
+                node_count = self._get_node_count()
 
-                # Calculate metrics once and cache results
-                metrics = self.network_metrics.calculate_comprehensive_metrics(graph)
-                performance_stats['last_metrics'] = metrics
+                if should_calculate_metrics:
+                    logging.debug(f"Calculating metrics at step {step_counter}, nodes: {node_count}")
 
-                # Extract key metrics efficiently
-                criticality = metrics.get('criticality', 0.0)
-                connectivity = metrics.get('connectivity', {})
-                density = connectivity.get('density', 0.0) if isinstance(connectivity, dict) else 0.0
+                    # Check if we need to recalculate metrics (not cached or cache expired)
+                    cache_key = f"metrics_{step_counter // 50}"  # Cache for 50 steps
+                    if (not hasattr(self, '_metrics_cache') or
+                        self._metrics_cache.get('key') != cache_key):
 
-                logging.info(f"Metrics: criticality={criticality:.3f}, density={density:.3f}")
+                        # Calculate metrics once and cache results
+                        metrics = self.network_metrics.calculate_comprehensive_metrics(graph)
+                        performance_stats['last_metrics'] = metrics
 
-                # Execute callbacks with error isolation
-                self._execute_metrics_callbacks(metrics)
+                        # Cache the results
+                        if not hasattr(self, '_metrics_cache'):
+                            self._metrics_cache = {}
+                        self._metrics_cache['key'] = cache_key
+                        self._metrics_cache['metrics'] = metrics
+                    else:
+                        # Use cached metrics
+                        metrics = self._metrics_cache['metrics']
 
-                # Log metrics only if needed (reduce overhead)
-                self._log_step_metrics(metrics)
+                    # Extract key metrics efficiently
+                    criticality = metrics.get('criticality', 0.0)
+                    connectivity = metrics.get('connectivity', {})
+                    density = connectivity.get('density', 0.0) if isinstance(connectivity, dict) else 0.0
+
+                    logging.info(f"Metrics: criticality={criticality:.3f}, density={density:.3f}")
+
+                    # Execute callbacks with error isolation
+                    self._execute_metrics_callbacks(metrics)
+
+                    # Log metrics only if needed (reduce overhead)
+                    self._log_step_metrics(metrics)
 
                 # Optimized metrics saving - only save periodically
-                if step_counter % 1000 == 0:  # Save every 1000 steps instead of 200
-                    self._save_metrics_snapshot(metrics)
+                if should_save_snapshot:
+                    metrics = performance_stats.get('last_metrics', {})
+                    if metrics:
+                        self._save_metrics_snapshot(metrics)
 
             except Exception as e:
                 logging.warning(f"Metrics calculation failed: {e}")
@@ -951,16 +1117,31 @@ class SimulationManager:
         else:
             logging.warning("PerformanceMonitor is None, cannot record step")
 
-    def _execute_step_callbacks(self):
-        """Execute step callbacks with error handling."""
-        for callback in self.step_callbacks:
+    def _execute_step_callbacks(self) -> None:
+        """Execute step callbacks with comprehensive error handling."""
+        if not self.step_callbacks:
+            return
+
+        failed_callbacks = []
+        for i, callback in enumerate(self.step_callbacks):
             try:
                 callback(self.graph, self.step_counter, self.performance_stats)
             except (TypeError, ValueError, AttributeError) as e:
-                logging.error(f"Step callback error: {e}")
+                logging.error(f"Step callback {i} type error: {e}")
+                failed_callbacks.append(i)
+                record_simulation_error()
             except Exception as e:
-                logging.error(f"Unexpected step callback error: {e}")
-                raise
+                logging.error(f"Step callback {i} unexpected error: {e}")
+                failed_callbacks.append(i)
+                record_simulation_error()
+                # For unexpected errors, we might want to continue but log more details
+                if self.step_counter % 100 == 0:  # Reduce logging frequency
+                    logging.warning(f"Multiple callback failures detected, consider reviewing callback implementations")
+
+        # Remove failed callbacks to prevent repeated failures
+        if failed_callbacks and len(failed_callbacks) < len(self.step_callbacks):
+            self.step_callbacks = [cb for i, cb in enumerate(self.step_callbacks) if i not in failed_callbacks]
+            logging.info(f"Removed {len(failed_callbacks)} failed step callbacks")
 
     def _safe_process_component(self, component_func: Callable, component_name: str):
         """Safely process a simulation component with error isolation."""
@@ -983,28 +1164,43 @@ class SimulationManager:
                 logging.error(f"Unexpected error callback error: {callback_error}")
     
     def _get_node_count(self) -> int:
-        """Get node count with simplified conditional check."""
+        """Get node count with optimized attribute access."""
         if self.graph is None:
             return 0
-        return len(self.graph.node_labels) if hasattr(self.graph, 'node_labels') else 0
-    
+        # Cache the node_labels reference to avoid repeated attribute lookups
+        node_labels = getattr(self.graph, 'node_labels', None)
+        return len(node_labels) if node_labels is not None else 0
+
     def _get_edge_count(self) -> int:
-        """Get edge count with simplified conditional check."""
+        """Get edge count with optimized tensor operations."""
         if self.graph is None:
             return 0
-        if not hasattr(self.graph, 'edge_index'):
+        # Cache edge_index reference
+        edge_index = getattr(self.graph, 'edge_index', None)
+        if edge_index is None or not isinstance(edge_index, torch.Tensor) or edge_index.numel() == 0:
             return 0
-        if not isinstance(self.graph.edge_index, torch.Tensor) or self.graph.edge_index.numel() == 0:
-            return 0
-        return self.graph.edge_index.shape[1]
-    
+        return edge_index.shape[1]
+
     def _has_visual_data(self) -> bool:
-        """Check if visual data is available with simplified conditional."""
-        return hasattr(self, 'last_visual_data') and self.last_visual_data is not None
-    
+        """Check if visual data is available with cached access."""
+        # Cache the attribute check result
+        if not hasattr(self, '_visual_data_available'):
+            self._visual_data_available = hasattr(self, 'last_visual_data') and self.last_visual_data is not None
+        return self._visual_data_available
+
     def _has_audio_data(self) -> bool:
-        """Check if audio data is available with simplified conditional."""
-        return hasattr(self, 'last_audio_data') and self.last_audio_data is not None
+        """Check if audio data is available with cached access."""
+        # Cache the attribute check result
+        if not hasattr(self, '_audio_data_available'):
+            self._audio_data_available = hasattr(self, 'last_audio_data') and self.last_audio_data is not None
+        return self._audio_data_available
+
+    def _invalidate_data_cache(self) -> None:
+        """Invalidate cached data availability flags."""
+        if hasattr(self, '_visual_data_available'):
+            delattr(self, '_visual_data_available')
+        if hasattr(self, '_audio_data_available'):
+            delattr(self, '_audio_data_available')
 
     def _add_initial_dynamic_nodes(self, num_nodes=5):
         """Add initial dynamic nodes if graph is empty."""
@@ -1044,8 +1240,8 @@ class SimulationManager:
         if not hasattr(graph, 'edge_index') or graph.edge_index.numel() == 0:
             graph.edge_index = torch.empty((2, 0), dtype=torch.long)
         logging.debug(f"Graph created with {len(graph.node_labels)} nodes")
-    def start_simulation(self, run_in_thread: bool = True):
-
+    def start_simulation(self, run_in_thread: bool = True) -> None:
+        """Start the simulation with proper state validation."""
         with self._lock:
             if self.is_running:
                 logging.warning("Simulation already running")
@@ -1056,19 +1252,41 @@ class SimulationManager:
             if not hasattr(self.graph, 'node_labels') or not hasattr(self.graph, 'x'):
                 logging.error("Graph missing required attributes: node_labels or x")
                 return
+
+            # Ensure clean state
             self.is_running = True
             self.simulation_running = True
             self.step_counter = 0
-        if run_in_thread:
-            self.simulation_thread = threading.Thread(
-                target=lambda: asyncio.run(self._simulation_coroutine()),
-                daemon=True,
-                name="SimulationThread"
-            )
-            self.simulation_thread.start()
-            log_step("Simulation started in background thread with performance monitoring")
-        else:
-            asyncio.run(self._simulation_coroutine())
+            self.current_step = 0
+
+            # Reset performance stats for new simulation
+            self.performance_stats = {
+                'total_steps': 0,
+                'avg_step_time': 0.0,
+                'last_step_time': 0.0,
+                'system_health': 'unknown'
+            }
+
+            # Start continuous validation
+            self.start_continuous_validation()
+
+        try:
+            if run_in_thread:
+                self.simulation_thread = threading.Thread(
+                    target=lambda: asyncio.run(self._simulation_coroutine()),
+                    daemon=True,
+                    name="SimulationThread"
+                )
+                self.simulation_thread.start()
+                log_step("Simulation started in background thread with performance monitoring")
+            else:
+                asyncio.run(self._simulation_coroutine())
+        except Exception as e:
+            logging.error(f"Failed to start simulation: {e}")
+            # Reset state on failure
+            with self._lock:
+                self.is_running = False
+                self.simulation_running = False
     def stop_simulation(self):
         with self._lock:
             if not self.is_running:
@@ -1076,9 +1294,13 @@ class SimulationManager:
                 return
             self.is_running = False
             self.simulation_running = False
+
+            # Stop continuous validation
+            self.stop_continuous_validation()
+
             if self.simulation_thread and self.simulation_thread.is_alive():
                 self.simulation_thread.join(timeout=10.0)  # Increased timeout for safety
-            log_step("Simulation stopped", total_steps=self.step_counter)
+            log_step("Simulation stopped with continuous validation", total_steps=self.step_counter)
     async def _simulation_coroutine(self):
         log_step("Async simulation coroutine started")
         max_iterations = 100000
@@ -1260,17 +1482,28 @@ class SimulationManager:
             return False
     def update_visual_data(self, visual_data):
         self.last_visual_data = visual_data
+        self._invalidate_data_cache()  # Invalidate cache when data changes
+
     def update_audio_data(self, audio_data):
         self.last_audio_data = audio_data
+        self._invalidate_data_cache()  # Invalidate cache when data changes
     def _validate_graph_consistency(self) -> bool:
-        """Optimized graph consistency validation with reduced overhead."""
+        """Optimized graph consistency validation with caching and reduced overhead."""
         graph = self.graph
         if graph is None:
             return False
 
+        # Cache validation result for performance
+        current_step = self.step_counter
+        cache_key = f"consistency_{current_step // 10}"  # Cache for 10 steps
+
+        if hasattr(self, '_consistency_cache') and self._consistency_cache.get('key') == cache_key:
+            return self._consistency_cache.get('result', False)
+
         try:
             # Cache attribute checks to avoid repeated lookups
             if not hasattr(graph, 'node_labels') or not hasattr(graph, 'x'):
+                self._cache_consistency_result(cache_key, False)
                 return False
 
             node_labels = graph.node_labels
@@ -1279,9 +1512,10 @@ class SimulationManager:
 
             # Check size consistency
             if labels_count != graph_x.shape[0]:
-                if self.step_counter % 100 == 0:  # Reduce logging frequency
+                if current_step % 100 == 0:  # Reduce logging frequency
                     log_step("Graph consistency error: size mismatch",
                             labels_count=labels_count, x_shape=graph_x.shape)
+                self._cache_consistency_result(cache_key, False)
                 return False
 
             # Check for NaN/inf values (only sample for performance)
@@ -1290,14 +1524,16 @@ class SimulationManager:
                 sample_indices = torch.randperm(labels_count)[:min(100, labels_count)]
                 sample_x = graph_x[sample_indices]
                 if torch.isnan(sample_x).any() or torch.isinf(sample_x).any():
-                    if self.step_counter % 100 == 0:
+                    if current_step % 100 == 0:
                         log_step("Graph consistency error: NaN/inf values detected in sample")
+                    self._cache_consistency_result(cache_key, False)
                     return False
             else:
                 # Full check for smaller graphs
                 if torch.isnan(graph_x).any() or torch.isinf(graph_x).any():
-                    if self.step_counter % 100 == 0:
+                    if current_step % 100 == 0:
                         log_step("Graph consistency error: NaN/inf values in graph.x")
+                    self._cache_consistency_result(cache_key, False)
                     return False
 
             # Check edge indices (only if edges exist)
@@ -1305,18 +1541,28 @@ class SimulationManager:
                 edge_index = graph.edge_index
                 max_index = labels_count - 1
                 if torch.max(edge_index) > max_index:
-                    if self.step_counter % 100 == 0:
+                    if current_step % 100 == 0:
                         log_step("Graph consistency error: invalid edge indices",
                                 max_edge_index=torch.max(edge_index).item(),
                                 max_valid_index=max_index)
+                    self._cache_consistency_result(cache_key, False)
                     return False
 
+            self._cache_consistency_result(cache_key, True)
             return True
 
         except Exception as e:
-            if self.step_counter % 100 == 0:  # Reduce error logging frequency
+            if current_step % 100 == 0:  # Reduce error logging frequency
                 log_step("Graph consistency validation error", error=str(e))
+            self._cache_consistency_result(cache_key, False)
             return False
+
+    def _cache_consistency_result(self, cache_key: str, result: bool) -> None:
+        """Cache consistency validation result."""
+        if not hasattr(self, '_consistency_cache'):
+            self._consistency_cache = {}
+        self._consistency_cache['key'] = cache_key
+        self._consistency_cache['result'] = result
     def _repair_graph_consistency(self):
         if self.graph is None:
             return
@@ -1855,6 +2101,161 @@ class SimulationManager:
         if hasattr(self, 'sensory_workspace_mapper') and self.sensory_workspace_mapper is not None:
             return self.sensory_workspace_mapper.get_mapping_statistics()
         return {}
+
+    def get_integrity_statistics(self) -> Dict[str, Any]:
+        """Get graph integrity statistics."""
+        if hasattr(self, 'integrity_manager'):
+            return self.integrity_manager.get_statistics()
+        return {}
+
+    def get_version_history(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get graph version history."""
+        if hasattr(self, 'integrity_manager'):
+            return self.integrity_manager.get_version_history(limit)
+        return []
+
+    def get_integrity_violations(self, limit: int = 20) -> List[Dict[str, Any]]:
+        """Get recent integrity violations."""
+        if hasattr(self, 'integrity_manager'):
+            return self.integrity_manager.get_violation_history(limit)
+        return []
+
+    def check_graph_integrity_now(self) -> Dict[str, Any]:
+        """Manually trigger graph integrity check."""
+        if hasattr(self, 'integrity_manager') and self.graph is not None:
+            return self.integrity_manager.check_integrity(self.graph, self.id_manager)
+        return {'error': 'Integrity manager or graph not available'}
+
+    def create_graph_version(self, metadata: Optional[Dict[str, Any]] = None) -> str:
+        """Manually create a graph version."""
+        if hasattr(self, 'integrity_manager') and self.graph is not None:
+            return self.integrity_manager.create_version(self.graph, self.id_manager, metadata)
+        return ""
+
+    def merge_graph(self, other_graph, conflict_resolution: str = 'auto',
+                   preserve_current_ids: bool = True) -> Dict[str, Any]:
+        """Merge another graph into the current simulation graph."""
+        if self.graph is None:
+            raise ValueError("Current graph is None - cannot merge")
+
+        if hasattr(self, 'graph_merger'):
+            merge_result = self.graph_merger.merge_graphs(
+                self.graph, other_graph,
+                conflict_resolution=conflict_resolution,
+                preserve_primary_ids=preserve_current_ids
+            )
+
+            # Update the current graph with the merged result
+            self.set_graph(merge_result['merged_graph'])
+
+            # Update ID manager with new mappings
+            self._update_id_manager_after_merge(merge_result['id_mapping'])
+
+            log_step("Graph merge completed in simulation manager",
+                    conflicts_resolved=len(merge_result['conflicts']),
+                    nodes_after_merge=merge_result['statistics']['nodes_in_result'])
+
+            return merge_result
+        else:
+            raise RuntimeError("Graph merger not available")
+
+    def _update_id_manager_after_merge(self, id_mapping: Dict[int, int]):
+        """Update the ID manager after a graph merge."""
+        if hasattr(self, 'id_manager'):
+            for old_id, new_id in id_mapping.items():
+                if old_id != new_id:  # Only update if ID was actually remapped
+                    # Register the new ID if it doesn't exist
+                    if not self.id_manager.is_valid_id(new_id):
+                        # Find the node type from the graph
+                        node_type = 'unknown'
+                        if self.graph and hasattr(self.graph, 'node_labels'):
+                            for node in self.graph.node_labels:
+                                if node.get('id') == new_id:
+                                    node_type = node.get('type', 'unknown')
+                                    break
+
+                        # Generate and register the new ID
+                        generated_id = self.id_manager.generate_unique_id(node_type)
+                        if generated_id != new_id:
+                            # Update the graph to use the generated ID
+                            for node in self.graph.node_labels:
+                                if node.get('id') == new_id:
+                                    node['id'] = generated_id
+                                    break
+
+    def get_merge_history(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get recent graph merge history."""
+        if hasattr(self, 'graph_merger'):
+            return self.graph_merger.get_merge_history(limit)
+        return []
+
+    def get_merge_statistics(self) -> Dict[str, Any]:
+        """Get graph merge statistics."""
+        if hasattr(self, 'graph_merger'):
+            return self.graph_merger.get_statistics()
+        return {}
+
+    def start_continuous_validation(self):
+        """Start continuous graph validation."""
+        if hasattr(self, 'continuous_validator'):
+            self.continuous_validator.start_continuous_validation(
+                lambda: self.graph,
+                lambda: self.id_manager
+            )
+            log_step("Continuous graph validation started in simulation manager")
+
+    def stop_continuous_validation(self):
+        """Stop continuous graph validation."""
+        if hasattr(self, 'continuous_validator'):
+            self.continuous_validator.stop_continuous_validation()
+            log_step("Continuous graph validation stopped in simulation manager")
+
+    def get_validation_statistics(self) -> Dict[str, Any]:
+        """Get continuous validation statistics."""
+        if hasattr(self, 'continuous_validator'):
+            return self.continuous_validator.get_statistics()
+        return {}
+
+    def force_validation_cycle(self) -> Dict[str, Any]:
+        """Force a validation cycle to run immediately."""
+        if hasattr(self, 'continuous_validator') and self.graph is not None:
+            return self.continuous_validator.force_validation_cycle(
+                self.graph, self.id_manager
+            )
+        return {'error': 'Continuous validator or graph not available'}
+
+    def get_validation_rule_status(self, rule_name: str) -> Optional[Dict[str, Any]]:
+        """Get status of a specific validation rule."""
+        if hasattr(self, 'continuous_validator'):
+            return self.continuous_validator.get_rule_status(rule_name)
+        return None
+
+    def perform_memory_maintenance(self) -> Dict[str, Any]:
+        """Perform memory maintenance."""
+        if hasattr(self, 'memory_manager'):
+            return self.memory_manager.perform_memory_maintenance()
+        return {'error': 'Memory manager not available'}
+
+    def get_memory_report(self) -> Dict[str, Any]:
+        """Get memory usage report."""
+        if hasattr(self, 'memory_manager'):
+            return self.memory_manager.get_memory_report()
+        return {'error': 'Memory manager not available'}
+
+    def optimize_graph_memory(self) -> Dict[str, Any]:
+        """Optimize current graph memory usage."""
+        if hasattr(self, 'memory_manager') and self.graph is not None:
+            return self.memory_manager.optimizer.optimize_graph_memory(self.graph)
+        return {'error': 'Memory manager or graph not available'}
+
+    def get_memory_statistics(self) -> Dict[str, Any]:
+        """Get memory-related statistics."""
+        if hasattr(self, 'memory_manager'):
+            return {
+                'memory_report': self.memory_manager.get_memory_report(),
+                'optimization_stats': self.memory_manager.optimizer.get_optimization_statistics()
+            }
+        return {'error': 'Memory manager not available'}
     # Display data functions are handled dynamically by __getattr__
     def __getattr__(self, name):
         if name.endswith('_display_data'):
