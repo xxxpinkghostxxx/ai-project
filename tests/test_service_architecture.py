@@ -16,18 +16,18 @@ from torch_geometric.data import Data
 # Add the project root to the Python path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.services.service_registry import ServiceRegistry, ServiceNotFoundError, ServiceResolutionError
-from core.services.simulation_coordinator import SimulationCoordinator
-from core.interfaces.simulation_coordinator import ISimulationCoordinator
-from core.interfaces.neural_processor import INeuralProcessor
-from core.interfaces.energy_manager import IEnergyManager
-from core.interfaces.learning_engine import ILearningEngine
-from core.interfaces.sensory_processor import ISensoryProcessor
-from core.interfaces.performance_monitor import IPerformanceMonitor
-from core.interfaces.graph_manager import IGraphManager
-from core.interfaces.event_coordinator import IEventCoordinator
-from core.interfaces.configuration_service import IConfigurationService
-from core.interfaces.service_registry import IServiceRegistry, ServiceLifetime, ServiceHealth
+from src.core.services.service_registry import ServiceRegistry, ServiceNotFoundError, ServiceResolutionError
+from src.core.services.simulation_coordinator import SimulationCoordinator
+from src.core.interfaces.simulation_coordinator import ISimulationCoordinator
+from src.core.interfaces.neural_processor import INeuralProcessor
+from src.core.interfaces.energy_manager import IEnergyManager
+from src.core.interfaces.learning_engine import ILearningEngine
+from src.core.interfaces.sensory_processor import ISensoryProcessor
+from src.core.interfaces.performance_monitor import IPerformanceMonitor
+from src.core.interfaces.graph_manager import IGraphManager
+from src.core.interfaces.event_coordinator import IEventCoordinator
+from src.core.interfaces.configuration_service import IConfigurationService
+from src.core.interfaces.service_registry import IServiceRegistry, ServiceLifetime, ServiceHealth
 
 
 # Test implementation classes for interface validation
@@ -51,7 +51,7 @@ class MockSimulationCoordinator(ISimulationCoordinator):
         return True
 
     def get_simulation_state(self):
-        from core.interfaces.simulation_coordinator import SimulationState
+        from src.core.interfaces.simulation_coordinator import SimulationState
         return SimulationState()
 
     def get_neural_graph(self):
@@ -394,3 +394,9 @@ class TestServiceIntegration:
 if __name__ == "__main__":
     # Run all tests using unittest framework
     unittest.main(verbosity=2)
+
+
+
+
+
+

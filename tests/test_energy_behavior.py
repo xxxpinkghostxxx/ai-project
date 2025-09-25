@@ -13,7 +13,7 @@ import torch
 from unittest.mock import Mock, patch
 from torch_geometric.data import Data
 
-from energy.energy_behavior import (
+from src.energy.energy_behavior import (
     EnergyCalculator, get_node_energy_cap, update_node_energy_with_learning,
     apply_energy_behavior, apply_oscillator_energy_dynamics,
     apply_integrator_energy_dynamics, apply_relay_energy_dynamics,
@@ -21,9 +21,9 @@ from energy.energy_behavior import (
     emit_energy_pulse, update_membrane_potentials, apply_refractory_periods,
     safe_divide
 )
-from energy.energy_constants import EnergyConstants
-from energy.node_access_layer import NodeAccessLayer
-from energy.node_id_manager import get_id_manager
+from src.energy.energy_constants import EnergyConstants
+from src.energy.node_access_layer import NodeAccessLayer
+from src.energy.node_id_manager import get_id_manager
 
 
 class TestEnergyCalculator(unittest.TestCase):
@@ -636,3 +636,9 @@ class TestEnergyBehaviorSimulationScenarios(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+
+
+
+

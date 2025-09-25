@@ -540,3 +540,10 @@ if __name__ == "__main__":
     print(f"Errors: {results['statistics']['errors']}")
     print(f"Success Rate: {results['statistics']['success_rate']:.2%}")
     print(f"Total Duration: {results['statistics']['total_duration']:.2f}s")
+
+
+
+
+
+
+

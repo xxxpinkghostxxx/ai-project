@@ -16,11 +16,11 @@ import gc
 from unittest.mock import MagicMock, patch
 from torch_geometric.data import Data
 
-from learning.homeostasis_controller import HomeostasisController
-from learning.learning_engine import LearningEngine
-from learning.live_hebbian_learning import LiveHebbianLearning
-from learning.memory_system import MemorySystem
-from learning.memory_pool_manager import MemoryPoolManager
+from src.learning.homeostasis_controller import HomeostasisController
+from src.learning.learning_engine import LearningEngine
+from src.learning.live_hebbian_learning import LiveHebbianLearning
+from src.learning.memory_system import MemorySystem
+from src.learning.memory_pool_manager import MemoryPoolManager
 
 
 class TestPerformance:
@@ -369,3 +369,9 @@ class TestPerformance:
 
 if __name__ == "__main__":
     pytest.main([__file__])
+
+
+
+
+
+

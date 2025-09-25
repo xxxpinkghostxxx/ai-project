@@ -8,6 +8,8 @@ This fundamental architectural dissonance is the root cause of numerous design f
 
 The following sections provide a detailed analysis of the identified issues and recommendations for refactoring the codebase to consistently use the superior service-oriented architecture.
 
+**Note:** This architectural review was conducted prior to the completion of the SOA migration. The monolithic `SimulationManager` has been completely removed from the core system, and the neural simulation now uses the 9-core service-oriented architecture with the `SimulationCoordinator` as the central orchestrator. This document is preserved for historical context and to document the architectural transformation.
+
 ## 2. Architectural Smells
 
 ### 2.1. The `SimulationManager` God Object

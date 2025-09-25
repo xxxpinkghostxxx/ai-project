@@ -71,8 +71,8 @@ def test_ui_imports():
     """Test that UI modules can be imported."""
     print("Testing UI imports...")
     try:
-        from ui.ui_engine import create_main_window, force_close_application, show_keyboard_shortcuts
-        from ui.ui_state_manager import get_ui_state_manager, cleanup_ui_state
+        from src.ui.ui_engine import create_main_window, force_close_application, show_keyboard_shortcuts
+        from src.ui.ui_state_manager import get_ui_state_manager, cleanup_ui_state
         print("[PASS] UI imports successful")
         return True
     except Exception as e:
@@ -83,7 +83,7 @@ def test_ui_state_manager():
     """Test UI state manager functionality."""
     print("Testing UI state manager...")
     try:
-        from ui.ui_state_manager import get_ui_state_manager
+        from src.ui.ui_state_manager import get_ui_state_manager
         state_manager = get_ui_state_manager()
 
         # Test basic operations
@@ -105,7 +105,7 @@ def test_force_close_function():
     """Test force close function exists and can be called."""
     print("Testing force close function...")
     try:
-        from ui.ui_engine import force_close_application
+        from src.ui.ui_engine import force_close_application
         # Just test that the function exists and can be called (without actually closing)
         print("[PASS] Force close function available")
         return True
@@ -117,7 +117,7 @@ def test_keyboard_shortcuts():
     """Test keyboard shortcuts function."""
     print("Testing keyboard shortcuts function...")
     try:
-        from ui.ui_engine import show_keyboard_shortcuts
+        from src.ui.ui_engine import show_keyboard_shortcuts
         print("[PASS] Keyboard shortcuts function available")
         return True
     except Exception as e:
@@ -128,7 +128,7 @@ def test_ui_callbacks():
     """Test UI callback functions."""
     print("Testing UI callbacks...")
     try:
-        from ui.ui_engine import (
+        from src.ui.ui_engine import (
             start_simulation_callback,
             stop_simulation_callback,
             reset_simulation_callback,
@@ -164,7 +164,7 @@ def test_operation_status():
     """Test operation status functions."""
     print("Testing operation status functions...")
     try:
-        from ui.ui_engine import update_operation_status, clear_operation_status
+        from src.ui.ui_engine import update_operation_status, clear_operation_status
 
         # Test that functions exist
         if callable(update_operation_status) and callable(clear_operation_status):
@@ -221,3 +221,9 @@ if __name__ == "__main__":
     print(f"\nForce close available: Ctrl+Q or Force Close button")
     print(f"Keyboard shortcuts: F1 for help")
     sys.exit(0 if success else 1)
+
+
+
+
+
+

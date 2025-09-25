@@ -1,158 +1,160 @@
-# Enhanced Energy-Learning Integration Implementation
+# Energy-Learning Integration
 
 ## Overview
 
-This document describes the comprehensive implementation of enhanced energy-learning integration in the neural simulation system. The key improvement is making **energy the central integrator** that drives all learning mechanisms, rather than learning being a separate process.
+This document describes the implementation of energy-modulated learning mechanisms in the neural simulation system. Energy serves as the central integrator that modulates all learning processes, creating biologically plausible learning dynamics where neural activity and learning capability are tightly coupled.
 
-## Problem Identified
+## Problem Statement
 
-The original energy system validation revealed that while energy effectively drove neural processing, output generation, and system coordination, it failed to serve as a learning enabler:
+Initial validation showed that while energy effectively drove neural processing and coordination, it did not sufficiently modulate learning mechanisms. The system required enhanced integration between energy dynamics and synaptic plasticity.
 
-- `learning_enabler`: false
-- `energy_as_central_integrator`: false
+## Implementation
 
-## Solution Implemented
+### Energy-Modulated Learning Parameters
 
-### 1. Energy-Modulated Learning Parameters
+**Modified Files:**
+- `src/learning/live_hebbian_learning.py`
+- `src/learning/learning_engine.py`
 
-**Files Modified:**
-- `learning/live_hebbian_learning.py`
-- `learning/learning_engine.py`
+**Key Changes:**
+- Added `energy_learning_modulation` flag to enable/disable energy-based learning modulation
+- Implemented `_calculate_energy_modulated_learning_rate()` methods in both learning systems
+- Learning rates now scale dynamically with node energy levels
+- Higher energy nodes exhibit enhanced synaptic plasticity
 
-**Changes:**
-- Added `energy_learning_modulation` flag to enable/disable energy-based learning
-- Implemented `_calculate_energy_modulated_learning_rate()` method
-- Learning rates now scale with node energy levels (0.5x to 1.0x base rate)
-- Higher energy nodes exhibit stronger learning capabilities
+### Energy-Dependent Synaptic Plasticity
 
-### 2. Energy-Dependent Synaptic Plasticity
-
-**Key Features:**
-- STDP (Spike-Timing Dependent Plasticity) modulated by presynaptic and postsynaptic energy
+**Features:**
+- STDP (Spike-Timing Dependent Plasticity) modulated by presynaptic and postsynaptic energy levels
 - LTP/LTD rates adjusted based on average node energy
-- Energy gradients drive synaptic strength changes
+- Energy gradients influence synaptic strength changes
 
-**Implementation:**
+**Implementation Details:**
+
+**Live Hebbian Learning (`live_hebbian_learning.py`):**
 ```python
-# Energy modulation formula
+# Energy modulation formula (0.3x to 1.5x base rate)
 normalized_energy = min(avg_energy / energy_cap, 1.0)
-modulated_rate = base_rate * (0.5 + 0.5 * normalized_energy)
+modulated_rate = base_rate * (0.3 + 1.2 * normalized_energy)
 ```
 
-### 3. Energy-Based Activity Detection
+**Learning Engine (`learning_engine.py`):**
+```python
+# Energy modulation formula (1.0x to 1.5x base rate)
+normalized_energy = min(avg_energy / energy_cap, 1.0)
+modulated_rate = base_rate * (1.0 + 0.5 * normalized_energy)
+```
 
-**Changes:**
-- Activity detection now uses energy probability distribution sampling
-- Higher energy nodes more likely to be selected for learning updates
-- Replaces simple threshold-based detection with energy-weighted sampling
+### Energy-Based Activity Detection
 
-### 4. Enhanced Connection Formation
+**Enhancements:**
+- Activity detection uses energy-weighted probability distribution sampling
+- Higher energy nodes have increased probability of selection for learning updates
+- Replaces threshold-based detection with probabilistic energy-driven sampling
 
-**Already Implemented (Enhanced):**
+### Connection Formation and Consolidation
+
+**Energy-Aware Processes:**
 - Connection weights modulated by average energy of connecting nodes
-- Energy factors influence connection strength and formation probability
-- Located in `neural/connection_logic.py`
+- Memory consolidation processes incorporate energy levels
+- Stability thresholds adjusted based on energy (higher energy enables more plasticity)
 
-### 5. Learning Engine Integration
-
-**Improvements:**
-- Consolidation process now energy-aware
-- Memory trace formation modulated by energy levels
-- Stability thresholds adjusted based on energy (higher energy = lower stability threshold)
-
-## Technical Details
+## Technical Implementation
 
 ### Energy Modulation Algorithm
 
 ```python
-def _calculate_energy_modulated_rate(self, pre_node, post_node, base_rate):
-    pre_energy = self._get_node_energy(pre_node)
-    post_energy = self._get_node_energy(post_node)
-    avg_energy = (pre_energy + post_energy) / 2.0
+def _calculate_energy_modulated_learning_rate(self, source_id, target_id):
+    source_energy = self._get_node_energy(source_id)
+    target_energy = self._get_node_energy(target_id)
+    avg_energy = (source_energy + target_energy) / 2.0
 
-    # Normalize by energy cap
-    energy_cap = get_node_energy_cap()  # 255.0 in current system
+    # Get energy cap (default: 5.0)
+    energy_cap = get_node_energy_cap()
+    if energy_cap <= 0:
+        energy_cap = 5.0
+
+    # Normalize and modulate
     normalized_energy = min(avg_energy / energy_cap, 1.0)
+    modulated_rate = self.base_learning_rate * (0.3 + 1.2 * normalized_energy)
 
-    # Apply modulation: 0.5x to 1.0x base rate
-    modulated_rate = base_rate * (0.5 + 0.5 * normalized_energy)
     return modulated_rate
 ```
 
-### Learning Statistics Enhanced
+### Learning Statistics
 
-New statistics tracking:
+Enhanced tracking includes:
 - `energy_modulated_events`: Count of learning events affected by energy modulation
-- Enhanced detection of energy-driven learning effects
+- `stdp_events`: Total STDP learning events
+- `consolidation_events`: Memory consolidation events
 
-## Validation Improvements
+## Validation and Testing
 
-**Enhanced Validator (`energy_system_validator.py`):**
-- More sensitive detection of learning effects
-- Statistical evidence collection for energy modulation
-- Multiple learning application cycles for better detection
-- Comprehensive validation of energy as learning enabler
+### Validation Framework
 
-## Test Results
+**Enhanced Validator (`src/energy/energy_system_validator.py`):**
+- Sensitive detection of energy-modulated learning effects
+- Statistical analysis of learning performance across energy levels
+- Multiple test cycles for robust validation
 
-**Simple Energy Test Results:**
-- ✅ Energy Logic Test: PASS
-- ✅ Learning Engine Test: PASS
-- ✅ Hebbian System Test: PASS
+### Test Results
 
-**Energy Modulation Ranges:**
-- Low energy nodes (0.1): 0.55x base learning rate
-- Medium energy nodes (0.5): 0.75x base learning rate
-- High energy nodes (0.9): 0.95x base learning rate
+**Energy Modulation Performance:**
+- Low energy nodes (0.1 × energy_cap): ~0.36× base learning rate
+- Medium energy nodes (0.5 × energy_cap): ~0.9× base learning rate
+- High energy nodes (0.9 × energy_cap): ~1.38× base learning rate
+
+**System Integration Tests:**
+- ✅ Energy modulation active in learning systems
+- ✅ Learning rates scale with energy levels
+- ✅ Activity detection energy-weighted
+- ✅ Memory consolidation energy-aware
 
 ## Biological Plausibility
 
-This implementation makes the system more biologically plausible by:
+The implementation enhances biological realism through:
 
-1. **Energy-Dependent Learning**: Neurons with higher metabolic energy learn faster
-2. **Central Integration**: Energy coordinates all neural functions including learning
-3. **Dynamic Adaptation**: Learning rates adapt to energy availability
-4. **Resource Efficiency**: Learning prioritized for high-energy, active neurons
+1. **Metabolic Constraints**: Learning capability tied to energy availability
+2. **Neural Efficiency**: High-energy neurons prioritize learning resources
+3. **Dynamic Adaptation**: Learning rates adapt to neural activation states
+4. **Homeostatic Regulation**: Energy balances learning and neural activity
 
-## Future Considerations
+## Configuration and Tuning
 
-### Energy Cap Adjustment
-The current energy cap (255.0) makes modulation subtle. Consider:
-- Reducing energy cap for stronger modulation effects
+### Energy Parameters
+
+- **Energy Cap**: Default 5.0 (configurable via `get_node_energy_cap()`)
+- **Modulation Range**: Adjustable via formula coefficients
+- **Activity Thresholds**: Energy-dependent plasticity thresholds
+
+### Future Enhancements
+
 - Dynamic energy cap adjustment based on system load
-- Energy normalization improvements
-
-### Advanced Features
-- Energy-dependent learning window adjustments
-- Metabolic cost modeling for learning
-- Energy-based learning phase transitions
+- Energy-dependent learning window modifications
+- Metabolic cost modeling for synaptic changes
+- Phase-dependent learning modulation
 
 ## Files Modified
 
-1. `learning/live_hebbian_learning.py` - Core Hebbian learning with energy modulation
-2. `learning/learning_engine.py` - Learning engine with energy integration
-3. `energy/energy_system_validator.py` - Enhanced validation for energy-learning integration
-4. `docs/OPTIMIZATION_REPORT.md` - Documentation updates
+1. `src/learning/live_hebbian_learning.py` - Energy-modulated Hebbian learning
+2. `src/learning/learning_engine.py` - Energy-integrated learning engine
+3. `src/energy/energy_system_validator.py` - Enhanced validation framework
 
-## Testing
+## Testing Commands
 
-Run the validation with:
 ```bash
-python energy/energy_system_validator.py
-```
+# Run energy system validation
+python src/energy/energy_system_validator.py
 
-Run simple tests with:
-```bash
-python tests/simple_energy_test.py
-```
+# Run learning integration tests
+python tests/test_energy_learning.py
 
-Run comprehensive tests with:
-```bash
+# Run comprehensive simulation tests
 python tests/comprehensive_simulation_test.py
 ```
 
 ## Conclusion
 
-The enhanced energy-learning integration successfully makes energy the central integrator of the neural simulation system. While the effects are currently subtle due to the high energy cap, the architectural foundation is solid and can be tuned for stronger effects as needed.
+The energy-learning integration successfully establishes energy as the central modulator of learning mechanisms. The implementation provides flexible, biologically plausible learning dynamics that adapt to neural energy states, enabling more sophisticated and efficient neural computation.
 
-**Key Achievement:** Energy now drives learning mechanisms, making the system more biologically plausible and integrated.
+**Key Achievement:** Learning processes are now fully integrated with energy dynamics, creating a unified system where neural activity and plasticity are co-regulated.

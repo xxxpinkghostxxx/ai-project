@@ -15,17 +15,17 @@ from unittest.mock import Mock, patch, MagicMock
 from torch_geometric.data import Data
 import torch
 
-from core.services.simulation_coordinator import SimulationCoordinator
-from core.interfaces.simulation_coordinator import ISimulationCoordinator, SimulationState
-from core.interfaces.neural_processor import INeuralProcessor, SpikeEvent
-from core.interfaces.energy_manager import IEnergyManager, EnergyFlow
-from core.interfaces.learning_engine import ILearningEngine, PlasticityEvent
-from core.interfaces.sensory_processor import ISensoryProcessor
-from core.interfaces.performance_monitor import IPerformanceMonitor
-from core.interfaces.graph_manager import IGraphManager
-from core.interfaces.event_coordinator import IEventCoordinator
-from core.interfaces.configuration_service import IConfigurationService
-from core.interfaces.service_registry import IServiceRegistry
+from src.core.services.simulation_coordinator import SimulationCoordinator
+from src.core.interfaces.simulation_coordinator import ISimulationCoordinator, SimulationState
+from src.core.interfaces.neural_processor import INeuralProcessor, SpikeEvent
+from src.core.interfaces.energy_manager import IEnergyManager, EnergyFlow
+from src.core.interfaces.learning_engine import ILearningEngine, PlasticityEvent
+from src.core.interfaces.sensory_processor import ISensoryProcessor
+from src.core.interfaces.performance_monitor import IPerformanceMonitor
+from src.core.interfaces.graph_manager import IGraphManager
+from src.core.interfaces.event_coordinator import IEventCoordinator
+from src.core.interfaces.configuration_service import IConfigurationService
+from src.core.interfaces.service_registry import IServiceRegistry
 
 
 class TestSimulationCoordinator(unittest.TestCase):
@@ -669,3 +669,9 @@ class TestSimulationCoordinatorPerformance(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+
+
+
+

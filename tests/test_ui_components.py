@@ -16,14 +16,14 @@ sys.modules['dearpygui'] = Mock()
 sys.modules['dearpygui.dearpygui'] = Mock()
 
 import dearpygui.dearpygui as dpg
-from ui.ui_engine import (
+from src.ui.ui_engine import (
     create_main_window, start_simulation_callback, stop_simulation_callback,
     reset_simulation_callback, view_logs_callback,
     save_neural_map_callback, load_neural_map_callback,
     apply_config_changes, reset_to_defaults, update_ui_display,
     update_graph_visualization, export_metrics, create_ui
 )
-from ui.ui_state_manager import UIStateManager, get_ui_state_manager, cleanup_ui_state
+from src.ui.ui_state_manager import UIStateManager, get_ui_state_manager, cleanup_ui_state
 
 
 class TestUIComponents(unittest.TestCase):
@@ -378,3 +378,9 @@ def run_ui_tests():
 if __name__ == "__main__":
     success = run_ui_tests()
     sys.exit(0 if success else 1)
+
+
+
+
+
+

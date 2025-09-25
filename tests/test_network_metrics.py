@@ -13,7 +13,7 @@ from torch_geometric.data import Data
 import torch
 from collections import deque
 
-from neural.network_metrics import NetworkMetrics, create_network_metrics, quick_network_analysis
+from src.neural.network_metrics import NetworkMetrics, create_network_metrics, quick_network_analysis
 
 
 class TestNetworkMetrics:
@@ -427,3 +427,9 @@ class TestNetworkMetrics:
 
 if __name__ == "__main__":
     pytest.main([__file__])
+
+
+
+
+
+

@@ -348,7 +348,7 @@ class TestNeuralProcessingServiceIntegration:
     def test_service_initialization_with_extensions(self, mock_energy_manager,
                                                     mock_config_service, mock_event_coordinator):
         """Test that NeuralProcessingService initializes with extensions."""
-        from core.services.neural_processing_service import NeuralProcessingService
+        from src.core.services.neural_processing_service import NeuralProcessingService
 
         service = NeuralProcessingService(
             mock_energy_manager,
@@ -369,7 +369,7 @@ class TestNeuralProcessingServiceIntegration:
     def test_synaptic_input_calculation_integration(self, mock_energy_manager,
                                                     mock_config_service, mock_event_coordinator):
         """Test that synaptic input calculation works in the service."""
-        from core.services.neural_processing_service import NeuralProcessingService
+        from src.core.services.neural_processing_service import NeuralProcessingService
         from torch_geometric.data import Data
 
         service = NeuralProcessingService(
@@ -393,7 +393,7 @@ class TestNeuralProcessingServiceIntegration:
     def test_integration_with_realistic_graph_data(self, mock_energy_manager,
                                                    mock_config_service, mock_event_coordinator):
         """Test integration with more realistic graph structures."""
-        from core.services.neural_processing_service import NeuralProcessingService
+        from src.core.services.neural_processing_service import NeuralProcessingService
         from torch_geometric.data import Data
 
         service = NeuralProcessingService(
@@ -1234,3 +1234,9 @@ class TestComprehensivePerformanceBenchmarks:
 
 if __name__ == "__main__":
     pytest.main([__file__])
+
+
+
+
+
+

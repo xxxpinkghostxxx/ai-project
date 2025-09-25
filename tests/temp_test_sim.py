@@ -5,9 +5,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import asyncio
 import faulthandler
 faulthandler.enable()  # Enable fault handler for segfault tracebacks
-from core.services.service_registry import ServiceRegistry
-from core.services.simulation_coordinator import SimulationCoordinator
-from core.interfaces.simulation_coordinator import ISimulationCoordinator
+from src.core.services.service_registry import ServiceRegistry
+from src.core.services.simulation_coordinator import SimulationCoordinator
+from src.core.interfaces.simulation_coordinator import ISimulationCoordinator
 import logging
 logging.basicConfig(level=logging.DEBUG, format='%(levelname)s: %(message)s')  # More verbose for diagnosis
 
@@ -19,23 +19,23 @@ async def test_sim():
         service_registry = ServiceRegistry()
 
         # Register services (minimal set for testing)
-        from core.services.configuration_service import ConfigurationService
-        from core.services.performance_monitoring_service import PerformanceMonitoringService
-        from core.services.graph_management_service import GraphManagementService
-        from core.services.neural_processing_service import NeuralProcessingService
-        from core.services.energy_management_service import EnergyManagementService
-        from core.services.learning_service import LearningService
-        from core.services.event_coordination_service import EventCoordinationService
-        from core.services.sensory_processing_service import SensoryProcessingService
+        from src.core.services.configuration_service import ConfigurationService
+        from src.core.services.performance_monitoring_service import PerformanceMonitoringService
+        from src.core.services.graph_management_service import GraphManagementService
+        from src.core.services.neural_processing_service import NeuralProcessingService
+        from src.core.services.energy_management_service import EnergyManagementService
+        from src.core.services.learning_service import LearningService
+        from src.core.services.event_coordination_service import EventCoordinationService
+        from src.core.services.sensory_processing_service import SensoryProcessingService
 
-        from core.interfaces.configuration_service import IConfigurationService
-        from core.interfaces.performance_monitor import IPerformanceMonitor
-        from core.interfaces.graph_manager import IGraphManager
-        from core.interfaces.neural_processor import INeuralProcessor
-        from core.interfaces.energy_manager import IEnergyManager
-        from core.interfaces.learning_engine import ILearningEngine
-        from core.interfaces.event_coordinator import IEventCoordinator
-        from core.interfaces.sensory_processor import ISensoryProcessor
+        from src.core.interfaces.configuration_service import IConfigurationService
+        from src.core.interfaces.performance_monitor import IPerformanceMonitor
+        from src.core.interfaces.graph_manager import IGraphManager
+        from src.core.interfaces.neural_processor import INeuralProcessor
+        from src.core.interfaces.energy_manager import IEnergyManager
+        from src.core.interfaces.learning_engine import ILearningEngine
+        from src.core.interfaces.event_coordinator import IEventCoordinator
+        from src.core.interfaces.sensory_processor import ISensoryProcessor
 
         service_registry.register(IConfigurationService, ConfigurationService)
         service_registry.register(IPerformanceMonitor, PerformanceMonitoringService)
@@ -108,3 +108,9 @@ async def test_sim():
         traceback.print_exc()
 
 asyncio.run(test_sim())
+
+
+
+
+
+

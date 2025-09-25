@@ -13,7 +13,7 @@ import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend for testing
 import matplotlib.pyplot as plt
 
-from energy.energy_flow_diagram import EnergyFlowDiagram, create_energy_flow_visualizations
+from src.energy.energy_flow_diagram import EnergyFlowDiagram, create_energy_flow_visualizations
 
 
 class TestEnergyFlowDiagramInitialization(unittest.TestCase):
@@ -625,3 +625,9 @@ class TestEnergyFlowDiagramRealWorldUsage(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+
+
+
+

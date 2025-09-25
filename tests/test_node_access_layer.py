@@ -12,9 +12,9 @@ from unittest.mock import Mock, patch
 from torch_geometric.data import Data
 import torch
 
-from energy.node_access_layer import NodeAccessLayer, create_node_access_layer
-from energy.node_id_manager import NodeIDManager, get_id_manager
-from energy.energy_behavior import get_node_energy_cap
+from src.energy.node_access_layer import NodeAccessLayer, create_node_access_layer
+from src.energy.node_id_manager import NodeIDManager, get_id_manager
+from src.energy.energy_behavior import get_node_energy_cap
 
 
 class TestNodeAccessLayerInitialization(unittest.TestCase):
@@ -740,3 +740,9 @@ class TestNodeAccessLayerRealWorldUsage(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+
+
+
+

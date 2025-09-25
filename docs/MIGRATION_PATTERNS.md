@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the completed migration from a monolithic architecture to a service-oriented architecture (SOA) in the AI Neural Simulation System. The migration has been successfully executed through Phase 1 (Service Foundation) and Phase 2 (Core Logic Migration), resulting in the complete removal of the SimulationManager god object and establishment of 8 specialized services orchestrated by the SimulationCoordinator. This document also provides patterns for service orchestration and best practices for SOA development.
+This document describes the largely completed migration from a monolithic architecture to a service-oriented architecture (SOA) in the AI Neural Simulation System. The migration has been successfully executed through Phase 1 (Service Foundation) and Phase 2 (Core Logic Migration), resulting in the removal of the SimulationManager god object from core functionality and establishment of 8 specialized services orchestrated by the SimulationCoordinator. While core migration is complete, some legacy references remain in test files and peripheral components. This document also provides patterns for service orchestration and best practices for SOA development.
 
 ## Completed Migration Summary
 
@@ -392,7 +392,7 @@ class AsyncServiceOrchestrator:
         return self._merge_results(results)
 ```
 
-## Migration Checklist (Completed)
+## Migration Checklist (Core Migration Completed)
 
 - [x] Identify monolithic components to decompose (SimulationManager analyzed)
 - [x] Define service interfaces (core/interfaces/ created)
@@ -403,7 +403,8 @@ class AsyncServiceOrchestrator:
 - [x] Update documentation (All docs updated for SOA)
 - [x] Deploy with feature flags for gradual rollout (Phased approach used)
 - [x] Monitor performance and error rates (Performance maintained)
-- [x] Complete migration and remove legacy code (SimulationManager deleted)
+- [x] Complete core migration and remove legacy code (SimulationManager deleted from core)
+- [ ] Clean up remaining legacy references in tests and peripheral components
 
 ## Benefits Achieved
 

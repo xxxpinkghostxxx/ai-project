@@ -31,15 +31,15 @@ import dearpygui.dearpygui as dpg
 import numpy as np
 from torch_geometric.data import Data
 
-from ui.ui_engine import (
+from src.ui.ui_engine import (
     create_main_window, start_simulation_callback, stop_simulation_callback,
     reset_simulation_callback, update_ui_display, update_graph_visualization,
     run_ui, get_coordinator, update_operation_status, clear_operation_status
 )
-from ui.ui_state_manager import get_ui_state_manager, cleanup_ui_state
-from ui.screen_graph import capture_screen, create_pixel_gray_graph
-from core.interfaces.service_registry import IServiceRegistry
-from core.interfaces.simulation_coordinator import ISimulationCoordinator
+from src.ui.ui_state_manager import get_ui_state_manager, cleanup_ui_state
+from src.ui.screen_graph import capture_screen, create_pixel_gray_graph
+from src.core.interfaces.service_registry import IServiceRegistry
+from src.core.interfaces.simulation_coordinator import ISimulationCoordinator
 
 
 class TestUIIntegration(unittest.TestCase):
@@ -423,7 +423,7 @@ class TestUIIntegration(unittest.TestCase):
 
     def test_ui_event_driven_updates(self):
         """Test event-driven UI updates."""
-        from utils.event_bus import get_event_bus
+        from src.utils.event_bus import get_event_bus
 
         event_bus = get_event_bus()
 
@@ -453,7 +453,7 @@ class TestUIIntegration(unittest.TestCase):
             }.get(key, 0.5)
 
             # Apply configuration
-            from ui.ui_engine import apply_config_changes
+            from src.ui.ui_engine import apply_config_changes
             apply_config_changes()
 
             # Verify coordinator was updated
@@ -504,3 +504,9 @@ class TestUIIntegration(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+
+
+

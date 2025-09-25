@@ -13,7 +13,7 @@ from unittest.mock import Mock, patch
 from torch_geometric.data import Data
 import torch
 
-from utils.common_utils import (
+from src.utils.common_utils import (
     safe_hasattr, safe_get_attr, validate_graph_structure,
     safe_graph_access, create_safe_callback, extract_common_constants,
     get_common_error_messages
@@ -501,3 +501,9 @@ class TestRealWorldUsage:
 
 if __name__ == "__main__":
     pytest.main([__file__])
+
+
+
+
+
+

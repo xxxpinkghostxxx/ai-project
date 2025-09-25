@@ -12,19 +12,19 @@ from unittest.mock import Mock, patch, MagicMock
 from torch_geometric.data import Data
 import torch
 
-from core.services.simulation_coordinator import SimulationCoordinator
-from core.services.energy_management_service import EnergyManagementService
-from core.services.neural_processing_service import NeuralProcessingService
-from core.services.learning_service import LearningService
-from core.services.event_coordination_service import EventCoordinationService
-from core.services.service_registry import ServiceRegistry
-from core.interfaces.simulation_coordinator import ISimulationCoordinator
-from core.interfaces.neural_processor import INeuralProcessor, SpikeEvent
-from core.interfaces.energy_manager import IEnergyManager, EnergyFlow
-from core.interfaces.learning_engine import ILearningEngine, PlasticityEvent
-from core.interfaces.event_coordinator import IEventCoordinator
-from core.interfaces.configuration_service import IConfigurationService
-from core.interfaces.service_registry import IServiceRegistry
+from src.core.services.simulation_coordinator import SimulationCoordinator
+from src.core.services.energy_management_service import EnergyManagementService
+from src.core.services.neural_processing_service import NeuralProcessingService
+from src.core.services.learning_service import LearningService
+from src.core.services.event_coordination_service import EventCoordinationService
+from src.core.services.service_registry import ServiceRegistry
+from src.core.interfaces.simulation_coordinator import ISimulationCoordinator
+from src.core.interfaces.neural_processor import INeuralProcessor, SpikeEvent
+from src.core.interfaces.energy_manager import IEnergyManager, EnergyFlow
+from src.core.interfaces.learning_engine import ILearningEngine, PlasticityEvent
+from src.core.interfaces.event_coordinator import IEventCoordinator
+from src.core.interfaces.configuration_service import IConfigurationService
+from src.core.interfaces.service_registry import IServiceRegistry
 
 
 class TestFullSystemIntegration(unittest.TestCase):
@@ -501,3 +501,9 @@ class TestRealWorldScenarios(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+
+
+
+

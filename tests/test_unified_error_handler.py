@@ -11,7 +11,7 @@ import pytest
 import threading
 import time
 from unittest.mock import MagicMock, patch
-from utils.unified_error_handler import (
+from src.utils.unified_error_handler import (
     UnifiedErrorHandler, get_error_handler, safe_execute,
     safe_initialize_component, safe_process_step, safe_callback_execution,
     ErrorSeverity, ErrorCategory
@@ -269,7 +269,7 @@ class TestUnifiedErrorHandler:
 
     def test_recovery_strategy_validation(self):
         """Test recovery strategy validation."""
-        from utils.unified_error_handler import RecoveryStrategy
+        from src.utils.unified_error_handler import RecoveryStrategy
 
         # Test adding invalid strategy
         with pytest.raises(TypeError):
@@ -309,3 +309,9 @@ class TestUnifiedErrorHandler:
 
 if __name__ == "__main__":
     pytest.main([__file__])
+
+
+
+
+
+

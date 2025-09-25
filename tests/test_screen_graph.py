@@ -32,7 +32,7 @@ import torch
 torch.nn = Mock()
 from torch_geometric.data import Data
 
-from ui.screen_graph import rgb_to_gray, capture_screen, create_pixel_gray_graph
+from src.ui.screen_graph import rgb_to_gray, capture_screen, create_pixel_gray_graph
 
 
 class TestScreenGraph(unittest.TestCase):
@@ -419,3 +419,9 @@ class TestScreenGraph(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+
+
+

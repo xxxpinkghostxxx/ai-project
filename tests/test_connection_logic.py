@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch, MagicMock
 from torch_geometric.data import Data
 import torch
 
-from neural.connection_logic import (
+from src.neural.connection_logic import (
     create_weighted_connection, get_edge_attributes, apply_weight_change,
     intelligent_connection_formation, EnhancedEdge, create_basic_connections
 )
@@ -408,3 +408,9 @@ class TestConnectionLogic:
 
 if __name__ == "__main__":
     pytest.main([__file__])
+
+
+
+
+
+

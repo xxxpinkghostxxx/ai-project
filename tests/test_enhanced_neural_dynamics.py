@@ -15,7 +15,7 @@ from unittest.mock import MagicMock, patch
 from torch_geometric.data import Data
 import torch
 
-from neural.enhanced_neural_dynamics import EnhancedNeuralDynamics, create_enhanced_neural_dynamics
+from src.neural.enhanced_neural_dynamics import EnhancedNeuralDynamics, create_enhanced_neural_dynamics
 
 
 class TestEnhancedNeuralDynamics:
@@ -261,3 +261,9 @@ class TestEnhancedNeuralDynamics:
 
 if __name__ == "__main__":
     pytest.main([__file__])
+
+
+
+
+
+

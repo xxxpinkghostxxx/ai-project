@@ -2,6 +2,11 @@
 Consolidated constants to reduce string duplication across the codebase.
 """
 
+import logging
+
+# Setup logging
+logger = logging.getLogger(__name__)
+
 # Common UI Constants
 UI_CONSTANTS = {
     'SIMULATION_STATUS_RUNNING': 'Running',
@@ -61,9 +66,9 @@ LOG_MESSAGES = {
 
 # Common File Paths
 FILE_PATHS = {
-    'NEURAL_MAPS_DIR': 'neural_maps',
+    'NEURAL_MAPS_DIR': 'data/neural_maps',
     'SLOT_METADATA': 'slot_metadata.json',
-    'CONFIG_FILE': 'config.ini',
+    'CONFIG_FILE': 'config/config.ini',
     'LOG_DIR': 'logs',
     'PROFILE_DIR': 'profiles'
 }
@@ -181,6 +186,54 @@ DEFAULT_VALUES = {
     'DELAY_DEFAULT': 0.0,
     'ELIGIBILITY_TRACE_DEFAULT': 0.0
 }
+
+
+def load_constants_from_config():
+    """Load constants from configuration file."""
+    try:
+        from config.unified_config_manager import get_config_manager
+        config_manager = get_config_manager()
+        logger.info("Loading constants from config...")
+
+        # Load energy cap
+        energy_cap = config_manager.get('SystemConstants.node_energy_cap', 5.0)
+        DEFAULT_VALUES['ENERGY_CAP'] = energy_cap
+        logger.info(f"Loaded ENERGY_CAP from config: {energy_cap}")
+
+        # Load other constants if they exist in config
+        threshold = config_manager.get('SystemConstants.threshold_default', 0.5)
+        DEFAULT_VALUES['THRESHOLD_DEFAULT'] = threshold
+        logger.info(f"Loaded THRESHOLD_DEFAULT from config: {threshold}")
+
+        learning_rate = config_manager.get('Learning.plasticity_rate', 0.01)
+        DEFAULT_VALUES['LEARNING_RATE'] = learning_rate
+        logger.info(f"Loaded LEARNING_RATE from config: {learning_rate}")
+
+        refractory = config_manager.get('SystemConstants.refractory_period', 0.1)
+        DEFAULT_VALUES['REFRACTORY_PERIOD'] = refractory
+        logger.info(f"Loaded REFRACTORY_PERIOD from config: {refractory}")
+
+        integration = config_manager.get('EnhancedNodes.integrator_threshold', 0.5)
+        DEFAULT_VALUES['INTEGRATION_RATE'] = integration
+        logger.info(f"Loaded INTEGRATION_RATE from config: {integration}")
+
+        relay_amp = config_manager.get('EnhancedNodes.relay_amplification', 1.5)
+        DEFAULT_VALUES['RELAY_AMPLIFICATION'] = relay_amp
+        logger.info(f"Loaded RELAY_AMPLIFICATION from config: {relay_amp}")
+
+        highway_boost = config_manager.get('EnhancedNodes.highway_energy_boost', 2.0)
+        DEFAULT_VALUES['HIGHWAY_ENERGY_BOOST'] = highway_boost
+        logger.info(f"Loaded HIGHWAY_ENERGY_BOOST from config: {highway_boost}")
+
+        logger.info("Constants loaded successfully from config")
+
+    except Exception as e:
+        logger.error(f"Failed to load constants from config: {e}")
+        logger.info("Using default hardcoded values")
+
+
+# Load constants on import
+load_constants_from_config()
 
 # Common Print Patterns
 PRINT_PATTERNS = {

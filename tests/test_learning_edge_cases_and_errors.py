@@ -14,11 +14,11 @@ import numpy as np
 from unittest.mock import MagicMock, patch
 from torch_geometric.data import Data
 
-from learning.homeostasis_controller import HomeostasisController
-from learning.learning_engine import LearningEngine
-from learning.live_hebbian_learning import LiveHebbianLearning
-from learning.memory_system import MemorySystem
-from learning.memory_pool_manager import MemoryPoolManager, ObjectPool
+from src.learning.homeostasis_controller import HomeostasisController
+from src.learning.learning_engine import LearningEngine
+from src.learning.live_hebbian_learning import LiveHebbianLearning
+from src.learning.memory_system import MemorySystem
+from src.learning.memory_pool_manager import MemoryPoolManager, ObjectPool
 
 
 class TestEdgeCases:
@@ -351,7 +351,7 @@ class TestBoundaryConditions:
 
     def test_zero_division_prevention(self):
         """Test prevention of division by zero."""
-        from learning.homeostasis_controller import calculate_network_stability
+        from src.learning.homeostasis_controller import calculate_network_stability
 
         # Empty graph
         empty_graph = Data()
@@ -426,3 +426,9 @@ class TestBoundaryConditions:
 
 if __name__ == "__main__":
     pytest.main([__file__])
+
+
+
+
+
+

@@ -16,7 +16,7 @@ from unittest.mock import Mock, patch
 from torch_geometric.data import Data
 import torch
 
-from energy.node_id_manager import (
+from src.energy.node_id_manager import (
     NodeIDManager, get_id_manager, reset_id_manager, force_reset_id_manager,
     generate_node_id, get_node_index_by_id, get_node_id_by_index,
     is_valid_node_id, recycle_node_id, IDTransaction
@@ -777,3 +777,9 @@ class TestNodeIDManagerRealWorldUsage(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+
+
+
+

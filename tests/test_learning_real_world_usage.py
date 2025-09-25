@@ -14,11 +14,11 @@ import numpy as np
 from unittest.mock import MagicMock, patch
 from torch_geometric.data import Data
 
-from learning.homeostasis_controller import HomeostasisController
-from learning.learning_engine import LearningEngine
-from learning.live_hebbian_learning import LiveHebbianLearning
-from learning.memory_system import MemorySystem
-from core.services.simulation_coordinator import SimulationCoordinator
+from src.learning.homeostasis_controller import HomeostasisController
+from src.learning.learning_engine import LearningEngine
+from src.learning.live_hebbian_learning import LiveHebbianLearning
+from src.learning.memory_system import MemorySystem
+from src.core.services.simulation_coordinator import SimulationCoordinator
 
 
 class TestRealWorldUsage:
@@ -432,3 +432,9 @@ class TestRealWorldUsage:
 
 if __name__ == "__main__":
     pytest.main([__file__])
+
+
+
+
+
+

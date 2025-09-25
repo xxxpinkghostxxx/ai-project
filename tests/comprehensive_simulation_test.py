@@ -16,17 +16,17 @@ from datetime import datetime
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.services.simulation_coordinator import SimulationCoordinator
-from neural.optimized_node_manager import get_optimized_node_manager
-from utils.performance_cache import get_performance_cache_manager
-from utils.lazy_loader import get_lazy_loader
-from utils.unified_performance_system import get_performance_monitor
-from energy.energy_behavior import apply_energy_behavior, update_membrane_potentials
-from neural.connection_logic import intelligent_connection_formation
-from learning.live_hebbian_learning import create_live_hebbian_learning
-from neural.spike_queue_system import create_spike_queue_system
-from sensory.visual_energy_bridge import create_visual_energy_bridge
-from sensory.sensory_workspace_mapper import create_sensory_workspace_mapper
+from src.core.services.simulation_coordinator import SimulationCoordinator
+from src.neural.optimized_node_manager import get_optimized_node_manager
+from src.utils.performance_cache import get_performance_cache_manager
+from src.utils.lazy_loader import get_lazy_loader
+from src.utils.unified_performance_system import get_performance_monitor
+from src.energy.energy_behavior import apply_energy_behavior, update_membrane_potentials
+from src.neural.connection_logic import intelligent_connection_formation
+from src.learning.live_hebbian_learning import create_live_hebbian_learning
+from src.neural.spike_queue_system import create_spike_queue_system
+from src.sensory.visual_energy_bridge import create_visual_energy_bridge
+from src.sensory.sensory_workspace_mapper import create_sensory_workspace_mapper
 
 # Configure logging
 logging.basicConfig(
@@ -439,7 +439,7 @@ class ComprehensiveSimulationTester:
 
             # Test memory pool usage (skip if not available)
             try:
-                from learning.memory_pool_manager import get_memory_pool_manager
+                from src.learning.memory_pool_manager import get_memory_pool_manager
                 memory_manager = get_memory_pool_manager()
 
                 # Create and use memory pools
@@ -717,3 +717,9 @@ def run_comprehensive_tests():
 
 if __name__ == "__main__":
     run_comprehensive_tests()
+
+
+
+
+
+

@@ -13,11 +13,11 @@ from unittest.mock import Mock, patch, MagicMock
 import sys
 from io import StringIO
 
-from core.unified_launcher import UnifiedLauncher
-from core.services.service_registry import ServiceRegistry
-from core.interfaces.service_registry import IServiceRegistry
-from core.interfaces.configuration_service import IConfigurationService
-from core.interfaces.performance_monitor import IPerformanceMonitor
+from unified_launcher import UnifiedLauncher
+from src.core.services.service_registry import ServiceRegistry
+from src.core.interfaces.service_registry import IServiceRegistry
+from src.core.interfaces.configuration_service import IConfigurationService
+from src.core.interfaces.performance_monitor import IPerformanceMonitor
 
 
 class TestUnifiedLauncher(unittest.TestCase):
@@ -293,3 +293,9 @@ class TestUnifiedLauncherPerformance(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+
+
+
+

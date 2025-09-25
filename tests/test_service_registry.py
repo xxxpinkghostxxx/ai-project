@@ -10,8 +10,8 @@ import time
 from unittest.mock import Mock, patch
 import threading
 
-from core.services.service_registry import ServiceRegistry, ServiceNotFoundError, ServiceResolutionError
-from core.interfaces.service_registry import IServiceRegistry, ServiceLifetime, ServiceHealth, ServiceDescriptor
+from src.core.services.service_registry import ServiceRegistry, ServiceNotFoundError, ServiceResolutionError
+from src.core.interfaces.service_registry import IServiceRegistry, ServiceLifetime, ServiceHealth, ServiceDescriptor
 
 
 class TestServiceRegistry(unittest.TestCase):
@@ -586,3 +586,9 @@ class TestServiceRegistryPerformance(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+
+
+
+

@@ -13,15 +13,15 @@ from unittest.mock import MagicMock, patch
 from torch_geometric.data import Data
 import torch
 
-from neural.behavior_engine import BehaviorEngine
-from neural.connection_logic import intelligent_connection_formation, create_weighted_connection
-from neural.enhanced_neural_dynamics import EnhancedNeuralDynamics
-from neural.network_metrics import NetworkMetrics
-from neural.spike_queue_system import SpikeQueueSystem, SpikeType
-from neural.workspace_engine import WorkspaceEngine
-from neural.neural_map_persistence import NeuralMapPersistence
-from energy.node_access_layer import NodeAccessLayer
-from energy.energy_behavior import get_node_energy_cap
+from src.neural.behavior_engine import BehaviorEngine
+from src.neural.connection_logic import intelligent_connection_formation, create_weighted_connection
+from src.neural.enhanced_neural_dynamics import EnhancedNeuralDynamics
+from src.neural.network_metrics import NetworkMetrics
+from src.neural.spike_queue_system import SpikeQueueSystem, SpikeType
+from src.neural.workspace_engine import WorkspaceEngine
+from src.neural.neural_map_persistence import NeuralMapPersistence
+from src.energy.node_access_layer import NodeAccessLayer
+from src.energy.energy_behavior import get_node_energy_cap
 
 
 class TestNeuralIntegration:
@@ -408,3 +408,9 @@ class TestNeuralIntegration:
 
 if __name__ == "__main__":
     pytest.main([__file__])
+
+
+
+
+
+

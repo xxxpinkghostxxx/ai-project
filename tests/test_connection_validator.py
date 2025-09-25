@@ -13,7 +13,7 @@ from unittest.mock import Mock, patch
 from torch_geometric.data import Data
 import torch
 
-from utils.connection_validator import (
+from src.utils.connection_validator import (
     ConnectionValidator, ConnectionValidationError, get_connection_validator
 )
 
@@ -671,3 +671,9 @@ class TestRealWorldUsage:
 
 if __name__ == "__main__":
     pytest.main([__file__])
+
+
+
+
+
+

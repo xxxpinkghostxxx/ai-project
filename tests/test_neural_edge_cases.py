@@ -12,13 +12,13 @@ from unittest.mock import MagicMock, patch, call
 from torch_geometric.data import Data
 import torch
 
-from neural.behavior_engine import BehaviorEngine
-from neural.connection_logic import create_weighted_connection, intelligent_connection_formation
-from neural.enhanced_neural_dynamics import EnhancedNeuralDynamics
-from neural.network_metrics import NetworkMetrics
-from neural.spike_queue_system import SpikeQueueSystem, Spike, SpikeType
-from neural.workspace_engine import WorkspaceEngine
-from neural.neural_map_persistence import NeuralMapPersistence
+from src.neural.behavior_engine import BehaviorEngine
+from src.neural.connection_logic import create_weighted_connection, intelligent_connection_formation
+from src.neural.enhanced_neural_dynamics import EnhancedNeuralDynamics
+from src.neural.network_metrics import NetworkMetrics
+from src.neural.spike_queue_system import SpikeQueueSystem, Spike, SpikeType
+from src.neural.workspace_engine import WorkspaceEngine
+from src.neural.neural_map_persistence import NeuralMapPersistence
 
 
 class TestNeuralEdgeCases:
@@ -295,7 +295,7 @@ class TestNeuralEdgeCases:
 
     def test_connection_validation_extreme_weights(self):
         """Test connection validation with extreme weights."""
-        from utils.connection_validator import get_connection_validator
+        from src.utils.connection_validator import get_connection_validator
 
         validator = get_connection_validator()
         graph = Data()
@@ -349,7 +349,7 @@ class TestNeuralEdgeCases:
 
     def test_spike_queue_corruption_recovery(self):
         """Test SpikeQueue corruption recovery."""
-        from neural.spike_queue_system import SpikeQueue
+        from src.neural.spike_queue_system import SpikeQueue
 
         queue = SpikeQueue()
 
@@ -553,3 +553,9 @@ class TestNeuralEdgeCases:
 
 if __name__ == "__main__":
     pytest.main([__file__])
+
+
+
+
+
+

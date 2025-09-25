@@ -21,17 +21,17 @@ from enum import Enum
 import numpy as np
 import torch
 from torch_geometric.data import Data
-from utils.print_utils import print_info, print_success, print_error, print_warning
-from utils.logging_utils import log_step
+from src.utils.print_utils import print_info, print_success, print_error, print_warning
+from src.utils.logging_utils import log_step
 
 # Additional imports for math tests
-from neural.enhanced_neural_dynamics import EnhancedNeuralDynamics
-from energy.energy_behavior import EnergyCalculator, get_node_energy_cap
-from neural.connection_logic import EnhancedEdge, ConnectionConstants
-from core.main_graph import initialize_main_graph
-from neural.death_and_birth_logic import remove_dead_dynamic_nodes, birth_new_dynamic_nodes, get_node_death_threshold, get_node_birth_threshold, handle_node_death, analyze_memory_patterns_for_birth
-from neural.event_driven_system import create_event_driven_system, NeuralEvent, EventType, EventDrivenSystem
-from learning.learning_engine import LearningEngine
+from src.neural.enhanced_neural_dynamics import EnhancedNeuralDynamics
+from src.energy.energy_behavior import EnergyCalculator, get_node_energy_cap
+from src.neural.connection_logic import EnhancedEdge, ConnectionConstants
+from main_graph import initialize_main_graph
+from src.neural.death_and_birth_logic import remove_dead_dynamic_nodes, birth_new_dynamic_nodes, get_node_death_threshold, get_node_birth_threshold, handle_node_death, analyze_memory_patterns_for_birth
+from src.neural.event_driven_system import create_event_driven_system, NeuralEvent, EventType, EventDrivenSystem
+from src.learning.learning_engine import LearningEngine
 import logging
 from io import StringIO
 from unittest import mock
@@ -522,7 +522,7 @@ class UnifiedTestFramework:
             import neural.behavior_engine
             import energy.energy_behavior
             import neural.connection_logic
-            import core.main_graph
+            import main_graph
             import energy.node_access_layer
             import energy.node_id_manager
             
@@ -576,7 +576,7 @@ class UnifiedTestFramework:
         """Test single simulation step execution."""
         try:
             from simulation_manager import create_simulation_manager
-            from core.main_graph import initialize_main_graph
+            from main_graph import initialize_main_graph
             
             sim_manager = create_simulation_manager()
             graph = initialize_main_graph(scale=0.25)
@@ -595,7 +595,7 @@ class UnifiedTestFramework:
         """Test simulation progression over multiple steps."""
         try:
             from simulation_manager import create_simulation_manager
-            from core.main_graph import initialize_main_graph
+            from main_graph import initialize_main_graph
             
             sim_manager = create_simulation_manager()
             graph = initialize_main_graph(scale=0.25)
@@ -618,8 +618,8 @@ class UnifiedTestFramework:
     def _test_energy_behavior(self) -> Tuple[bool, Dict[str, Any]]:
         """Test energy behavior and dynamics."""
         try:
-            from energy.energy_behavior import get_node_energy_cap, apply_energy_behavior
-            from core.main_graph import initialize_main_graph
+            from src.energy.energy_behavior import get_node_energy_cap, apply_energy_behavior
+            from main_graph import initialize_main_graph
             
             graph = initialize_main_graph(scale=0.25)
             energy_cap = get_node_energy_cap()
@@ -637,8 +637,8 @@ class UnifiedTestFramework:
     def _test_connection_logic(self) -> Tuple[bool, Dict[str, Any]]:
         """Test connection logic and formation."""
         try:
-            from neural.connection_logic import create_basic_connections, get_edge_attributes
-            from core.main_graph import initialize_main_graph
+            from src.neural.connection_logic import create_basic_connections, get_edge_attributes
+            from main_graph import initialize_main_graph
             
             graph = initialize_main_graph(scale=0.25)
             initial_edges = graph.edge_index.shape[1] if hasattr(graph, 'edge_index') else 0
@@ -657,8 +657,8 @@ class UnifiedTestFramework:
     def _test_ui_components(self) -> Tuple[bool, Dict[str, Any]]:
         """Test UI components and functionality."""
         try:
-            from ui.ui_engine import create_main_window, update_ui_display
-            from ui.ui_state_manager import get_ui_state_manager
+            from src.ui.ui_engine import create_main_window, update_ui_display
+            from src.ui.ui_state_manager import get_ui_state_manager
             
             ui_state = get_ui_state_manager()
             
@@ -671,7 +671,7 @@ class UnifiedTestFramework:
     def _test_performance_monitoring(self) -> Tuple[bool, Dict[str, Any]]:
         """Test performance monitoring systems."""
         try:
-            from utils.unified_performance_system import get_performance_monitor
+            from src.utils.unified_performance_system import get_performance_monitor
             
             monitor = get_performance_monitor()
             metrics = monitor.get_current_metrics()
@@ -686,7 +686,7 @@ class UnifiedTestFramework:
     def _test_error_handling(self) -> Tuple[bool, Dict[str, Any]]:
         """Test error handling and recovery."""
         try:
-            from utils.unified_error_handler import get_error_handler, safe_execute
+            from src.utils.unified_error_handler import get_error_handler, safe_execute
         
             error_handler = get_error_handler()
         
@@ -1052,7 +1052,7 @@ class UnifiedTestFramework:
             
             processed = system.process_events(max_events=20)
             
-            from utils.event_bus import get_event_bus
+            from src.utils.event_bus import get_event_bus
             bus = get_event_bus()
             bus.emit('SPIKE', {'source_node_id': 1, 'timestamp': 0.0})
             
@@ -1225,7 +1225,7 @@ class UnifiedTestFramework:
     def _test_event_bus(self) -> Tuple[bool, Dict[str, Any]]:
         """Test EventBus subscribe, emit, and fallback."""
         try:
-            from utils.event_bus import get_event_bus
+            from src.utils.event_bus import get_event_bus
             bus = get_event_bus()
             
             # Test subscribe and emit
@@ -1269,10 +1269,10 @@ class UnifiedTestFramework:
         """E2E test for full simulation cycle."""
         try:
             from simulation_manager import create_simulation_manager
-            from core.main_graph import initialize_main_graph
-            from utils.event_bus import get_event_bus
-            from learning.learning_engine import LearningEngine
-            from ui.ui_engine import update_ui_display
+            from main_graph import initialize_main_graph
+            from src.utils.event_bus import get_event_bus
+            from src.learning.learning_engine import LearningEngine
+            from src.ui.ui_engine import update_ui_display
 
             sim_manager = create_simulation_manager()
             graph = initialize_main_graph(scale=0.5)
@@ -1324,7 +1324,7 @@ class UnifiedTestFramework:
         """Stress test for organic growth and full cycles."""
         try:
             from simulation_manager import create_simulation_manager
-            from core.main_graph import initialize_main_graph
+            from main_graph import initialize_main_graph
             import psutil
             import time
             from timeit import timeit
@@ -1529,3 +1529,10 @@ def run_unified_tests() -> Dict[str, Any]:
 
 if __name__ == "__main__":
     results = run_unified_tests()
+
+
+
+
+
+
+

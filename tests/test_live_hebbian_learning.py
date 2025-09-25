@@ -15,7 +15,7 @@ import torch
 from unittest.mock import MagicMock, patch
 from torch_geometric.data import Data
 
-from learning.live_hebbian_learning import LiveHebbianLearning, create_live_hebbian_learning
+from src.learning.live_hebbian_learning import LiveHebbianLearning, create_live_hebbian_learning
 
 
 class TestLiveHebbianLearning:
@@ -358,3 +358,9 @@ class TestFactoryFunction:
 
 if __name__ == "__main__":
     pytest.main([__file__])
+
+
+
+
+
+

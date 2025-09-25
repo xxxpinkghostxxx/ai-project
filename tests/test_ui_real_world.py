@@ -30,9 +30,9 @@ import numpy as np
 np.__version__ = '1.24.0'
 from torch_geometric.data import Data
 
-from ui.ui_engine import *
-from ui.ui_state_manager import *
-from ui.screen_graph import *
+from src.ui.ui_engine import *
+from src.ui.ui_state_manager import *
+from src.ui.screen_graph import *
 
 
 class TestUIRealWorldScenarios(unittest.TestCase):
@@ -520,3 +520,9 @@ class TestUIRealWorldScenarios(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+
+
+

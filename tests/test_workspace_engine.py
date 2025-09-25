@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 from torch_geometric.data import Data
 import torch
 
-from neural.workspace_engine import WorkspaceEngine, create_workspace_engine
+from src.neural.workspace_engine import WorkspaceEngine, create_workspace_engine
 
 
 class TestWorkspaceEngine:
@@ -502,3 +502,9 @@ class TestWorkspaceEngine:
 
 if __name__ == "__main__":
     pytest.main([__file__])
+
+
+
+
+
+

@@ -10,8 +10,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pytest
 import threading
 import time
-from neural.enhanced_connection_system import EnhancedConnectionSystem, EnhancedConnection
-from energy.energy_constants import ConnectionConstants
+from src.neural.enhanced_connection_system import EnhancedConnectionSystem, EnhancedConnection
+from src.energy.energy_constants import ConnectionConstants
 
 
 class TestEnhancedConnectionSystem:
@@ -352,3 +352,9 @@ class TestEnhancedConnectionSystem:
 
 if __name__ == "__main__":
     pytest.main([__file__])
+
+
+
+
+
+

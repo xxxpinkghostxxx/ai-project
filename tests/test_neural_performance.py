@@ -15,12 +15,12 @@ from unittest.mock import MagicMock, patch
 from torch_geometric.data import Data
 import torch
 
-from neural.behavior_engine import BehaviorEngine
-from neural.connection_logic import intelligent_connection_formation
-from neural.enhanced_neural_dynamics import EnhancedNeuralDynamics
-from neural.network_metrics import NetworkMetrics
-from neural.spike_queue_system import SpikeQueueSystem, SpikeType
-from neural.workspace_engine import WorkspaceEngine
+from src.neural.behavior_engine import BehaviorEngine
+from src.neural.connection_logic import intelligent_connection_formation
+from src.neural.enhanced_neural_dynamics import EnhancedNeuralDynamics
+from src.neural.network_metrics import NetworkMetrics
+from src.neural.spike_queue_system import SpikeQueueSystem, SpikeType
+from src.neural.workspace_engine import WorkspaceEngine
 
 
 class TestNeuralPerformance:
@@ -336,7 +336,7 @@ class TestNeuralPerformance:
 
     def test_persistence_io_performance(self):
         """Test I/O performance of neural map persistence."""
-        from neural.neural_map_persistence import NeuralMapPersistence
+        from src.neural.neural_map_persistence import NeuralMapPersistence
         import tempfile
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -432,7 +432,7 @@ class TestNeuralPerformance:
             for i in range(base_nodes):
                 for j in range(base_nodes):
                     if i != j and np.random.random() < density and edges_created < expected_edges:
-                        from neural.connection_logic import create_weighted_connection
+                        from src.neural.connection_logic import create_weighted_connection
                         graph = create_weighted_connection(graph, i, j, 0.3, 'excitatory')
                         edges_created += 1
 
@@ -555,3 +555,9 @@ class TestNeuralPerformance:
 
 if __name__ == "__main__":
     pytest.main([__file__])
+
+
+
+
+
+

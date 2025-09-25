@@ -17,7 +17,7 @@ This system implements a sophisticated neural simulation that combines:
 
 ### Service-Oriented Architecture (SOA)
 
-The system has been fully migrated from a monolithic architecture to a service-oriented architecture with dependency injection. The monolithic `SimulationManager` has been completely removed and replaced with 8 specialized services orchestrated by the `SimulationCoordinator`.
+The system has been fully migrated from a monolithic architecture to a service-oriented architecture with dependency injection. The monolithic `SimulationManager` has been completely removed and replaced with 9 core services orchestrated by the `SimulationCoordinator`.
 
 #### Core Services
 
@@ -74,44 +74,27 @@ The system has been fully migrated from a monolithic architecture to a service-o
 - Manages service registration, resolution, and lifecycle
 - Ensures loose coupling through interface-based design
 
-#### 2. Energy System (`energy/`)
+#### Supporting Systems
+
+##### Energy System (`energy/`)
 - **Energy Behavior** (`energy/energy_behavior.py`): Energy flow and consumption
 - **Energy Constants** (`energy/energy_constants.py`): Centralized energy parameters
 - **Node Access Layer** (`energy/node_access_layer.py`): ID-based node operations
 - **Energy System Validator** (`energy/energy_system_validator.py`): Energy integration validation
 
-#### 3. Neural Dynamics (`neural/`)
+##### Neural Dynamics (`neural/`)
 - **Behavior Engine** (`neural/behavior_engine.py`): Node behavior management
 - **Connection Logic** (`neural/connection_logic.py`): Intelligent connection formation
 - **Network Metrics** (`neural/network_metrics.py`): Network analysis and metrics
 - **Event-Driven System** (`neural/event_driven_system.py`): Event-based processing
 
-#### 4. Learning Systems (`learning/`)
+##### Learning Systems (`learning/`)
 - **Learning Engine** (`learning/learning_engine.py`): STDP and pattern learning
 - **Live Hebbian Learning** (`learning/live_hebbian_learning.py`): Real-time learning with energy modulation
 - **Memory System** (`learning/memory_system.py`): Memory formation and persistence
 - **Homeostasis Controller** (`learning/homeostasis_controller.py`): Energy balance regulation
 
-#### 5. Sensory Integration (`sensory/`)
-- **Visual Energy Bridge** (`sensory/visual_energy_bridge.py`): Visual input processing
-- **Audio to Neural Bridge** (`sensory/audio_to_neural_bridge.py`): Audio feature extraction
-- **Sensory Workspace Mapper** (`sensory/sensory_workspace_mapper.py`): Sensory-to-workspace mapping
-
-### Supporting Systems
-
-#### Energy Management
-- **Energy Behavior** (`energy/energy_behavior.py`): Energy flow and consumption
-- **Energy Constants** (`energy/energy_constants.py`): Centralized energy parameters
-- **Node Access Layer** (`energy/node_access_layer.py`): ID-based node operations
-- **Energy System Validator** (`energy/energy_system_validator.py`): Energy integration validation
-
-#### Learning & Memory
-- **Learning Engine** (`learning/learning_engine.py`): STDP and pattern learning
-- **Memory System** (`learning/memory_system.py`): Memory formation and persistence
-- **Live Hebbian Learning** (`learning/live_hebbian_learning.py`): Real-time learning with energy modulation
-- **Homeostasis Controller** (`learning/homeostasis_controller.py`): Energy balance regulation
-
-#### Sensory Integration
+##### Sensory Integration (`sensory/`)
 - **Visual Energy Bridge** (`sensory/visual_energy_bridge.py`): Visual input processing
 - **Audio to Neural Bridge** (`sensory/audio_to_neural_bridge.py`): Audio feature extraction
 - **Sensory Workspace Mapper** (`sensory/sensory_workspace_mapper.py`): Sensory-to-workspace mapping

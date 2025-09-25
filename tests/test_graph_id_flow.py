@@ -14,12 +14,12 @@ import numpy as np
 from typing import Dict, List, Any
 
 # Import the components we're testing
-from energy.node_id_manager import get_id_manager, NodeIDManager
-from utils.graph_integrity_manager import get_graph_integrity_manager
-from utils.connection_validator import get_connection_validator
-from utils.reader_writer_lock import get_id_manager_lock
-from utils.graph_merger import get_graph_merger
-from core.services.simulation_coordinator import SimulationCoordinator
+from src.energy.node_id_manager import get_id_manager, NodeIDManager
+from src.utils.graph_integrity_manager import get_graph_integrity_manager
+from src.utils.connection_validator import get_connection_validator
+from src.utils.reader_writer_lock import get_id_manager_lock
+from src.utils.graph_merger import get_graph_merger
+from src.core.services.simulation_coordinator import SimulationCoordinator
 from unittest.mock import MagicMock
 
 
@@ -335,3 +335,9 @@ class TestGraphIDFlow(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+
+
+
+

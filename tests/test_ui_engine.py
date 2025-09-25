@@ -24,7 +24,7 @@ sys.modules['torch_geometric.data'] = Mock()
 sys.modules['torch_geometric.data'].Data = Mock()
 
 import dearpygui.dearpygui as dpg
-from ui.ui_engine import (
+from src.ui.ui_engine import (
     create_main_window, start_simulation_callback, stop_simulation_callback,
     reset_simulation_callback, update_ui_display, update_graph_visualization,
     apply_config_changes, reset_to_defaults, force_close_application,
@@ -36,7 +36,7 @@ from ui.ui_engine import (
     get_latest_graph, get_latest_graph_for_ui, update_graph,
     add_live_feed_data, get_live_feed_data, clear_live_feed_data
 )
-from ui.ui_state_manager import get_ui_state_manager, cleanup_ui_state
+from src.ui.ui_state_manager import get_ui_state_manager, cleanup_ui_state
 
 
 class TestUIEngine(unittest.TestCase):
@@ -479,3 +479,9 @@ class TestUIEngine(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+
+
+

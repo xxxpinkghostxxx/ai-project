@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 from torch_geometric.data import Data
 import torch
 
-from neural.spike_queue_system import SpikeQueueSystem, SpikeQueue, Spike, SpikeType, create_spike_queue_system
+from src.neural.spike_queue_system import SpikeQueueSystem, SpikeQueue, Spike, SpikeType, create_spike_queue_system
 
 
 class TestSpikeQueueSystem:
@@ -446,3 +446,9 @@ class TestSpikeQueueSystem:
 
 if __name__ == "__main__":
     pytest.main([__file__])
+
+
+
+
+
+

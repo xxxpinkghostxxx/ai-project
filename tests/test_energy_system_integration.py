@@ -18,17 +18,17 @@ from unittest.mock import Mock, patch
 from torch_geometric.data import Data
 import torch
 
-from energy.energy_behavior import (
+from src.energy.energy_behavior import (
     EnergyCalculator, get_node_energy_cap, update_node_energy_with_learning,
     apply_energy_behavior, apply_oscillator_energy_dynamics,
     apply_integrator_energy_dynamics, apply_relay_energy_dynamics,
     apply_highway_energy_dynamics, apply_dynamic_energy_dynamics, emit_energy_pulse
 )
-from energy.energy_constants import EnergyConstants, ConnectionConstants
-from energy.node_access_layer import NodeAccessLayer
-from energy.node_id_manager import NodeIDManager, get_id_manager
-from energy.energy_flow_diagram import EnergyFlowDiagram
-from energy.energy_system_validator import EnergySystemValidator
+from src.energy.energy_constants import EnergyConstants, ConnectionConstants
+from src.energy.node_access_layer import NodeAccessLayer
+from src.energy.node_id_manager import NodeIDManager, get_id_manager
+from src.energy.energy_flow_diagram import EnergyFlowDiagram
+from src.energy.energy_system_validator import EnergySystemValidator
 
 
 class TestEnergySystemIntegration(unittest.TestCase):
@@ -618,3 +618,9 @@ class TestEnergySystemRealWorldScenarios(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+
+
+
+

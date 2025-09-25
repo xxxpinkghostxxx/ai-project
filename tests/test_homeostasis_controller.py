@@ -15,7 +15,7 @@ import time
 from unittest.mock import MagicMock, patch
 from torch_geometric.data import Data
 
-from learning.homeostasis_controller import HomeostasisController, HistoryManager, StatsManager, calculate_network_stability, detect_network_anomalies
+from src.learning.homeostasis_controller import HomeostasisController, HistoryManager, StatsManager, calculate_network_stability, detect_network_anomalies
 
 
 class TestHomeostasisController:
@@ -470,3 +470,9 @@ class TestUtilityFunctions:
 
 if __name__ == "__main__":
     pytest.main([__file__])
+
+
+
+
+
+

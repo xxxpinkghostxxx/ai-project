@@ -8,10 +8,10 @@ import os
 from unittest.mock import Mock, MagicMock
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from learning.live_hebbian_learning import create_live_hebbian_learning
-from learning.learning_engine import LearningEngine
-from core.services.simulation_coordinator import SimulationCoordinator
-from core.interfaces.node_access_layer import IAccessLayer
+from src.learning.live_hebbian_learning import create_live_hebbian_learning
+from src.learning.learning_engine import LearningEngine
+from src.core.services.simulation_coordinator import SimulationCoordinator
+from src.core.interfaces.node_access_layer import IAccessLayer
 from torch_geometric.data import Data
 import torch
 
@@ -233,3 +233,9 @@ if __name__ == "__main__":
         print("OVERALL: SUCCESS - Energy-modulated learning is working!")
     else:
         print("OVERALL: ISSUES DETECTED - Check implementation")
+
+
+
+
+
+

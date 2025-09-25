@@ -45,9 +45,9 @@ import dearpygui.dearpygui as dpg
 import numpy as np
 from torch_geometric.data import Data
 
-from ui.ui_engine import *
-from ui.ui_state_manager import *
-from ui.screen_graph import *
+from src.ui.ui_engine import *
+from src.ui.ui_state_manager import *
+from src.ui.screen_graph import *
 
 
 class TestUIEdgeCases(unittest.TestCase):
@@ -482,3 +482,9 @@ class TestUIEdgeCases(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+
+
+

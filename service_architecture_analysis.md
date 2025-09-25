@@ -10,7 +10,7 @@ Key interfaces include:
 - **[`IServiceRegistry`](core/interfaces/service_registry.py:55):** Defines the contract for service registration, resolution, and lifecycle management. This is the core of the dependency injection framework.
 - **[`ISimulationCoordinator`](core/interfaces/simulation_coordinator.py:39):** Defines the main coordination contract for the simulation, providing the primary entry point for simulation execution.
 - **[`IEnergyManager`](core/interfaces/energy_manager.py:62):** Defines the contract for energy management operations, handling energy flow, conservation, and metabolic costs.
-- **[`INeuralProcessor`](core/-interfaces/neural_processor.py):** Defines the contract for neural processing, including spike generation and membrane potential updates.
+- **[`INeuralProcessor`](core/interfaces/neural_processor.py):** Defines the contract for neural processing, including spike generation and membrane potential updates.
 - **[`ILearningEngine`](core/interfaces/learning_engine.py):** Defines the contract for learning and plasticity, including STDP and Hebbian learning.
 
 ## 2. Service Implementations

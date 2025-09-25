@@ -14,7 +14,7 @@ from unittest.mock import MagicMock, patch
 from torch_geometric.data import Data
 import torch
 
-from neural.neural_map_persistence import NeuralMapPersistence, create_neural_map_persistence
+from src.neural.neural_map_persistence import NeuralMapPersistence, create_neural_map_persistence
 
 
 class TestNeuralMapPersistence:
@@ -405,3 +405,9 @@ class TestNeuralMapPersistence:
 
 if __name__ == "__main__":
     pytest.main([__file__])
+
+
+
+
+
+

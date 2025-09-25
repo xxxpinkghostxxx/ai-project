@@ -15,7 +15,7 @@ import torch
 from unittest.mock import MagicMock, patch
 from torch_geometric.data import Data
 
-from learning.learning_engine import LearningEngine, calculate_learning_efficiency, detect_learning_patterns
+from src.learning.learning_engine import LearningEngine, calculate_learning_efficiency, detect_learning_patterns
 
 
 class TestLearningEngine:
@@ -363,3 +363,9 @@ class TestUtilityFunctions:
 
 if __name__ == "__main__":
     pytest.main([__file__])
+
+
+
+
+
+

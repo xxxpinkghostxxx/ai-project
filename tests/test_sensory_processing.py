@@ -19,13 +19,13 @@ import os
 # Add project root to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from sensory.audio_to_neural_bridge import AudioToNeuralBridge, create_audio_to_neural_bridge
-from sensory.visual_energy_bridge import VisualEnergyBridge, create_visual_energy_bridge
-from sensory.sensory_workspace_mapper import SensoryWorkspaceMapper, create_sensory_workspace_mapper
-from core.services.sensory_processing_service import SensoryProcessingService
-from core.interfaces.sensory_processor import SensoryInput
-from energy.node_access_layer import NodeAccessLayer
-from utils.event_bus import get_event_bus
+from src.sensory.audio_to_neural_bridge import AudioToNeuralBridge, create_audio_to_neural_bridge
+from src.sensory.visual_energy_bridge import VisualEnergyBridge, create_visual_energy_bridge
+from src.sensory.sensory_workspace_mapper import SensoryWorkspaceMapper, create_sensory_workspace_mapper
+from src.core.services.sensory_processing_service import SensoryProcessingService
+from src.core.interfaces.sensory_processor import SensoryInput
+from src.energy.node_access_layer import NodeAccessLayer
+from src.utils.event_bus import get_event_bus
 
 
 class TestAudioToNeuralBridge(unittest.TestCase):
@@ -806,3 +806,9 @@ class TestSensoryRealWorldUsage(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+
+
+
+

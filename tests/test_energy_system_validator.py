@@ -11,7 +11,7 @@ from unittest.mock import Mock, patch, MagicMock
 from torch_geometric.data import Data
 import torch
 
-from energy.energy_system_validator import EnergySystemValidator, run_energy_validation
+from src.energy.energy_system_validator import EnergySystemValidator, run_energy_validation
 
 
 class TestEnergySystemValidatorInitialization(unittest.TestCase):
@@ -711,3 +711,9 @@ class TestEnergySystemValidatorRealWorldUsage(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+
+
+
+

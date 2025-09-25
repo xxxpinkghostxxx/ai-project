@@ -12,10 +12,10 @@ from unittest.mock import Mock, patch
 from torch_geometric.data import Data
 import torch
 
-from core.services.energy_management_service import EnergyManagementService
-from core.interfaces.energy_manager import IEnergyManager, EnergyState, EnergyFlow
-from core.interfaces.configuration_service import IConfigurationService
-from core.interfaces.event_coordinator import IEventCoordinator
+from src.core.services.energy_management_service import EnergyManagementService
+from src.core.interfaces.energy_manager import IEnergyManager, EnergyState, EnergyFlow
+from src.core.interfaces.configuration_service import IConfigurationService
+from src.core.interfaces.event_coordinator import IEventCoordinator
 
 
 class TestEnergyManagementService(unittest.TestCase):
@@ -566,3 +566,9 @@ class TestEnergyManagementServicePerformance(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+
+
+
+

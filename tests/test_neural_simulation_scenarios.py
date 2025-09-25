@@ -13,13 +13,13 @@ from torch_geometric.data import Data
 import torch
 import logging
 
-from neural.behavior_engine import BehaviorEngine
-from neural.connection_logic import intelligent_connection_formation, create_weighted_connection
-from neural.enhanced_neural_dynamics import EnhancedNeuralDynamics
-from neural.network_metrics import NetworkMetrics
-from neural.spike_queue_system import SpikeQueueSystem, SpikeType
-from neural.workspace_engine import WorkspaceEngine
-from energy.node_id_manager import get_id_manager
+from src.neural.behavior_engine import BehaviorEngine
+from src.neural.connection_logic import intelligent_connection_formation, create_weighted_connection
+from src.neural.enhanced_neural_dynamics import EnhancedNeuralDynamics
+from src.neural.network_metrics import NetworkMetrics
+from src.neural.spike_queue_system import SpikeQueueSystem, SpikeType
+from src.neural.workspace_engine import WorkspaceEngine
+from src.energy.node_id_manager import get_id_manager
 
 
 class TestNeuralSimulationScenarios:
@@ -101,7 +101,7 @@ class TestNeuralSimulationScenarios:
             id_manager.register_node_index(node_id, i)
 
         # Create initial connection
-        from neural.connection_logic import create_weighted_connection
+        from src.neural.connection_logic import create_weighted_connection
         graph = create_weighted_connection(graph, graph.node_labels[0]['id'], graph.node_labels[1]['id'], 0.5, 'plastic')
 
         initial_weight = graph.edge_attributes[0].weight
@@ -493,3 +493,9 @@ class TestNeuralSimulationScenarios:
 
 if __name__ == "__main__":
     pytest.main([__file__])
+
+
+
+
+
+

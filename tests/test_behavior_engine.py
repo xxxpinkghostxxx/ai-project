@@ -14,7 +14,7 @@ from unittest.mock import MagicMock, patch
 from torch_geometric.data import Data
 import torch
 
-from neural.behavior_engine import BehaviorEngine, get_energy_cap_255, get_enhanced_nodes_config_cached
+from src.neural.behavior_engine import BehaviorEngine, get_energy_cap_255, get_enhanced_nodes_config_cached
 
 
 class TestBehaviorEngine:
@@ -269,7 +269,7 @@ class TestBehaviorEngine:
     def test_energy_thresholds(self):
         """Test energy threshold handling."""
         # Test helper functions
-        from neural.behavior_engine import should_transition_to_learning, energy_above_threshold
+        from src.neural.behavior_engine import should_transition_to_learning, energy_above_threshold
 
         node_learning = {
             'last_activation': time.time() - 4.0,  # Recent
@@ -286,7 +286,7 @@ class TestBehaviorEngine:
 
     def test_connection_activity_check(self):
         """Test has_active_connections function."""
-        from neural.behavior_engine import has_active_connections
+        from src.neural.behavior_engine import has_active_connections
 
         # Mock graph with connections
         mock_graph = MagicMock()
@@ -335,3 +335,9 @@ class TestBehaviorEngine:
 
 if __name__ == "__main__":
     pytest.main([__file__])
+
+
+
+
+
+

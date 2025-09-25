@@ -144,10 +144,10 @@ def test_simulation_manager_creation() -> Tuple[bool, Dict[str, Any]]:
 
     try:
         # Force reset ID manager before test
-        from energy.node_id_manager import force_reset_id_manager
+        from src.energy.node_id_manager import force_reset_id_manager
         force_reset_id_manager()
 
-        from core.services.simulation_coordinator import SimulationCoordinator
+        from src.core.services.simulation_coordinator import SimulationCoordinator
         from unittest.mock import MagicMock
 
         # Create mocks for all required services
@@ -203,10 +203,10 @@ def test_single_simulation_step() -> Tuple[bool, Dict[str, Any]]:
 
     try:
         # Force reset ID manager before test
-        from energy.node_id_manager import force_reset_id_manager
+        from src.energy.node_id_manager import force_reset_id_manager
         force_reset_id_manager()
 
-        from core.services.simulation_coordinator import SimulationCoordinator
+        from src.core.services.simulation_coordinator import SimulationCoordinator
         from unittest.mock import MagicMock
 
         # Create mocks for all required services
@@ -262,10 +262,10 @@ def test_simulation_progression() -> Tuple[bool, Dict[str, Any]]:
 
     try:
         # Force reset ID manager before test
-        from energy.node_id_manager import force_reset_id_manager
+        from src.energy.node_id_manager import force_reset_id_manager
         force_reset_id_manager()
 
-        from core.services.simulation_coordinator import SimulationCoordinator
+        from src.core.services.simulation_coordinator import SimulationCoordinator
         from unittest.mock import MagicMock
         import torch
 
@@ -352,10 +352,10 @@ def test_simulation_progression() -> Tuple[bool, Dict[str, Any]]:
 def test_energy_behavior() -> Tuple[bool, Dict[str, Any]]:
 
     try:
-        from energy.node_id_manager import force_reset_id_manager
+        from src.energy.node_id_manager import force_reset_id_manager
         force_reset_id_manager()
 
-        from core.services.simulation_coordinator import SimulationCoordinator
+        from src.core.services.simulation_coordinator import SimulationCoordinator
         from unittest.mock import MagicMock
         import torch
 
@@ -438,10 +438,10 @@ def test_energy_behavior() -> Tuple[bool, Dict[str, Any]]:
 def test_connection_logic() -> Tuple[bool, Dict[str, Any]]:
 
     try:
-        from energy.node_id_manager import force_reset_id_manager
+        from src.energy.node_id_manager import force_reset_id_manager
         force_reset_id_manager()
 
-        from core.services.simulation_coordinator import SimulationCoordinator
+        from src.core.services.simulation_coordinator import SimulationCoordinator
         from unittest.mock import MagicMock
         import torch
 
@@ -511,7 +511,7 @@ def test_ui_components() -> Tuple[bool, Dict[str, Any]]:
 
     try:
         # Force reset ID manager before test
-        from energy.node_id_manager import force_reset_id_manager
+        from src.energy.node_id_manager import force_reset_id_manager
         force_reset_id_manager()
 
         import dearpygui.dearpygui as dpg
@@ -525,7 +525,7 @@ def test_ui_components() -> Tuple[bool, Dict[str, Any]]:
         dpg.setup_dearpygui()
         dpg.show_viewport()
 
-        from core.services.simulation_coordinator import SimulationCoordinator
+        from src.core.services.simulation_coordinator import SimulationCoordinator
 
         # Create mocks for all required services
         service_registry = MagicMock()
@@ -558,7 +558,7 @@ def test_ui_components() -> Tuple[bool, Dict[str, Any]]:
 def test_performance_monitoring() -> Tuple[bool, Dict[str, Any]]:
 
     try:
-        from utils.unified_performance_system import get_system_performance_metrics, record_simulation_step, record_simulation_error, record_simulation_warning
+        from src.utils.unified_performance_system import get_system_performance_metrics, record_simulation_step, record_simulation_error, record_simulation_warning
         metrics = get_system_performance_metrics()
         details = {'metrics_collected': True, 'metrics': metrics}
         record_simulation_step(0.1, 100, 200)
@@ -574,10 +574,10 @@ def test_error_handling() -> Tuple[bool, Dict[str, Any]]:
 
     try:
         # Force reset ID manager before test
-        from energy.node_id_manager import force_reset_id_manager
+        from src.energy.node_id_manager import force_reset_id_manager
         force_reset_id_manager()
 
-        from core.services.simulation_coordinator import SimulationCoordinator
+        from src.core.services.simulation_coordinator import SimulationCoordinator
         from unittest.mock import MagicMock
 
         # Create mocks for all required services
@@ -657,3 +657,10 @@ def run_unified_tests() -> Dict[str, Any]:
     return summary
 if __name__ == "__main__":
     results = run_unified_tests()
+
+
+
+
+
+
+

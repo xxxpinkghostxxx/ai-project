@@ -1,8 +1,8 @@
-# Neural Simulation Optimization - Quick Start Guide
+# Neural Simulation SOA Quick Start Guide
 
 ## 🚀 Getting Started in 5 Minutes
 
-This guide will help you quickly set up and use the optimized neural simulation system.
+This guide will help you quickly set up and use the optimized neural simulation system with Service-Oriented Architecture (SOA).
 
 ## Prerequisites
 
@@ -15,51 +15,81 @@ This guide will help you quickly set up and use the optimized neural simulation 
 ## 1. Apply Optimizations
 
 ```python
-# The system now includes built-in optimizations
-from core.simulation_manager import SimulationManager
+# The system now includes built-in optimizations through SOA services
+from core.services.service_registry import ServiceRegistry
+from core.services.performance_monitoring_service import PerformanceMonitoringService
 
-# Create simulation manager (optimizations are built-in)
-sim_manager = SimulationManager()
+# Create service registry
+registry = ServiceRegistry()
 
-print("Simulation manager created with built-in optimizations!")
+# Register performance monitoring service with optimizations
+registry.register_instance(IPerformanceMonitor, PerformanceMonitoringService())
+
+print("SOA services initialized with built-in optimizations!")
 ```
 
-## 2. Run Optimized Simulation
+## 2. Run Optimized Simulation with SOA
 
 ```python
-from core.simulation_manager import SimulationManager
+from core.services.service_registry import ServiceRegistry
+from core.services.simulation_coordinator import SimulationCoordinator
+from core.services.graph_management_service import GraphManagementService
+from core.interfaces import ISimulationCoordinator, IGraphManager
+from main_graph import create_test_graph
 
-# Create optimized simulation manager
-sim_manager = SimulationManager()
+# Create service registry and register services
+registry = ServiceRegistry()
+registry.register_instance(ISimulationCoordinator, SimulationCoordinator(registry))
+registry.register_instance(IGraphManager, GraphManagementService())
 
-# Initialize graph (automatically uses optimizations)
-success = sim_manager.initialize_graph()
+# Get coordinator and initialize
+coordinator = registry.resolve(ISimulationCoordinator)
+graph_manager = registry.resolve(IGraphManager)
+
+# Create and set test graph
+graph = create_test_graph(num_sensory=100, num_dynamic=50)
+graph_manager.set_graph(graph)
+
+# Initialize and run simulation
+success = coordinator.initialize_simulation()
 if success:
-    print("Graph initialized with optimizations")
-
-# Start simulation
-sim_manager.start_simulation(run_in_thread=True)
-print("Simulation running with performance optimizations")
+    coordinator.start_simulation()
+    print("SOA-based simulation running with performance optimizations")
 ```
 
-## 3. Test Performance
+## 3. Test Performance with SOA Services
 
 ```python
-from utils.performance_benchmark import run_comprehensive_benchmark
+from core.services.service_registry import ServiceRegistry
+from core.services.performance_monitoring_service import PerformanceMonitoringService
+from core.interfaces import IPerformanceMonitor
 
-# Run performance tests
-benchmark = run_comprehensive_benchmark()
-print("Performance test completed")
-print(benchmark.generate_report())
+# Create registry and register performance service
+registry = ServiceRegistry()
+registry.register_instance(IPerformanceMonitor, PerformanceMonitoringService())
+
+# Get performance monitor
+monitor = registry.resolve(IPerformanceMonitor)
+metrics = monitor.get_current_metrics()
+
+print("SOA Performance test completed")
+print(f"FPS: {metrics.fps:.2f}")
+print(f"Memory Usage: {metrics.memory_usage_mb:.1f} MB")
 ```
 
-## 4. Monitor Performance
+## 4. Monitor Performance with SOA
 
 ```python
-from utils.performance_monitor import get_performance_monitor
+from core.services.service_registry import ServiceRegistry
+from core.services.performance_monitoring_service import PerformanceMonitoringService
+from core.interfaces import IPerformanceMonitor
+
+# Create registry and register performance service
+registry = ServiceRegistry()
+registry.register_instance(IPerformanceMonitor, PerformanceMonitoringService())
 
 # Get performance metrics
-monitor = get_performance_monitor()
+monitor = registry.resolve(IPerformanceMonitor)
 metrics = monitor.get_current_metrics()
 
 print(f"FPS: {metrics.fps:.2f}")
@@ -67,235 +97,344 @@ print(f"Memory Usage: {metrics.memory_usage_mb:.1f} MB")
 print(f"CPU Usage: {metrics.cpu_percent:.1f}%")
 ```
 
-## 5. Advanced Configuration
+## 5. Advanced SOA Configuration
 
 ```python
-# Custom optimization configuration
-config = OptimizationConfig(
-    use_lazy_loading=True,        # Faster startup
-    use_caching=True,            # Better performance
-    use_batch_processing=True,   # Handle large datasets
-    batch_size=2000,             # Larger batches for high node counts
-    cache_size=10000,            # More cache for bigger simulations
-    max_nodes=500000,            # Support very large networks
-    enable_performance_monitoring=True
-)
+# Custom optimization configuration through SOA services
+from core.services.service_registry import ServiceRegistry
+from core.services.configuration_service import ConfigurationService
+from core.services.performance_monitoring_service import PerformanceMonitoringService
+from core.interfaces import IConfigurationService, IPerformanceMonitor
 
-applier = apply_optimizations(config)
+registry = ServiceRegistry()
+registry.register_instance(IConfigurationService, ConfigurationService())
+registry.register_instance(IPerformanceMonitor, PerformanceMonitoringService())
+
+config_service = registry.resolve(IConfigurationService)
+
+# Configure advanced settings
+config_service.set_config('performance.lazy_loading', True)
+config_service.set_config('performance.caching', True)
+config_service.set_config('performance.batch_processing', True)
+config_service.set_config('system.max_nodes', 100000)
+config_service.set_config('performance.monitoring_enabled', True)
 ```
 
-## 🎯 Key Features
+## 🎯 Key SOA Features
 
 ### Energy Movement & Dynamics
 ```python
-# Energy automatically flows through the network
-graph = sim_manager.graph
-# Energy values are in graph.x[:, 0]
-# Membrane potentials are tracked automatically
+# Energy automatically flows through the network via EnergyManagementService
+from core.services.service_registry import ServiceRegistry
+from core.services.energy_management_service import EnergyManagementService
+from core.interfaces import IEnergyManager
+
+registry = ServiceRegistry()
+registry.register_instance(IEnergyManager, EnergyManagementService())
+
+energy_service = registry.resolve(IEnergyManager)
+# Energy values are managed automatically through the service
 ```
 
 ### Connection Logic & Formation
 ```python
-# Intelligent connections form automatically
+# Intelligent connections form automatically via GraphManagementService
+from core.services.service_registry import ServiceRegistry
+from core.services.graph_management_service import GraphManagementService
+from core.interfaces import IGraphManager
 from neural.connection_logic import intelligent_connection_formation
+
+registry = ServiceRegistry()
+registry.register_instance(IGraphManager, GraphManagementService())
+
+graph_manager = registry.resolve(IGraphManager)
+graph = graph_manager.get_graph()
 graph = intelligent_connection_formation(graph)
 ```
 
-### Hebbian Learning
+### Hebbian Learning with SOA
 ```python
-# Learning happens continuously during simulation
-# "Neurons that fire together wire together"
-# Weights adjust based on neural activity patterns
+# Learning happens continuously during simulation via LearningService
+from core.services.service_registry import ServiceRegistry
+from core.services.learning_service import LearningService
+from core.interfaces import ILearningEngine
+
+registry = ServiceRegistry()
+registry.register_instance(ILearningEngine, LearningService(registry))
+
+learning_service = registry.resolve(ILearningEngine)
+# "Neurons that fire together wire together" - handled by the service
+# Weights adjust based on neural activity patterns automatically
 ```
 
-### Spike Systems
+### Spike Systems with SOA
 ```python
-# Neural spikes propagate through the network
-from neural.spike_queue_system import create_spike_queue_system
-spike_system = create_spike_queue_system(sim_manager)
+# Neural spikes propagate through the network via NeuralProcessingService
+from core.services.service_registry import ServiceRegistry
+from core.services.neural_processing_service import NeuralProcessingService
+from core.interfaces import INeuralProcessor
+
+registry = ServiceRegistry()
+registry.register_instance(INeuralProcessor, NeuralProcessingService())
+
+neural_processor = registry.resolve(INeuralProcessor)
+# Spike processing handled automatically by the service
 ```
 
-### Extreme Node Counts
+### Extreme Node Counts with SOA
 ```python
-# Handles thousands to millions of nodes efficiently
-from neural.optimized_node_manager import get_optimized_node_manager
-node_manager = get_optimized_node_manager()
+# Handles thousands to millions of nodes efficiently via SOA services
+from core.services.service_registry import ServiceRegistry
+from core.services.configuration_service import ConfigurationService
+from core.interfaces import IConfigurationService
 
-# Create 10,000 nodes efficiently
-nodes = node_manager.create_node_batch([
-    {'type': 'dynamic', 'energy': 1.0, 'x': i%100, 'y': i//100}
-    for i in range(10000)
-])
+registry = ServiceRegistry()
+registry.register_instance(IConfigurationService, ConfigurationService())
+
+config_service = registry.resolve(IConfigurationService)
+config_service.set_config('system.max_nodes', 1000000)  # Support very large networks
 ```
 
-### Sensory Input Processing
+### Sensory Input Processing with SOA
 ```python
-# Process live PC data as neural input
-from sensory.visual_energy_bridge import create_visual_energy_bridge
-visual_bridge = create_visual_energy_bridge(None)
+# Process live PC data as neural input via SensoryProcessingService
+from core.services.service_registry import ServiceRegistry
+from core.services.sensory_processing_service import SensoryProcessingService
+from core.interfaces import ISensoryProcessor
 
-# Process screen capture or other sensory data
+registry = ServiceRegistry()
+registry.register_instance(ISensoryProcessor, SensoryProcessingService())
+
+sensory_processor = registry.resolve(ISensoryProcessor)
 # Automatically converts visual data to neural activation patterns
 ```
 
-## 📊 Performance Monitoring
+## 📊 SOA Performance Monitoring
 
-### Real-time Metrics
+### Real-time Metrics via Services
 ```python
-# Monitor simulation performance
-stats = sim_manager.get_performance_stats()
+# Monitor simulation performance through PerformanceMonitoringService
+from core.services.service_registry import ServiceRegistry
+from core.services.performance_monitoring_service import PerformanceMonitoringService
+from core.interfaces import IPerformanceMonitor
+
+registry = ServiceRegistry()
+registry.register_instance(IPerformanceMonitor, PerformanceMonitoringService())
+
+monitor = registry.resolve(IPerformanceMonitor)
+stats = monitor.get_performance_stats()
 print(f"Steps: {stats['total_steps']}")
 print(f"Avg Step Time: {stats['avg_step_time']:.4f}s")
 print(f"System Health: {stats['system_health']}")
 ```
 
-### Cache Performance
+### Cache Performance via SOA
 ```python
-from utils.performance_cache import get_performance_cache_manager
-cache_manager = get_performance_cache_manager()
-cache_stats = cache_manager.get_performance_stats()
+# Monitor cache performance through dedicated services
+from core.services.service_registry import ServiceRegistry
+from core.services.performance_monitoring_service import PerformanceMonitoringService
+from core.interfaces import IPerformanceMonitor
+
+registry = ServiceRegistry()
+registry.register_instance(IPerformanceMonitor, PerformanceMonitoringService())
+
+monitor = registry.resolve(IPerformanceMonitor)
+cache_stats = monitor.get_cache_performance_stats()
 
 print(f"Cache Hit Rate: {cache_stats['cache_hit_rate']:.2f}")
 print(f"Cache Size: {cache_stats['lru_cache_size']}")
 ```
 
-## 🔧 Troubleshooting
+## 🔧 SOA Troubleshooting
 
 ### Common Issues
 
-**1. Slow Startup**
+**1. Service Registration Issues**
 ```python
-# Enable lazy loading
-config = OptimizationConfig(use_lazy_loading=True)
+# Ensure all required services are registered
+from core.services.service_registry import ServiceRegistry
+from core.services.simulation_coordinator import SimulationCoordinator
+from core.interfaces import ISimulationCoordinator
+
+registry = ServiceRegistry()
+registry.register_instance(ISimulationCoordinator, SimulationCoordinator(registry))
+
+# Verify service registration
+if registry.has_service(ISimulationCoordinator):
+    print("Service registered successfully")
 ```
 
 **2. High Memory Usage**
 ```python
-# Enable memory optimizations
-config = OptimizationConfig(use_caching=True)
+# Enable memory optimizations through ConfigurationService
+from core.services.service_registry import ServiceRegistry
+from core.services.configuration_service import ConfigurationService
+from core.interfaces import IConfigurationService
+
+registry = ServiceRegistry()
+registry.register_instance(IConfigurationService, ConfigurationService())
+
+config_service = registry.resolve(IConfigurationService)
+config_service.set_config('performance.caching', True)
 ```
 
 **3. Poor Performance with Large Networks**
 ```python
-# Increase batch size and cache
-config = OptimizationConfig(
-    batch_size=5000,
-    cache_size=50000,
-    use_batch_processing=True
-)
+# Increase batch size and cache through ConfigurationService
+from core.services.service_registry import ServiceRegistry
+from core.services.configuration_service import ConfigurationService
+from core.interfaces import IConfigurationService
+
+registry = ServiceRegistry()
+registry.register_instance(IConfigurationService, ConfigurationService())
+
+config_service = registry.resolve(IConfigurationService)
+config_service.set_config('performance.batch_size', 5000)
+config_service.set_config('performance.cache_size', 50000)
+config_service.set_config('performance.batch_processing', True)
 ```
 
 **4. Cache Misses**
 ```python
-# Adjust cache TTL and size
-config = OptimizationConfig(
-    cache_size=20000,
-    cache_ttl=1200  # 20 minutes
-)
+# Adjust cache settings through ConfigurationService
+from core.services.service_registry import ServiceRegistry
+from core.services.configuration_service import ConfigurationService
+from core.interfaces import IConfigurationService
+
+registry = ServiceRegistry()
+registry.register_instance(IConfigurationService, ConfigurationService())
+
+config_service = registry.resolve(IConfigurationService)
+config_service.set_config('performance.cache_size', 20000)
+config_service.set_config('performance.cache_ttl', 1200)  # 20 minutes
 ```
 
-## 📈 Scaling Up
+## 📈 Scaling Up with SOA
 
 ### For Large Networks (100k+ nodes)
 ```python
-config = OptimizationConfig(
-    max_nodes=1000000,      # 1M nodes
-    batch_size=10000,       # Large batches
-    cache_size=100000,      # Big cache
-    spatial_index_grid_size=200  # Larger spatial grid
-)
+from core.services.service_registry import ServiceRegistry
+from core.services.configuration_service import ConfigurationService
+from core.interfaces import IConfigurationService
+
+registry = ServiceRegistry()
+registry.register_instance(IConfigurationService, ConfigurationService())
+
+config_service = registry.resolve(IConfigurationService)
+config_service.set_config('system.max_nodes', 1000000)      # 1M nodes
+config_service.set_config('performance.batch_size', 10000)  # Large batches
+config_service.set_config('performance.cache_size', 100000) # Big cache
 ```
 
-### For High-Performance Computing
+### For High-Performance Computing with SOA
 ```python
-# Enable all optimizations
-config = OptimizationConfig(
-    use_lazy_loading=True,
-    use_caching=True,
-    use_batch_processing=True,
-    enable_performance_monitoring=True,
-    batch_size=10000,
-    cache_size=50000,
-    max_nodes=1000000
-)
+# Enable all optimizations through SOA services
+from core.services.service_registry import ServiceRegistry
+from core.services.configuration_service import ConfigurationService
+from core.interfaces import IConfigurationService
+
+registry = ServiceRegistry()
+registry.register_instance(IConfigurationService, ConfigurationService())
+
+config_service = registry.resolve(IConfigurationService)
+config_service.set_config('performance.lazy_loading', True)
+config_service.set_config('performance.caching', True)
+config_service.set_config('performance.batch_processing', True)
+config_service.set_config('performance.monitoring_enabled', True)
+config_service.set_config('performance.batch_size', 10000)
+config_service.set_config('performance.cache_size', 50000)
+config_service.set_config('system.max_nodes', 1000000)
 ```
 
-## 🎯 Best Practices
+## 🎯 SOA Best Practices
 
-1. **Always apply optimizations** before starting simulation
-2. **Monitor performance metrics** during long runs
-3. **Adjust batch sizes** based on your hardware
-4. **Use lazy loading** for better startup performance
-5. **Enable caching** for repeated operations
-6. **Monitor memory usage** to prevent leaks
+1. **Always register services with the ServiceRegistry** before use
+2. **Use interfaces for service dependencies** to maintain loose coupling
+3. **Monitor performance metrics** during long runs via PerformanceMonitoringService
+4. **Configure settings through ConfigurationService** for consistency
+5. **Handle service resolution errors** gracefully
+6. **Monitor memory usage** through PerformanceMonitoringService to prevent leaks
 
-## 📋 Example Full Setup
+## 📋 Complete SOA Setup Example
 
 ```python
 #!/usr/bin/env python3
 """
-Complete optimized neural simulation setup
+Complete optimized SOA neural simulation setup
 """
 
-from utils.optimization_applier import apply_optimizations, OptimizationConfig
-from simulation_manager import SimulationManager
-from utils.performance_monitor import get_performance_monitor
+from core.services.service_registry import ServiceRegistry
+from core.services.simulation_coordinator import SimulationCoordinator
+from core.services.configuration_service import ConfigurationService
+from core.services.performance_monitoring_service import PerformanceMonitoringService
+from core.interfaces import *
+from main_graph import create_test_graph
 import time
 
 def main():
-    print("Setting up optimized neural simulation...")
+    print("Setting up optimized SOA neural simulation...")
 
-    # 1. Apply optimizations
-    config = OptimizationConfig(
-        use_lazy_loading=True,
-        use_caching=True,
-        use_batch_processing=True,
-        batch_size=2000,
-        cache_size=10000,
-        max_nodes=100000,
-        enable_performance_monitoring=True
-    )
+    # 1. Create service registry (dependency injection container)
+    registry = ServiceRegistry()
 
-    applier = apply_optimizations(config)
-    print("✓ Optimizations applied")
+    # 2. Register all SOA services
+    registry.register_instance(IConfigurationService, ConfigurationService())
+    registry.register_instance(IPerformanceMonitor, PerformanceMonitoringService())
+    registry.register_instance(ISimulationCoordinator, SimulationCoordinator(registry))
 
-    # 2. Create simulation
-    sim_manager = SimulationManager()
-    print("✓ Simulation manager created")
+    # 3. Configure performance optimizations
+    config_service = registry.resolve(IConfigurationService)
+    config_service.set_config('performance.lazy_loading', True)
+    config_service.set_config('performance.caching', True)
+    config_service.set_config('performance.batch_processing', True)
+    config_service.set_config('performance.batch_size', 2000)
+    config_service.set_config('performance.cache_size', 10000)
+    config_service.set_config('system.max_nodes', 100000)
+    config_service.set_config('performance.monitoring_enabled', True)
 
-    # 3. Initialize graph
-    if sim_manager.initialize_graph():
-        print("✓ Graph initialized")
+    print("✓ SOA services registered and configured")
+
+    # 4. Get coordinator and initialize
+    coordinator = registry.resolve(ISimulationCoordinator)
+
+    # 5. Create and set neural graph
+    graph = create_test_graph(num_sensory=100, num_dynamic=50)
+    graph_manager = registry.resolve(IGraphManager)  # Assuming registered elsewhere
+    graph_manager.set_graph(graph)
+
+    # 6. Initialize simulation
+    if coordinator.initialize_simulation():
+        print("✓ SOA simulation initialized")
     else:
-        print("✗ Graph initialization failed")
+        print("✗ SOA simulation initialization failed")
         return
 
-    # 4. Start simulation
-    sim_manager.start_simulation(run_in_thread=True)
-    print("✓ Simulation started")
+    # 7. Start simulation
+    coordinator.start_simulation()
+    print("✓ SOA simulation started")
 
-    # 5. Monitor performance
-    monitor = get_performance_monitor()
+    # 8. Monitor performance
+    monitor = registry.resolve(IPerformanceMonitor)
     for i in range(10):
         time.sleep(1)
         metrics = monitor.get_current_metrics()
-        print(".2f"
-              ".1f"
-              ".1f")
+        print(f"Step {i+1}: FPS: {metrics.fps:.2f}, Memory: {metrics.memory_usage_mb:.1f} MB, CPU: {metrics.cpu_percent:.1f}%")
 
-    print("Simulation running successfully with optimizations!")
+    print("SOA simulation running successfully with optimizations!")
+
+    coordinator.stop_simulation()
 
 if __name__ == "__main__":
     main()
 ```
 
-## 🎉 You're Ready!
+## 🎉 You're Ready with SOA!
 
 Your neural simulation system is now optimized and ready to handle:
-- ⚡ Fast startup times
-- 🧠 Large neural networks (10k+ nodes)
-- 🚀 High-performance processing
-- 📊 Real-time monitoring
-- 🔄 Automatic optimization
+- ⚡ Fast startup times through service initialization
+- 🧠 Large neural networks (10k+ nodes) via SOA architecture
+- 🚀 High-performance processing through specialized services
+- 📊 Real-time monitoring via PerformanceMonitoringService
+- 🔄 Automatic optimization through ConfigurationService
 
-**Happy simulating!** 🧠✨
+**Happy simulating with SOA! 🧠✨**

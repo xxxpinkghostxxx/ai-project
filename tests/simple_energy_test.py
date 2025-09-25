@@ -56,7 +56,7 @@ def test_learning_engine_methods():
     print("=" * 40)
 
     try:
-        from learning.learning_engine import LearningEngine
+        from src.learning.learning_engine import LearningEngine
 
         # Create mock access layer
         mock_access_layer = MagicMock()
@@ -103,7 +103,7 @@ def test_hebbian_system_creation():
     print("=" * 40)
 
     try:
-        from learning.live_hebbian_learning import create_live_hebbian_learning
+        from src.learning.live_hebbian_learning import create_live_hebbian_learning
 
         # Create Hebbian system
         hebbian = create_live_hebbian_learning()
@@ -146,3 +146,9 @@ if __name__ == "__main__":
         print("\nOVERALL: SUCCESS - All energy modulation components working!")
     else:
         print("\nOVERALL: ISSUES DETECTED - Some components may need fixes")
+
+
+
+
+
+

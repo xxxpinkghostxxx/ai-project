@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import Mock, patch
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ui.ui_state_manager import (
+from src.ui.ui_state_manager import (
     UIStateManager, get_ui_state_manager, cleanup_ui_state,
     get_simulation_running, set_simulation_running, get_latest_graph,
     get_latest_graph_for_ui, update_graph, add_live_feed_data,
@@ -419,3 +419,9 @@ class TestUIStateManager(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+
+
+

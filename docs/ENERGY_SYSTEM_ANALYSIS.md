@@ -1,7 +1,8 @@
-# Energy System Analysis: The Central Integrator
+# Energy System Analysis
 
 ## Overview
-This document analyzes how **energy serves as the central integrator** that powers and coordinates all neural simulation modules. Energy is not just a resource - it's the fundamental currency that drives neural computation, learning, sensory processing, and system dynamics.
+
+This document analyzes how energy serves as the central integrator powering and coordinating all neural simulation modules. Energy functions as the fundamental currency driving neural computation, learning, sensory processing, and system dynamics, creating a unified framework for neural simulation.
 
 ## 🔋 Energy as the Core System Integrator
 
@@ -66,8 +67,8 @@ The heart of the energy system containing:
 
 #### **Membrane Potential Calculations:**
 ```python
-membrane_potential = energy / energy_cap
-# Normalized to [0, 1] range
+membrane_potential = min(energy / energy_cap, 1.0)
+# Normalized to [0, 1] range, capped at MEMBRANE_POTENTIAL_CAP
 # Drives spiking behavior and neural activation
 ```
 
@@ -320,30 +321,21 @@ energy_efficiency = information_processed / energy_consumed
 3. **Boundary Conditions**: Proper energy limits
 4. **Temporal Consistency**: Accurate timing
 
-## 🎉 Conclusion
+## Conclusion
 
-**Energy is the fundamental integrator** that unifies all neural simulation modules:
+Energy serves as the fundamental integrator unifying all neural simulation modules. It powers neural dynamics, coordinates learning mechanisms, and enables adaptive system behavior. The energy system transforms the neural simulation from a collection of independent modules into a cohesive, biologically inspired computational framework.
 
-### **Energy Powers:**
-- ✅ **Neural Dynamics**: Membrane potentials and spiking
-- ✅ **Learning Systems**: STDP and Hebbian plasticity
-- ✅ **Connection Formation**: Energy-modulated synapses
-- ✅ **Sensory Processing**: External input conversion
-- ✅ **Node Lifecycle**: Birth, death, and behavior switching
-- ✅ **System Coordination**: Temporal and spatial organization
+### Key Achievements
 
-### **Energy Coordinates:**
-- ✅ **Temporal Dynamics**: Timing and rhythm generation
-- ✅ **Spatial Organization**: Functional region formation
-- ✅ **Hierarchical Processing**: Multi-level information flow
-- ✅ **Adaptive Behavior**: Learning and self-organization
+- **Unified Architecture**: Energy flow connects sensory input, neural processing, learning, and behavioral output
+- **Biological Plausibility**: Metabolic constraints and neural efficiency modeling
+- **Adaptive Dynamics**: Energy-dependent plasticity and self-organization
+- **Scalable Integration**: Modular design supporting system expansion
 
-### **Energy Enables:**
-- ✅ **Homeostatic Regulation**: System stability maintenance
-- ✅ **Critical Dynamics**: Self-organized criticality
-- ✅ **Neuromodulation**: Gain control and attention
-- ✅ **Memory Consolidation**: Long-term information storage
+### References
 
-**The energy system is not just a component—it's the central nervous system that orchestrates all neural computation, learning, and behavior. Every module interacts with and is shaped by energy flow, making it the true integrator of the entire neural simulation architecture.**
+- Implementation: `src/energy/`, `src/learning/`
+- Validation: `src/energy/energy_system_validator.py`
+- Configuration: `src/energy/energy_constants.py`
 
-🧠⚡🔄 **Energy: The Life Force of Neural Computation** ⚡🧠
+🧠⚡ **Energy: The Central Integrator of Neural Computation** ⚡🧠

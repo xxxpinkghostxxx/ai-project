@@ -11,18 +11,18 @@ import pytest
 import time
 from unittest.mock import Mock, MagicMock
 
-from core.services.service_registry import ServiceRegistry, ServiceNotFoundError
-from core.services.simulation_coordinator import SimulationCoordinator
-from core.interfaces.simulation_coordinator import ISimulationCoordinator
-from core.interfaces.service_registry import IServiceRegistry
-from core.interfaces.graph_manager import IGraphManager
-from core.interfaces.performance_monitor import IPerformanceMonitor
-from core.interfaces.event_coordinator import IEventCoordinator
-from core.interfaces.neural_processor import INeuralProcessor
-from core.interfaces.energy_manager import IEnergyManager
-from core.interfaces.learning_engine import ILearningEngine
-from core.interfaces.sensory_processor import ISensoryProcessor
-from core.interfaces.configuration_service import IConfigurationService
+from src.core.services.service_registry import ServiceRegistry, ServiceNotFoundError
+from src.core.services.simulation_coordinator import SimulationCoordinator
+from src.core.interfaces.simulation_coordinator import ISimulationCoordinator
+from src.core.interfaces.service_registry import IServiceRegistry
+from src.core.interfaces.graph_manager import IGraphManager
+from src.core.interfaces.performance_monitor import IPerformanceMonitor
+from src.core.interfaces.event_coordinator import IEventCoordinator
+from src.core.interfaces.neural_processor import INeuralProcessor
+from src.core.interfaces.energy_manager import IEnergyManager
+from src.core.interfaces.learning_engine import ILearningEngine
+from src.core.interfaces.sensory_processor import ISensoryProcessor
+from src.core.interfaces.configuration_service import IConfigurationService
 
 
 class TestSOAIntegration:
@@ -69,7 +69,7 @@ class TestSOAIntegration:
         assert self.registry.is_registered(IPerformanceMonitor) == True
 
         # Non-existent service
-        from core.interfaces.fault_tolerance import IFaultTolerance
+        from src.core.interfaces.fault_tolerance import IFaultTolerance
         assert self.registry.is_registered(IFaultTolerance) == False
 
     def test_simulation_coordinator_initialization(self):
@@ -418,3 +418,9 @@ class TestSOAResilience:
 
 if __name__ == "__main__":
     pytest.main([__file__])
+
+
+
+
+
+
