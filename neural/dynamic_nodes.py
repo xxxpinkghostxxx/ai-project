@@ -4,10 +4,21 @@ from energy.energy_behavior import get_node_energy_cap
 import logging
 
 
-def add_dynamic_nodes(graph, num_dynamic=None):
+def add_dynamic_nodes(graph, num_dynamic=None, id_manager=None):
+    """
+    Add dynamic nodes to the neural graph.
 
-    from energy.node_id_manager import get_id_manager
-    id_manager = get_id_manager()
+    Args:
+        graph: Neural graph to add nodes to
+        num_dynamic: Number of dynamic nodes to add (optional)
+        id_manager: Node ID manager (optional, will use global if not provided)
+
+    Returns:
+        Updated graph with dynamic nodes added
+    """
+    if id_manager is None:
+        from energy.node_id_manager import get_id_manager
+        id_manager = get_id_manager()
     num_sensory = len(
         [lbl for lbl in graph.node_labels if lbl.get("type", "sensory") == "sensory"]
     )

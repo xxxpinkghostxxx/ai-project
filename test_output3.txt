@@ -1,0 +1,15 @@
+2025-09-23 23:37:36,025 - INFO - [STEP] UnifiedConfigManager initialized
+2025-09-23 23:37:36,068 - INFO - [STEP] UIStateManager initialized
+2025-09-23 23:37:36,135 - INFO - [STEP] UnifiedTestFramework initialized
+2025-09-23 23:37:36,216 - INFO - [RUNTIME] Entering capture_screen
+2025-09-23 23:37:36,217 - INFO - [STEP] capture_screen: start | scale=0.25
+2025-09-23 23:37:36,231 - INFO - [STEP] capture_screen: used mss | shape=(720, 1280, 3)
+2025-09-23 23:37:36,236 - INFO - [STEP] capture_screen: resized with cv2 | new_shape=(180, 320, 3)
+2025-09-23 23:37:36,237 - INFO - [STEP] capture_screen: timing | capture_ms=15.056299977004528, resize_ms=4.681099904701114, gray_ms=1.0587000288069248, final_shape=(180, 320)
+2025-09-23 23:37:36,239 - INFO - [RUNTIME] Exiting capture_screen (runtime: 22.61 ms)
+2025-09-23 23:37:36,239 - INFO - [RUNTIME] Entering create_pixel_gray_graph
+2025-09-23 23:37:36,239 - INFO - [STEP] create_pixel_gray_graph: start | arr_shape=(180, 320)
+2025-09-23 23:37:36,239 - INFO - [STEP] Reduced graph size for performance | original=(180, 320), sampled=(36, 32), nodes=1152
+2025-09-23 23:37:36,241 - INFO - [STEP] create_pixel_gray_graph: end | num_nodes=1152, h=36, w=32
+2025-09-23 23:37:36,241 - INFO - [RUNTIME] Exiting create_pixel_gray_graph (runtime: 1.77 ms)
+2025-09-23 23:37:36,241 - INFO - [STEP] NodeIDManager initialized with memory limits and thread safety

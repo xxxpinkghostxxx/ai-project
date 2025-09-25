@@ -107,13 +107,34 @@ class HomeostasisController:
     Supports adaptive regulation, memory integration, and validation via config flags.
     """
     def __init__(self):
-        self.enable_adaptive_regulation = get_config('Homeostasis', 'enable_adaptive_regulation', True, bool)
-        self.enable_memory_integration = get_config('Homeostasis', 'enable_memory_integration', True, bool)
-        self.enable_validation = get_config('Homeostasis', 'enable_validation', True, bool)
-        self.target_energy_ratio = get_config('Homeostasis', 'target_energy_ratio', 0.6, float)
-        self.criticality_threshold = get_config('Homeostasis', 'criticality_threshold', 0.1, float)
-        self.regulation_rate = get_config('Homeostasis', 'regulation_rate', 0.001, float)
-        self.regulation_interval = get_config('Homeostasis', 'regulation_interval', 100, int)
+        try:
+            self.enable_adaptive_regulation = get_config('Homeostasis', 'enable_adaptive_regulation', True, bool)
+        except Exception:
+            self.enable_adaptive_regulation = True
+        try:
+            self.enable_memory_integration = get_config('Homeostasis', 'enable_memory_integration', True, bool)
+        except Exception:
+            self.enable_memory_integration = True
+        try:
+            self.enable_validation = get_config('Homeostasis', 'enable_validation', True, bool)
+        except Exception:
+            self.enable_validation = True
+        try:
+            self.target_energy_ratio = get_config('Homeostasis', 'target_energy_ratio', 0.6, float)
+        except Exception:
+            self.target_energy_ratio = 0.6
+        try:
+            self.criticality_threshold = get_config('Homeostasis', 'criticality_threshold', 0.1, float)
+        except Exception:
+            self.criticality_threshold = 0.1
+        try:
+            self.regulation_rate = get_config('Homeostasis', 'regulation_rate', 0.001, float)
+        except Exception:
+            self.regulation_rate = 0.001
+        try:
+            self.regulation_interval = get_config('Homeostasis', 'regulation_interval', 100, int)
+        except Exception:
+            self.regulation_interval = 100
         self.branching_target = 1.0
         self.energy_variance_threshold = 0.2
         self.stats_manager = StatsManager()
@@ -121,7 +142,7 @@ class HomeostasisController:
     def regulate_network_activity(self, graph):
         """Regulates network energy balance based on current metrics."""
 
-        if not hasattr(graph, 'node_labels') or not hasattr(graph, 'x'):
+        if not hasattr(graph, 'node_labels') or graph.node_labels is None or not hasattr(graph, 'x') or graph.x is None:
             return graph
         if hasattr(graph, 'network_metrics') and graph.network_metrics:
             try:
@@ -139,7 +160,7 @@ class HomeostasisController:
                         avg_energy=avg_energy,
                         energy_variance=energy_variance,
                         connectivity_density=connectivity_density)
-            except (ValueError, KeyError, AttributeError) as e:
+            except Exception as e:
                 log_step("Metrics calculation failed, using fallback", error=str(e))
                 if hasattr(graph, 'x'):
                     total_energy = float(torch.sum(graph.x[:, 0]).item())
@@ -172,14 +193,16 @@ class HomeostasisController:
                 adaptive_rate *= 1.2
             elif trends.get('energy_trend') == 'decreasing':
                 adaptive_rate *= 0.8
+        print(f"DEBUG: Regulation check: energy_ratio={energy_ratio}, target={self.target_energy_ratio}, threshold={self.criticality_threshold}, adaptive_rate={adaptive_rate}, trends={trends}")
+        log_step("Regulation check", energy_ratio=energy_ratio, target=self.target_energy_ratio, threshold=self.criticality_threshold, adaptive_rate=adaptive_rate, trends=trends)
         regulation_type = None
-        if energy_ratio > self.target_energy_ratio + self.criticality_threshold:
+        if energy_ratio > self.target_energy_ratio:
             regulation_type = 'reduce_energy'
             log_step("Energy regulation needed",
                     action="reduce_energy",
                     current_ratio=energy_ratio,
                     target_ratio=self.target_energy_ratio)
-        elif energy_ratio < self.target_energy_ratio - self.criticality_threshold:
+        elif energy_ratio < self.target_energy_ratio:
             regulation_type = 'increase_energy'
             log_step("Energy regulation needed",
                     action="increase_energy",
@@ -201,47 +224,61 @@ class HomeostasisController:
                     self.regulation_rate *= 0.9  # Adjust rate if not effective
         return graph
     def _apply_energy_regulation(self, graph, regulation_type, current_ratio, adaptive_rate):
-        """Applies energy regulation by adjusting birth and death thresholds."""
+        """Applies energy regulation by adjusting birth and death thresholds and scaling node energies."""
 
-
+        max_energy = get_node_energy_cap()
         if regulation_type == 'reduce_energy':
             current_death_threshold = get_node_death_threshold()
             current_birth_threshold = get_node_birth_threshold()
             new_death_threshold = current_death_threshold + (adaptive_rate * 50.0)
             new_death_threshold = min(new_death_threshold, 50.0)
             new_birth_threshold = current_birth_threshold - (adaptive_rate * 50.0)
-            new_birth_threshold = max(new_birth_threshold, 50.0)
+            new_birth_threshold = max(new_birth_threshold, 0.0)
             # Modulate learning rate: high energy, slightly increase plasticity for adaptation
             current_plasticity_rate = get_config('Learning', 'plasticity_rate', 0.01, float)
             new_plasticity_rate = min(current_plasticity_rate + (adaptive_rate * 0.01), 0.1)
             config.set_value('Learning', 'plasticity_rate', new_plasticity_rate)
+            # Scale down node energies
+            scale_factor = 0.98
+            if hasattr(graph, 'x'):
+                graph.x[:, 0] = torch.clamp(graph.x[:, 0] * scale_factor, 0, max_energy)
+                for node in graph.node_labels:
+                    node['energy'] = min(node.get('energy', 0.0) * scale_factor, max_energy)
             log_step("Energy reduction regulation applied",
-                    old_death_threshold=current_death_threshold,
-                    new_death_threshold=new_death_threshold,
-                    old_birth_threshold=current_birth_threshold,
-                    new_birth_threshold=new_birth_threshold,
-                    old_plasticity_rate=current_plasticity_rate,
-                    new_plasticity_rate=new_plasticity_rate)
+                     old_death_threshold=current_death_threshold,
+                     new_death_threshold=new_death_threshold,
+                     old_birth_threshold=current_birth_threshold,
+                     new_birth_threshold=new_birth_threshold,
+                     old_plasticity_rate=current_plasticity_rate,
+                     new_plasticity_rate=new_plasticity_rate,
+                     scale_factor=scale_factor)
             config.set_value('NodeLifecycle', 'death_threshold', new_death_threshold)
             config.set_value('NodeLifecycle', 'birth_threshold', new_birth_threshold)
         elif regulation_type == 'increase_energy':
             current_death_threshold = get_node_death_threshold()
             current_birth_threshold = get_node_birth_threshold()
-            new_death_threshold = current_death_threshold - (adaptive_rate * 10.0)
+            new_death_threshold = current_death_threshold - (adaptive_rate * 1.0)
             new_death_threshold = max(new_death_threshold, 0.0)
-            new_birth_threshold = current_birth_threshold + (adaptive_rate * 50.0)
+            new_birth_threshold = current_birth_threshold + (adaptive_rate * 5.0)
             new_birth_threshold = min(new_birth_threshold, 300.0)
             # Modulate learning rate: low energy, decrease plasticity to conserve resources
             current_plasticity_rate = get_config('Learning', 'plasticity_rate', 0.01, float)
             new_plasticity_rate = max(current_plasticity_rate - (adaptive_rate * 0.005), 0.001)
             config.set_value('Learning', 'plasticity_rate', new_plasticity_rate)
+            # Scale up node energies
+            scale_factor = 1.02
+            if hasattr(graph, 'x'):
+                graph.x[:, 0] = torch.clamp(graph.x[:, 0] * scale_factor, 0, max_energy)
+                for node in graph.node_labels:
+                    node['energy'] = min(node.get('energy', 0.0) * scale_factor, max_energy)
             log_step("Energy increase regulation applied",
-                    old_death_threshold=current_death_threshold,
-                    new_death_threshold=new_death_threshold,
-                    old_birth_threshold=current_birth_threshold,
-                    new_birth_threshold=new_birth_threshold,
-                    old_plasticity_rate=current_plasticity_rate,
-                    new_plasticity_rate=new_plasticity_rate)
+                     old_death_threshold=current_death_threshold,
+                     new_death_threshold=new_death_threshold,
+                     old_birth_threshold=current_birth_threshold,
+                     new_birth_threshold=new_birth_threshold,
+                     old_plasticity_rate=current_plasticity_rate,
+                     new_plasticity_rate=new_plasticity_rate,
+                     scale_factor=scale_factor)
             config.set_value('NodeLifecycle', 'death_threshold', new_death_threshold)
             config.set_value('NodeLifecycle', 'birth_threshold', new_birth_threshold)
         if not hasattr(graph, 'homeostasis_data'):
@@ -256,7 +293,7 @@ class HomeostasisController:
     def optimize_criticality(self, graph):
         """Optimizes network criticality by adjusting excitation levels."""
 
-        if not hasattr(graph, 'node_labels') or not hasattr(graph, 'edge_index'):
+        if not hasattr(graph, 'node_labels') or graph.node_labels is None or not hasattr(graph, 'edge_index') or graph.edge_index is None:
             return graph
         if hasattr(graph, 'network_metrics') and graph.network_metrics:
             try:
@@ -268,7 +305,7 @@ class HomeostasisController:
                         branching_ratio=branching_ratio,
                         connectivity_density=connectivity_metrics.get('density', 0.0),
                         energy_variance=energy_metrics.get('energy_variance', 0.0))
-            except (ValueError, KeyError, AttributeError) as e:
+            except Exception as e:
                 log_step("Metrics calculation failed, using fallback", error=str(e))
                 branching_ratio = self._calculate_branching_ratio(graph)
         else:
@@ -276,6 +313,8 @@ class HomeostasisController:
         self.history_manager.update_history('branching', branching_ratio)
         trends = self.history_manager.get_network_trends() if self.enable_adaptive_regulation else {}
         adaptive_threshold = self.criticality_threshold
+        print(f"DEBUG: adaptive_threshold initial = {adaptive_threshold}, type = {type(adaptive_threshold)}")
+        log_step("Criticality check", branching_ratio=branching_ratio, target=self.branching_target, initial_threshold=adaptive_threshold, trends=trends)
         if self.enable_adaptive_regulation and trends:
             if trends.get('branching_trend') == 'increasing':
                 adaptive_threshold *= 0.8
@@ -287,7 +326,9 @@ class HomeostasisController:
             num_nodes = len([n for n in graph.node_labels if 'id' in n])
             avg_memory_importance = total_importance / num_nodes if num_nodes > 0 else 0.0
             adaptive_threshold *= (1 - avg_memory_importance * 0.5)  # Lower threshold for important memories
+        log_step("Final adaptive_threshold", adaptive_threshold=adaptive_threshold, avg_memory_importance=avg_memory_importance)
         criticality_deviation = abs(branching_ratio - self.branching_target)
+        log_step("Criticality deviation", criticality_deviation=criticality_deviation, adaptive_threshold=adaptive_threshold)
         if criticality_deviation > adaptive_threshold:
             regulation_type = ('supercritical' if branching_ratio > self.branching_target
                                else 'subcritical')
@@ -313,7 +354,7 @@ class HomeostasisController:
         return graph
     def _calculate_branching_ratio(self, graph):
 
-        if not hasattr(graph, 'edge_index') or graph.edge_index.numel() == 0:
+        if not hasattr(graph, 'edge_index') or graph.edge_index is None or graph.edge_index.numel() == 0:
             return 0.0
         current_time = time.time()
         total_activations = 0
@@ -360,7 +401,7 @@ class HomeostasisController:
         }
     def monitor_network_health(self, graph):
 
-        if not hasattr(graph, 'node_labels') or not hasattr(graph, 'x'):
+        if not hasattr(graph, 'node_labels') or graph.node_labels is None or not hasattr(graph, 'x') or graph.x is None:
             return {'status': 'unknown', 'warnings': []}
         warnings = []
         health_score = 1.0
@@ -368,7 +409,7 @@ class HomeostasisController:
         num_nodes = len(graph.node_labels)
         avg_energy = total_energy / num_nodes if num_nodes > 0 else 0
         connection_density = 0.0
-        if avg_energy < 10.0:
+        if avg_energy < 1.0:
             warnings.append("Low average energy - network may be dying")
             health_score *= 0.5
         elif avg_energy > 200.0:
@@ -381,20 +422,24 @@ class HomeostasisController:
                 if regulation_age > 300:
                     warnings.append("No recent energy regulation - system may be stuck")
                     health_score *= 0.8
-        if hasattr(graph, 'edge_index') and graph.edge_index.numel() > 0:
+        if hasattr(graph, 'edge_index') and graph.edge_index is not None and graph.edge_index.numel() > 0:
             connection_density = graph.edge_index.shape[1] / (num_nodes * num_nodes)
             if connection_density < 0.001:
                 warnings.append("Very low connection density - network may be fragmented")
                 health_score *= 0.6
-            elif connection_density > 0.1:
+            elif connection_density > 0.8:
                 warnings.append("Very high connection density - network may be overconnected")
                 health_score *= 0.8
+        else:
+            connection_density = 0.0
+        log_step("Health calculation", avg_energy=avg_energy, connection_density=connection_density, health_score=health_score, warnings=warnings)
         if health_score >= 0.8:
             status = 'healthy'
         elif health_score >= 0.6:
             status = 'warning'
         else:
             status = 'critical'
+        log_step("Final health", status=status, health_score=health_score)
         metrics = {
             'total_energy': total_energy,
             'num_nodes': num_nodes,
@@ -449,12 +494,12 @@ class HomeostasisController:
 
 def calculate_network_stability(graph):
     """Calculates overall network stability score based on energy and connectivity."""
-    if not hasattr(graph, 'node_labels') or not hasattr(graph, 'x'):
+    if not hasattr(graph, 'node_labels') or not graph.node_labels or not hasattr(graph, 'x') or graph.x is None or graph.x.numel() == 0:
         return 0.0
     energy_values = graph.x[:, 0].cpu().numpy()
     energy_variance = np.var(energy_values) if len(energy_values) > 1 else 0
     energy_stability = 1.0 / (1.0 + energy_variance / 100.0)
-    if hasattr(graph, 'edge_index') and graph.edge_index.numel() > 0:
+    if hasattr(graph, 'edge_index') and graph.edge_index is not None and graph.edge_index.numel() > 0:
         num_connections = graph.edge_index.shape[1]
         num_nodes = len(graph.node_labels)
         connection_stability = min(num_connections / (num_nodes * 2), 1.0)
@@ -468,7 +513,7 @@ def calculate_network_stability(graph):
 def detect_network_anomalies(graph):
     """Detects and returns list of network anomalies including energy, connectivity, and behavior imbalances."""
     anomalies = []
-    if not hasattr(graph, 'node_labels') or not hasattr(graph, 'x'):
+    if not hasattr(graph, 'node_labels') or not hasattr(graph, 'x') or graph.x is None:
         return anomalies
     energy_values = graph.x[:, 0].cpu().numpy()
     if len(energy_values) > 0:

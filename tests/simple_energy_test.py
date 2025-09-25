@@ -5,6 +5,7 @@ Simple test for energy-modulated learning without full simulation manager.
 
 import sys
 import os
+from unittest.mock import MagicMock
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def test_energy_modulation_logic():
@@ -57,8 +58,11 @@ def test_learning_engine_methods():
     try:
         from learning.learning_engine import LearningEngine
 
+        # Create mock access layer
+        mock_access_layer = MagicMock()
+
         # Create learning engine
-        engine = LearningEngine()
+        engine = LearningEngine(mock_access_layer)
         print(f"Learning engine created with energy modulation: {engine.energy_learning_modulation}")
 
         # Test energy modulation method

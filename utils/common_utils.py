@@ -11,28 +11,45 @@ def safe_hasattr(obj: Any, *attrs: str) -> bool:
     Check if object has all specified attributes safely.
     Replaces complex 'hasattr(obj, 'attr1') and hasattr(obj, 'attr2')' patterns.
     """
-    return all(hasattr(obj, attr) for attr in attrs)
+    try:
+        return all(hasattr(obj, attr) for attr in attrs)
+    except Exception:
+        return False
 
 
 def safe_get_attr(obj: Any, attr: str, default: Any = None) -> Any:
     """
     Safely get attribute with default value.
     """
-    return getattr(obj, attr, default)
+    try:
+        return getattr(obj, attr, default)
+    except Exception:
+        return default
 
 
-def validate_graph_structure(graph: Data) -> Tuple[bool, List[str]]:
+def validate_graph_structure(graph) -> Tuple[bool, List[str]]:
     """
     Validate graph structure and return validation status and missing attributes.
     Replaces repeated graph validation patterns.
     """
+    if graph is None:
+        return False, ['node_labels', 'x', 'edge_index']
+
     required_attrs = ['node_labels', 'x', 'edge_index']
     missing_attrs = []
-    
-    for attr in required_attrs:
-        if not hasattr(graph, attr):
-            missing_attrs.append(attr)
-    
+
+    # Check node_labels: must be list and not empty
+    if not hasattr(graph, 'node_labels') or not isinstance(graph.node_labels, list) or len(graph.node_labels) == 0:
+        missing_attrs.append('node_labels')
+
+    # Check x: must be tensor-like (has shape)
+    if not hasattr(graph, 'x') or not hasattr(graph.x, 'shape'):
+        missing_attrs.append('x')
+
+    # Check edge_index: must be tensor-like (has shape)
+    if not hasattr(graph, 'edge_index') or not hasattr(graph.edge_index, 'shape'):
+        missing_attrs.append('edge_index')
+
     return len(missing_attrs) == 0, missing_attrs
 
 
@@ -52,7 +69,7 @@ def safe_graph_access(graph: Data, operation: str, *args, **kwargs) -> Any:
             return safe_hasattr(graph, 'audio_data') and graph.audio_data is not None
         else:
             return None
-    except (AttributeError, IndexError, KeyError) as e:
+    except Exception as e:
         return None
 
 

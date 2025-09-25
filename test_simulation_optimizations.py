@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test script for SimulationManager optimizations and edge cases.
+Test script for SimulationCoordinator optimizations and edge cases.
 """
 
 import sys
@@ -9,14 +9,14 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import time
 import torch
-from core.simulation_manager import SimulationManager
+from core.services.simulation_coordinator import SimulationCoordinator
 
 def test_basic_initialization():
     """Test basic initialization without errors."""
     print("Testing basic initialization...")
     try:
-        manager = SimulationManager()
-        print("[OK] SimulationManager initialized successfully")
+        manager = SimulationCoordinator()
+        print("[OK] SimulationCoordinator initialized successfully")
         return manager
     except Exception as e:
         print(f"[FAIL] Initialization failed: {e}")

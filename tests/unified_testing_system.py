@@ -96,8 +96,8 @@ class TestExecutionResult:
     assertions: List[str] = field(default_factory=list)
 
 
-class MockSimulationManager:
-    """Mock simulation manager for testing."""
+class MockSimulationCoordinator:
+    """Mock simulation coordinator for testing."""
     
     def __init__(self):
         self.graph = None

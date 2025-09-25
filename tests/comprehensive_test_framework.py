@@ -25,7 +25,7 @@ class TestCategory(Enum):
     MEMORY = "memory"
     FUNCTIONAL = "functional"
 
-class TestResult(Enum):
+class TestStatus(Enum):
     """Test result status."""
     PASSED = "passed"
     FAILED = "failed"
@@ -60,15 +60,15 @@ class TestCase:
 class TestResult:
     """Test execution result."""
     test_case: TestCase
-    result: TestResult
+    result: TestStatus
     duration: float
     error: Optional[Exception] = None
     metrics: Optional[TestMetrics] = None
     output: str = ""
     assertions: List[str] = field(default_factory=list)
 
-class MockSimulationManager:
-    """Mock simulation manager for testing."""
+class MockSimulationCoordinator:
+    """Mock simulation coordinator for testing."""
     
     def __init__(self):
         self.graph = None
@@ -220,7 +220,7 @@ class TestFramework:
         
         result = TestResult(
             test_case=test_case,
-            result=TestResult.PASSED,
+            result=TestStatus.PASSED,
             duration=0.0,
             metrics=TestMetrics(
                 duration=0.0,
@@ -243,13 +243,13 @@ class TestFramework:
             test_thread.join(timeout=test_case.timeout)
             
             if test_thread.is_alive():
-                result.result = TestResult.ERROR
+                result.result = TestStatus.ERROR
                 result.error = TimeoutError(f"Test {test_case.name} timed out after {test_case.timeout}s")
             else:
-                result.result = TestResult.PASSED
-        
+                result.result = TestStatus.PASSED
+
         except Exception as e:
-            result.result = TestResult.FAILED
+            result.result = TestStatus.FAILED
             result.error = e
         
         finally:
@@ -272,7 +272,7 @@ class TestFramework:
             
             # Check limits
             if result.metrics.memory_used_mb > test_case.memory_limit_mb:
-                result.result = TestResult.FAILED
+                result.result = TestStatus.FAILED
                 result.error = MemoryError(f"Memory usage exceeded limit: {result.metrics.memory_used_mb:.2f}MB > {test_case.memory_limit_mb}MB")
         
         return result
@@ -284,10 +284,10 @@ class TestFramework:
                 return {}
             
             total_tests = len(self.test_results)
-            passed = sum(1 for r in self.test_results if r.result == TestResult.PASSED)
-            failed = sum(1 for r in self.test_results if r.result == TestResult.FAILED)
-            errors = sum(1 for r in self.test_results if r.result == TestResult.ERROR)
-            skipped = sum(1 for r in self.test_results if r.result == TestResult.SKIPPED)
+            passed = sum(1 for r in self.test_results if r.result == TestStatus.PASSED)
+            failed = sum(1 for r in self.test_results if r.result == TestStatus.FAILED)
+            errors = sum(1 for r in self.test_results if r.result == TestStatus.ERROR)
+            skipped = sum(1 for r in self.test_results if r.result == TestStatus.SKIPPED)
             
             total_duration = sum(r.duration for r in self.test_results)
             avg_duration = total_duration / total_tests if total_tests > 0 else 0
@@ -297,11 +297,11 @@ class TestFramework:
             for result in self.test_results:
                 category = result.test_case.category.value
                 category_stats[category]['total'] += 1
-                if result.result == TestResult.PASSED:
+                if result.result == TestStatus.PASSED:
                     category_stats[category]['passed'] += 1
-                elif result.result == TestResult.FAILED:
+                elif result.result == TestStatus.FAILED:
                     category_stats[category]['failed'] += 1
-                elif result.result == TestResult.ERROR:
+                elif result.result == TestStatus.ERROR:
                     category_stats[category]['errors'] += 1
             
             return {
@@ -322,8 +322,8 @@ def create_basic_tests() -> List[TestCase]:
     tests = []
     
     # Test simulation manager creation
-    def test_simulation_manager_creation():
-        manager = MockSimulationManager()
+    def test_simulation_coordinator_creation():
+        manager = MockSimulationCoordinator()
         assert manager is not None
         assert not manager.is_running
         assert manager.step_counter == 0
@@ -332,12 +332,12 @@ def create_basic_tests() -> List[TestCase]:
         name="test_simulation_manager_creation",
         category=TestCategory.UNIT,
         description="Test simulation manager creation",
-        test_func=test_simulation_manager_creation
+        test_func=test_simulation_coordinator_creation
     ))
     
     # Test graph initialization
     def test_graph_initialization():
-        manager = MockSimulationManager()
+        manager = MockSimulationCoordinator()
         manager.initialize_graph()
         assert manager.graph is not None
         assert len(manager.graph.node_labels) > 0
@@ -352,7 +352,7 @@ def create_basic_tests() -> List[TestCase]:
     
     # Test single step execution
     def test_single_step_execution():
-        manager = MockSimulationManager()
+        manager = MockSimulationCoordinator()
         manager.initialize_graph()
         initial_step = manager.step_counter
         success = manager.run_single_step()
@@ -368,7 +368,7 @@ def create_basic_tests() -> List[TestCase]:
     
     # Test performance metrics
     def test_performance_metrics():
-        manager = MockSimulationManager()
+        manager = MockSimulationCoordinator()
         manager.initialize_graph()
         stats = manager.get_performance_stats()
         assert 'step_counter' in stats
@@ -392,7 +392,7 @@ def create_integration_tests() -> List[TestCase]:
     
     # Test simulation loop
     def test_simulation_loop():
-        manager = MockSimulationManager()
+        manager = MockSimulationCoordinator()
         manager.initialize_graph()
         manager.start_simulation()
         
@@ -421,7 +421,7 @@ def create_performance_tests() -> List[TestCase]:
     
     # Test memory usage
     def test_memory_usage():
-        manager = MockSimulationManager()
+        manager = MockSimulationCoordinator()
         manager.initialize_graph()
         
         # Run many steps to test memory usage
@@ -442,7 +442,7 @@ def create_performance_tests() -> List[TestCase]:
     
     # Test execution speed
     def test_execution_speed():
-        manager = MockSimulationManager()
+        manager = MockSimulationCoordinator()
         manager.initialize_graph()
         
         start_time = time.time()
@@ -469,7 +469,7 @@ def create_stress_tests() -> List[TestCase]:
     
     # Test high load
     def test_high_load():
-        manager = MockSimulationManager()
+        manager = MockSimulationCoordinator()
         manager.initialize_graph()
         
         # Run many steps under load

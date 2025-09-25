@@ -40,8 +40,7 @@ ERROR_MESSAGES = {
     'FAILURE_MESSAGE': 'Failure',
     'UI_ERROR': 'UI Error',
     'PROCESSING_ERROR': 'Error processing',
-    'SIMULATION_ERROR': 'Error in simulation',
-    'INVALID_SLOT': 'Invalid slot number'
+    'SIMULATION_ERROR': 'Error in simulation'
 }
 
 # Common Log Messages
@@ -57,9 +56,7 @@ LOG_MESSAGES = {
     'CONNECTION_DELETED': 'Connection deleted',
     'ENERGY_UPDATED': 'Energy updated',
     'MEMORY_CONSOLIDATED': 'Memory consolidated',
-    'LEARNING_APPLIED': 'Learning applied',
-    'ERROR_OCCURRED': 'Error occurred',
-    'WARNING_OCCURRED': 'Warning occurred'
+    'LEARNING_APPLIED': 'Learning applied'
 }
 
 # Common File Paths
@@ -92,10 +89,7 @@ CONNECTION_PROPERTIES = {
     'SOURCE': 'source',
     'TARGET': 'target',
     'WEIGHT': 'weight',
-    'TYPE': 'type',
     'DELAY': 'delay',
-    'ACTIVE': 'active',
-    'ELIGIBILITY_TRACE': 'eligibility_trace',
     'LAST_ACTIVITY': 'last_activity',
     'ACTIVATION_COUNT': 'activation_count'
 }
@@ -176,7 +170,7 @@ THRESHOLDS = {
 
 # Common Default Values
 DEFAULT_VALUES = {
-    'ENERGY_CAP': 255.0,
+    'ENERGY_CAP': 5.0,  # Reduced from 255.0 to make modulation effects more pronounced
     'THRESHOLD_DEFAULT': 0.5,
     'LEARNING_RATE': 0.01,
     'REFRACTORY_PERIOD': 0.1,
@@ -223,7 +217,6 @@ EXCEPTION_TYPES = {
 # Common Function Names
 FUNCTION_NAMES = {
     'INIT': '__init__',
-    'CLEANUP': 'cleanup',
     'RESET': 'reset',
     'UPDATE': 'update',
     'START': 'start',
@@ -235,7 +228,7 @@ FUNCTION_NAMES = {
 
 # Common Class Names
 CLASS_NAMES = {
-    'SIMULATION_MANAGER': 'SimulationManager',
+    'SIMULATION_COORDINATOR': 'SimulationCoordinator',
     'BEHAVIOR_ENGINE': 'BehaviorEngine',
     'LEARNING_ENGINE': 'LearningEngine',
     'MEMORY_SYSTEM': 'MemorySystem',

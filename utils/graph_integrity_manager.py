@@ -98,6 +98,18 @@ class GraphIntegrityManager:
                 'last_check': self._last_integrity_check
             }
 
+            # Check for None graph
+            if graph is None:
+                result['violations'].append(IntegrityViolation(
+                    'invalid_graph',
+                    'Graph is None - cannot perform integrity check',
+                    'critical',
+                    time.time(),
+                    []
+                ))
+                result['is_integrity_intact'] = False
+                return result
+
             if not self._current_version:
                 result['violations'].append(IntegrityViolation(
                     'no_baseline_version',

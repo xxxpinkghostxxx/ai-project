@@ -299,12 +299,12 @@ def run_comprehensive_benchmark() -> PerformanceBenchmark:
 
     try:
         # Import required modules
-        from simulation_manager import SimulationManager
+        from core.services.simulation_coordinator import SimulationCoordinator
         from neural.optimized_node_manager import get_optimized_node_manager
         from utils.performance_cache import get_performance_cache_manager
 
         # Benchmark simulation startup
-        startup_result = benchmark.benchmark_simulation_startup(SimulationManager)
+        startup_result = benchmark.benchmark_simulation_startup(SimulationCoordinator)
         benchmark.set_baseline('simulation_startup', startup_result)
 
         # Benchmark node operations

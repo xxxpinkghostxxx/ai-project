@@ -105,7 +105,11 @@ class BehaviorEngine:
         self.behavior_stats.update({
             'workspace_syntheses': 0,
             'enhanced_updates': 0,
-            'basic_updates': 0
+            'basic_updates': 0,
+            'oscillator_activations': 0,
+            'integrator_activations': 0,
+            'relay_transfers': 0,
+            'highway_regulations': 0
         })
     def update_node_behavior(self, node_id: int, graph: Data, step: int, access_layer=None) -> bool:
         """Update behavior for a specific node with assertions for safety."""
@@ -449,7 +453,11 @@ class BehaviorEngine:
         self.behavior_stats.update({
             'workspace_syntheses': 0,
             'enhanced_updates': 0,
-            'basic_updates': 0
+            'basic_updates': 0,
+            'oscillator_activations': 0,
+            'integrator_activations': 0,
+            'relay_transfers': 0,
+            'highway_regulations': 0
         })
         if self.enhanced_integration is not None:
             try:

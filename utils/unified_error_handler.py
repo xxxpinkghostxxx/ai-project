@@ -158,25 +158,29 @@ class UnifiedErrorHandler:
     """Unified error handling system combining all error handling capabilities."""
     
     def __init__(self):
-        # Basic error tracking
+        # Basic error tracking with memory limits
         self.error_counts = {}
         self.recovery_attempts = {}
         self.system_health = 'healthy'
         self.last_error_time = 0
-        
-        # Enhanced error tracking
+
+        # Enhanced error tracking with memory limits
         self.error_records: Dict[str, ErrorRecord] = {}
         self.error_history: deque = deque(maxlen=1000)
-        
-        # Callbacks
+        self.max_error_records = 5000  # Maximum number of error records to keep
+        self.error_record_cleanup_interval = 3600  # Clean up old records every hour
+        self.last_cleanup_time = time.time()
+
+        # Callbacks with memory limits
         self.error_callbacks = []
         self.recovery_callbacks = []
-        
+        self.max_callbacks = 50  # Maximum number of callbacks per type
+
         # Recovery strategies
         self.recovery_strategies: List[RecoveryStrategy] = []
         self._setup_default_strategies()
-        
-        # Configuration
+
+        # Configuration with validation
         self.max_errors_per_minute = 10
         self.max_recovery_attempts = 3
         self.error_cooldown = 60
@@ -187,14 +191,14 @@ class UnifiedErrorHandler:
             'critical': 3,
             'failed': 4
         }
-        
+
         # Thread safety
         self._lock = threading.RLock()
-        
+
         # Setup logging
         self._setup_logging()
-        
-        log_step("UnifiedErrorHandler initialized")
+
+        log_step("UnifiedErrorHandler initialized with memory limits")
     
     def _setup_default_strategies(self):
         """Setup default recovery strategies."""
@@ -216,19 +220,41 @@ class UnifiedErrorHandler:
             self.logger.setLevel(logging.INFO)
     
     def add_recovery_strategy(self, strategy: RecoveryStrategy):
-        """Add a recovery strategy."""
+        """Add a recovery strategy with validation."""
+        if not isinstance(strategy, RecoveryStrategy):
+            raise TypeError("Strategy must be an instance of RecoveryStrategy")
+
         with self._lock:
+            if len(self.recovery_strategies) >= 20:  # Reasonable limit
+                logging.warning("Maximum recovery strategies reached, cannot add more")
+                return
             self.recovery_strategies.append(strategy)
-    
+
     def add_error_callback(self, callback: Callable):
-        """Add an error callback."""
+        """Add an error callback with validation and memory limits."""
+        if not callable(callback):
+            raise TypeError("Callback must be callable")
+
         with self._lock:
-            self.error_callbacks.append(callback)
-    
+            if len(self.error_callbacks) >= self.max_callbacks:
+                logging.warning(f"Maximum error callbacks ({self.max_callbacks}) reached, cannot add more")
+                return
+
+            if callback not in self.error_callbacks:
+                self.error_callbacks.append(callback)
+
     def add_recovery_callback(self, callback: Callable):
-        """Add a recovery callback."""
+        """Add a recovery callback with validation and memory limits."""
+        if not callable(callback):
+            raise TypeError("Callback must be callable")
+
         with self._lock:
-            self.recovery_callbacks.append(callback)
+            if len(self.recovery_callbacks) >= self.max_callbacks:
+                logging.warning(f"Maximum recovery callbacks ({self.max_callbacks}) reached, cannot add more")
+                return
+
+            if callback not in self.recovery_callbacks:
+                self.recovery_callbacks.append(callback)
     
     def handle_error(self, error: Exception, context: str = "",
                     recovery_func: Optional[Callable] = None,
@@ -236,38 +262,59 @@ class UnifiedErrorHandler:
                     severity: ErrorSeverity = ErrorSeverity.MEDIUM,
                     category: ErrorCategory = ErrorCategory.SYSTEM) -> bool:
         """Handle an error with comprehensive recovery and logging."""
+        # Input validation
+        if error is None:
+            logging.error("Cannot handle None error")
+            return False
+
+        if not isinstance(context, str):
+            context = str(context)
+
+        if not isinstance(severity, ErrorSeverity):
+            severity = ErrorSeverity.MEDIUM
+
+        if not isinstance(category, ErrorCategory):
+            category = ErrorCategory.SYSTEM
+
+        if recovery_func is not None and not callable(recovery_func):
+            logging.warning("Recovery function is not callable, ignoring")
+            recovery_func = None
+
         with self._lock:
+            # Periodic cleanup
+            self._periodic_cleanup()
+
             # Create error context
             error_context = self._create_error_context(context, error)
-            
+
             # Generate error ID
             error_id = self._generate_error_id(error, error_context)
-            
+
             # Update error record
             self._update_error_record(error_id, error, error_context, severity, category)
-            
+
             # Log error
             self._log_error(error, error_context, severity, category)
-            
+
             # Update system health
             self._update_system_health(error, error_context, critical)
-            
+
             # Attempt recovery
             recovery_success = self._attempt_recovery(error, error_context, recovery_func)
-            
+
             # Notify callbacks
             self._notify_error_callbacks(error, error_context, critical)
-            
+
             if recovery_success:
                 self._notify_recovery_callbacks(error_id, True)
                 return True
-            
+
             if critical:
                 self.system_health = 'failed'
-                log_step("Critical error - system marked as failed", 
+                log_step("Critical error - system marked as failed",
                         error_type=type(error).__name__)
                 return False
-            
+
             return True
     
     def _create_error_context(self, context: str, error: Exception) -> ErrorContext:
@@ -288,15 +335,19 @@ class UnifiedErrorHandler:
         error_type = type(error).__name__
         return f"{error_type}_{context.component}_{int(context.timestamp)}"
     
-    def _update_error_record(self, error_id: str, error: Exception, 
-                           context: ErrorContext, severity: ErrorSeverity, 
+    def _update_error_record(self, error_id: str, error: Exception,
+                           context: ErrorContext, severity: ErrorSeverity,
                            category: ErrorCategory):
-        """Update or create error record."""
+        """Update or create error record with memory limits."""
         if error_id in self.error_records:
             record = self.error_records[error_id]
             record.count += 1
             record.last_occurrence = time.time()
         else:
+            # Check if we need to clean up old records
+            if len(self.error_records) >= self.max_error_records:
+                self._cleanup_old_error_records()
+
             record = ErrorRecord(
                 error_id=error_id,
                 exception=error,
@@ -305,9 +356,48 @@ class UnifiedErrorHandler:
                 category=category
             )
             self.error_records[error_id] = record
-        
-        # Add to history
+
+        # Add to history (deque automatically handles maxlen)
         self.error_history.append(record)
+
+    def _periodic_cleanup(self):
+        """Perform periodic cleanup of old error records."""
+        current_time = time.time()
+        if current_time - self.last_cleanup_time > self.error_record_cleanup_interval:
+            self._cleanup_old_error_records()
+            self.last_cleanup_time = current_time
+
+    def _cleanup_old_error_records(self):
+        """Clean up old error records to prevent memory growth."""
+        current_time = time.time()
+        max_age = 86400  # 24 hours
+
+        # Remove old error records
+        old_records = []
+        for error_id, record in self.error_records.items():
+            if current_time - record.last_occurrence > max_age:
+                old_records.append(error_id)
+
+        for error_id in old_records:
+            del self.error_records[error_id]
+
+        if old_records:
+            log_step(f"Cleaned up {len(old_records)} old error records")
+
+        # Clean up error_counts and recovery_attempts
+        # Keep only recent entries (last 1000 operations)
+        if len(self.error_counts) > 1000:
+            # Simple cleanup - remove oldest entries
+            items_to_remove = len(self.error_counts) - 1000
+            keys_to_remove = list(self.error_counts.keys())[:items_to_remove]
+            for key in keys_to_remove:
+                del self.error_counts[key]
+
+        if len(self.recovery_attempts) > 1000:
+            items_to_remove = len(self.recovery_attempts) - 1000
+            keys_to_remove = list(self.recovery_attempts.keys())[:items_to_remove]
+            for key in keys_to_remove:
+                del self.recovery_attempts[key]
     
     def _log_error(self, error: Exception, context: ErrorContext, 
                   severity: ErrorSeverity, category: ErrorCategory):
@@ -341,10 +431,10 @@ class UnifiedErrorHandler:
     def _update_system_health(self, error: Exception, context: ErrorContext, critical: bool):
         """Update system health based on error."""
         current_time = time.time()
-        
+
         # Count recent errors
         recent_errors = sum(1 for record in self.error_history
-                          if current_time - record.timestamp < 60)
+                          if current_time - record.context.timestamp < 60)
         
         if critical:
             self.system_health = 'failed'
@@ -423,12 +513,15 @@ class UnifiedErrorHandler:
             return list(self.error_history)[-limit:]
     
     def clear_error_history(self):
-        """Clear error history."""
+        """Clear error history with comprehensive cleanup."""
         with self._lock:
             self.error_history.clear()
             self.error_records.clear()
             self.error_counts.clear()
             self.recovery_attempts.clear()
+            self.system_health = 'healthy'
+            self.last_error_time = 0
+            log_step("Error history cleared")
     
     def get_system_health(self) -> Dict[str, Any]:
         """Get system health information."""
@@ -438,28 +531,38 @@ class UnifiedErrorHandler:
                 'health_level': self.health_levels.get(self.system_health, 0),
                 'last_error_time': self.last_error_time,
                 'recent_error_count': sum(1 for record in self.error_history
-                                       if time.time() - record.timestamp < 60)
+                                       if time.time() - record.context.timestamp < 60)
             }
 
 
 # Global error handler instance
 _error_handler = None
+_error_handler_lock = threading.Lock()
 
 
 def get_error_handler() -> UnifiedErrorHandler:
-    """Get the global error handler instance."""
+    """Get the global error handler instance with thread safety."""
     global _error_handler
     if _error_handler is None:
-        _error_handler = UnifiedErrorHandler()
+        with _error_handler_lock:
+            if _error_handler is None:  # Double-check locking
+                _error_handler = UnifiedErrorHandler()
     return _error_handler
 
 
 # Convenience functions for backward compatibility
-def safe_execute(func: Callable, context: str = "", 
-                error_msg: str = "Operation failed", 
+def safe_execute(func: Callable, context: str = "",
+                error_msg: str = "Operation failed",
                 default_return: Any = None,
                 log_level: str = "warning") -> Any:
-    """Safely execute a function with error handling."""
+    """Safely execute a function with error handling and validation."""
+    if not callable(func):
+        logging.error("safe_execute: func must be callable")
+        return default_return
+
+    if not isinstance(context, str):
+        context = str(context)
+
     try:
         return func()
     except Exception as e:
@@ -469,9 +572,21 @@ def safe_execute(func: Callable, context: str = "",
         return default_return
 
 
-def safe_initialize_component(component_name: str, init_func: Callable, 
+def safe_initialize_component(component_name: str, init_func: Callable,
                             fallback_func: Optional[Callable] = None) -> Any:
-    """Safely initialize a component with fallback handling."""
+    """Safely initialize a component with fallback handling and validation."""
+    if not isinstance(component_name, str) or not component_name:
+        logging.error("safe_initialize_component: component_name must be a non-empty string")
+        return None
+
+    if not callable(init_func):
+        logging.error("safe_initialize_component: init_func must be callable")
+        return None
+
+    if fallback_func is not None and not callable(fallback_func):
+        logging.error("safe_initialize_component: fallback_func must be callable or None")
+        fallback_func = None
+
     try:
         result = init_func()
         logging.info(f"{component_name} initialized successfully")
@@ -481,7 +596,7 @@ def safe_initialize_component(component_name: str, init_func: Callable,
         if fallback_func:
             try:
                 result = fallback_func()
-                error_handler.handle_error(e, f"initializing {component_name}", 
+                error_handler.handle_error(e, f"initializing {component_name}",
                                          recovery_func=lambda _: True,
                                          severity=ErrorSeverity.LOW)
                 return result
@@ -495,9 +610,19 @@ def safe_initialize_component(component_name: str, init_func: Callable,
             return None
 
 
-def safe_process_step(process_func: Callable, step_name: str, 
+def safe_process_step(process_func: Callable, step_name: str,
                      step_counter: int = 0) -> bool:
-    """Safely process a simulation step."""
+    """Safely process a simulation step with validation."""
+    if not callable(process_func):
+        logging.error("safe_process_step: process_func must be callable")
+        return False
+
+    if not isinstance(step_name, str):
+        step_name = str(step_name)
+
+    if not isinstance(step_counter, int) or step_counter < 0:
+        step_counter = 0
+
     try:
         result = process_func()
         return result if isinstance(result, bool) else True
@@ -510,7 +635,11 @@ def safe_process_step(process_func: Callable, step_name: str,
 
 
 def safe_callback_execution(callback: Callable, *args, **kwargs) -> Any:
-    """Safely execute a callback function."""
+    """Safely execute a callback function with validation."""
+    if not callable(callback):
+        logging.error("safe_callback_execution: callback must be callable")
+        return None
+
     try:
         return callback(*args, **kwargs)
     except Exception as e:

@@ -323,7 +323,7 @@ class NetworkMetrics:
             self._initial_energy = total_energy
             self._energy_sources = 0.0
             self._energy_sinks = 0.0
-        energy_drift = abs(total_energy - self._initial_energy)
+        energy_drift = total_energy - self._initial_energy
         drift_percentage = (energy_drift / self._initial_energy) * 100 if self._initial_energy > 0 else 0
         conservation_violation = drift_percentage > 10.0
         return {
@@ -340,6 +340,33 @@ class NetworkMetrics:
             return 1.0
         efficiency = max(0.0, 1.0 - (avg_time / 0.001))
         return float(efficiency)
+
+    def _calculate_ei_ratio(self, graph) -> float:
+        if not hasattr(graph, 'edge_attributes') or not graph.edge_attributes:
+            return 0.0
+        excitatory_sum = sum(edge.weight for edge in graph.edge_attributes if edge.type == 'excitatory')
+        inhibitory_sum = sum(edge.weight for edge in graph.edge_attributes if edge.type == 'inhibitory')
+        if inhibitory_sum == 0:
+            return 10.0  # High ratio when no inhibitory
+        return excitatory_sum / inhibitory_sum
+
+    def _adjust_ei_balance(self, graph, target_ratio: float):
+        if not hasattr(graph, 'edge_attributes') or not graph.edge_attributes:
+            return
+        for edge in graph.edge_attributes:
+            if edge.type == 'excitatory':
+                edge.weight *= 0.9  # Decrease
+            elif edge.type == 'inhibitory':
+                edge.weight *= 1.1  # Increase
+
+    def _adjust_criticality(self, graph, current_criticality: float):
+        if current_criticality >= self.criticality_target:
+            return
+        if not hasattr(graph, 'edge_index') or graph.edge_index is None:
+            graph.edge_index = torch.tensor([], dtype=torch.long).reshape(2, 0)
+        # Add a dummy edge
+        new_edge = torch.tensor([[0], [1]], dtype=torch.long)
+        graph.edge_index = torch.cat([graph.edge_index, new_edge], dim=1)
 
 
 def create_network_metrics(calculation_interval: int = 50) -> NetworkMetrics:

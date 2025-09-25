@@ -10,6 +10,7 @@ from energy.energy_constants import ConnectionConstants
 from utils.common_utils import safe_hasattr
 from energy.energy_behavior import get_node_energy_cap
 from utils.connection_validator import get_connection_validator
+from energy.node_id_manager import get_id_manager
 
 
 def get_max_dynamic_energy():
@@ -67,11 +68,25 @@ class EnhancedEdge:
         }
 
 
-def create_weighted_connection(graph, source_id, target_id, weight, edge_type='excitatory'):
-    """Create a weighted connection with centralized validation."""
+def create_weighted_connection(graph, source_id, target_id, weight, edge_type='excitatory', validator=None, id_manager=None):
+    """
+    Create a weighted connection with centralized validation.
 
+    Args:
+        graph: Neural graph
+        source_id: Source node ID
+        target_id: Target node ID
+        weight: Connection weight
+        edge_type: Type of connection
+        validator: Connection validator (optional, will use global if not provided)
+        id_manager: Node ID manager (optional, will use global if not provided)
+
+    Returns:
+        Updated graph
+    """
     # Get the centralized validator
-    validator = get_connection_validator()
+    if validator is None:
+        validator = get_connection_validator()
 
     # Perform comprehensive validation
     validation_result = validator.validate_connection(
@@ -93,10 +108,24 @@ def create_weighted_connection(graph, source_id, target_id, weight, edge_type='e
             logging.info(f"Connection suggestion: {suggestion}")
 
     try:
-        from energy.node_id_manager import get_id_manager
-        id_manager = get_id_manager()
+        if id_manager is None:
+            id_manager = get_id_manager()
         source_index = id_manager.get_node_index(source_id)
         target_index = id_manager.get_node_index(target_id)
+
+        # If indices not found, try to register them from graph.node_labels
+        if source_index is None:
+            for idx, node in enumerate(graph.node_labels):
+                if node.get('id') == source_id:
+                    id_manager.register_node_index(source_id, idx)
+                    source_index = idx
+                    break
+        if target_index is None:
+            for idx, node in enumerate(graph.node_labels):
+                if node.get('id') == target_id:
+                    id_manager.register_node_index(target_id, idx)
+                    target_index = idx
+                    break
 
         # Double-check indices (should be validated by validator, but safety check)
         if source_index is None or target_index is None:
@@ -195,17 +224,26 @@ def apply_weight_change(graph, edge_idx, weight_change):
     return graph
 
 
-def create_basic_connections(graph):
+def create_basic_connections(graph, id_manager=None):
+    """
+    Create basic connections in the neural graph.
 
+    Args:
+        graph: Neural graph
+        id_manager: Node ID manager (optional, will use global if not provided)
+
+    Returns:
+        Updated graph with basic connections
+    """
     if not hasattr(graph, "node_labels") or not hasattr(graph, "x"):
         return graph
     import random
     import torch
-    from energy.node_id_manager import get_id_manager
+    if id_manager is None:
+        id_manager = get_id_manager()
     num_nodes = len(graph.node_labels)
     if num_nodes < 2:
         return graph
-    id_manager = get_id_manager()
     num_connections = min(100, num_nodes // 10)
     connections_created = 0
     for _ in range(num_connections):
@@ -225,7 +263,7 @@ def create_basic_connections(graph):
 
 
 def intelligent_connection_formation(graph):
-    """Create intelligent connections with centralized validation."""
+    """Create intelligent connections with centralized validation and performance optimizations."""
 
     if not hasattr(graph, "node_labels") or not hasattr(graph, "x"):
         return graph
@@ -237,9 +275,10 @@ def intelligent_connection_formation(graph):
         return graph
 
     validator = get_connection_validator()
-    max_connections = 50
-    sensory_sample_size = 10
-    dynamic_sample_size = 20
+    # Adaptive connection limits based on graph size
+    max_connections = min(50, max(10, num_nodes // 100))
+    sensory_sample_size = min(10, max(5, num_nodes // 100))
+    dynamic_sample_size = min(20, max(10, num_nodes // 50))
 
     import random
     all_indices = list(range(num_nodes))

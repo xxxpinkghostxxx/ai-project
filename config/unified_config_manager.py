@@ -176,7 +176,7 @@ class UnifiedConfigManager:
                 )
             else:
                 items.append((new_key, v))
-            return dict(items)
+        return dict(items)
 
     def _unflatten_config(self, flat_config: Dict[str, Any], sep: str = '.') -> Dict[str, Any]:
         """Unflatten dot notation configuration back to nested dictionary."""
@@ -200,7 +200,7 @@ class UnifiedConfigManager:
                 'max_threads': 4
             },
             'SystemConstants': {
-                'node_energy_cap': 255.0,
+                'node_energy_cap': 5.0,
                 'time_step': 0.01,
                 'refractory_period': 0.1
             },
@@ -239,8 +239,8 @@ class UnifiedConfigManager:
                        allowed_values=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']),
             ConfigSchema('General.max_threads', ConfigType.INTEGER, 4, 'Maximum number of threads',
                        min_value=1, max_value=32),
-            ConfigSchema('SystemConstants.node_energy_cap', ConfigType.FLOAT, 255.0,
-                       'Maximum node energy capacity', min_value=1.0, max_value=1000.0),
+            ConfigSchema('SystemConstants.node_energy_cap', ConfigType.FLOAT, 5.0,
+                        'Maximum node energy capacity', min_value=1.0, max_value=1000.0),
             ConfigSchema('SystemConstants.time_step', ConfigType.FLOAT, 0.01,
                        'Simulation time step', min_value=0.001, max_value=1.0),
             ConfigSchema('SystemConstants.refractory_period', ConfigType.FLOAT, 0.1,
@@ -403,8 +403,7 @@ class UnifiedConfigManager:
         """Save configuration to file."""
         try:
             file_path = Path(file_path)
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-            
+
             if format.lower() == 'json':
                 with open(file_path, 'w') as f:
                     json.dump(self._unflatten_config(self.config), f, indent=2)
@@ -416,10 +415,10 @@ class UnifiedConfigManager:
             else:
                 print_error(f"Unsupported save format: {format}")
                 return False
-            
+
             log_step(f"Configuration saved to {file_path}")
             return True
-            
+
         except Exception as e:
             print_error(f"Failed to save config to {file_path}: {e}")
             return False
@@ -505,19 +504,37 @@ class UnifiedConfigManager:
     # Backward compatibility methods
     def get_float(self, section: str, key: str, default: float = 0.0) -> float:
         """Get float value (INI-style)."""
-        return self.get(f"{section}.{key}", default)
-    
+        value = self.get(f"{section}.{key}", default)
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return default
+
     def get_int(self, section: str, key: str, default: int = 0) -> int:
         """Get integer value (INI-style)."""
-        return self.get(f"{section}.{key}", default)
-    
+        value = self.get(f"{section}.{key}", default)
+        try:
+            return int(value)
+        except (ValueError, TypeError):
+            return default
+
     def get_bool(self, section: str, key: str, default: bool = False) -> bool:
         """Get boolean value (INI-style)."""
-        return self.get(f"{section}.{key}", default)
-    
+        value = self.get(f"{section}.{key}", default)
+        if isinstance(value, str):
+            return value.lower() in ('true', '1', 'yes', 'on')
+        try:
+            return bool(value)
+        except (ValueError, TypeError):
+            return default
+
     def get_string(self, section: str, key: str, default: str = "") -> str:
         """Get string value (INI-style)."""
-        return self.get(f"{section}.{key}", default)
+        value = self.get(f"{section}.{key}", default)
+        try:
+            return str(value)
+        except (ValueError, TypeError):
+            return default
     
     def set_value(self, section: str, key: str, value: Any):
         """Set value (INI-style)."""

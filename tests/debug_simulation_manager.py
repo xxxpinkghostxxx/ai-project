@@ -1,15 +1,25 @@
 #!/usr/bin/env python3
 """
-Debug script for SimulationManager to identify and fix issues.
+Debug script for SimulationCoordinator to identify and fix issues.
 """
 
 import sys
 import os
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import logging
 import traceback
-from simulation_manager import SimulationManager
+from unittest.mock import Mock
+from core.services.simulation_coordinator import SimulationCoordinator
+from core.interfaces.service_registry import IServiceRegistry
+from core.interfaces.neural_processor import INeuralProcessor
+from core.interfaces.energy_manager import IEnergyManager
+from core.interfaces.learning_engine import ILearningEngine
+from core.interfaces.sensory_processor import ISensoryProcessor
+from core.interfaces.performance_monitor import IPerformanceMonitor
+from core.interfaces.graph_manager import IGraphManager
+from core.interfaces.event_coordinator import IEventCoordinator
+from core.interfaces.configuration_service import IConfigurationService
 
 # Set up logging
 logging.basicConfig(
@@ -17,47 +27,79 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
-def test_simulation_manager_initialization():
-    """Test basic SimulationManager initialization."""
+def test_simulation_coordinator_initialization():
+    """Test basic SimulationCoordinator initialization."""
     print("=" * 60)
-    print("Testing SimulationManager Initialization")
+    print("Testing SimulationCoordinator Initialization")
     print("=" * 60)
 
     try:
-        print("Creating SimulationManager...")
-        manager = SimulationManager()
-        print("[OK] SimulationManager created successfully")
+        print("Creating mock services...")
+        # Create all required mocks
+        service_registry = Mock()
+        neural_processor = Mock()
+        energy_manager = Mock()
+        learning_engine = Mock()
+        sensory_processor = Mock()
+        performance_monitor = Mock()
+        graph_manager = Mock()
+        event_coordinator = Mock()
+        configuration_service = Mock()
+
+        # Configure mocks for successful initialization
+        from torch_geometric.data import Data
+        graph_manager.initialize_graph.return_value = Data(x=[], edge_index=[])
+        neural_processor.initialize_neural_state.return_value = True
+        energy_manager.initialize_energy_state.return_value = True
+        learning_engine.initialize_learning_state.return_value = True
+        sensory_processor.initialize_sensory_pathways.return_value = True
+        performance_monitor.start_monitoring.return_value = True
+
+        # Configure mocks for simulation step
+        neural_processor.process_neural_dynamics.return_value = (Data(), [])
+        energy_manager.update_energy_flows.return_value = (Data(), [])
+        learning_engine.apply_plasticity.return_value = (Data(), [])
+        graph_manager.update_node_lifecycle.return_value = Data()
+        energy_manager.regulate_energy_homeostasis.return_value = Data()
+
+        print("Creating SimulationCoordinator...")
+        manager = SimulationCoordinator(
+            service_registry, neural_processor, energy_manager,
+            learning_engine, sensory_processor, performance_monitor,
+            graph_manager, event_coordinator, configuration_service
+        )
+        print("[OK] SimulationCoordinator created successfully")
 
         # Check critical attributes
         required_attrs = [
-            'error_count', 'consecutive_errors', 'max_consecutive_errors',
-            'use_lazy_loading', 'use_caching', 'use_batch_processing',
-            'behavior_engine', 'learning_engine', 'memory_system'
+            'service_registry', 'neural_processor', 'energy_manager',
+            'learning_engine', 'sensory_processor', 'performance_monitor',
+            'graph_manager', 'event_coordinator', 'configuration_service'
         ]
 
         print("\nChecking required attributes:")
         for attr in required_attrs:
             if hasattr(manager, attr):
                 value = getattr(manager, attr)
-                print(f"[OK] {attr}: {value}")
+                print(f"[OK] {attr}: {type(value).__name__}")
             else:
                 print(f"[FAIL] Missing attribute: {attr}")
 
-        # Test graph initialization
-        print("\nTesting graph initialization...")
-        success = manager.initialize_graph()
+        # Test simulation initialization
+        print("\nTesting simulation initialization...")
+        success = manager.initialize_simulation()
         if success:
-            print("[OK] Graph initialized successfully")
-            if manager.graph:
-                node_count = len(manager.graph.node_labels) if hasattr(manager.graph, 'node_labels') else 0
+            print("[OK] Simulation initialized successfully")
+            if manager._neural_graph:
+                node_count = len(manager._neural_graph.node_labels) if hasattr(manager._neural_graph, 'node_labels') else 0
                 print(f"   Graph has {node_count} nodes")
         else:
-            print("[FAIL] Graph initialization failed")
+            print("[FAIL] Simulation initialization failed")
 
         return manager
 
     except Exception as e:
-        print(f"[FAIL] SimulationManager initialization failed: {e}")
+        print(f"[FAIL] SimulationCoordinator initialization failed: {e}")
         traceback.print_exc()
         return None
 
@@ -67,13 +109,22 @@ def test_basic_simulation_step(manager):
     print("Testing Basic Simulation Step")
     print("=" * 60)
 
-    if not manager or not manager.graph:
-        print("[FAIL] No valid manager or graph to test")
+    if not manager:
+        print("[FAIL] No valid manager to test")
+        return False
+    if not manager._neural_graph:
+        print(f"[FAIL] No neural graph: {manager._neural_graph}")
         return False
 
     try:
+        print("Starting simulation...")
+        start_success = manager.start_simulation()
+        if not start_success:
+            print("[FAIL] Failed to start simulation")
+            return False
+
         print("Running single simulation step...")
-        success = manager.run_single_step()
+        success = manager.execute_simulation_step(1)
         if success:
             print("[OK] Simulation step completed successfully")
             return True
@@ -97,32 +148,32 @@ def test_performance_optimizations(manager):
         return False
 
     try:
-        # Check optimization flags
-        optimizations = [
-            ('use_lazy_loading', manager.use_lazy_loading),
-            ('use_caching', manager.use_caching),
-            ('use_batch_processing', manager.use_batch_processing),
+        # Check that services are properly initialized
+        services = [
+            ('neural_processor', manager.neural_processor),
+            ('energy_manager', manager.energy_manager),
+            ('learning_engine', manager.learning_engine),
+            ('sensory_processor', manager.sensory_processor),
+            ('performance_monitor', manager.performance_monitor),
+            ('graph_manager', manager.graph_manager),
+            ('event_coordinator', manager.event_coordinator),
+            ('configuration_service', manager.configuration_service),
         ]
 
-        print("Performance optimization flags:")
-        for name, value in optimizations:
-            status = "[ENABLED]" if value else "[DISABLED]"
+        print("Service availability:")
+        for name, service in services:
+            status = "[AVAILABLE]" if service else "[MISSING]"
             print(f"   {name}: {status}")
 
-        # Test batch processing
-        if hasattr(manager, '_update_node_behaviors_batch'):
-            print("\nTesting batch processing...")
-            try:
-                manager._update_node_behaviors_batch()
-                print("[OK] Batch processing works")
-            except Exception as e:
-                print(f"[FAIL] Batch processing failed: {e}")
-
-        # Test caching
-        if hasattr(manager, 'cache_manager'):
-            print("[OK] Cache manager available")
-        else:
-            print("[FAIL] Cache manager not available")
+        # Test performance metrics
+        print("\nTesting performance metrics...")
+        try:
+            metrics = manager.get_performance_metrics()
+            print(f"[OK] Performance metrics retrieved: {len(metrics)} metrics")
+            for key, value in metrics.items():
+                print(f"   {key}: {value}")
+        except Exception as e:
+            print(f"[FAIL] Performance metrics failed: {e}")
 
         return True
 
@@ -133,11 +184,11 @@ def test_performance_optimizations(manager):
 
 def main():
     """Main debug function."""
-    print("SimulationManager Debug Script")
+    print("SimulationCoordinator Debug Script")
     print("This script tests the core functionality and identifies issues.")
 
     # Test initialization
-    manager = test_simulation_manager_initialization()
+    manager = test_simulation_coordinator_initialization()
 
     if manager:
         # Test basic functionality
@@ -149,7 +200,7 @@ def main():
         # Cleanup
         print("\n" + "=" * 60)
         print("Cleaning up...")
-        manager.cleanup()
+        manager.stop_simulation()
         print("[OK] Cleanup completed")
 
     print("\n" + "=" * 60)

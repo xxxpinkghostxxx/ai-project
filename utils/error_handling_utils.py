@@ -16,79 +16,7 @@ import traceback
 from config.consolidated_constants import ERROR_MESSAGES
 from utils.print_utils import print_error, print_warning, print_info
 from utils.logging_utils import log_step
-
-
-def safe_execute(func: Callable, context: str = "operation", default_return: Any = None, 
-                 critical: bool = False) -> Any:
-    """
-    Executes a function safely, catching exceptions and logging them.
-    If critical is True, logs as error; otherwise, logs as warning.
-    """
-    try:
-        return func()
-    except Exception as e:
-        message = f"{ERROR_MESSAGES['EXCEPTION_OCCURRED']} in {context}: {e}"
-        if critical:
-            logging.error(message)
-            print_error(message)
-        else:
-            logging.warning(message)
-            print_warning(message)
-        return default_return
-
-
-def safe_initialize_component(component_name: str, init_func: Callable, default_value: Any = None,
-                             critical: bool = False) -> Any:
-    """
-    Safely initializes a component, logging success or failure.
-    """
-    try:
-        component = init_func()
-        if component is not None:
-            logging.info(f"{component_name} initialized")
-            print_info(f"{component_name} initialized")
-        return component
-    except Exception as e:
-        message = f"Failed to initialize component {component_name}: {e}"
-        if critical:
-            logging.error(message)
-            print_error(message)
-        else:
-            logging.warning(message)
-            print_warning(message)
-        return default_value
-
-
-def safe_process_step(process_func: Callable, context: str = "processing step", 
-                      critical: bool = False) -> bool:
-    """
-    Safely executes a processing step, logging success or failure.
-    """
-    try:
-        process_func()
-        return True
-    except Exception as e:
-        message = f"{ERROR_MESSAGES['EXCEPTION_OCCURRED']} during {context}: {e}"
-        if critical:
-            logging.error(message)
-            print_error(message)
-        else:
-            logging.warning(message)
-            print_warning(message)
-        return False
-
-
-def safe_callback_execution(callback: Callable, *args, **kwargs) -> Any:
-    """
-    Safely executes a callback function, logging any errors.
-    """
-    try:
-        return callback(*args, **kwargs)
-    except Exception as e:
-        message = f"{ERROR_MESSAGES['CALLBACK_ERROR']}: {e}"
-        logging.error(message)
-        print_error(message)
-        return None
+from utils.unified_error_handler import safe_execute, safe_initialize_component, safe_process_step, safe_callback_execution
 
 
 def safe_graph_access(graph, attribute: str, default_value: Any = None) -> Any:
@@ -430,3 +358,49 @@ _global_resource_manager = ResourceManager()
 def get_resource_manager() -> ResourceManager:
     """Get the global resource manager instance."""
     return _global_resource_manager
+
+
+# Additional utility functions from exception_utils.py
+
+def safe_graph_operation(operation: Callable, graph_context: str = "graph",
+                        error_msg: str = "Graph operation failed") -> Any:
+    """
+    Safely perform graph operations with consistent error handling.
+    Replaces repeated graph operation error patterns.
+    """
+    try:
+        return operation()
+    except Exception as e:
+        logging.warning(f"{error_msg}: {e}")
+        print_warning(f"{error_msg}: {e}")
+        return None
+
+
+def handle_critical_error(error: Exception, context: str = "",
+                        fallback_action: Optional[Callable] = None) -> None:
+    """
+    Handle critical errors with consistent logging and fallback.
+    Replaces repeated critical error handling patterns.
+    """
+    error_message = f"Critical error in {context}" if context else "Critical error"
+    logging.error(f"{error_message}: {error}")
+    print_error(error_message, error)
+
+    if fallback_action:
+        try:
+            fallback_action()
+        except Exception as fallback_e:
+            logging.error(f"Fallback action also failed: {fallback_e}")
+            print_error("Fallback action also failed", fallback_e)
+
+
+def log_and_continue(error: Exception, context: str = "",
+                    continue_msg: str = "Continuing with fallback") -> None:
+    """
+    Log error and continue execution with fallback.
+    Replaces repeated log-and-continue patterns.
+    """
+    logging.warning(f"Error in {context}: {error}")
+    print_warning(f"Error in {context}: {error}")
+    logging.info(continue_msg)
+    print_info(continue_msg)

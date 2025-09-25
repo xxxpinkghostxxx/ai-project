@@ -59,7 +59,7 @@ def get_node_energy_cap():
         assert _energy_cap_cache > 0, "Cached energy cap must be positive"
         return _energy_cap_cache
     constants = get_system_constants()
-    _energy_cap_cache = constants.get('node_energy_cap', 255.0)
+    _energy_cap_cache = constants.get('node_energy_cap', 5.0)  # Updated default to match new config
     _energy_cap_cache_time = current_time
     assert _energy_cap_cache > 0, "Energy cap must be positive"
     return _energy_cap_cache
@@ -70,6 +70,9 @@ def _precache_energy_cap():
     global _ENERGY_CAP_PRECACHED
     if _ENERGY_CAP_PRECACHED is None:
         _ENERGY_CAP_PRECACHED = get_node_energy_cap()
+        # Ensure we have a reasonable fallback if config is not loaded
+        if _ENERGY_CAP_PRECACHED <= 0 or _ENERGY_CAP_PRECACHED > 100:
+            _ENERGY_CAP_PRECACHED = 5.0  # Updated default to match new config
     return _ENERGY_CAP_PRECACHED
 _precache_energy_cap()
 
@@ -121,6 +124,13 @@ def update_node_energy_with_learning(graph, node_id, delta_energy):
     if 'membrane_potential' in node:
         new_membrane_potential = EnergyCalculator.calculate_membrane_potential(new_energy)
         access_layer.update_node_property(node_id, 'membrane_potential', new_membrane_potential)
+
+    # Update plasticity based on energy level
+    if new_energy < EnergyConstants.get_plasticity_threshold():
+        access_layer.update_node_property(node_id, 'plasticity_enabled', False)
+    else:
+        access_layer.update_node_property(node_id, 'plasticity_enabled', True)
+
     return graph
 
 
@@ -159,7 +169,7 @@ def apply_energy_behavior(graph, behavior_params=None, _recursion_depth=0):
     membrane_potentials = current_energies / energy_cap
     membrane_potentials.clamp_(max=1.0)
 
-    # Optimized membrane potential updates
+    # Optimized membrane potential updates with vectorized operations
     if num_nodes > 10000:
         # For large graphs, sample updates to reduce overhead
         sample_size = min(10, num_nodes)
@@ -170,7 +180,7 @@ def apply_energy_behavior(graph, behavior_params=None, _recursion_depth=0):
                 if 'membrane_potential' in node:
                     node['membrane_potential'] = float(membrane_potentials[i].item())
     else:
-        # For smaller graphs, update all nodes
+        # For smaller graphs, use vectorized update where possible
         for i in range(num_nodes):
             node = node_labels[i]
             if 'membrane_potential' in node:
@@ -406,7 +416,7 @@ def update_membrane_potentials(graph):
     access_layer = NodeAccessLayer(graph)
 
     try:
-        all_node_ids = access_layer.get_all_active_ids()
+        all_node_ids = access_layer.id_manager.get_all_active_ids()
         if not all_node_ids:
             return graph
 

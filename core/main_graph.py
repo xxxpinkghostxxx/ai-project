@@ -249,11 +249,29 @@ def initialize_main_graph(scale=RESOLUTION_SCALE):
 
     arr = capture_screen(scale=scale)
     pixel_graph = create_pixel_gray_graph(arr)
+    # Register pixel graph node IDs in the ID manager
+    from energy.node_id_manager import get_id_manager
+    id_manager = get_id_manager()
+    for idx, node in enumerate(pixel_graph.node_labels):
+        node_id = node.get('id')
+        if node_id is not None and not id_manager.is_valid_id(node_id):
+            # Add to active IDs since they were created externally
+            id_manager._active_ids.add(node_id)
+            id_manager._node_type_map[node_id] = node.get('type', 'sensory')
+            id_manager.register_node_index(node_id, idx)
     main_graph = add_dynamic_nodes(pixel_graph)
     workspace_graph = create_workspace_grid()
     full_graph = merge_graphs(main_graph, workspace_graph)
     if len(full_graph.node_labels) == 0:
         full_graph = add_dynamic_nodes(full_graph, num_dynamic=5)
+
+    # Ensure all node IDs are registered in the ID manager
+    from energy.node_id_manager import get_id_manager
+    id_manager = get_id_manager()
+    for idx, node in enumerate(full_graph.node_labels):
+        node_id = node.get('id')
+        if node_id is not None and id_manager.get_node_index(node_id) is None:
+            id_manager.register_node_index(node_id, idx)
 
     # Fast initialization of sparse random edges with bounded average out-degree
     import numpy as np
@@ -268,14 +286,18 @@ def initialize_main_graph(scale=RESOLUTION_SCALE):
     if not hasattr(full_graph, '_edge_attributes_lock'):
         full_graph._edge_attributes_lock = threading.Lock()
 
-    # Parameters for faster initialization
-    avg_out_degree = 4  # default average number of outgoing edges per node
+    # Parameters for faster initialization with adaptive scaling
+    avg_out_degree = min(4, max(2, num_nodes // 1000))  # Adaptive degree based on graph size
     # Soft cap to prevent pathological startup times on very large graphs
     max_initial_edges = max(10000, min(num_nodes * avg_out_degree, 50000))
     seen = set()
 
     if num_nodes > 1:
         logging.info(f"[INIT] Generating initial edges with avg_out_degree={avg_out_degree}, num_nodes={num_nodes}")
+        # Pre-allocate edge types and weights for better performance
+        edge_types = ['excitatory', 'inhibitory', 'modulatory']
+        type_weights = [0.6, 0.3, 0.1]  # Favor excitatory connections
+
         for i in range(num_nodes):
             # Sample an out-degree around the target average; clamp within valid range
             deg = int(np.random.poisson(avg_out_degree))
@@ -295,7 +317,8 @@ def initialize_main_graph(scale=RESOLUTION_SCALE):
                 seen.add(key)
 
                 edge_list.append([i, int(j)])
-                edge_type = np.random.choice(['excitatory', 'inhibitory'])
+                # Use weighted random choice for edge types
+                edge_type = np.random.choice(edge_types, p=type_weights)
                 weight = float(np.random.uniform(0.1, 1.0))
                 edge = EnhancedEdge(i, int(j), weight=weight, edge_type=edge_type)
                 with full_graph._edge_attributes_lock:

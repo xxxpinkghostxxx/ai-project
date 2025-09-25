@@ -3,6 +3,7 @@ import time
 import numpy as np
 import numba as nb
 import torch
+import threading
 from typing import Dict, Any, List, Optional
 
 from torch_geometric.data import Data
@@ -19,47 +20,64 @@ from utils.event_bus import get_event_bus
 class EnhancedNeuralDynamics:
 
     def __init__(self):
-        self.config = get_learning_config()
-        self.system_constants = get_system_constants()
-        self.enhanced_config = get_enhanced_nodes_config()
-        self.stdp_window = self.config.get('stdp_window', 20.0)
-        self.ltp_rate = self.config.get('ltp_rate', 0.02)
-        self.ltd_rate = self.config.get('ltd_rate', 0.01)
-        self.tau_plus = 20.0
-        self.tau_minus = 20.0
-        self.ieg_threshold = 0.7
-        self.ieg_decay_rate = 0.99
-        self.ieg_duration = 300.0
-        self.theta_burst_threshold = 4
-        self.theta_burst_window = 50.0
-        self.theta_frequency = 100.0
-        self.membrane_time_constant = 10.0
-        self.resting_potential = -70.0
-        self.threshold_potential = -50.0
-        self.reset_potential = -80.0
-        self.refractory_period = 2.0
-        self.dendritic_time_constant = 50.0
-        self.dendritic_threshold = 0.6
-        self.target_ei_ratio = 0.8
-        self.ei_adaptation_rate = 0.001
-        self.criticality_target = 1.0
-        self.eligibility_tau = 1000.0
-        self.consolidation_threshold = 0.5
+        # Thread safety
+        self._lock = threading.RLock()
+
+        try:
+            self.config = get_learning_config()
+            self.system_constants = get_system_constants()
+            self.enhanced_config = get_enhanced_nodes_config()
+        except Exception as e:
+            logging.error(f"Failed to load configuration: {e}")
+            # Use default values
+            self.config = {}
+            self.system_constants = {}
+            self.enhanced_config = {}
+
+        # Validate and set parameters with bounds checking
+        self.stdp_window = self._validate_float(self.config.get('stdp_window', 20.0), 1.0, 1000.0, 'stdp_window')
+        self.ltp_rate = self._validate_float(self.config.get('ltp_rate', 0.02), 0.0, 1.0, 'ltp_rate')
+        self.ltd_rate = self._validate_float(self.config.get('ltd_rate', 0.01), 0.0, 1.0, 'ltd_rate')
+        self.tau_plus = self._validate_float(20.0, 1.0, 1000.0, 'tau_plus')
+        self.tau_minus = self._validate_float(20.0, 1.0, 1000.0, 'tau_minus')
+        self.ieg_threshold = self._validate_float(0.7, 0.0, 1.0, 'ieg_threshold')
+        self.ieg_decay_rate = self._validate_float(0.99, 0.0, 1.0, 'ieg_decay_rate')
+        self.ieg_duration = self._validate_float(300.0, 1.0, 10000.0, 'ieg_duration')
+        self.theta_burst_threshold = max(1, int(4))  # At least 1
+        self.theta_burst_window = self._validate_float(50.0, 1.0, 1000.0, 'theta_burst_window')
+        self.theta_frequency = self._validate_float(100.0, 1.0, 1000.0, 'theta_frequency')
+        self.membrane_time_constant = self._validate_float(10.0, 0.1, 1000.0, 'membrane_time_constant')
+        self.resting_potential = self._validate_float(-70.0, -200.0, 0.0, 'resting_potential')
+        self.threshold_potential = self._validate_float(-50.0, -100.0, 0.0, 'threshold_potential')
+        self.reset_potential = self._validate_float(-80.0, -200.0, 0.0, 'reset_potential')
+        self.refractory_period = self._validate_float(2.0, 0.1, 100.0, 'refractory_period')
+        self.dendritic_time_constant = self._validate_float(50.0, 0.1, 1000.0, 'dendritic_time_constant')
+        self.dendritic_threshold = self._validate_float(0.6, 0.0, 10.0, 'dendritic_threshold')
+        self.target_ei_ratio = self._validate_float(0.8, 0.1, 10.0, 'target_ei_ratio')
+        self.ei_adaptation_rate = self._validate_float(0.001, 0.0, 1.0, 'ei_adaptation_rate')
+        self.criticality_target = self._validate_float(1.0, 0.1, 5.0, 'criticality_target')
+        self.eligibility_tau = self._validate_float(1000.0, 1.0, 10000.0, 'eligibility_tau')
+        self.consolidation_threshold = self._validate_float(0.5, 0.0, 1.0, 'consolidation_threshold')
         self.dopamine_level = 0.0
         self.acetylcholine_level = 0.0
         self.norepinephrine_level = 0.0
-        self.neuromodulator_decay = 0.95
+        self.neuromodulator_decay = self._validate_float(0.95, 0.0, 1.0, 'neuromodulator_decay')
+
         self.neuromodulators = {
             'dopamine': self.dopamine_level,
             'acetylcholine': self.acetylcholine_level,
             'norepinephrine': self.norepinephrine_level
         }
+
+        # Memory-efficient data structures with size limits
         self.node_activity_history = defaultdict(lambda: deque(maxlen=1000))
         self.edge_activity_history = defaultdict(lambda: deque(maxlen=1000))
         self.spike_times = defaultdict(list)
         self.theta_burst_counters = defaultdict(int)
         self.ieg_flags = defaultdict(bool)
         self.ieg_timers = defaultdict(float)
+
+        # Thread-safe statistics
         self.stats = {
             'total_spikes': 0,
             'stdp_events': 0,
@@ -68,35 +86,65 @@ class EnhancedNeuralDynamics:
             'consolidation_events': 0,
             'ei_balance_adjustments': 0
         }
-        self.event_bus = get_event_bus()
-        log_step("EnhancedNeuralDynamics initialized")
+
+        try:
+            self.event_bus = get_event_bus()
+        except Exception as e:
+            logging.warning(f"Failed to get event bus: {e}")
+            self.event_bus = None
+
+        log_step("EnhancedNeuralDynamics initialized with bounds checking and thread safety")
+
+    def _validate_float(self, value: Any, min_val: float, max_val: float, field_name: str) -> float:
+        """Validate and clamp float values."""
+        try:
+            val = float(value)
+            if np.isnan(val):
+                logging.warning(f"Value {val} for {field_name} is NaN, using default")
+                return min_val if min_val > 0 else 0.0
+            if not (min_val <= val <= max_val):
+                logging.warning(f"Value {val} for {field_name} out of range [{min_val}, {max_val}], clamping")
+                val = max(min_val, min(max_val, val))
+            return val
+        except (ValueError, TypeError, OverflowError):
+            logging.warning(f"Invalid value {value} for {field_name}, using default")
+            return min_val if min_val > 0 else 0.0
+
     def update_neural_dynamics(self, graph: Data, step: int) -> Data:
-        """Update neural dynamics with input validation."""
+        """Update neural dynamics with comprehensive validation and thread safety."""
         # Input validation
         if graph is None:
             log_step("Error: graph is None in update_neural_dynamics")
             return graph
+
         if not isinstance(step, int) or step < 0:
             log_step("Error: invalid step value", step=step)
             return graph
-        if not hasattr(graph, 'node_labels') or not graph.node_labels:
+
+        if not hasattr(graph, 'node_labels') or graph.node_labels is None:
             log_step("Error: graph missing node_labels")
             return graph
 
-        try:
-            graph = self._update_membrane_dynamics(graph, step)
-            graph = self._process_spikes(graph, step)
-            graph = self._apply_stdp_learning(graph, step)
-            graph = self._update_ieg_tagging(graph, step)
-            graph = self._process_theta_bursts(graph, step)
-            graph = self._update_eligibility_traces(graph, step)
-            graph = self._apply_memory_consolidation(graph, step)
-            graph = self._update_homeostatic_control(graph, step)
-            self._update_neuromodulation(step)
+        if not isinstance(graph.node_labels, (list, tuple)) or len(graph.node_labels) == 0:
+            log_step("Error: graph node_labels is empty or invalid")
             return graph
-        except Exception as e:
-            log_step("Error in neural dynamics update", error=str(e))
-            return graph
+
+        with self._lock:
+            try:
+                graph = self._update_membrane_dynamics(graph, step)
+                graph = self._process_spikes(graph, step)
+                graph = self._apply_stdp_learning(graph, step)
+                graph = self._update_ieg_tagging(graph, step)
+                graph = self._process_theta_bursts(graph, step)
+                graph = self._update_eligibility_traces(graph, step)
+                graph = self._apply_memory_consolidation(graph, step)
+                graph = self._update_homeostatic_control(graph, step)
+                self._update_neuromodulation(step)
+                return graph
+            except Exception as e:
+                logging.error(f"Error in neural dynamics update at step {step}: {e}")
+                log_step("Error in neural dynamics update", error=str(e), step=step)
+                return graph
     def _update_membrane_dynamics(self, graph: Data, step: int) -> Data:
 
         access_layer = NodeAccessLayer(graph)
@@ -105,8 +153,13 @@ class EnhancedNeuralDynamics:
         if hasattr(graph, 'enhanced_node_ids'):
             enhanced_node_ids = graph.enhanced_node_ids
         else:
+            # Optimized sampling for enhanced nodes
             sample_size = min(1000, len(graph.node_labels))
-            sample_indices = np.random.choice(len(graph.node_labels), sample_size, replace=False)
+            if sample_size < len(graph.node_labels):
+                sample_indices = np.random.choice(len(graph.node_labels), sample_size, replace=False)
+            else:
+                sample_indices = range(len(graph.node_labels))
+
             for node_id in sample_indices:
                 try:
                     node = access_layer.get_node_by_id(node_id)
@@ -150,30 +203,95 @@ class EnhancedNeuralDynamics:
             self._update_theta_burst_counter(node_id, current_time)
         return graph
     def _calculate_synaptic_input(self, graph: Data, node_id: int, access_layer: NodeAccessLayer) -> float:
-
+        """Calculate synaptic input with bounds checking and error handling."""
         total_input = 0.0
-        if not hasattr(graph, 'edge_attributes'):
+
+        if not hasattr(graph, 'edge_attributes') or graph.edge_attributes is None:
             return total_input
-        for edge in graph.edge_attributes:
-            if edge.target == node_id:
-                source_id = edge.source
-                source_node = access_layer.get_node_by_id(source_id)
-                if source_node is None:
+
+        if not isinstance(graph.edge_attributes, (list, tuple)):
+            logging.warning("edge_attributes is not a list or tuple")
+            return total_input
+
+        max_input = 1000.0  # Prevent runaway values
+        min_input = -1000.0
+
+        try:
+            for edge_idx, edge in enumerate(graph.edge_attributes):
+                if edge is None:
                     continue
-                last_spike = source_node.get('last_spike_time', 0)
-                current_time = time.time()
-                if current_time - last_spike < 0.1:
-                    effective_weight = edge.get_effective_weight()
-                    if edge.type == 'excitatory':
-                        total_input += effective_weight
-                    elif edge.type == 'inhibitory':
-                        total_input -= effective_weight
-                    elif edge.type == 'modulatory':
-                        total_input += effective_weight * 0.5
-                    elif edge.type == 'gated':
-                        source_energy = access_layer.get_node_energy(source_id)
-                        if source_energy and source_energy > edge.get('gate_threshold', 0.5):
+
+                # Validate edge structure
+                if not hasattr(edge, 'target') or not hasattr(edge, 'source'):
+                    continue
+
+                if edge.target != node_id:
+                    continue
+
+                source_id = edge.source
+
+                # Validate source_id
+                if not isinstance(source_id, int) or source_id < 0:
+                    continue
+
+                try:
+                    source_node = access_layer.get_node_by_id(source_id)
+                    if source_node is None:
+                        continue
+
+                    last_spike = source_node.get('last_spike_time', 0)
+                    if not isinstance(last_spike, (int, float)):
+                        continue
+
+                    current_time = time.time()
+                    time_diff = current_time - last_spike
+
+                    # Only consider recent spikes
+                    if time_diff < 0.1 and time_diff >= 0:
+                        # Get effective weight with bounds checking
+                        if hasattr(edge, 'get_effective_weight'):
+                            try:
+                                effective_weight = edge.get_effective_weight()
+                                if not isinstance(effective_weight, (int, float)):
+                                    continue
+                                effective_weight = max(-100.0, min(100.0, effective_weight))  # Clamp weight
+                            except Exception:
+                                continue
+                        else:
+                            # Fallback to weight attribute
+                            effective_weight = getattr(edge, 'weight', 0.0)
+                            if not isinstance(effective_weight, (int, float)):
+                                continue
+
+                        # Process based on edge type
+                        edge_type = getattr(edge, 'type', 'unknown')
+                        if edge_type == 'excitatory':
                             total_input += effective_weight
+                        elif edge_type == 'inhibitory':
+                            total_input -= effective_weight
+                        elif edge_type == 'modulatory':
+                            total_input += effective_weight * 0.5
+                        elif edge_type == 'gated':
+                            try:
+                                source_energy = access_layer.get_node_energy(source_id)
+                                gate_threshold = getattr(edge, 'gate_threshold', 0.5)
+                                if (source_energy is not None and
+                                    isinstance(source_energy, (int, float)) and
+                                    source_energy > gate_threshold):
+                                    total_input += effective_weight
+                            except Exception:
+                                pass  # Skip on error
+
+                        # Prevent runaway values
+                        total_input = max(min_input, min(max_input, total_input))
+
+                except Exception as e:
+                    logging.debug(f"Error processing edge {edge_idx} for node {node_id}: {e}")
+                    continue
+
+        except Exception as e:
+            logging.warning(f"Error in synaptic input calculation for node {node_id}: {e}")
+
         return total_input
     def _process_spikes(self, graph: Data, step: int) -> Data:
 
@@ -207,17 +325,27 @@ class EnhancedNeuralDynamics:
     
     
     def _apply_stdp_learning(self, graph: Data, step: int) -> Data:
-    
+
         if not hasattr(graph, 'edge_attributes'):
             return graph
         current_time = time.time()
         for edge_idx, edge in enumerate(graph.edge_attributes):
-            source_id = edge.source
-            target_id = edge.target
-            source_spikes = [t for t in self.spike_times[source_id]
-                           if current_time - t < self.stdp_window / 1000.0]
-            target_spikes = [t for t in self.spike_times[target_id]
-                           if current_time - t < self.stdp_window / 1000.0]
+            source_index = edge.source
+            target_index = edge.target
+            if source_index < len(graph.node_labels) and target_index < len(graph.node_labels):
+                source_node = graph.node_labels[source_index]
+                target_node = graph.node_labels[target_index]
+                source_id = source_node.get('id')
+                target_id = target_node.get('id')
+                if source_id is not None and target_id is not None:
+                    source_spikes = [t for t in self.spike_times[source_id]
+                                    if current_time - t < self.stdp_window / 1000.0]
+                    target_spikes = [t for t in self.spike_times[target_id]
+                                    if current_time - t < self.stdp_window / 1000.0]
+                else:
+                    continue
+            else:
+                continue
             if not source_spikes or not target_spikes:
                 continue
                 
@@ -349,18 +477,48 @@ class EnhancedNeuralDynamics:
             self._adjust_criticality(graph, criticality)
         return graph
     def _calculate_ei_ratio(self, graph: Data) -> float:
-        if not hasattr(graph, 'edge_attributes'):
+        """Calculate E/I ratio with division by zero protection."""
+        if not hasattr(graph, 'edge_attributes') or graph.edge_attributes is None:
             return 1.0
+
+        if not isinstance(graph.edge_attributes, (list, tuple)):
+            return 1.0
+
         excitatory_weight = 0.0
         inhibitory_weight = 0.0
-        for edge in graph.edge_attributes:
-            if edge.type == 'excitatory':
-                excitatory_weight += abs(edge.weight)
-            elif edge.type == 'inhibitory':
-                inhibitory_weight += abs(edge.weight)
-        if inhibitory_weight == 0:
+
+        try:
+            for edge in graph.edge_attributes:
+                if edge is None or not hasattr(edge, 'type'):
+                    continue
+
+                edge_type = edge.type
+                if not hasattr(edge, 'weight'):
+                    continue
+
+                weight = edge.weight
+                if not isinstance(weight, (int, float)):
+                    continue
+
+                weight_abs = abs(weight)
+
+                if edge_type == 'excitatory':
+                    excitatory_weight += weight_abs
+                elif edge_type == 'inhibitory':
+                    inhibitory_weight += weight_abs
+
+            # Prevent division by zero with minimum threshold
+            if inhibitory_weight < 0.001:
+                return 10.0 if excitatory_weight > 0 else 1.0
+
+            ratio = excitatory_weight / inhibitory_weight
+
+            # Clamp ratio to reasonable bounds
+            return max(0.1, min(10.0, ratio))
+
+        except Exception as e:
+            logging.warning(f"Error calculating E/I ratio: {e}")
             return 1.0
-        return excitatory_weight / inhibitory_weight
     def _adjust_ei_balance(self, graph: Data, current_ratio: float):
         if not hasattr(graph, 'edge_attributes'):
             return
@@ -416,17 +574,36 @@ class EnhancedNeuralDynamics:
                     keep_indices = np.random.choice(num_edges, num_edges - remove_count, replace=False)
                     graph.edge_index = graph.edge_index[:, keep_indices]
     def set_neuromodulator_level(self, neuromodulator: str, level: float):
-        level = max(0.0, min(1.0, level))
-        if neuromodulator == 'dopamine':
-            self.dopamine_level = level
-        elif neuromodulator == 'acetylcholine':
-            self.acetylcholine_level = level
-        elif neuromodulator == 'norepinephrine':
-            self.norepinephrine_level = level
-        else:
-            log_step(f"Unknown neuromodulator: {neuromodulator}")
+        """Set neuromodulator level with validation."""
+        if not isinstance(neuromodulator, str):
+            logging.error("Neuromodulator name must be a string")
             return
-        self.neuromodulators[neuromodulator] = level
+
+        if not isinstance(level, (int, float)):
+            logging.error("Neuromodulator level must be a number")
+            return
+
+        # Validate and clamp level
+        level = float(level)
+        if np.isnan(level):
+            logging.warning(f"Neuromodulator level is NaN, setting to 0.0")
+            level = 0.0
+        else:
+            level = max(0.0, min(1.0, level))
+
+        with self._lock:
+            if neuromodulator == 'dopamine':
+                self.dopamine_level = level
+            elif neuromodulator == 'acetylcholine':
+                self.acetylcholine_level = level
+            elif neuromodulator == 'norepinephrine':
+                self.norepinephrine_level = level
+            else:
+                logging.warning(f"Unknown neuromodulator: {neuromodulator}")
+                return
+
+            self.neuromodulators[neuromodulator] = level
+            log_step(f"Neuromodulator {neuromodulator} set to {level}")
     def _update_neuromodulation(self, step: int):
         self.dopamine_level *= self.neuromodulator_decay
         self.acetylcholine_level *= self.neuromodulator_decay
@@ -449,44 +626,53 @@ class EnhancedNeuralDynamics:
             if all(0.008 < interval < 0.012 for interval in intervals):
                 self.theta_burst_counters[node_id] += 1
     def get_statistics(self) -> Dict[str, Any]:
-        return self.stats.copy()
+        """Get statistics with thread safety."""
+        with self._lock:
+            return self.stats.copy()
+
     def reset_statistics(self):
-        self.stats = {
-            'total_spikes': 0,
-            'stdp_events': 0,
-            'ieg_activations': 0,
-            'theta_bursts': 0,
-            'consolidation_events': 0,
-            'ei_balance_adjustments': 0
-        }
+        """Reset statistics with thread safety."""
+        with self._lock:
+            self.stats = {
+                'total_spikes': 0,
+                'stdp_events': 0,
+                'ieg_activations': 0,
+                'theta_bursts': 0,
+                'consolidation_events': 0,
+                'ei_balance_adjustments': 0
+            }
+
     def cleanup(self):
-        """Clean up all data structures to prevent memory leaks."""
-        self.node_activity_history.clear()
-        self.edge_activity_history.clear()
-        self.spike_times.clear()
-        self.theta_burst_counters.clear()
-        self.ieg_flags.clear()
-        self.ieg_timers.clear()
-        
-        # Reset statistics
-        self.stats = {
-            'total_spikes': 0,
-            'stdp_events': 0,
-            'ieg_activations': 0,
-            'theta_bursts': 0,
-            'consolidation_events': 0,
-            'ei_balance_adjustments': 0
-        }
-        
-        # Reset neuromodulator levels
-        self.dopamine_level = 0.0
-        self.acetylcholine_level = 0.0
-        self.norepinephrine_level = 0.0
-        self.neuromodulators = {
-            'dopamine': 0.0,
-            'acetylcholine': 0.0,
-            'norepinephrine': 0.0
-        }
+        """Clean up all data structures to prevent memory leaks with thread safety."""
+        with self._lock:
+            self.node_activity_history.clear()
+            self.edge_activity_history.clear()
+            self.spike_times.clear()
+            self.theta_burst_counters.clear()
+            self.ieg_flags.clear()
+            self.ieg_timers.clear()
+
+            # Reset statistics
+            self.stats = {
+                'total_spikes': 0,
+                'stdp_events': 0,
+                'ieg_activations': 0,
+                'theta_bursts': 0,
+                'consolidation_events': 0,
+                'ei_balance_adjustments': 0
+            }
+
+            # Reset neuromodulator levels
+            self.dopamine_level = 0.0
+            self.acetylcholine_level = 0.0
+            self.norepinephrine_level = 0.0
+            self.neuromodulators = {
+                'dopamine': 0.0,
+                'acetylcholine': 0.0,
+                'norepinephrine': 0.0
+            }
+
+            log_step("EnhancedNeuralDynamics cleanup completed")
 
 
 def create_enhanced_neural_dynamics() -> EnhancedNeuralDynamics:

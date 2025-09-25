@@ -31,11 +31,16 @@ class MemorySystem:
     def form_memory_traces(self, graph):
 
         if not hasattr(graph, 'node_labels') or not graph.node_labels:
+            log_step("Memory trace formation skipped: no node_labels")
             return graph
         memory_traces_formed = 0
+        checked_nodes = 0
+        stable_nodes = 0
         for node_idx, node in enumerate(graph.node_labels):
             if node.get('behavior') in ['integrator', 'relay']:
+                checked_nodes += 1
                 if self._has_stable_pattern(node, graph):
+                    stable_nodes += 1
                     if len(self.memory_traces) < self.max_memory_traces:
                         self._create_memory_trace(node_idx, graph)
                         memory_traces_formed += 1
@@ -50,14 +55,20 @@ class MemorySystem:
 
         last_activation = node.get('last_activation', 0)
         current_time = time.time()
-        if (current_time - last_activation < 10.0 and
-            node.get('energy', 0.0) > 0.3):
+        if not isinstance(last_activation, (int, float)):
+            log_step("Stable pattern check failed: invalid last_activation type", node_id=node.get('id'), type=type(last_activation))
+            return False
+        time_diff = current_time - last_activation
+        energy = node.get('energy', 0.0)
+        is_recent = time_diff < 10.1
+        has_energy = energy > 0.2
+        if is_recent and has_energy:
             return True
         return False
     def _create_memory_trace(self, node_idx, graph):
 
         incoming_edges = []
-        if hasattr(graph, 'edge_index') and graph.edge_index.numel() > 0:
+        if hasattr(graph, 'edge_index') and graph.edge_index is not None and graph.edge_index.numel() > 0:
             edge_index = graph.edge_index.cpu().numpy()
             target_edges = edge_index[1] == node_idx
             for edge_idx in np.where(target_edges)[0]:
@@ -69,14 +80,18 @@ class MemorySystem:
                     'type': 'excitatory',
                     'source_behavior': source_node.get('behavior', 'unknown')
                 })
-        self.memory_traces[node_idx] = {
-            'connections': incoming_edges,
-            'strength': DEFAULT_MEMORY_STRENGTH,
-            'formation_time': time.time(),
-            'activation_count': 0,
-            'last_accessed': time.time(),
-            'pattern_type': self._classify_pattern(incoming_edges, graph)
-        }
+        try:
+            self.memory_traces[node_idx] = {
+                'connections': incoming_edges,
+                'strength': DEFAULT_MEMORY_STRENGTH,
+                'formation_time': time.time(),
+                'activation_count': 0,
+                'last_accessed': time.time(),
+                'pattern_type': self._classify_pattern(incoming_edges, graph)
+            }
+        except Exception as e:
+            log_step("Failed to create memory trace", error=str(e), node_idx=node_idx)
+            return
         log_step("Memory trace created",
                 node_id=node_idx,
                 pattern_type=self.memory_traces[node_idx]['pattern_type'],
@@ -114,6 +129,8 @@ class MemorySystem:
                 node = graph.node_labels[node_idx]
                 if self._has_stable_pattern(node, graph):
                     memory_trace['strength'] = min(memory_trace['strength'] * 1.1, 2.0)
+                    if 'activation_count' not in memory_trace:
+                        memory_trace['activation_count'] = 0
                     memory_trace['activation_count'] += 1
                     memory_trace['last_accessed'] = current_time
                     consolidated_count += 1

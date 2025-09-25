@@ -1,0 +1,7 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.3, pytest-8.4.2, pluggy-1.6.0
+rootdir: c:\Users\chris\Documents\ai-project
+plugins: dash-3.0.4
+collected 29 items
+
+tests\test_energy_behavior.py ......

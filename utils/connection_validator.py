@@ -92,6 +92,7 @@ class ConnectionValidator:
         # Check for self-connections
         if source_id == target_id:
             result['errors'].append(f"Self-connection not allowed: source_id={source_id}")
+            result['warnings'].append("Self-connections can cause instability in neural networks")
             return result
 
         # Check if nodes exist in graph
@@ -128,6 +129,7 @@ class ConnectionValidator:
 
         if connection_type not in valid_types:
             result['errors'].append(f"Invalid connection type: {connection_type}. Valid types: {valid_types}")
+            result['warnings'].append(f"Connection type '{connection_type}' is not recommended")
         elif connection_type == 'burst':
             result['warnings'].append("Burst connections can cause instability - use with caution")
 
@@ -185,7 +187,7 @@ class ConnectionValidator:
         current_edges = len(graph.edge_attributes) if graph.edge_attributes else 0
         max_recommended_edges = len(graph.node_labels) * 10  # Rough heuristic
 
-        if current_edges >= max_recommended_edges:
+        if current_edges >= max_recommended_edges * 0.8:
             result['warnings'].append(f"Graph approaching capacity: {current_edges}/{max_recommended_edges} edges")
             result['suggestions'].append("Consider increasing graph capacity or pruning old connections")
 
@@ -194,6 +196,10 @@ class ConnectionValidator:
     def _check_for_cycles(self, graph, source_id: int, target_id: int) -> Dict[str, List[str]]:
         """Check for potential cycles that could cause infinite loops."""
         result = {'warnings': []}
+
+        # Skip cycle check for self-connections
+        if source_id == target_id:
+            return result
 
         # Simple cycle detection for small graphs
         if hasattr(graph, 'edge_attributes') and len(graph.edge_attributes) < 1000:

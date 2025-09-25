@@ -37,32 +37,88 @@ class EnergyConstants:
     DYNAMIC_ENERGY_THRESHOLD_FRACTION = 0.8
     @classmethod
     def get_activation_threshold(cls) -> float:
-        config = get_learning_config()
-        return config.get('activation_threshold', cls.ACTIVATION_THRESHOLD_DEFAULT)
+        try:
+            config = get_learning_config()
+            if config is None:
+                return cls.ACTIVATION_THRESHOLD_DEFAULT
+            value = config.get('activation_threshold', cls.ACTIVATION_THRESHOLD_DEFAULT)
+            if not isinstance(value, (int, float)) or value < 0 or value > 1:
+                return cls.ACTIVATION_THRESHOLD_DEFAULT
+            return value
+        except Exception:
+            return cls.ACTIVATION_THRESHOLD_DEFAULT
     @classmethod
     def get_refractory_period(cls) -> float:
-        config = get_learning_config()
-        return config.get('refractory_period', cls.REFRACTORY_PERIOD_LONG)
+        try:
+            config = get_learning_config()
+            if config is None:
+                return cls.REFRACTORY_PERIOD_LONG
+            value = config.get('refractory_period', cls.REFRACTORY_PERIOD_LONG)
+            if not isinstance(value, (int, float)) or value <= 0:
+                return cls.REFRACTORY_PERIOD_LONG
+            return value
+        except Exception:
+            return cls.REFRACTORY_PERIOD_LONG
     @classmethod
     def get_integration_rate(cls) -> float:
-        config = get_enhanced_nodes_config()
-        return config.get('integration_rate', cls.INTEGRATION_RATE_DEFAULT)
+        try:
+            config = get_enhanced_nodes_config()
+            if config is None:
+                return cls.INTEGRATION_RATE_DEFAULT
+            value = config.get('integration_rate', cls.INTEGRATION_RATE_DEFAULT)
+            if not isinstance(value, (int, float)) or value < 0 or value > 1:
+                return cls.INTEGRATION_RATE_DEFAULT
+            return value
+        except Exception:
+            return cls.INTEGRATION_RATE_DEFAULT
     @classmethod
     def get_relay_amplification(cls) -> float:
-        config = get_enhanced_nodes_config()
-        return config.get('relay_amplification', cls.RELAY_AMPLIFICATION_DEFAULT)
+        try:
+            config = get_enhanced_nodes_config()
+            if config is None:
+                return cls.RELAY_AMPLIFICATION_DEFAULT
+            value = config.get('relay_amplification', cls.RELAY_AMPLIFICATION_DEFAULT)
+            if not isinstance(value, (int, float)) or value < 1:
+                return cls.RELAY_AMPLIFICATION_DEFAULT
+            return value
+        except Exception:
+            return cls.RELAY_AMPLIFICATION_DEFAULT
     @classmethod
     def get_highway_energy_boost(cls) -> float:
-        config = get_enhanced_nodes_config()
-        return config.get('highway_energy_boost', cls.HIGHWAY_ENERGY_BOOST_DEFAULT)
+        try:
+            config = get_enhanced_nodes_config()
+            if config is None:
+                return cls.HIGHWAY_ENERGY_BOOST_DEFAULT
+            value = config.get('highway_energy_boost', cls.HIGHWAY_ENERGY_BOOST_DEFAULT)
+            if not isinstance(value, (int, float)) or value < 1:
+                return cls.HIGHWAY_ENERGY_BOOST_DEFAULT
+            return value
+        except Exception:
+            return cls.HIGHWAY_ENERGY_BOOST_DEFAULT
     @classmethod
     def get_decay_rate(cls) -> float:
-        config = get_learning_config()
-        return config.get('energy_leak_rate', cls.DECAY_RATE_DEFAULT)
+        try:
+            config = get_learning_config()
+            if config is None:
+                return cls.DECAY_RATE_DEFAULT
+            value = config.get('energy_leak_rate', cls.DECAY_RATE_DEFAULT)
+            if not isinstance(value, (int, float)) or value < 0 or value > 1:
+                return cls.DECAY_RATE_DEFAULT
+            return value
+        except Exception:
+            return cls.DECAY_RATE_DEFAULT
     @classmethod
     def get_plasticity_threshold(cls) -> float:
-        config = get_learning_config()
-        return config.get('plasticity_gate_threshold', cls.PLASTICITY_THRESHOLD_DEFAULT)
+        try:
+            config = get_learning_config()
+            if config is None:
+                return cls.PLASTICITY_THRESHOLD_DEFAULT
+            value = config.get('plasticity_gate_threshold', cls.PLASTICITY_THRESHOLD_DEFAULT)
+            if not isinstance(value, (int, float)) or value < 0 or value > 1:
+                return cls.PLASTICITY_THRESHOLD_DEFAULT
+            return value
+        except Exception:
+            return cls.PLASTICITY_THRESHOLD_DEFAULT
     @classmethod
     def get_dynamic_energy_threshold(cls) -> float:
         from energy.energy_behavior import get_node_energy_cap
@@ -93,8 +149,16 @@ class OscillatorConstants:
     REFRACTORY_PERIOD_SHORT = 0.1
     @classmethod
     def get_oscillation_frequency(cls) -> float:
-        config = get_enhanced_nodes_config()
-        return config.get('oscillator_frequency', cls.OSCILLATION_FREQUENCY_DEFAULT)
+        try:
+            config = get_enhanced_nodes_config()
+            if config is None:
+                return cls.OSCILLATION_FREQUENCY_DEFAULT
+            value = config.get('oscillator_frequency', cls.OSCILLATION_FREQUENCY_DEFAULT)
+            if not isinstance(value, (int, float)) or value <= 0:
+                return cls.OSCILLATION_FREQUENCY_DEFAULT
+            return value
+        except Exception:
+            return cls.OSCILLATION_FREQUENCY_DEFAULT
 
 
 class IntegratorConstants:
@@ -102,12 +166,28 @@ class IntegratorConstants:
     INTEGRATOR_THRESHOLD_DEFAULT = 0.8
     @classmethod
     def get_integration_rate(cls) -> float:
-        config = get_enhanced_nodes_config()
-        return config.get('integration_rate', cls.INTEGRATION_RATE_DEFAULT)
+        try:
+            config = get_enhanced_nodes_config()
+            if config is None:
+                return cls.INTEGRATION_RATE_DEFAULT
+            value = config.get('integration_rate', cls.INTEGRATION_RATE_DEFAULT)
+            if not isinstance(value, (int, float)) or value < 0 or value > 1:
+                return cls.INTEGRATION_RATE_DEFAULT
+            return value
+        except Exception:
+            return cls.INTEGRATION_RATE_DEFAULT
     @classmethod
     def get_integrator_threshold(cls) -> float:
-        config = get_enhanced_nodes_config()
-        return config.get('integrator_threshold', cls.INTEGRATOR_THRESHOLD_DEFAULT)
+        try:
+            config = get_enhanced_nodes_config()
+            if config is None:
+                return cls.INTEGRATOR_THRESHOLD_DEFAULT
+            value = config.get('integrator_threshold', cls.INTEGRATOR_THRESHOLD_DEFAULT)
+            if not isinstance(value, (int, float)) or value < 0 or value > 1:
+                return cls.INTEGRATOR_THRESHOLD_DEFAULT
+            return value
+        except Exception:
+            return cls.INTEGRATOR_THRESHOLD_DEFAULT
 
 
 class RelayConstants:
@@ -115,8 +195,16 @@ class RelayConstants:
     ENERGY_TRANSFER_FRACTION = 0.2
     @classmethod
     def get_relay_amplification(cls) -> float:
-        config = get_enhanced_nodes_config()
-        return config.get('relay_amplification', cls.RELAY_AMPLIFICATION_DEFAULT)
+        try:
+            config = get_enhanced_nodes_config()
+            if config is None:
+                return cls.RELAY_AMPLIFICATION_DEFAULT
+            value = config.get('relay_amplification', cls.RELAY_AMPLIFICATION_DEFAULT)
+            if not isinstance(value, (int, float)) or value < 1:
+                return cls.RELAY_AMPLIFICATION_DEFAULT
+            return value
+        except Exception:
+            return cls.RELAY_AMPLIFICATION_DEFAULT
 
 
 class HighwayConstants:
@@ -126,5 +214,13 @@ class HighwayConstants:
     DISTRIBUTION_ENERGY_BASE = 10.0
     @classmethod
     def get_highway_energy_boost(cls) -> float:
-        config = get_enhanced_nodes_config()
-        return config.get('highway_energy_boost', cls.HIGHWAY_ENERGY_BOOST_DEFAULT)
+        try:
+            config = get_enhanced_nodes_config()
+            if config is None:
+                return cls.HIGHWAY_ENERGY_BOOST_DEFAULT
+            value = config.get('highway_energy_boost', cls.HIGHWAY_ENERGY_BOOST_DEFAULT)
+            if not isinstance(value, (int, float)) or value < 1:
+                return cls.HIGHWAY_ENERGY_BOOST_DEFAULT
+            return value
+        except Exception:
+            return cls.HIGHWAY_ENERGY_BOOST_DEFAULT

@@ -101,25 +101,27 @@ class PerformanceMonitor:
         self.running = False
         self.monitor_thread = None
         self._lock = threading.RLock()
-        
+
         # Performance thresholds
         self.thresholds = PerformanceThresholds()
-        
+
         # Callbacks
         self.alert_callbacks = []
         self.threshold_callbacks = defaultdict(list)
-        
+        self._max_callbacks = 10
+
         # Statistics
         self.error_count = 0
         self.warning_count = 0
         self.step_count = 0
-        
+        self._memory_limit_mb = 2000.0
+
         # Initialize system info
         self._initialize_system_info()
-        
+
         # Current metrics
         self.current_metrics = PerformanceMetrics()
-        
+
         log_step("PerformanceMonitor initialized")
     
     def _initialize_system_info(self):
@@ -281,7 +283,7 @@ class PerformanceMonitor:
             self.current_metrics.step_time = step_time
             self.current_metrics.node_count = node_count
             self.current_metrics.edge_count = edge_count
-            self.current_metrics.fps = 1.0 / step_time if step_time > 0 else 0.0
+            self.current_metrics.fps = 1.0 / step_time if step_time > 0.0001 else 0.0  # Protect against very small step times
             self.current_metrics.throughput = node_count / step_time if step_time > 0 else 0.0
     
     def record_error(self):
@@ -296,7 +298,8 @@ class PerformanceMonitor:
     
     def add_alert_callback(self, callback: Callable[[str, str, Dict[str, Any]], None]):
         """Add an alert callback."""
-        self.alert_callbacks.append(callback)
+        if callback not in self.alert_callbacks:
+            self.alert_callbacks.append(callback)
     
     def get_current_metrics(self) -> PerformanceMetrics:
         """Get current performance metrics."""
@@ -326,6 +329,36 @@ class PerformanceMonitor:
                 'warning_count': self.warning_count,
                 'uptime_hours': (time.time() - self.initial_memory) / 3600
             }
+
+    @property
+    def total_steps(self):
+        """Get total steps."""
+        return self.step_count
+
+    def set_memory_limit(self, limit_mb: float):
+        """Set memory limit."""
+        if limit_mb <= 0:
+            raise ValueError("Memory limit must be positive")
+        self._memory_limit_mb = limit_mb
+
+    def start_monitoring(self):
+        """Alias for start()."""
+        self.start()
+
+    @property
+    def _monitoring(self):
+        """Get monitoring status."""
+        return self.running
+
+    def cleanup(self):
+        """Clean up the monitor."""
+        self.stop()
+        self.alert_callbacks.clear()
+        self.threshold_callbacks.clear()
+        self.metrics_history.clear()
+        self.error_count = 0
+        self.warning_count = 0
+        self.step_count = 0
 
 
 class PerformanceOptimizer:

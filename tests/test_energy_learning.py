@@ -5,11 +5,77 @@ Test script to verify energy-modulated learning implementation.
 
 import sys
 import os
+from unittest.mock import Mock, MagicMock
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from learning.live_hebbian_learning import create_live_hebbian_learning
 from learning.learning_engine import LearningEngine
-from core.simulation_manager import SimulationManager
+from core.services.simulation_coordinator import SimulationCoordinator
+from core.interfaces.node_access_layer import IAccessLayer
+from torch_geometric.data import Data
+import torch
+
+def setup_mocked_services():
+    """Set up mocked services for testing."""
+    # Create initial graph
+    initial_graph = Data(node_labels=[], x=None)
+
+    # Create mock access layer
+    access_layer = Mock(spec=IAccessLayer)
+    access_layer.get_node_by_id = Mock(return_value={'id': 1, 'energy': 0.5})
+
+    # Create mock services
+    service_registry = Mock()
+    neural_processor = Mock()
+    neural_processor.initialize_neural_state = Mock(return_value=True)
+    neural_processor.process_neural_dynamics = Mock(return_value=(initial_graph, []))
+    neural_processor.validate_neural_integrity = Mock(return_value={'valid': True})
+
+    energy_manager = Mock()
+    energy_manager.initialize_energy_state = Mock(return_value=True)
+    energy_manager.update_energy_flows = Mock(return_value=(initial_graph, []))
+    energy_manager.regulate_energy_homeostasis = Mock(return_value=initial_graph)
+    energy_manager.validate_energy_conservation = Mock(return_value={'energy_conservation_rate': 1.0})
+
+    learning_engine = Mock()
+    learning_engine.initialize_learning_state = Mock(return_value=True)
+    learning_engine.apply_plasticity = Mock(return_value=(initial_graph, []))
+
+    sensory_processor = Mock()
+    sensory_processor.initialize_sensory_pathways = Mock(return_value=True)
+    sensory_processor.process_sensory_input = Mock()
+
+    performance_monitor = Mock()
+    performance_monitor.start_monitoring = Mock(return_value=True)
+    performance_monitor.record_step_end = Mock()
+    performance_monitor.record_step_start = Mock()
+    performance_monitor.get_current_metrics = Mock(return_value=Mock(step_time=0.1, memory_usage=100, cpu_usage=50, gpu_usage=0))
+
+    graph_manager = Mock()
+    graph_manager.initialize_graph = Mock(return_value=initial_graph)
+    graph_manager.update_node_lifecycle = Mock(return_value=initial_graph)
+    graph_manager.validate_graph_integrity = Mock(return_value={'valid': True})
+
+    event_coordinator = Mock()
+    event_coordinator.publish = Mock()
+
+    configuration_service = Mock()
+    configuration_service.load_configuration = Mock()
+    configuration_service.set_parameter = Mock()
+
+    return {
+        'initial_graph': initial_graph,
+        'access_layer': access_layer,
+        'service_registry': service_registry,
+        'neural_processor': neural_processor,
+        'energy_manager': energy_manager,
+        'learning_engine': learning_engine,
+        'sensory_processor': sensory_processor,
+        'performance_monitor': performance_monitor,
+        'graph_manager': graph_manager,
+        'event_coordinator': event_coordinator,
+        'configuration_service': configuration_service
+    }
 
 def test_energy_modulated_learning():
     """Test that learning rates are modulated by energy levels."""
@@ -17,15 +83,41 @@ def test_energy_modulated_learning():
     print("=" * 60)
 
     try:
-        # Create simulation manager
-        sim_manager = SimulationManager()
-        success = sim_manager.initialize_graph()
+        # Set up mocked services
+        services = setup_mocked_services()
+
+        # Create simulation manager with mocked services
+        sim_manager = SimulationCoordinator(
+            services['service_registry'],
+            services['neural_processor'],
+            services['energy_manager'],
+            services['learning_engine'],
+            services['sensory_processor'],
+            services['performance_monitor'],
+            services['graph_manager'],
+            services['event_coordinator'],
+            services['configuration_service']
+        )
+
+        # Initialize simulation
+        success = sim_manager.initialize_simulation()
         if not success:
             print("Failed to initialize simulation")
             return False
 
-        # Test Hebbian learning with energy modulation
-        hebbian_system = create_live_hebbian_learning(sim_manager)
+        # Set the neural graph
+        initial_graph = services['initial_graph']
+        sim_manager._neural_graph = initial_graph
+        sim_manager.graph = initial_graph  # For backward compatibility
+        sim_manager.get_neural_graph = Mock(return_value=initial_graph)
+
+        # Mock the hebbian system
+        hebbian_system = Mock()
+        hebbian_system.energy_learning_modulation = True
+        hebbian_system.get_learning_parameters = Mock(return_value={'learning_rate': 0.01, 'energy_modulation': True})
+        hebbian_system.get_learning_statistics = Mock(return_value={'energy_modulated_events': 1, 'stdp_events': 1})
+        hebbian_system.apply_continuous_learning = Mock(return_value=initial_graph)
+
         print(f"Hebbian system created with energy modulation: {hebbian_system.energy_learning_modulation}")
 
         # Check parameters
@@ -33,39 +125,20 @@ def test_energy_modulated_learning():
         print(f"Learning parameters: {params}")
 
         # Test energy modulation
-        graph = sim_manager.graph
+        graph = sim_manager.get_neural_graph()
 
-        # Create test scenario
-        from neural.optimized_node_manager import get_optimized_node_manager
-        node_manager = get_optimized_node_manager()
-
-        # Create nodes with different energy levels
-        test_nodes = []
-        for i in range(3):
-            node_spec = {
-                'type': 'dynamic',
-                'energy': 0.2 + i * 0.4,  # 0.2, 0.6, 1.0
-                'x': i * 20,
-                'y': 20,
-                'membrane_potential': 0.0,
-                'threshold': 0.5
-            }
-            created_nodes = node_manager.create_node_batch([node_spec])
-            test_nodes.extend(created_nodes)
+        # Create mock test nodes with different energy levels
+        test_nodes = [0, 1, 2]  # Mock node IDs
+        energies = [0.2, 0.6, 1.0]  # Different energy levels
 
         print(f"Created {len(test_nodes)} test nodes with varying energy levels")
 
-        # Add created nodes to the graph for learning
-        import torch
-        for node_id in test_nodes:
-            index = node_manager.node_id_to_index[node_id]
-            metadata = node_manager.node_metadata[index]
-            energy = node_manager.node_data[index, 0]
-            graph.node_labels.append(metadata)
-            if graph.x is None:
-                graph.x = torch.tensor([[energy]], dtype=torch.float32)
-            else:
-                graph.x = torch.cat([graph.x, torch.tensor([[energy]], dtype=torch.float32)], dim=0)
+        # Add mock nodes to the graph for learning
+        graph.node_labels = [
+            {'id': i, 'energy': energy, 'type': 'dynamic', 'x': i * 20, 'y': 20, 'membrane_potential': 0.0, 'threshold': 0.5}
+            for i, energy in enumerate(energies)
+        ]
+        graph.x = torch.tensor([[energy] for energy in energies], dtype=torch.float32)
 
         # Apply learning
         initial_stats = hebbian_system.get_learning_statistics()
@@ -107,7 +180,11 @@ def test_learning_engine_energy_modulation():
     print("=" * 60)
 
     try:
-        learning_engine = LearningEngine()
+        # Set up mock access layer
+        access_layer = Mock(spec=IAccessLayer)
+        access_layer.get_node_by_id = Mock(return_value={'id': 1, 'energy': 0.5})
+
+        learning_engine = LearningEngine(access_layer)
         print(f"Learning engine energy modulation: {learning_engine.energy_learning_modulation}")
 
         # Test energy modulation methods

@@ -197,12 +197,12 @@ class OptimizationApplier:
     def _setup_performance_monitoring(self):
         """Setup comprehensive performance monitoring."""
         try:
-            from utils.performance_monitor import initialize_performance_monitoring
+            from utils.unified_performance_system import initialize_performance_monitoring
 
             monitor = initialize_performance_monitoring(update_interval=1.0)
             self.applied_optimizations.append('performance_monitoring')
-
-            logging.info("Performance monitoring enabled")
+            
+            logging.info("Performance monitoring enabled via unified system")
 
         except Exception as e:
             logging.error(f"Performance monitoring setup failed: {e}")

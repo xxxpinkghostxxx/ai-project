@@ -83,15 +83,35 @@ def create_pixel_gray_graph(arr):
     log_step("create_pixel_gray_graph: start", arr_shape=arr.shape)
     h, w = arr.shape
     num_nodes = h * w
+
+    # Limit nodes for performance during UI initialization
+    max_nodes = 1000  # Reduced from 57,600 to prevent hanging
+    if h > 31 or w > 31:
+        # Sample a smaller grid for UI initialization
+        sample_h = min(h, 31)
+        sample_w = min(w, 31)
+        step_h = max(1, h // sample_h)
+        step_w = max(1, w // sample_w)
+
+        sampled_arr = arr[::step_h, ::step_w]
+        h, w = sampled_arr.shape
+        h = min(h, 31)
+        w = min(w, 31)
+        num_nodes = h * w
+        log_step("Reduced graph size for performance", original=(arr.shape), sampled=(h, w), nodes=num_nodes)
+
+        arr = sampled_arr
+
     node_features = arr.flatten().reshape(-1, 1)
     node_labels = []
-    from energy.node_id_manager import get_id_manager
-    id_manager = get_id_manager()
+
+    # Use simple sequential IDs for screen capture graphs to avoid expensive ID manager operations
     for y in range(h):
         for x in range(w):
             idx = y * w + x
             energy = arr[y, x]
-            node_id = id_manager.generate_unique_id("sensory", {"x": x, "y": y})
+            # Use simple sequential ID instead of expensive ID manager
+            node_id = idx + 1000000  # Offset to avoid conflicts with regular nodes
             membrane_potential = min(energy / 255.0, 1.0)
             node_labels.append({
                 "id": node_id,
@@ -115,7 +135,7 @@ def create_pixel_gray_graph(arr):
                 "theta_burst_counter": 0,
                 "v_dend": 0.0
             })
-            id_manager.register_node_index(node_id, idx)
+
     x_tensor = torch.tensor(node_features, dtype=torch.float32)
     assert len(node_labels) == num_nodes, "Node label count mismatch in create_pixel_gray_graph"
     assert x_tensor.shape[0] == num_nodes, "Node feature count mismatch in create_pixel_gray_graph"

@@ -14,6 +14,7 @@ from enum import Enum
 import numpy as np
 import weakref
 from utils.unified_error_handler import ErrorSeverity
+from utils.unified_performance_system import get_performance_monitor, PerformanceMonitor
 
 class OptimizationLevel(Enum):
     """Performance optimization levels."""
@@ -461,17 +462,8 @@ class AdaptiveProcessor:
             self.component_times[component_name] = self.component_times[component_name][-100:]
 
 # Global instances
-_performance_monitor = None
 _performance_optimizer = None
 _adaptive_processor = None
-
-def get_performance_monitor() -> PerformanceMonitor:
-    """Get the global performance monitor."""
-    global _performance_monitor
-    if _performance_monitor is None:
-        _performance_monitor = PerformanceMonitor()
-        _performance_monitor.start_monitoring()
-    return _performance_monitor
 
 def get_performance_optimizer() -> PerformanceOptimizer:
     """Get the global performance optimizer."""
@@ -491,11 +483,8 @@ def get_adaptive_processor() -> AdaptiveProcessor:
 
 def cleanup_performance_systems():
     """Clean up performance monitoring systems."""
-    global _performance_monitor, _performance_optimizer, _adaptive_processor
+    global _performance_optimizer, _adaptive_processor
     
-    if _performance_monitor:
-        _performance_monitor.stop_monitoring()
-        _performance_monitor = None
-    
+    # The unified system will handle the monitor's lifecycle
     _performance_optimizer = None
     _adaptive_processor = None

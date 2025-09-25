@@ -21,10 +21,11 @@ from .workspace_engine import *
 from .network_metrics import *
 from .neural_map_persistence import *
 from .death_and_birth_logic import *
+from .optimized_node_manager import *
 
 __all__ = [
     'EnhancedNeuralIntegration',
-    'EnhancedNeuralDynamics', 
+    'EnhancedNeuralDynamics',
     'EnhancedNodeBehaviors',
     'EnhancedConnectionSystem',
     'BehaviorEngine',
@@ -35,5 +36,6 @@ __all__ = [
     'WorkspaceEngine',
     'NetworkMetrics',
     'NeuralMapPersistence',
-    'DeathAndBirthLogic'
+    'DeathAndBirthLogic',
+    'OptimizedNodeManager'
 ]

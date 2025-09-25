@@ -210,7 +210,7 @@ class AudioToNeuralBridge:
                         'subtype': 'audio',
                         'feature_type': feature_type,
                         'feature_index': i,
-                        'energy': float(feature_value),
+                        'energy': max(0.0, min(1.0, abs(feature_value))),
                         'feature_position': i,
                         'feature_rank': i % 100,
                         'channel': 0,

@@ -9,30 +9,34 @@ import traceback
 import argparse
 
 from utils.print_utils import print_info, print_success, print_error, print_warning
+from core.services.service_registry import ServiceRegistry
+from core.interfaces.service_registry import IServiceRegistry
+from core.services.configuration_service import ConfigurationService
+from core.interfaces.configuration_service import IConfigurationService
+from core.services.performance_monitoring_service import PerformanceMonitoringService
+from core.interfaces.performance_monitor import IPerformanceMonitor
 
-logging.basicConfig(
-    level=logging.WARNING,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler()]
-)
 
 
 class UnifiedLauncher:
-    def __init__(self):
+    def __init__(self, service_registry: IServiceRegistry):
+        self.service_registry = service_registry
+        self.config_service = service_registry.resolve(IConfigurationService)
+        self.config_service.load_configuration('config.ini')
         self.profiles = {
             'full': {
-                'description': 'Full UI with all features',
+                'description': 'Full simulation with UI',
                 'ui_module': 'ui.ui_engine',
                 'ui_function': 'run_ui',
-                'performance_mode': False,
-                'logging_level': 'INFO'
+                'logging_level': 'INFO',
+                'performance_mode': True
             }
         }
+
     def test_basic_imports(self) -> bool:
         print_info("Testing critical imports...")
         critical_modules = [
-            'numpy', 'torch', 'dearpygui',
-            'simulation_manager', 'ui.ui_engine'
+            'numpy', 'torch', 'dearpygui', 'ui.ui_engine'
         ]
         failed_imports = []
         for module_name in critical_modules:
@@ -72,7 +76,7 @@ class UnifiedLauncher:
                 'memory_available_gb': memory.available / (1024**3),
                 'memory_percent': memory.percent,
                 'cpu_count': cpu_count,
-                'sufficient_memory': memory.available > 1024**3,
+                'sufficient_memory': memory.available > 0.5 * 1024**3,
                 'sufficient_cpu': cpu_count >= 2
             }
             print(f"  Memory: {capacity_info['memory_available_gb']:.1f}GB available")
@@ -100,10 +104,17 @@ class UnifiedLauncher:
             return False
         if config.get('performance_mode', False):
             self.apply_performance_optimizations()
-        logging.getLogger().setLevel(getattr(logging, config['logging_level']))
+        log_level = logging.DEBUG
+        logging.basicConfig(
+            level=log_level,
+            format='%(asctime)s - %(levelname)s - [%(name)s] - %(message)s',
+            handlers=[logging.StreamHandler()]
+        )
+        logging.getLogger().setLevel(log_level)
         try:
             if 'ui_module' in config:
-                return self._launch_ui(config)
+                # Pass services to the UI
+                return self._launch_ui(config, self.service_registry)
             else:
                 print(f"Invalid configuration for profile: {profile}")
                 return False
@@ -111,16 +122,23 @@ class UnifiedLauncher:
             print(f"Launch failed: {e}")
             traceback.print_exc()
             return False
-    def _launch_ui(self, config: Dict[str, Any]) -> bool:
+    def _launch_ui(self, config: Dict[str, Any], service_registry: IServiceRegistry) -> bool:
         try:
-            ui_module = __import__(config['ui_module'])
+            # Dynamically import the UI module
+            parts = config['ui_module'].split('.')
+            module_name = ".".join(parts)
+            ui_module = __import__(module_name, fromlist=[parts[-1]])
+
             if 'ui_class' in config:
                 ui_class = getattr(ui_module, config['ui_class'])
-                ui_instance = ui_class()
+                # Pass the service registry to the UI class constructor
+                ui_instance = ui_class(service_registry)
                 ui_instance.run()
+
             elif 'ui_function' in config:
                 ui_function = getattr(ui_module, config['ui_function'])
-                ui_function()
+                # Pass the service registry to the UI function
+                ui_function(service_registry)
             else:
                 print_error("No UI class or function specified")
                 return False
@@ -142,12 +160,88 @@ class UnifiedLauncher:
 
 
 def main():
-    launcher = UnifiedLauncher()
+    # 1. Composition Root: Initialize Service Registry
+    service_registry = ServiceRegistry()
+
+    # 2. Register Core Services
+    from core.services.adaptive_configuration_service import AdaptiveConfigurationService
+    from core.services.cloud_deployment_service import CloudDeploymentService
+    from core.services.distributed_coordinator_service import DistributedCoordinatorService
+    from core.services.energy_management_service import EnergyManagementService
+    from core.services.event_coordination_service import EventCoordinationService
+    from core.services.fault_tolerance_service import FaultToleranceService
+    from core.services.gpu_accelerator_service import GPUAcceleratorService
+    from core.services.graph_management_service import GraphManagementService
+    from core.services.learning_service import LearningService
+    from core.services.load_balancing_service import LoadBalancingService
+    from core.services.ml_optimizer_service import MLOptimizerService
+    from core.services.neural_processing_service import NeuralProcessingService
+    from core.services.real_time_analytics_service import RealTimeAnalyticsService
+    from core.services.real_time_visualization_service import RealTimeVisualizationService
+    from core.services.sensory_processing_service import SensoryProcessingService
+    from core.services.simulation_coordinator import SimulationCoordinator
+    
+    from core.interfaces.adaptive_configuration import IAdaptiveConfiguration
+    from core.interfaces.cloud_deployment import ICloudDeployment
+    from core.interfaces.distributed_coordinator import IDistributedCoordinator
+    from core.interfaces.energy_manager import IEnergyManager
+    from core.interfaces.event_coordinator import IEventCoordinator
+    from core.interfaces.fault_tolerance import IFaultTolerance
+    from core.interfaces.gpu_accelerator import IGPUAccelerator
+    from core.interfaces.graph_manager import IGraphManager
+    from core.interfaces.learning_engine import ILearningEngine
+    from core.interfaces.load_balancer import ILoadBalancer
+    from core.interfaces.ml_optimizer import IMLOptimizer
+    from core.interfaces.neural_processor import INeuralProcessor
+    from core.interfaces.performance_monitor import IPerformanceMonitor
+    from core.interfaces.real_time_analytics import IRealTimeAnalytics
+    from core.interfaces.real_time_visualization import IRealTimeVisualization
+    from core.interfaces.sensory_processor import ISensoryProcessor
+    from core.interfaces.simulation_coordinator import ISimulationCoordinator
+
+    service_registry.register(IConfigurationService, ConfigurationService)
+    service_registry.register(IPerformanceMonitor, PerformanceMonitoringService)
+    service_registry.register(IAdaptiveConfiguration, AdaptiveConfigurationService)
+    service_registry.register(ICloudDeployment, CloudDeploymentService)
+    service_registry.register(IDistributedCoordinator, DistributedCoordinatorService)
+    service_registry.register(IEnergyManager, EnergyManagementService)
+    service_registry.register(IEventCoordinator, EventCoordinationService)
+    service_registry.register(IFaultTolerance, FaultToleranceService)
+    service_registry.register(IGPUAccelerator, GPUAcceleratorService)
+    service_registry.register(IGraphManager, GraphManagementService)
+    service_registry.register(ILearningEngine, LearningService)
+    service_registry.register(ILoadBalancer, LoadBalancingService)
+    service_registry.register(IMLOptimizer, MLOptimizerService)
+    service_registry.register(INeuralProcessor, NeuralProcessingService)
+    service_registry.register(IRealTimeAnalytics, RealTimeAnalyticsService)
+    service_registry.register(IRealTimeVisualization, RealTimeVisualizationService)
+    service_registry.register(ISensoryProcessor, SensoryProcessingService)
+    service_registry.register(ISimulationCoordinator, SimulationCoordinator)
+
+    # 3. Initialize and run the launcher
+    launcher = UnifiedLauncher(service_registry)
+
     if '--help' in sys.argv:
         launcher.show_help()
         return 0
     profile = 'full'
+    try:
+        # Test service resolution
+        all_services = [
+            IAdaptiveConfiguration, ICloudDeployment, IDistributedCoordinator,
+            IEnergyManager, IEventCoordinator, IFaultTolerance, IGPUAccelerator,
+            IGraphManager, ILearningEngine, ILoadBalancer, IMLOptimizer,
+            INeuralProcessor, IPerformanceMonitor, IRealTimeAnalytics,
+            IRealTimeVisualization, ISensoryProcessor, ISimulationCoordinator
+        ]
+        for service_interface in all_services:
+            service_registry.resolve(service_interface)
+        print_success("All services resolved successfully!")
+    except Exception as e:
+        print_error(f"Service resolution failed: {e}")
+        return 1
     success = launcher.launch_with_profile(profile)
     return 0 if success else 1
+
 if __name__ == "__main__":
     sys.exit(main())

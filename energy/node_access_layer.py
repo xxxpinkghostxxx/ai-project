@@ -9,10 +9,19 @@ from energy.energy_behavior import get_node_energy_cap
 
 class NodeAccessLayer:
 
-    def __init__(self, graph):
+    def __init__(self, graph, id_manager=None):
+        """
+        Initialize the NodeAccessLayer.
 
+        Args:
+            graph: Neural graph
+            id_manager: Node ID manager (optional, will use global if not provided)
+        """
         self.graph = graph
-        self.id_manager = get_id_manager()
+        if id_manager is None:
+            self.id_manager = get_id_manager()
+        else:
+            self.id_manager = id_manager
         self._node_cache: Dict[int, Dict[str, Any]] = {}
         self._cache_valid = False
         log_step("NodeAccessLayer initialized", graph_nodes=len(graph.node_labels) if hasattr(graph, 'node_labels') else 0)
@@ -47,8 +56,10 @@ class NodeAccessLayer:
             return self._node_cache[node_id]
         
         node = self.graph.node_labels[index]
-        if self._cache_valid:
-            self._node_cache[node_id] = node
+        if not self._cache_valid:
+            self._cache_valid = True
+            self._node_cache.clear()
+        self._node_cache[node_id] = node
         return node
     def get_node_energy(self, node_id: int) -> Optional[float]:
 
@@ -207,19 +218,27 @@ def select_nodes_by_state(graph, state: str) -> List[int]:
     return access_layer.select_nodes_by_state(state)
 
 
-def update_node_property(graph, node_id: int, property_name: str, new_value: Any) -> bool:
+def update_node_property(graph, node_id: int, property_name: str, new_value: Any, id_manager=None) -> bool:
     """
     Safely update a property for a specific node in the graph.
-    
+
     For 'energy', updates graph.x[node_id_index, 0] and clamps to [0, get_node_energy_cap()].
     For other properties (e.g., 'type', 'behavior'), updates graph.node_labels[node_id_index][property_name].
-    
+
     Handles missing attributes and invalid inputs with logging.
+
+    Args:
+        graph: Neural graph
+        node_id: Node ID to update
+        property_name: Property name to update
+        new_value: New value for the property
+        id_manager: Node ID manager (optional, will use global if not provided)
     """
     from utils.logging_utils import log_step
     import logging
 
-    id_manager = get_id_manager()
+    if id_manager is None:
+        id_manager = get_id_manager()
     
     try:
         # Convert node_id to int

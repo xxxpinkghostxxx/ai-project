@@ -2,7 +2,7 @@
 Core simulation components.
 
 This package contains the main simulation components including:
-- SimulationManager: Central simulation coordinator
+- SimulationCoordinator: Central simulation coordinator
 - MainGraph: Graph creation and management utilities
 - UnifiedLauncher: Main application launcher
 """

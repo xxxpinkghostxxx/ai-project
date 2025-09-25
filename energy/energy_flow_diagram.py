@@ -3,15 +3,15 @@ Energy Flow Diagram Generator
 Creates visual representations of energy flow through the neural simulation system.
 """
 
-import matplotlib.pyplot as plt
-import networkx as nx
 from typing import Dict, List, Any, Optional
 import numpy as np
+import re
 
 class EnergyFlowDiagram:
     """Generates visual diagrams of energy flow in the neural system."""
 
     def __init__(self):
+        import networkx as nx
         self.G = nx.DiGraph()
         self.node_positions = {}
         self.node_colors = {}
@@ -134,7 +134,7 @@ class EnergyFlowDiagram:
         # Learning components
         learning_nodes = [
             'STDP Engine', 'Hebbian Learning', 'Eligibility Traces',
-            'Weight Updates', 'Memory Consolidation'
+            'Weight Updates', 'Memory Consolidation', 'Homeostasis Controller'
         ]
 
         # Add learning nodes
@@ -152,7 +152,7 @@ class EnergyFlowDiagram:
         self.node_sizes['energy_source'] = 1000
 
         # Connect energy to learning
-        for i in range(5):
+        for i in range(len(learning_nodes)):
             self.G.add_edge('energy_source', f'learning_{i}')
             self.edge_colors[('energy_source', f'learning_{i}')] = 'red'
 
@@ -168,6 +168,9 @@ class EnergyFlowDiagram:
 
     def draw_diagram(self, title: str = "Energy Flow Architecture"):
         """Draw the energy flow diagram."""
+
+        import matplotlib.pyplot as plt
+        import networkx as nx
 
         plt.figure(figsize=(15, 10))
 
@@ -209,11 +212,21 @@ class EnergyFlowDiagram:
         plt.title(title, fontsize=16, fontweight='bold')
         plt.axis('off')
         plt.tight_layout()
-        plt.savefig(f'{title.lower().replace(" ", "_")}.png', dpi=300, bbox_inches='tight')
+        filename = re.sub(r'[^a-zA-Z0-9_]', '_', title.lower()) + '.png'
+        plt.savefig(filename, dpi=300, bbox_inches='tight')
         plt.show()
 
     def create_energy_centrality_analysis(self):
         """Analyze how central energy is to the system."""
+
+        import networkx as nx
+
+        if len(self.G.nodes()) == 0:
+            return {
+                'degree_centrality': {},
+                'betweenness_centrality': {},
+                'closeness_centrality': {}
+            }
 
         # Calculate centrality measures
         degree_centrality = nx.degree_centrality(self.G)
@@ -239,6 +252,9 @@ class EnergyFlowDiagram:
 
 def create_energy_flow_visualizations():
     """Create all energy flow visualizations."""
+
+    import matplotlib.pyplot as plt
+    import networkx as nx
 
     print("Creating Energy Flow Visualizations...")
     print("=" * 50)

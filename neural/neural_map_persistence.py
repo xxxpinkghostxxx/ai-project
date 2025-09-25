@@ -4,6 +4,7 @@ import json
 import torch
 from torch_geometric.data import Data
 import time
+import logging
 from typing import Optional, Dict, Any
 
 from utils.logging_utils import log_step
@@ -42,14 +43,22 @@ class NeuralMapPersistence:
                 'save_date': time.strftime('%Y-%m-%d %H:%M:%S'),
                 'slot_number': slot_number,
                 'node_count': len(graph.node_labels) if hasattr(graph, 'node_labels') else 0,
-                'edge_count': graph.edge_index.shape[1] if hasattr(graph, 'edge_index') else 0
+                'edge_count': graph.edge_index.shape[1] if hasattr(graph, 'edge_index') and graph.edge_index is not None else 0
             })
-            map_data['metadata'] = metadata
+            # Truncate large metadata values to prevent JSON serialization issues
+            truncated_metadata = {}
+            for key, value in metadata.items():
+                if isinstance(value, str) and len(value) > 10000:  # 10KB limit
+                    truncated_metadata[key] = value[:10000] + "...[truncated]"
+                else:
+                    truncated_metadata[key] = value
+            map_data['metadata'] = truncated_metadata
             filename = f"neural_map_slot_{slot_number}.json"
             filepath = os.path.join(self.save_directory, filename)
             with open(filepath, 'w') as f:
                 json.dump(map_data, f, indent=2)
             self.slot_metadata[slot_number] = metadata
+            log_step("Set slot metadata", slot_number=slot_number, key_type=str(type(slot_number)))
             self._save_slot_metadata()
             log_step("Neural map saved",
                     slot_number=slot_number,
@@ -57,6 +66,7 @@ class NeuralMapPersistence:
                     edge_count=metadata['edge_count'])
             return True
         except Exception as e:
+            logging.error(f"Error saving neural map: {e}", exc_info=True)
             log_step("Error saving neural map", error=str(e), slot_number=slot_number)
             return False
     def load_neural_map(self, slot_number: int) -> Optional[Data]:
@@ -127,21 +137,22 @@ class NeuralMapPersistence:
 
         try:
             serialized_data = {}
-            if hasattr(graph, 'node_labels'):
+            if hasattr(graph, 'node_labels') and graph.node_labels is not None:
                 serialized_data['node_labels'] = graph.node_labels
-            if hasattr(graph, 'edge_index'):
+            if hasattr(graph, 'edge_index') and graph.edge_index is not None:
                 serialized_data['edge_index'] = graph.edge_index.tolist()
-            if hasattr(graph, 'edge_attr'):
+            if hasattr(graph, 'edge_attr') and graph.edge_attr is not None:
                 serialized_data['edge_attr'] = graph.edge_attr.tolist()
-            if hasattr(graph, 'x'):
+            if hasattr(graph, 'x') and graph.x is not None:
                 serialized_data['x'] = graph.x.tolist()
             for attr_name in ['y', 'pos', 'batch']:
                 if hasattr(graph, attr_name):
                     attr_value = getattr(graph, attr_name)
-                    if isinstance(attr_value, torch.Tensor):
-                        serialized_data[attr_name] = attr_value.tolist()
-                    else:
-                        serialized_data[attr_name] = attr_value
+                    if attr_value is not None:
+                        if isinstance(attr_value, torch.Tensor):
+                            serialized_data[attr_name] = attr_value.tolist()
+                        else:
+                            serialized_data[attr_name] = attr_value
             return serialized_data
         except Exception as e:
             log_step("Error serializing graph", error=str(e))
@@ -174,7 +185,10 @@ class NeuralMapPersistence:
             metadata_file = os.path.join(self.save_directory, "slot_metadata.json")
             if os.path.exists(metadata_file):
                 with open(metadata_file, 'r') as f:
-                    self.slot_metadata = json.load(f)
+                    loaded_metadata = json.load(f)
+                # Convert string keys back to integers
+                self.slot_metadata = {int(k): v for k, v in loaded_metadata.items()}
+                log_step("Loaded slot metadata", keys=list(self.slot_metadata.keys()), key_types=[str(type(k)) for k in self.slot_metadata.keys()])
             else:
                 self.slot_metadata = {}
         except Exception as e:
@@ -183,8 +197,17 @@ class NeuralMapPersistence:
     def _save_slot_metadata(self):
         try:
             metadata_file = os.path.join(self.save_directory, "slot_metadata.json")
+            # Create a copy and truncate large metadata to prevent JSON serialization issues
+            truncated_metadata = {}
+            for slot, meta in self.slot_metadata.items():
+                truncated_meta = meta.copy()
+                # Truncate large string values in metadata
+                for key, value in truncated_meta.items():
+                    if isinstance(value, str) and len(value) > 10000:  # 10KB limit
+                        truncated_meta[key] = value[:10000] + "...[truncated]"
+                truncated_metadata[slot] = truncated_meta
             with open(metadata_file, 'w') as f:
-                json.dump(self.slot_metadata, f, indent=2)
+                json.dump(truncated_metadata, f, indent=2)
         except Exception as e:
             log_step("Error saving slot metadata", error=str(e))
     def get_persistence_statistics(self) -> Dict[str, Any]:

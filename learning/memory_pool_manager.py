@@ -134,7 +134,12 @@ class MemoryPoolManager:
         if pool is None:
             raise ValueError(f"Pool '{pool_name}' not found")
         pool.return_object(obj)
-    
+
+    def get_pooled_object(self, pool_name: str) -> 'PooledObject':
+        """Get a pooled object with automatic return."""
+        obj = self.get_object(pool_name)
+        return PooledObject(pool_name, obj)
+
     def start_cleanup_thread(self) -> None:
         """Start background cleanup thread."""
         if self.cleanup_thread is None or not self.cleanup_thread.is_alive():

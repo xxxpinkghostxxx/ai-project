@@ -2,14 +2,14 @@
 
 import time
 from typing import Dict, Any, Optional, List
-from threading import Lock
+from threading import RLock
 from utils.logging_utils import log_step
 
 
 class UIStateManager:
 
     def __init__(self):
-        self._lock = Lock()
+        self._lock = RLock()
         self._cleanup_callbacks = []
         self.simulation_running = False
         self.latest_graph = None
@@ -41,7 +41,6 @@ class UIStateManager:
             "energy_flow_rate": 0.0,
             "connection_activity": 0
         }
-        log_step("UIStateManager initialized")
     def get_simulation_state(self) -> Dict[str, Any]:
         with self._lock:
             return {
@@ -63,10 +62,8 @@ class UIStateManager:
                 self._clear_graph_references(self.latest_graph)
             self.latest_graph = graph
             self.sim_update_counter += 1
+            self.latest_graph_for_ui = graph
             if self.sim_update_counter % 10 == 0:
-                if self.latest_graph_for_ui is not None:
-                    self._clear_graph_references(self.latest_graph_for_ui)
-                self.latest_graph_for_ui = graph
                 self.update_for_ui = True
     def get_latest_graph(self):
         with self._lock:
@@ -184,7 +181,7 @@ class UIStateManager:
             log_step("UIStateManager cleaned up")
         self._cleaned_up = True
 _ui_state_manager: Optional[UIStateManager] = None
-_state_manager_lock = Lock()
+_state_manager_lock = RLock()
 
 
 def get_ui_state_manager() -> UIStateManager:

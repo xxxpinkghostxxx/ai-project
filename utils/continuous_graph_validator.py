@@ -6,6 +6,7 @@ Provides ongoing validation and automatic repair of neural simulation graphs.
 import threading
 import time
 import logging
+import torch
 from typing import Dict, List, Any, Optional, Callable
 from utils.logging_utils import log_step
 from utils.graph_integrity_manager import get_graph_integrity_manager
@@ -29,7 +30,10 @@ class ValidationRule:
 
     def should_check(self) -> bool:
         """Check if this rule should be evaluated."""
-        return time.time() - self.last_check >= self.interval
+        if time.time() - self.last_check >= self.interval:
+            self.last_check = time.time()
+            return True
+        return False
 
     def check_and_repair(self, graph, id_manager) -> Dict[str, Any]:
         """Check the rule and attempt repair if needed."""
@@ -104,6 +108,8 @@ class ContinuousGraphValidator:
         self._check_interval = 30.0  # Check every 30 seconds
         self._last_full_check = 0
         self._full_check_interval = 300.0  # Full check every 5 minutes
+        self._auto_repair_enabled = True
+        self._stop_event = threading.Event()
 
         self._stats = {
             'checks_performed': 0,
@@ -299,6 +305,7 @@ class ContinuousGraphValidator:
         self._running = True
         self._graph_source = graph_source
         self._id_manager_source = id_manager_source
+        self._stop_event.clear()
 
         self._thread = threading.Thread(
             target=self._validation_loop,
@@ -315,14 +322,15 @@ class ContinuousGraphValidator:
             return
 
         self._running = False
+        self._stop_event.set()
         if self._thread and self._thread.is_alive():
-            self._thread.join(timeout=5.0)
+            self._thread.join(timeout=1.0)
 
         log_step("Continuous graph validation stopped")
 
     def _validation_loop(self):
         """Main validation loop."""
-        while self._running:
+        while not self._stop_event.is_set():
             try:
                 # Get current graph and ID manager
                 graph = self._graph_source()
@@ -331,12 +339,12 @@ class ContinuousGraphValidator:
                 if graph is not None and id_manager is not None:
                     self.perform_validation_cycle(graph, id_manager)
 
-                # Sleep before next cycle
-                time.sleep(self._check_interval)
+                # Wait before next cycle
+                self._stop_event.wait(self._check_interval)
 
             except Exception as e:
                 log_step("Error in validation loop", error=str(e))
-                time.sleep(self._check_interval)
+                self._stop_event.wait(self._check_interval)
 
     def perform_validation_cycle(self, graph, id_manager) -> Dict[str, Any]:
         """Perform one complete validation cycle."""

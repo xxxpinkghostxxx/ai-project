@@ -11,6 +11,8 @@ from utils.logging_utils import log_step
 from config.unified_config_manager import get_learning_config
 from utils.event_bus import get_event_bus
 from typing import Dict, Any, Optional, List, Tuple, Union
+from core.interfaces.node_access_layer import IAccessLayer
+from energy.energy_behavior import get_node_energy_cap
 
 
 class LearningEngine:
@@ -21,7 +23,7 @@ class LearningEngine:
     and energy-based learning modulation to create biologically plausible learning dynamics.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, access_layer: IAccessLayer) -> None:
         """
         Initialize the LearningEngine with configuration parameters.
 
@@ -59,11 +61,11 @@ class LearningEngine:
 
         # Event handling
         self.event_bus = get_event_bus()
-        self.simulation_manager: Optional[Any] = None
+        self.access_layer = access_layer
         self.event_bus.subscribe('SPIKE', self._on_spike)
     def _get_node_energy(self, node: Optional[Dict[str, Any]]) -> float:
         """
-        Get energy level for a node.
+        Get energy level for a node with optimized access.
 
         Args:
             node: Node dictionary containing energy information
@@ -73,7 +75,11 @@ class LearningEngine:
         """
         if node is None:
             return 0.0
-        return node.get('energy', node.get('membrane_potential', 0.0))
+        # Prioritize energy field, fallback to membrane_potential
+        energy = node.get('energy')
+        if energy is not None:
+            return energy
+        return node.get('membrane_potential', 0.0)
 
     def _calculate_energy_modulated_rate(self, pre_node: Optional[Dict[str, Any]],
                                         post_node: Optional[Dict[str, Any]],
@@ -103,17 +109,14 @@ class LearningEngine:
             avg_energy = (pre_energy + post_energy) / 2.0
 
             # Get energy cap for normalization
-            energy_cap = 1.0  # Default fallback
-            try:
-                from energy.energy_behavior import get_node_energy_cap
-                energy_cap = get_node_energy_cap()
-            except ImportError:
-                energy_cap = 1.0  # Default when module unavailable
+            energy_cap = get_node_energy_cap()
+            if energy_cap <= 0:
+                energy_cap = 5.0  # Fallback to new default
 
             # Normalize energy and apply modulation
-            # Range: 0.5x to 1.0x base rate based on energy level
+            # Range: 1.0x to 1.5x base rate
             normalized_energy = min(avg_energy / energy_cap, 1.0) if energy_cap > 0 else 0.5
-            modulated_rate = base_rate * (0.5 + 0.5 * normalized_energy)
+            modulated_rate = base_rate * (1.0 + 0.5 * normalized_energy)
 
             return modulated_rate
 
@@ -141,14 +144,17 @@ class LearningEngine:
         Returns:
             float: Weight change applied to the synapse
         """
-        # Convert STDP window from milliseconds to seconds for comparison
-        stdp_window_seconds = self.stdp_window / 1000.0
+        # STDP window in milliseconds, delta_t in milliseconds
+        stdp_window_ms = self.stdp_window
 
-        if abs(delta_t) <= stdp_window_seconds:
+        if delta_t == 0:
+            return 0.0  # No learning for simultaneous spikes
+
+        if abs(delta_t) <= stdp_window_ms:
             if delta_t > 0:
                 # Long-Term Potentiation (LTP): Pre before Post
                 modulated_ltp_rate = self._calculate_energy_modulated_rate(pre_node, post_node, self.ltp_rate)
-                weight_change = modulated_ltp_rate * np.exp(-delta_t / 0.01)
+                weight_change = modulated_ltp_rate * np.exp(-delta_t / 10.0)
 
                 self.learning_stats['stdp_events'] += 1
                 if modulated_ltp_rate != self.ltp_rate:
@@ -165,7 +171,7 @@ class LearningEngine:
             else:
                 # Long-Term Depression (LTD): Post before Pre
                 modulated_ltd_rate = self._calculate_energy_modulated_rate(pre_node, post_node, self.ltd_rate)
-                weight_change = -modulated_ltd_rate * np.exp(delta_t / 0.01)
+                weight_change = -modulated_ltd_rate * np.exp(delta_t / 10.0)
 
                 self.learning_stats['stdp_events'] += 1
                 if modulated_ltd_rate != self.ltd_rate:
@@ -193,19 +199,13 @@ class LearningEngine:
         try:
             node_id = data['node_id']
             source_id = data.get('source_id', node_id)
-            if self.simulation_manager is None:
-                from core.simulation_manager import get_simulation_manager
-                self.simulation_manager = get_simulation_manager()
-            access_layer = self.simulation_manager.get_access_layer()
-            if access_layer:
-                pre_node = access_layer.get_node_by_id(source_id)
-                post_node = access_layer.get_node_by_id(node_id)
-                # Dummy edge and delta_t; in full impl, calculate delta_t from timestamps
-                edge = None
-                delta_t = 0.0  # Would calculate from last spikes
-                change = self.apply_timing_learning(pre_node, post_node, edge, delta_t)
-                if change != 0.0:
-                    self.emit_learning_update(source_id, node_id, change)
+            pre_node = self.access_layer.get_node_by_id(source_id)
+            post_node = self.access_layer.get_node_by_id(node_id)
+            # Dummy edge and delta_t; in full impl, calculate delta_t from timestamps
+            edge = None
+            delta_t = 0.0  # Would calculate from last spikes
+            change = self.apply_timing_learning(pre_node, post_node, edge, delta_t)
+            self.emit_learning_update(source_id, node_id, change)
         except Exception as e:
             log_step("Error emitting learning update event", error=str(e), source_id=source_id, target_id=node_id)
 
@@ -241,16 +241,13 @@ class LearningEngine:
                     post_energy = self._get_node_energy(post_node)
 
                 # Modulate consolidation by average energy
-                energy_cap = 1.0
-                try:
-                    from energy.energy_behavior import get_node_energy_cap
-                    energy_cap = get_node_energy_cap()
-                except ImportError:
-                    energy_cap = 1.0  # Default energy cap when module not available
+                energy_cap = get_node_energy_cap()
+                if energy_cap <= 0:
+                    energy_cap = 5.0  # Fallback to new default
 
                 avg_energy = (pre_energy + post_energy) / 2.0
                 energy_factor = min(avg_energy / energy_cap, 1.0) if energy_cap > 0 else 0.5
-                weight_change = base_weight_change * (0.5 + 0.5 * energy_factor)  # Range: 0.5x to 1.0x
+                weight_change = base_weight_change * (0.3 + 1.2 * energy_factor)  # Enhanced range: 0.3x to 1.5x
 
                 new_weight = edge.weight + weight_change
                 new_weight = max(0.1, min(5.0, new_weight))
@@ -275,7 +272,7 @@ class LearningEngine:
         return graph
     def form_memory_traces(self, graph: Any) -> Any:
 
-        if not hasattr(graph, 'edge_attributes') or not graph.edge_attributes:
+        if not hasattr(graph, 'edge_attributes'):
             return graph
         memory_traces_formed = 0
         for node_idx, node in enumerate(graph.node_labels):
@@ -294,12 +291,9 @@ class LearningEngine:
         energy = self._get_node_energy(node)
 
         # Energy-modulated stability criteria
-        energy_cap = 1.0
-        try:
-            from energy.energy_behavior import get_node_energy_cap
-            energy_cap = get_node_energy_cap()
-        except ImportError:
-            energy_cap = 1.0  # Default energy cap when module not available
+        energy_cap = get_node_energy_cap()
+        if energy_cap <= 0:
+            energy_cap = 5.0  # Fallback to new default
 
         # Higher energy nodes have lower stability threshold (more plastic)
         stability_threshold = 0.3 + (0.4 * (1.0 - min(energy / energy_cap, 1.0))) if energy_cap > 0 else 0.3
@@ -383,7 +377,12 @@ def calculate_learning_efficiency(graph: Any) -> float:
 def detect_learning_patterns(graph: Any) -> Dict[str, Any]:
 
     if not hasattr(graph, 'edge_attributes') or not graph.edge_attributes:
-        return {'patterns_detected': 0}
+        return {
+            'patterns_detected': 0,
+            'weight_variance': 0.0,
+            'edge_type_distribution': {},
+            'total_connections': 0
+        }
     weights = [edge.weight for edge in graph.edge_attributes]
     weight_variance = np.var(weights) if len(weights) > 1 else 0
     edge_types = {}

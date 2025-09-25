@@ -1,0 +1,88 @@
+{
+  "export_timestamp": 1758200168.3907168,
+  "export_config": {
+    "format": "json",
+    "path": "test_visualization_export.json",
+    "layers": [
+      "layer_2"
+    ]
+  },
+  "visualization_config": {
+    "target_fps": 30,
+    "max_buffer_size": 100,
+    "enable_interpolation": true
+  },
+  "layers": {
+    "layer_2": {
+      "config": {
+        "layer_type": "connections",
+        "visible": true,
+        "opacity": 0.8,
+        "z_index": 1,
+        "color_scheme": "blue",
+        "update_frequency": 30
+      },
+      "data_points": 1,
+      "time_range": {
+        "start": 1758200168.390635,
+        "end": 1758200168.390635
+      },
+      "sample_data": [
+        {
+          "data_type": "neural_activity",
+          "timestamp": 1758200168.390635,
+          "data": {
+            "node_positions": [
+              [
+                0,
+                0,
+                0
+              ],
+              [
+                1,
+                1,
+                1
+              ],
+              [
+                2,
+                2,
+                2
+              ]
+            ],
+            "node_energies": [
+              0.8,
+              0.6,
+              0.9
+            ],
+            "active_nodes": [
+              0,
+              2
+            ]
+          },
+          "metadata": {
+            "total_nodes": 3,
+            "active_count": 2,
+            "energy_range": [
+              0.6,
+              0.9
+            ]
+          },
+          "rendering_hints": {}
+        }
+      ]
+    }
+  },
+  "metrics": {
+    "total_frames": 2,
+    "average_fps": 0.0,
+    "data_points_processed": 1,
+    "render_time_ms": 0.0050067901611328125,
+    "memory_usage_mb": 0.0,
+    "frames_rendered": 2,
+    "active_buffers": 3,
+    "total_buffer_capacity": 300,
+    "average_buffer_utilization": 0.3333333333333333,
+    "active_layers": 3,
+    "visible_layers": 3
+  }
+}

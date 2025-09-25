@@ -14,6 +14,7 @@ from .node_id_manager import *
 __all__ = [
     'EnergyBehavior',
     'EnergyConstants',
-    'NodeAccessLayer', 
-    'NodeIdManager'
+    'NodeAccessLayer',
+    'NodeIdManager',
+    'get_id_manager'
 ]

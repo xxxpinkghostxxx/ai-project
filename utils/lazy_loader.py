@@ -162,8 +162,10 @@ class LazyLoader:
     def cleanup(self):
         """Clean up all loaded components."""
         with self._lock:
-            for component_name, component in self._loaded_components.items():
-                if hasattr(component, 'cleanup'):
+            # Iterate over a copy of keys to avoid "dictionary changed size during iteration" error
+            for component_name in list(self._loaded_components.keys()):
+                component = self._loaded_components.get(component_name)
+                if component and hasattr(component, 'cleanup'):
                     try:
                         component.cleanup()
                     except Exception as e:
@@ -204,10 +206,10 @@ def lazy_component(component_name: str, priority: int = 0, dependencies: list = 
     return decorator
 
 # Component factory functions for common lazy loads
-def create_lazy_simulation_manager():
-    """Lazy factory for simulation manager."""
-    from core.simulation_manager import SimulationManager
-    return SimulationManager()
+def create_lazy_simulation_coordinator():
+    """Lazy factory for simulation coordinator."""
+    from core.services.simulation_coordinator import SimulationCoordinator
+    return SimulationCoordinator()
 
 def create_lazy_ui_engine():
     """Lazy factory for UI engine."""
@@ -221,7 +223,5 @@ def create_lazy_neural_dynamics():
 
 def create_lazy_performance_monitor():
     """Lazy factory for performance monitor."""
-    from utils.performance_monitor import PerformanceMonitor as PerfMonitor
-    monitor = PerfMonitor()
-    # Don't start monitoring here - let the SimulationManager handle it
-    return monitor
+    from utils.unified_performance_system import get_performance_monitor
+    return get_performance_monitor()

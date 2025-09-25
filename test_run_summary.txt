@@ -1,0 +1,402 @@
+Total test files: 60
+Passed: 41
+Failed: 16
+Errors: 3
+
+test_behavior_engine.py: PASSED
+
+test_common_utils.py: PASSED
+
+test_connection_logic.py: FAILED
+.................F.                                                      [100%]
+=========================== short test summary info ===========================
+FAILED tests/test_connection_logic.py::TestConnectionLogic::test_edge_index_bounds_checking
+1 failed, 18 passed in 2.89s
+
+
+
+test_connection_validator.py: PASSED
+
+test_consolidated_constants.py: PASSED
+
+test_continuous_graph_validator.py: PASSED
+
+test_cpp_extensions.py: PASSED
+
+test_dearpygui_minimal.py: PASSED
+
+test_energy_behavior.py: FAILED
+......FFF...FF...FFF..F..F.F                                             [100%]
+=========================== short test summary info ===========================
+FAILED tests/test_energy_behavior.py::TestEnergyBehaviorFunctions::test_apply_dynamic_energy_dynamics
+FAILED tests/test_energy_behavior.py::TestEnergyBehaviorFunctions::test_apply_energy_behavior
+FAILED tests/test_energy_behavior.py::TestEnergyBehaviorFunctions::test_apply_highway_energy_dynamics
+FAILED tests/test_energy_behavior.py::TestEnergyBehaviorFunctions::test_apply_relay_energy_dynamics
+FAILED tests/test_energy_behavior.py::TestEnergyBehaviorFunctions::test_emit_energy_pulse
+FAILED tests/test_energy_behavior.py::TestEnergyBehaviorFunctions::test_update_node_energy_with_learning
+FAILED tests/test_energy_behavior.py::TestEnergyBehaviorIntegration::test_energy_pulse_propagation
+FAILED tests/test_energy_behavior.py::TestEnergyBehaviorIntegration::test_full_energy_behavior_cycle
+FAILED tests/test_energy_behavior.py::TestEnergyBehaviorEdgeCases::test_extreme_energy_values
+FAILED tests/test_energy_behavior.py::TestEnergyBehaviorEdgeCases::test_zero_energy_handling
+FAILED tests/test_energy_behavior.py::TestEnergyBehaviorSimulationScenarios::test_oscillator_network_simulation
+11 failed, 17 passed in 2.92s
+
+
+
+test_energy_constants.py: PASSED
+
+test_energy_flow_diagram.py: PASSED
+
+test_energy_learning.py: PASSED
+
+test_energy_management.py: PASSED
+
+test_energy_system_integration.py: PASSED
+
+test_energy_system_validator.py: PASSED
+
+test_enhanced_connection_system.py: PASSED
+
+test_enhanced_neural_dynamics.py: PASSED
+
+test_graph_id_flow.py: PASSED
+
+test_graph_init.py: FAILED
+
+=========================== short test summary info ===========================
+ERROR tests/test_graph_init.py - AssertionError: Node feature count mismatch ...
+!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 2.99s
+
+
+
+test_homeostasis_controller.py: PASSED
+
+test_import.py: FAILED
+
+no tests ran in 2.86s
+
+
+
+test_integration_soa.py: PASSED
+
+test_learning_edge_cases_and_errors.py: PASSED
+
+test_learning_engine.py: PASSED
+
+test_learning_performance.py: PASSED
+
+test_learning_real_world_usage.py: FAILED
+.F.......                                                                [100%]
+=========================== short test summary info ===========================
+FAILED tests/test_learning_real_world_usage.py::TestRealWorldUsage::test_motor_control_learning_scenario
+1 failed, 8 passed in 4.18s
+
+
+
+test_learning_simulation_scenarios.py: PASSED
+
+test_learning_system_integration.py: PASSED
+
+test_live_hebbian_learning.py: PASSED
+
+test_memory_pool_manager.py: TIMEOUT
+
+test_memory_system.py: PASSED
+
+test_network_metrics.py: PASSED
+
+test_neural_edge_cases.py: PASSED
+
+test_neural_integration.py: PASSED
+
+test_neural_map_persistence.py: PASSED
+
+test_neural_performance.py: TIMEOUT
+
+test_neural_simulation_scenarios.py: TIMEOUT
+
+test_node_access_layer.py: FAILED
+....................F................F.......                            [100%]
+=========================== short test summary info ===========================
+FAILED tests/test_node_access_layer.py::TestNodeAccessLayerSelectionMethods::test_select_nodes_by_type
+FAILED tests/test_node_access_layer.py::TestNodeAccessLayerEdgeCases::test_torch_tensor_ids
+2 failed, 43 passed in 3.07s
+
+
+
+test_node_id_manager.py: PASSED
+
+test_optimized_node_manager.py: PASSED
+
+test_performance_monitor.py: PASSED
+
+test_performance_regression.py: FAILED
+
+no tests ran in 2.87s
+
+
+
+test_pytorch_minimal.py: PASSED
+
+test_screen_graph.py: FAILED
+FF..F.FF.FFFFF.FFFFFFFFF                                                 [100%]
+=========================== short test summary info ===========================
+FAILED tests/test_screen_graph.py::TestScreenGraph::test_capture_screen_complete_fallback
+FAILED tests/test_screen_graph.py::TestScreenGraph::test_capture_screen_cv2_resize
+FAILED tests/test_screen_graph.py::TestScreenGraph::test_capture_screen_pil_resize_fallback
+FAILED tests/test_screen_graph.py::TestScreenGraph::test_capture_screen_with_mss
+FAILED tests/test_screen_graph.py::TestScreenGraph::test_capture_screen_with_pil_fallback
+FAILED tests/test_screen_graph.py::TestScreenGraph::test_create_pixel_gray_graph
+FAILED tests/test_screen_graph.py::TestScreenGraph::test_create_pixel_gray_graph_invalid_shape
+FAILED tests/test_screen_graph.py::TestScreenGraph::test_create_pixel_gray_graph_large_array
+FAILED tests/test_screen_graph.py::TestScreenGraph::test_create_pixel_gray_graph_performance
+FAILED tests/test_screen_graph.py::TestScreenGraph::test_create_pixel_gray_graph_small_array
+FAILED tests/test_screen_graph.py::TestScreenGraph::test_edge_cases_screen_sizes
+FAILED tests/test_screen_graph.py::TestScreenGraph::test_graph_node_properties
+FAILED tests/test_screen_graph.py::TestScreenGraph::test_grayscale_conversion_accuracy
+FAILED tests/test_screen_graph.py::TestScreenGraph::test_memory_efficient_large_screen_handling
+FAILED tests/test_screen_graph.py::TestScreenGraph::test_rgb_to_gray - TypeEr...
+FAILED tests/test_screen_graph.py::TestScreenGraph::test_rgb_to_gray_invalid_shape
+FAILED tests/test_screen_graph.py::TestScreenGraph::test_rgb_to_gray_non_array
+FAILED tests/test_screen_graph.py::TestScreenGraph::test_screen_graph_integration
+FAILED tests/test_screen_graph.py::TestScreenGraph::test_typical_screen_capture_workflow
+19 failed, 5 passed in 2.97s
+
+
+
+test_sensory_processing.py: PASSED
+
+test_service_architecture.py: PASSED
+
+test_service_registry.py: PASSED
+
+test_simulation_coordinator.py: PASSED
+
+test_simulation_integration.py: PASSED
+
+test_spike_queue_system.py: PASSED
+
+test_ui_components.py: FAILED
+.FF.
+Windows fatal exception: access violation
+
+Current thread 0x0000830c (most recent call first):
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\dearpygui\dearpygui.py", line 8840 in get_value
+  File "C:\Users\chris\Documents\ai-project\ui\ui_engine.py", line 449 in update_graph_visualization
+  File "c:\Users\chris\Documents\ai-project\tests\test_ui_components.py", line 171 in test_graph_visualization_update
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\unittest\case.py", line 606 in _callTestMethod
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\unittest\case.py", line 651 in run
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\unittest\case.py", line 707 in __call__
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\unittest.py", line 351 in runtest
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\runner.py", line 178 in pytest_runtest_call
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_callers.py", line 121 in _multicall
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_manager.py", line 120 in _hookexec
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_hooks.py", line 512 in __call__
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\runner.py", line 246 in <lambda>
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\runner.py", line 344 in from_call
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\runner.py", line 245 in call_and_report
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\runner.py", line 136 in runtestprotocol
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\runner.py", line 117 in pytest_runtest_protocol
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_callers.py", line 121 in _multicall
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_manager.py", line 120 in _hookexec
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_hooks.py", line 512 in __call__
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\main.py", line 367 in pytest_runtestloop
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_callers.py", line 121 in _multicall
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_manager.py", line 120 in _hookexec
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_hooks.py", line 512 in __call__
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\main.py", line 343 in _main
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\main.py", line 289 in wrap_session
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\main.py", line 336 in pytest_cmdline_main
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_callers.py", line 121 in _multicall
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_manager.py", line 120 in _hookexec
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_hooks.py", line 512 in __call__
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\config\__init__.py", line 175 in main
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\config\__init__.py", line 201 in console_main
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pytest\__main__.py", line 9 in <module>
+  File "<frozen runpy>", line 88 in _run_code
+  File "<frozen runpy>", line 198 in _run_module_as_main
+
+
+test_ui_edge_cases.py: FAILED
+F.....F..F..F...FF                                                       [100%]
+=========================== short test summary info ===========================
+FAILED tests/test_ui_edge_cases.py::TestUIEdgeCases::test_concurrent_extreme_operations
+FAILED tests/test_ui_edge_cases.py::TestUIEdgeCases::test_graph_creation_extreme_inputs
+FAILED tests/test_ui_edge_cases.py::TestUIEdgeCases::test_network_simulation_failures
+FAILED tests/test_ui_edge_cases.py::TestUIEdgeCases::test_screen_capture_extreme_conditions
+FAILED tests/test_ui_edge_cases.py::TestUIEdgeCases::test_ui_callback_exceptions
+FAILED tests/test_ui_edge_cases.py::TestUIEdgeCases::test_ui_state_corruption_recovery
+6 failed, 12 passed in 15.77s
+
+
+
+test_ui_engine.py: FAILED
+
+Windows fatal exception: access violation
+
+Current thread 0x00006e18 (most recent call first):
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\dearpygui\dearpygui.py", line 8840 in get_value
+  File "C:\Users\chris\Documents\ai-project\ui\ui_engine.py", line 566 in apply_config_changes
+  File "C:\Users\chris\Documents\ai-project\tests\test_ui_engine.py", line 214 in test_apply_config_changes
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\unittest\case.py", line 606 in _callTestMethod
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\unittest\case.py", line 651 in run
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\unittest\case.py", line 707 in __call__
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\unittest.py", line 351 in runtest
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\runner.py", line 178 in pytest_runtest_call
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_callers.py", line 121 in _multicall
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_manager.py", line 120 in _hookexec
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_hooks.py", line 512 in __call__
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\runner.py", line 246 in <lambda>
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\runner.py", line 344 in from_call
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\runner.py", line 245 in call_and_report
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\runner.py", line 136 in runtestprotocol
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\runner.py", line 117 in pytest_runtest_protocol
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_callers.py", line 121 in _multicall
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_manager.py", line 120 in _hookexec
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_hooks.py", line 512 in __call__
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\main.py", line 367 in pytest_runtestloop
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_callers.py", line 121 in _multicall
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_manager.py", line 120 in _hookexec
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_hooks.py", line 512 in __call__
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\main.py", line 343 in _main
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\main.py", line 289 in wrap_session
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\main.py", line 336 in pytest_cmdline_main
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_callers.py", line 121 in _multicall
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_manager.py", line 120 in _hookexec
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_hooks.py", line 512 in __call__
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\config\__init__.py", line 175 in main
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\config\__init__.py", line 201 in console_main
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pytest\__main__.py", line 9 in <module>
+  File "<frozen runpy>", line 88 in _run_code
+  File "<frozen runpy>", line 198 in _run_module_as_main
+
+
+test_ui_integration.py: FAILED
+
+Windows fatal exception: access violation
+
+Current thread 0x000053c8 (most recent call first):
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\dearpygui\dearpygui.py", line 9548 in set_value
+  File "C:\Users\chris\Documents\ai-project\ui\ui_engine.py", line 372 in update_ui_display
+  File "C:\Users\chris\Documents\ai-project\tests\test_ui_integration.py", line 320 in ui_operation_thread
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 992 in run
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 1041 in _bootstrap_inner
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 1012 in _bootstrap
+
+Thread 0x00004be4 (most recent call first):
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 359 in wait
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 659 in wait
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 979 in start
+  File "C:\Users\chris\Documents\ai-project\tests\test_ui_integration.py", line 331 in test_concurrent_ui_operations
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\unittest\case.py", line 606 in _callTestMethod
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\unittest\case.py", line 651 in run
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\unittest\case.py", line 707 in __call__
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\unittest.py", line 351 in runtest
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\runner.py", line 178 in pytest_runtest_call
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_callers.py", line 121 in _multicall
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_manager.py", line 120 in _hookexec
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_hooks.py", line 512 in __call__
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\runner.py", line 246 in <lambda>
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\runner.py", line 344 in from_call
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\runner.py", line 245 in call_and_report
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\runner.py", line 136 in runtestprotocol
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\runner.py", line 117 in pytest_runtest_protocol
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_callers.py", line 121 in _multicall
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_manager.py", line 120 in _hookexec
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_hooks.py", line 512 in __call__
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\main.py", line 367 in pytest_runtestloop
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_callers.py", line 121 in _multicall
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_manager.py", line 120 in _hookexec
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_hooks.py", line 512 in __call__
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\main.py", line 343 in _main
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\main.py", line 289 in wrap_session
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\main.py", line 336 in pytest_cmdline_main
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_callers.py", line 121 in _multicall
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_manager.py", line 120 in _hookexec
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_hooks.py", line 512 in __call__
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\config\__init__.py", line 175 in main
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\config\__init__.py", line 201 in console_main
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pytest\__main__.py", line 9 in <module>
+  File "<frozen runpy>", line 88 in _run_code
+  File "<frozen runpy>", line 198 in _run_module_as_main
+
+
+test_ui_real_world.py: FAILED
+
+Windows fatal exception: access violation
+
+Current thread 0x00005f08 (most recent call first):
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\dearpygui\dearpygui.py", line 2969 in window
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\contextlib.py", line 141 in __enter__
+  File "C:\Users\chris\Documents\ai-project\ui\ui_engine.py", line 92 in create_main_window
+  File "C:\Users\chris\Documents\ai-project\tests\test_ui_real_world.py", line 452 in test_collaborative_research_scenario
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\unittest\case.py", line 606 in _callTestMethod
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\unittest\case.py", line 651 in run
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\unittest\case.py", line 707 in __call__
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\unittest.py", line 351 in runtest
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\runner.py", line 178 in pytest_runtest_call
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_callers.py", line 121 in _multicall
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_manager.py", line 120 in _hookexec
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_hooks.py", line 512 in __call__
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\runner.py", line 246 in <lambda>
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\runner.py", line 344 in from_call
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\runner.py", line 245 in call_and_report
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\runner.py", line 136 in runtestprotocol
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\runner.py", line 117 in pytest_runtest_protocol
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_callers.py", line 121 in _multicall
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_manager.py", line 120 in _hookexec
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_hooks.py", line 512 in __call__
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\main.py", line 367 in pytest_runtestloop
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_callers.py", line 121 in _multicall
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_manager.py", line 120 in _hookexec
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_hooks.py", line 512 in __call__
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\main.py", line 343 in _main
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\main.py", line 289 in wrap_session
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\main.py", line 336 in pytest_cmdline_main
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_callers.py", line 121 in _multicall
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_manager.py", line 120 in _hookexec
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pluggy\_hooks.py", line 512 in __call__
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\config\__init__.py", line 175 in main
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\_pytest\config\__init__.py", line 201 in console_main
+  File "C:\Users\chris\AppData\Local\Programs\Python\Python313\Lib\site-packages\pytest\__main__.py", line 9 in <module>
+  File "<frozen runpy>", line 88 in _run_code
+  File "<frozen runpy>", line 198 in _run_module_as_main
+
+
+test_ui_state_manager.py: PASSED
+
+test_unified_config_manager.py: PASSED
+
+test_unified_error_handler.py: FAILED
+.....F..F...F..                                                          [100%]
+=========================== short test summary info ===========================
+FAILED tests/test_unified_error_handler.py::TestUnifiedErrorHandler::test_periodic_cleanup
+FAILED tests/test_unified_error_handler.py::TestUnifiedErrorHandler::test_safe_initialize_component_validation
+FAILED tests/test_unified_error_handler.py::TestUnifiedErrorHandler::test_error_record_limits
+3 failed, 12 passed in 3.52s
+
+
+
+test_unified_launcher.py: FAILED
+.F...F........FF......                                                   [100%]
+=========================== short test summary info ===========================
+FAILED tests/test_unified_launcher.py::TestUnifiedLauncher::test_apply_performance_optimizations_with_torch
+FAILED tests/test_unified_launcher.py::TestUnifiedLauncher::test_launch_ui_with_function
+FAILED tests/test_unified_launcher.py::TestUnifiedLauncherIntegration::test_configuration_loading
+FAILED tests/test_unified_launcher.py::TestUnifiedLauncherIntegration::test_full_initialization_flow
+4 failed, 18 passed in 2.91s
+
+
+
+test_workspace_engine.py: FAILED
+...F..F........F.F......                                                 [100%]
+=========================== short test summary info ===========================
+FAILED tests/test_workspace_engine.py::TestWorkspaceEngine::test_update_workspace_nodes_no_nodes
+FAILED tests/test_workspace_engine.py::TestWorkspaceEngine::test_workspace_node_imagining
+FAILED tests/test_workspace_engine.py::TestWorkspaceEngine::test_error_handling_update_nodes
+FAILED tests/test_workspace_engine.py::TestWorkspaceEngine::test_edge_cases
+4 failed, 20 passed in 2.90s
+
+
+

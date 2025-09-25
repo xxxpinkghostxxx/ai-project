@@ -15,13 +15,64 @@ This system implements a sophisticated neural simulation that combines:
 
 ## 🏗️ Architecture
 
-### Core Components
+### Service-Oriented Architecture (SOA)
 
-#### 1. Simulation Manager (`core/simulation_manager.py`)
-- Central coordinator for all neural systems
-- Orchestrates simulation loop and component lifecycles
-- Manages configuration and error handling
-- Integrates enhanced neural processes with lazy loading
+The system has been fully migrated from a monolithic architecture to a service-oriented architecture with dependency injection. The monolithic `SimulationManager` has been completely removed and replaced with 8 specialized services orchestrated by the `SimulationCoordinator`.
+
+#### Core Services
+
+##### 1. SimulationCoordinator (`core/services/simulation_coordinator.py`)
+- Central orchestrator for all neural simulation services
+- Manages simulation lifecycle and service coordination
+- Handles dependency injection and service resolution
+- Provides unified interface for simulation control
+
+##### 2. NeuralProcessingService (`core/services/neural_processing_service.py`)
+- Handles neural dynamics and spiking behavior
+- Manages node behavior updates and state transitions
+- Processes neural integration and enhanced systems
+
+##### 3. EnergyManagementService (`core/services/energy_management_service.py`)
+- Manages energy flow and metabolic processes
+- Handles membrane potential dynamics and homeostasis
+- Regulates energy conservation and metabolic costs
+
+##### 4. LearningService (`core/services/learning_service.py`)
+- Coordinates plasticity and learning mechanisms
+- Implements STDP, Hebbian learning, and memory formation
+- Manages connection consolidation and synaptic plasticity
+
+##### 5. SensoryProcessingService (`core/services/sensory_processing_service.py`)
+- Processes visual and audio input data
+- Handles sensory integration and feature extraction
+- Manages multi-modal sensory data flow
+
+##### 6. GraphManagementService (`core/services/graph_management_service.py`)
+- Manages neural graph structure and operations
+- Handles graph validation, integrity checking, and persistence
+- Provides graph transformation and merging capabilities
+
+##### 7. PerformanceMonitoringService (`core/services/performance_monitoring_service.py`)
+- Monitors system performance and resource usage
+- Tracks simulation metrics and health indicators
+- Provides real-time performance analytics
+
+##### 8. EventCoordinationService (`core/services/event_coordination_service.py`)
+- Manages event-driven communication between services
+- Handles asynchronous event processing and queuing
+- Coordinates service interactions through events
+
+##### 9. ConfigurationService (`core/services/configuration_service.py`)
+- Provides centralized configuration management
+- Handles runtime configuration updates and validation
+- Manages environment variables and config file parsing
+
+#### Infrastructure Components
+
+##### Service Registry (`core/services/service_registry.py`)
+- Dependency injection container for all services
+- Manages service registration, resolution, and lifecycle
+- Ensures loose coupling through interface-based design
 
 #### 2. Energy System (`energy/`)
 - **Energy Behavior** (`energy/energy_behavior.py`): Energy flow and consumption
@@ -91,25 +142,53 @@ pip install -r requirements.txt
 python core/unified_launcher.py
 ```
 
-### Basic Usage
+### Basic Usage with SOA
 
 ```python
-from core.simulation_manager import create_simulation_manager
-from core.main_graph import initialize_main_graph
+from core.services.service_registry import ServiceRegistry
+from core.services.simulation_coordinator import SimulationCoordinator
+from core.services.neural_processing_service import NeuralProcessingService
+from core.services.energy_management_service import EnergyManagementService
+from core.services.learning_service import LearningService
+from core.services.graph_management_service import GraphManagementService
+from core.services.performance_monitoring_service import PerformanceMonitoringService
+from core.services.configuration_service import ConfigurationService
+from core.services.event_coordination_service import EventCoordinationService
+from core.services.sensory_processing_service import SensoryProcessingService
+from core.interfaces import *
+from main_graph import create_test_graph
 
-# Create simulation manager
-sim_manager = create_simulation_manager()
+# Create service registry
+registry = ServiceRegistry()
 
-# Initialize neural graph
-graph = initialize_main_graph(scale=0.25)
-sim_manager.set_graph(graph)
+# Register all services with dependency injection
+registry.register_instance(ISimulationCoordinator, SimulationCoordinator(registry))
+registry.register_instance(INeuralProcessor, NeuralProcessingService())
+registry.register_instance(IEnergyManager, EnergyManagementService())
+registry.register_instance(ILearningEngine, LearningService())
+registry.register_instance(IGraphManager, GraphManagementService())
+registry.register_instance(IPerformanceMonitor, PerformanceMonitoringService())
+registry.register_instance(IConfigurationService, ConfigurationService())
+registry.register_instance(IEventCoordinator, EventCoordinationService())
+registry.register_instance(ISensoryProcessor, SensoryProcessingService())
 
-# Start simulation
-sim_manager.start_simulation()
+# Get coordinator and initialize
+coordinator = registry.resolve(ISimulationCoordinator)
+graph_manager = registry.resolve(IGraphManager)
+
+# Create and set neural graph
+graph = create_test_graph(num_sensory=100, num_dynamic=50)
+graph_manager.set_graph(graph)
+
+# Initialize and run simulation
+coordinator.initialize_simulation()
+coordinator.start_simulation()
 
 # Run simulation steps
 for step in range(1000):
-    sim_manager.run_single_step()
+    coordinator.run_simulation_step()
+
+coordinator.stop_simulation()
 ```
 
 ## 🔧 Configuration
@@ -268,13 +347,23 @@ This system is designed for:
 
 ## 📁 Project Structure
 
-The project has been restructured with consolidated directories for better organization. Key consolidations include unified configuration in `config/` and unified utilities (including error handling) in `utils/`.
+The project follows a service-oriented architecture with clear separation of concerns. The monolithic `SimulationManager` has been replaced with specialized services orchestrated by the `SimulationCoordinator`.
 
 ```
 ai-project/
 ├── core/
-│   ├── simulation_manager.py     # Main simulation coordinator
-│   ├── unified_launcher.py       # Launch scripts
+│   ├── unified_launcher.py       # Composition root and application entry point
+│   ├── services/                 # SOA services (8 specialized services)
+│   │   ├── simulation_coordinator.py
+│   │   ├── neural_processing_service.py
+│   │   ├── energy_management_service.py
+│   │   ├── learning_service.py
+│   │   ├── sensory_processing_service.py
+│   │   ├── graph_management_service.py
+│   │   ├── performance_monitoring_service.py
+│   │   ├── event_coordination_service.py
+│   │   └── configuration_service.py
+│   ├── interfaces/               # Service contracts and interfaces
 │   └── main_graph.py             # Graph utilities
 ├── config/
 │   ├── unified_config_manager.py # Unified configuration management
