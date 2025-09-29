@@ -320,11 +320,11 @@ class NodeIDManager:
             return False
 
         if not isinstance(index, int) or index < 0:
-            logging.error(f"Invalid index: {index}")
+            logging.error("Invalid index: %s", index)
             return False
 
         if index >= self._max_graph_size:
-            logging.error(f"Index {index} exceeds max graph size {self._max_graph_size}")
+            logging.error("Index %s exceeds max graph size %s", index, self._max_graph_size)
             return False
 
         try:
@@ -335,10 +335,10 @@ class NodeIDManager:
                 log_step("Node index registered batch", node_id=node_id, index=index, batch_size=5000)
             return True
         except ValueError as e:
-            logging.warning(f"Failed to register index for node {node_id}: {e}")
+            logging.warning("Failed to register index for node %s: %s", node_id, e)
             return False
         except Exception as e:
-            logging.error(f"Unexpected error registering index for node {node_id}: {e}")
+            logging.error("Unexpected error registering index for node %s: %s", node_id, e)
             return False
     def get_node_index(self, node_id: int) -> Optional[int]:
         """Get node index (read operation)."""
@@ -370,7 +370,7 @@ class NodeIDManager:
         """Recycle node ID using atomic transaction with validation."""
         # Input validation
         if not isinstance(node_id, int) or node_id <= 0:
-            logging.error(f"Invalid node_id for recycling: {node_id}")
+            logging.error("Invalid node_id for recycling: %s", node_id)
             return False
 
         try:
@@ -380,7 +380,7 @@ class NodeIDManager:
             log_step("Node ID recycled", node_id=node_id)
             return True
         except ValueError as e:
-            logging.warning(f"Failed to recycle node ID {node_id}: {e}")
+            logging.warning("Failed to recycle node ID %s: %s", node_id, e)
             return False
         except Exception as e:
             logging.error(f"Unexpected error recycling node ID {node_id}: {e}")
