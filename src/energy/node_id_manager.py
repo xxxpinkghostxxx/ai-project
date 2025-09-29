@@ -283,7 +283,7 @@ class NodeIDManager:
             return generated_id
 
         except Exception as e:
-            logging.error(f"Failed to generate unique ID for type '{node_type}': {e}")
+            logging.error("Failed to generate unique ID for type '%s': %s", node_type, e)
             raise
     def _find_next_available_id_efficient(self) -> Optional[int]:
         """Find next available ID efficiently (read operation)."""
@@ -316,7 +316,7 @@ class NodeIDManager:
         """Register node index using atomic transaction with validation."""
         # Input validation
         if not isinstance(node_id, int) or node_id < 0:
-            logging.error(f"Invalid node_id: {node_id}")
+            logging.error("Invalid node_id: %s", node_id)
             return False
 
         if not isinstance(index, int) or index < 0:
