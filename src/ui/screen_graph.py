@@ -27,7 +27,7 @@ except ImportError:
 import torch
 from torch_geometric.data import Data
 
-from utils.logging_utils import log_runtime, log_step
+from src.utils.logging_utils import log_runtime, log_step
 
 RESOLUTION_SCALE = 0.25
 
@@ -206,4 +206,3 @@ if __name__ == "__main__":
         time.sleep(0.5)
     except KeyboardInterrupt:
         print("Stopped.")
-
