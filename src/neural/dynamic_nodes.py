@@ -1,5 +1,6 @@
 import torch
 from src.energy.energy_behavior import get_node_energy_cap
+from src.utils.logging_utils import log_step
 
 
 def add_dynamic_nodes(graph, num_dynamic=None, id_manager=None):
@@ -63,7 +64,7 @@ def add_dynamic_nodes(graph, num_dynamic=None, id_manager=None):
     if not hasattr(graph, 'edge_index') or graph.edge_index.numel() == 0:
         graph.edge_index = torch.empty((2, 0), dtype=torch.long)
 
-    logging.info(f"Added {num_dynamic} dynamic nodes with energy {initial_energy}")
+    log_step(f"Added {num_dynamic} dynamic nodes with energy {initial_energy}")
     return graph
 
 

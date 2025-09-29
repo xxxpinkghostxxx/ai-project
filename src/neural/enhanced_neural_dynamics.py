@@ -603,7 +603,7 @@ class EnhancedNeuralDynamics:
                 return
 
             self.neuromodulators[neuromodulator] = level
-            log_step("Neuromodulator %s set to %s", neuromodulator, level)
+            log_step(f"Neuromodulator {neuromodulator} set to {level}")
     def _update_neuromodulation(self, step: int):
         self.dopamine_level *= self.neuromodulator_decay
         self.acetylcholine_level *= self.neuromodulator_decay

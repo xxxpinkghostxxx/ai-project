@@ -14,17 +14,15 @@ from ..interfaces.service_registry import (
     IServiceRegistry, ServiceDescriptor, ServiceLifetime, ServiceHealth
 )
 
-T = TypeVar('T')
+ServiceType = TypeVar('ServiceType')
 
 
 class ServiceNotFoundError(Exception):
     """Raised when a requested service is not registered."""
-    pass
 
 
 class ServiceResolutionError(Exception):
     """Raised when a service cannot be resolved or instantiated."""
-    pass
 
 
 class ServiceRegistry(IServiceRegistry):
@@ -159,8 +157,8 @@ class ServiceRegistry(IServiceRegistry):
                 if descriptor.instance is not None and hasattr(descriptor.instance, 'cleanup'):
                     try:
                         descriptor.instance.cleanup()
-                    except Exception:
-                        pass  # Ignore cleanup errors
+                    except (AttributeError, RuntimeError, TypeError):
+                        pass  # Ignore cleanup errors for common cleanup issues
                 del self._services[service_type]
                 return True
             return False
@@ -173,8 +171,8 @@ class ServiceRegistry(IServiceRegistry):
                 if descriptor.instance is not None and hasattr(descriptor.instance, 'cleanup'):
                     try:
                         descriptor.instance.cleanup()
-                    except Exception:
-                        pass  # Ignore cleanup errors
+                    except (AttributeError, RuntimeError, TypeError):
+                        pass  # Ignore cleanup errors for common cleanup issues
             self._services.clear()
             self._resolution_stack.clear()
 
@@ -212,7 +210,7 @@ class ServiceRegistry(IServiceRegistry):
                         'error': str(e),
                         'type': 'resolution_error'
                     })
-                except Exception as e:
+                except (ServiceNotFoundError, ValueError, TypeError) as e:
                     issues.append({
                         'service': service_type.__name__,
                         'error': str(e),
@@ -283,10 +281,10 @@ class ServiceRegistry(IServiceRegistry):
                         kwargs[param_name] = self
                     else:
                         kwargs[param_name] = self.resolve(dependency_type)
-                except ServiceNotFoundError:
+                except ServiceNotFoundError as e:
                     raise ServiceResolutionError(
                         f"Cannot resolve dependency '{param_name}' for {implementation_type.__name__}"
-                    )
+                    ) from e
             else:
                 raise ServiceResolutionError(
                     f"Parameter '{param_name}' in {implementation_type.__name__} has no type annotation"
@@ -308,13 +306,8 @@ class ServiceRegistry(IServiceRegistry):
                     dependencies.append(param_info.annotation)
 
             descriptor.dependencies = dependencies
-
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError):
             # If we can't analyze dependencies, leave the list empty
             descriptor.dependencies = []
-
-
-
-
 
 

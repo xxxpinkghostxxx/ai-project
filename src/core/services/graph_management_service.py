@@ -50,6 +50,44 @@ class GraphManagementService(IGraphManager):
         self._cache_timestamp = 0
         self._cache_ttl = 60  # seconds
 
+    def get_default_graph_size(self) -> int:
+        """Get the default graph size."""
+        return self._default_graph_size
+
+    def get_max_graph_size(self) -> int:
+        """Get the maximum graph size."""
+        return self._max_graph_size
+
+    def get_persistence_format(self) -> str:
+        """Get the persistence format."""
+        return self._persistence_format
+
+    def get_cache_ttl(self) -> int:
+        """Get the cache time-to-live value."""
+        return self._cache_ttl
+
+    def get_graph_stats_cache(self) -> Optional[Dict[str, Any]]:
+        """Get the graph statistics cache."""
+        return self._graph_stats_cache
+
+    def set_graph_stats_cache(self, cache: Optional[Dict[str, Any]]) -> None:
+        """Set the graph statistics cache."""
+        self._graph_stats_cache = cache
+        self._cache_timestamp = time.time() if cache is not None else 0
+
+    def is_cache_expired(self) -> bool:
+        """Check if the cache is expired."""
+        current_time = time.time()
+        return (current_time - self._cache_timestamp) > self._cache_ttl
+
+    def convert_graph_to_json(self, graph: Data) -> Dict[str, Any]:
+        """Convert graph to JSON-serializable format."""
+        return self._graph_to_json(graph)
+
+    def convert_json_to_graph(self, data: Dict[str, Any]) -> Data:
+        """Convert JSON data back to PyTorch Geometric Data object."""
+        return self._json_to_graph(data)
+
     def initialize_graph(self, config: Optional[Dict[str, Any]] = None) -> Data:
         """
         Initialize a new neural graph.
@@ -65,8 +103,8 @@ class GraphManagementService(IGraphManager):
             if config is None:
                 config = {}
 
-            graph_size = config.get('size', self._default_graph_size)
-            graph_size = min(graph_size, self._max_graph_size)
+            graph_size = config.get('size', self.get_default_graph_size())
+            graph_size = min(graph_size, self.get_max_graph_size())
 
             # Create node labels
             node_labels = []
@@ -186,7 +224,7 @@ class GraphManagementService(IGraphManager):
                 with open(filepath, 'r') as f:
                     data = json.load(f)
                 # Convert back to Data object (simplified)
-                graph = self._json_to_graph(data)
+                graph = self.convert_json_to_graph(data)
             else:
                 print(f"Unsupported file format: {filepath}")
                 return None
@@ -236,7 +274,7 @@ class GraphManagementService(IGraphManager):
                     pickle.dump(graph, f)
             elif filepath.endswith('.json'):
                 # JSON format (limited support)
-                data = self._graph_to_json(graph)
+                data = self.convert_graph_to_json(graph)
                 with open(filepath, 'w') as f:
                     json.dump(data, f, indent=2)
             else:
@@ -445,7 +483,7 @@ class GraphManagementService(IGraphManager):
 
     def cleanup(self) -> None:
         """Clean up resources."""
-        self._graph_stats_cache = None
+        self.set_graph_stats_cache(None)
 
 
 

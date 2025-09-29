@@ -114,9 +114,9 @@ class NodeIDManager:
                     self._stats['transactions_completed'] += 1
 
                     # Cleanup old transactions to prevent memory leaks
-                    if len(self._completed_transactions) > self._max_transaction_history:
-                        removed_count = len(self._completed_transactions) - self._max_transaction_history
-                        self._completed_transactions = self._completed_transactions[-self._max_transaction_history:]
+                    if len(self._get_completed_transactions()) > self._get_max_transaction_history():
+                        removed_count = len(self._get_completed_transactions()) - self._get_max_transaction_history()
+                        self._get_completed_transactions()[:] = self._get_completed_transactions()[-self._get_max_transaction_history():]
                         if removed_count > 0:
                             log_step(f"Cleaned up {removed_count} old transactions")
 
@@ -165,8 +165,8 @@ class NodeIDManager:
                 import json
                 try:
                     metadata_size = len(json.dumps(metadata).encode('utf-8'))
-                    if metadata_size > self._metadata_size_limit:
-                        logging.warning("Metadata size %s exceeds limit %s, truncating", metadata_size, self._metadata_size_limit)
+                    if metadata_size > self._get_metadata_size_limit():
+                        logging.warning("Metadata size %s exceeds limit %s, truncating", metadata_size, self._get_metadata_size_limit())
                         # Keep only essential metadata
                         metadata = {'size_exceeded': True, 'original_size': metadata_size}
                 except Exception as e:
@@ -174,35 +174,35 @@ class NodeIDManager:
                     metadata = {'size_error': str(e)}
 
             # Check if we can generate more IDs
-            if len(self._active_ids) >= self._max_graph_size:
-                raise RuntimeError(f"Graph expansion limit reached: {self._max_graph_size} nodes.")
+            if len(self._get_active_ids()) >= self._get_max_graph_size():
+                raise RuntimeError(f"Graph expansion limit reached: {self._get_max_graph_size()} nodes.")
 
             # Generate ID
-            if self._recycled_ids:
-                node_id = self._recycled_ids.pop(0)
+            if self._get_recycled_ids():
+                node_id = self._get_recycled_ids().pop(0)
             else:
-                node_id = self._next_id
-                self._next_id += 1
+                node_id = self._get_next_id()
+                self._set_next_id(self._get_next_id() + 1)
 
                 # Safety check to prevent infinite loops
-                if self._next_id >= self._max_graph_size * 2:
+                if self._get_next_id() >= self._get_max_graph_size() * 2:
                     node_id = self._find_next_available_id_efficient()
                     if node_id is None:
-                        raise RuntimeError(f"Cannot find available ID within limit: {self._max_graph_size}")
+                        raise RuntimeError(f"Cannot find available ID within limit: {self._get_max_graph_size()}")
 
             # Validate generated ID
-            if node_id < 0 or node_id >= self._max_graph_size:
+            if node_id < 0 or node_id >= self._get_max_graph_size():
                 raise RuntimeError(f"Generated invalid node ID: {node_id}")
 
-            self._active_ids.add(node_id)
-            self._node_type_map[node_id] = node_type
+            self._get_active_ids().add(node_id)
+            self._get_node_type_map()[node_id] = node_type
             if metadata:
-                self._id_metadata[node_id] = metadata.copy()
+                self._get_id_metadata()[node_id] = metadata.copy()
 
             # Update stats thread-safely
             with self._stats_lock:
-                self._stats['total_ids_generated'] += 1
-                self._stats['active_ids'] = len(self._active_ids)
+                self._get_stats()['total_ids_generated'] += 1
+                self._get_stats()['active_ids'] = len(self._get_active_ids())
 
             # Store the generated ID in the operation for reference
             operation['generated_id'] = node_id
@@ -213,42 +213,45 @@ class NodeIDManager:
             node_id = operation['node_id']
             index = operation['index']
 
-            if node_id not in self._active_ids:
+            if node_id not in self._get_active_ids():
                 raise ValueError(f"Cannot register index for inactive ID: {node_id}")
 
-            self._id_to_index[node_id] = index
-            self._index_to_id[index] = node_id
+            self._get_id_to_index()[node_id] = index
+            self._get_index_to_id()[index] = node_id
 
     def _execute_recycle_id(self, operation: Dict[str, Any]):
         """Execute ID recycling within transaction (write operation)."""
         with self._lock:
             node_id = operation['node_id']
 
-            if node_id not in self._active_ids:
+            if node_id not in self._get_active_ids():
                 raise ValueError(f"Cannot recycle inactive ID: {node_id}")
 
-            self._active_ids.remove(node_id)
+            self._get_active_ids().remove(node_id)
 
             # Clean up mappings
-            if node_id in self._id_to_index:
-                index = self._id_to_index[node_id]
-                del self._id_to_index[node_id]
-                if index in self._index_to_id:
-                    del self._index_to_id[index]
+            if node_id in self._get_id_to_index():
+                index = self._get_id_to_index()[node_id]
+                del self._get_id_to_index()[node_id]
+                if index in self._get_index_to_id():
+                    del self._get_index_to_id()[index]
 
-            if node_id in self._node_type_map:
-                del self._node_type_map[node_id]
+            if node_id in self._get_node_type_map():
+                del self._get_node_type_map()[node_id]
 
-            if node_id in self._id_metadata:
-                del self._id_metadata[node_id]
+            if node_id in self._get_id_metadata():
+                del self._get_id_metadata()[node_id]
 
-            self._recycled_ids.append(node_id)
-            self._stats['active_ids'] = len(self._active_ids)
-            self._stats['recycled_ids'] = len(self._recycled_ids)
+            self._get_recycled_ids().append(node_id)
+            self._get_stats()['active_ids'] = len(self._get_active_ids())
+            self._get_stats()['recycled_ids'] = len(self._get_recycled_ids())
 
     def set_max_graph_size(self, max_size: int):
         """Set maximum graph size (write operation)."""
         with self._lock:
+            # Note: We can't directly set _max_graph_size, need a setter method
+            # For now, we'll keep the direct access since this is a simple assignment
+            # In a full refactoring, we'd add a setter method
             self._max_graph_size = max_size
             log_step("Max graph size set", max_size=max_size)
     def generate_unique_id(self, node_type: str = "unknown", metadata: Optional[Dict[str, Any]] = None) -> int:
@@ -289,22 +292,22 @@ class NodeIDManager:
         """Find next available ID efficiently (read operation)."""
         with self._lock:
             # Start from a reasonable point to avoid conflicts with low IDs
-            start_id = max(1000, self._next_id - 10000)
+            start_id = max(1000, self._get_next_id() - 10000)
 
             # Try a range around the current next_id first
-            for i in range(start_id, min(start_id + 20000, self._max_graph_size)):
-                if i not in self._active_ids:
+            for i in range(start_id, min(start_id + 20000, self._get_max_graph_size())):
+                if i not in self._get_active_ids():
                     return i
 
             # If that fails, search from the beginning in larger steps
-            for i in range(1, self._max_graph_size, 100):  # Check every 100th ID
-                if i not in self._active_ids:
+            for i in range(1, self._get_max_graph_size(), 100):  # Check every 100th ID
+                if i not in self._get_active_ids():
                     return i
 
             # Last resort: linear search in a limited range
-            search_limit = min(10000, self._max_graph_size)
+            search_limit = min(10000, self._get_max_graph_size())
             for i in range(1, search_limit):
-                if i not in self._active_ids:
+                if i not in self._get_active_ids():
                     return i
 
             return None
@@ -323,8 +326,8 @@ class NodeIDManager:
             logging.error("Invalid index: %s", index)
             return False
 
-        if index >= self._max_graph_size:
-            logging.error("Index %s exceeds max graph size %s", index, self._max_graph_size)
+        if index >= self._get_max_graph_size():
+            logging.error("Index %s exceeds max graph size %s", index, self._get_max_graph_size())
             return False
 
         try:
@@ -355,7 +358,7 @@ class NodeIDManager:
     def is_valid_id(self, node_id: int) -> bool:
         """Check if ID is valid (read operation)."""
         with self._lock:
-            return node_id in self._active_ids
+            return node_id in self._get_active_ids()
 
     def get_node_type(self, node_id: int) -> Optional[str]:
         """Get node type (read operation)."""
@@ -383,18 +386,92 @@ class NodeIDManager:
             logging.warning("Failed to recycle node ID %s: %s", node_id, e)
             return False
         except Exception as e:
-            logging.error(f"Unexpected error recycling node ID {node_id}: {e}")
+            logging.error("Unexpected error recycling node ID %s: %s", node_id, e)
             return False
     def get_all_active_ids(self) -> List[int]:
         """Get all active IDs (read operation)."""
         with self._lock:
-            return list(self._active_ids)
+            return list(self._get_active_ids())
+
+    # Public accessor methods for private attributes to improve encapsulation
+
+    def _get_active_ids(self) -> Set[int]:
+        """Get the set of active IDs (internal use)."""
+        return self._active_ids
+
+    def _get_id_to_index(self) -> Dict[int, int]:
+        """Get the ID to index mapping (internal use)."""
+        return self._id_to_index
+
+    def _get_index_to_id(self) -> Dict[int, int]:
+        """Get the index to ID mapping (internal use)."""
+        return self._index_to_id
+
+    def _get_node_type_map(self) -> Dict[int, str]:
+        """Get the node type mapping (internal use)."""
+        return self._node_type_map
+
+    def _get_id_metadata(self) -> Dict[int, Dict[str, Any]]:
+        """Get the ID metadata mapping (internal use)."""
+        return self._id_metadata
+
+    def _get_recycled_ids(self) -> List[int]:
+        """Get the recycled IDs list (internal use)."""
+        return self._recycled_ids
+
+    def _get_next_id(self) -> int:
+        """Get the next ID to be generated (internal use)."""
+        return self._next_id
+
+    def _set_next_id(self, value: int):
+        """Set the next ID to be generated (internal use)."""
+        self._next_id = value
+
+    def _get_max_graph_size(self) -> int:
+        """Get the maximum graph size (internal use)."""
+        return self._max_graph_size
+
+    def _get_stats(self) -> Dict[str, Any]:
+        """Get the statistics dictionary (internal use)."""
+        return self._stats
+
+    def _get_pending_transactions(self) -> Dict[str, IDTransaction]:
+        """Get the pending transactions (internal use)."""
+        return self._pending_transactions
+
+    def _get_completed_transactions(self) -> List[IDTransaction]:
+        """Get the completed transactions (internal use)."""
+        return self._completed_transactions
+
+    def _get_integrity_check_enabled(self) -> bool:
+        """Get the integrity check enabled flag (internal use)."""
+        return self._integrity_check_enabled
+
+    def _get_last_integrity_check(self) -> float:
+        """Get the last integrity check timestamp (internal use)."""
+        return self._last_integrity_check
+
+    def _set_last_integrity_check(self, value: float):
+        """Set the last integrity check timestamp (internal use)."""
+        self._last_integrity_check = value
+
+    def _get_integrity_check_interval(self) -> float:
+        """Get the integrity check interval (internal use)."""
+        return self._integrity_check_interval
+
+    def _get_metadata_size_limit(self) -> int:
+        """Get the metadata size limit (internal use)."""
+        return self._metadata_size_limit
+
+    def _get_max_transaction_history(self) -> int:
+        """Get the maximum transaction history size (internal use)."""
+        return self._max_transaction_history
 
     def get_ids_by_type(self, node_type: str) -> List[int]:
         """Get IDs by type (read operation)."""
         with self._lock:
-            return [node_id for node_id, ntype in self._node_type_map.items()
-                   if ntype == node_type and node_id in self._active_ids]
+            return [node_id for node_id, ntype in self._get_node_type_map().items()
+                    if ntype == node_type and node_id in self._get_active_ids()]
 
     def get_statistics(self) -> Dict[str, Any]:
         """Get statistics with thread safety and memory usage tracking."""
@@ -403,20 +480,20 @@ class NodeIDManager:
                 stats = self._stats.copy()
 
             stats['uptime'] = time.time() - stats['creation_time']
-            stats['recycled_ids_count'] = len(self._recycled_ids)
+            stats['recycled_ids_count'] = len(self._get_recycled_ids())
 
             # Calculate memory usage
             try:
                 import sys
                 # Rough memory estimation
                 memory_usage = (
-                    sys.getsizeof(self._active_ids) +
-                    sys.getsizeof(self._recycled_ids) +
-                    sys.getsizeof(self._id_to_index) +
-                    sys.getsizeof(self._index_to_id) +
-                    sys.getsizeof(self._node_type_map) +
-                    sys.getsizeof(self._id_metadata) +
-                    sum(sys.getsizeof(txn) for txn in self._completed_transactions)
+                    sys.getsizeof(self._get_active_ids()) +
+                    sys.getsizeof(self._get_recycled_ids()) +
+                    sys.getsizeof(self._get_id_to_index()) +
+                    sys.getsizeof(self._get_index_to_id()) +
+                    sys.getsizeof(self._get_node_type_map()) +
+                    sys.getsizeof(self._get_id_metadata()) +
+                    sum(sys.getsizeof(txn) for txn in self._get_completed_transactions())
                 )
                 stats['memory_usage_mb'] = memory_usage / (1024 * 1024)
             except Exception:
@@ -424,16 +501,16 @@ class NodeIDManager:
 
             # Add transaction statistics
             with self._transaction_lock:
-                stats['pending_transactions'] = len(self._pending_transactions)
-                stats['completed_transactions'] = len(self._completed_transactions)
+                stats['pending_transactions'] = len(self._get_pending_transactions())
+                stats['completed_transactions'] = len(self._get_completed_transactions())
 
             # Add integrity check statistics
-            stats['integrity_checks_enabled'] = self._integrity_check_enabled
-            stats['time_since_last_integrity_check'] = time.time() - self._last_integrity_check
+            stats['integrity_checks_enabled'] = self._get_integrity_check_enabled()
+            stats['time_since_last_integrity_check'] = time.time() - self._get_last_integrity_check()
 
             # Add capacity information
             stats['expansion_capacity'] = self.get_expansion_capacity()
-            stats['utilization_percent'] = (len(self._active_ids) / self._max_graph_size * 100) if self._max_graph_size > 0 else 0.0
+            stats['utilization_percent'] = (len(self._get_active_ids()) / self._get_max_graph_size() * 100) if self._get_max_graph_size() > 0 else 0.0
 
             return stats
 
@@ -441,7 +518,7 @@ class NodeIDManager:
         """Get recent transaction history (read operation)."""
         with self._lock:
             with self._transaction_lock:
-                recent_transactions = self._completed_transactions[-limit:]
+                recent_transactions = self._get_completed_transactions()[-limit:]
                 return [
                     {
                         'transaction_id': txn.transaction_id,
@@ -463,7 +540,7 @@ class NodeIDManager:
                 'missing_ids': [],
                 'orphaned_ids': [],
                 'integrity_check_passed': False,
-                'last_integrity_check': self._last_integrity_check
+                'last_integrity_check': self._get_last_integrity_check()
             }
 
             if not hasattr(graph, 'node_labels'):
@@ -472,7 +549,7 @@ class NodeIDManager:
                 return validation_results
 
             graph_node_count = len(graph.node_labels)
-            active_id_count = len(self._active_ids)
+            active_id_count = len(self._get_active_ids())
 
             if graph_node_count != active_id_count:
                 validation_results['node_count_mismatch'] = True
@@ -502,20 +579,20 @@ class NodeIDManager:
                             f"Node {node_id} type mismatch: expected {expected_type}, got {actual_type}"
                         )
 
-            for node_id in self._active_ids:
-                if node_id not in self._id_to_index:
+            for node_id in self._get_active_ids():
+                if node_id not in self._get_id_to_index():
                     validation_results['orphaned_ids'].append(node_id)
                     validation_results['warnings'].append(f"Orphaned ID: {node_id}")
 
             # Perform periodic integrity check
             current_time = time.time()
-            if self._integrity_check_enabled and (current_time - self._last_integrity_check) > self._integrity_check_interval:
+            if self._get_integrity_check_enabled() and (current_time - self._get_last_integrity_check()) > self._get_integrity_check_interval():
                 integrity_result = self._perform_integrity_check()
                 validation_results['integrity_check_passed'] = integrity_result['passed']
                 if not integrity_result['passed']:
                     validation_results['errors'].extend(integrity_result['errors'])
-                self._last_integrity_check = current_time
-                self._stats['integrity_checks_passed'] += 1 if integrity_result['passed'] else 0
+                self._set_last_integrity_check(current_time)
+                self._get_stats()['integrity_checks_passed'] += 1 if integrity_result['passed'] else 0
 
             if validation_results['errors']:
                 validation_results['is_consistent'] = False
@@ -528,30 +605,30 @@ class NodeIDManager:
 
             try:
                 # Check bidirectional consistency
-                for node_id, index in self._id_to_index.items():
-                    if node_id not in self._active_ids:
+                for node_id, index in self._get_id_to_index().items():
+                    if node_id not in self._get_active_ids():
                         result['errors'].append(f"ID {node_id} in index map but not active")
                         result['passed'] = False
 
-                    reverse_id = self._index_to_id.get(index)
+                    reverse_id = self._get_index_to_id().get(index)
                     if reverse_id != node_id:
                         result['errors'].append(f"Index {index} maps to {reverse_id}, expected {node_id}")
                         result['passed'] = False
 
                 # Check for duplicate indices
-                indices = list(self._id_to_index.values())
+                indices = list(self._get_id_to_index().values())
                 if len(indices) != len(set(indices)):
                     result['errors'].append("Duplicate indices found in ID-to-index mapping")
                     result['passed'] = False
 
                 # Check for duplicate IDs
-                if len(self._active_ids) != len(self._id_to_index):
+                if len(self._get_active_ids()) != len(self._get_id_to_index()):
                     result['errors'].append("Mismatch between active IDs and index mappings")
                     result['passed'] = False
 
                 # Check recycled IDs don't conflict
-                for recycled_id in self._recycled_ids:
-                    if recycled_id in self._active_ids:
+                for recycled_id in self._get_recycled_ids():
+                    if recycled_id in self._get_active_ids():
                         result['errors'].append(f"Recycled ID {recycled_id} still marked as active")
                         result['passed'] = False
 
@@ -571,12 +648,12 @@ class NodeIDManager:
     def can_expand_graph(self, additional_nodes: int = 1) -> bool:
         """Check if the graph can expand by the given number of nodes (read operation)."""
         with self._lock:
-            return len(self._active_ids) + additional_nodes <= self._max_graph_size
+            return len(self._get_active_ids()) + additional_nodes <= self._get_max_graph_size()
 
     def get_expansion_capacity(self) -> int:
         """Get the number of additional nodes that can be added before hitting the limit (read operation)."""
         with self._lock:
-            return max(0, self._max_graph_size - len(self._active_ids))
+            return max(0, self._get_max_graph_size() - len(self._get_active_ids()))
 
     def cleanup_orphaned_ids(self, graph) -> int:
         """Remove IDs that are no longer in the graph and return count of cleaned IDs (write operation)."""
@@ -585,7 +662,7 @@ class NodeIDManager:
                 return 0
 
             graph_node_ids = {node.get('id') for node in graph.node_labels if node.get('id') is not None}
-            orphaned_ids = self._active_ids - graph_node_ids
+            orphaned_ids = self._get_active_ids() - graph_node_ids
 
             for node_id in orphaned_ids:
                 self.recycle_node_id(node_id)
@@ -596,22 +673,23 @@ class NodeIDManager:
     def reset(self):
         """Reset the ID manager (write operation) with memory cleanup."""
         with self._lock:
-            self._next_id = 1
-            self._active_ids.clear()
-            self._recycled_ids.clear()
-            self._id_to_index.clear()
-            self._index_to_id.clear()
-            self._node_type_map.clear()
-            self._id_metadata.clear()
+            self._set_next_id(1)
+            self._get_active_ids().clear()
+            self._get_recycled_ids().clear()
+            self._get_id_to_index().clear()
+            self._get_index_to_id().clear()
+            self._get_node_type_map().clear()
+            self._get_id_metadata().clear()
 
             # Clear transaction history
             with self._transaction_lock:
-                self._pending_transactions.clear()
-                self._completed_transactions.clear()
+                self._get_pending_transactions().clear()
+                self._get_completed_transactions().clear()
 
             # Reset stats
             with self._stats_lock:
-                self._stats = {
+                self._get_stats().clear()
+                self._get_stats().update({
                     'total_ids_generated': 0,
                     'active_ids': 0,
                     'recycled_ids': 0,
@@ -620,33 +698,33 @@ class NodeIDManager:
                     'integrity_checks_passed': 0,
                     'creation_time': time.time(),
                     'memory_usage_mb': 0.0
-                }
+                })
 
             # Reset max graph size to default
             self._max_graph_size = 1000000  # 1 million nodes default
-            log_step("NodeIDManager reset", max_size=self._max_graph_size)
+            log_step("NodeIDManager reset", max_size=self._get_max_graph_size())
 
     def cleanup_memory(self):
         """Clean up memory by removing old transaction history and optimizing data structures."""
         with self._lock:
             # Clean up old transactions
             with self._transaction_lock:
-                if len(self._completed_transactions) > self._max_transaction_history // 2:
-                    self._completed_transactions = self._completed_transactions[-self._max_transaction_history // 2:]
+                if len(self._get_completed_transactions()) > self._get_max_transaction_history() // 2:
+                    self._get_completed_transactions()[:] = self._get_completed_transactions()[-self._get_max_transaction_history() // 2:]
 
             # Clean up orphaned metadata (IDs that exist in metadata but not in active_ids)
             orphaned_metadata = []
-            for node_id in self._id_metadata:
-                if node_id not in self._active_ids:
+            for node_id in self._get_id_metadata():
+                if node_id not in self._get_active_ids():
                     orphaned_metadata.append(node_id)
 
             for node_id in orphaned_metadata:
-                del self._id_metadata[node_id]
+                del self._get_id_metadata()[node_id]
 
             # Optimize recycled IDs list if it gets too large
-            if len(self._recycled_ids) > 10000:
+            if len(self._get_recycled_ids()) > 10000:
                 # Keep only the most recently recycled IDs
-                self._recycled_ids = self._recycled_ids[-5000:]
+                self._get_recycled_ids()[:] = self._get_recycled_ids()[-5000:]
 
             log_step("Memory cleanup completed",
                     transactions_cleaned=len(self._completed_transactions),

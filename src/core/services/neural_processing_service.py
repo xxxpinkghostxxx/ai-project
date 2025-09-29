@@ -18,7 +18,7 @@ from ..interfaces.event_coordinator import IEventCoordinator
 
 # Import optimized extensions
 try:
-    from cpp_extensions import SynapticCalculator, create_synaptic_calculator
+    from src.utils.cpp_extensions import SynapticCalculator, create_synaptic_calculator
     _USE_OPTIMIZED_SYNAPTIC_CALCULATOR = True
 except ImportError:
     print("Warning: Optimized synaptic calculator not available, using fallback implementation")
@@ -74,6 +74,82 @@ class NeuralProcessingService(INeuralProcessor):
                 print(f"Failed to initialize optimized synaptic calculator: {e}")
                 self._synaptic_calculator = None
 
+    def get_neural_state_internal(self) -> NeuralState:
+        """Get the internal neural state."""
+        return self._neural_state
+
+    def set_neural_state_internal(self, state: NeuralState) -> None:
+        """Set the internal neural state."""
+        self._neural_state = state
+
+    def get_membrane_time_constant(self) -> float:
+        """Get the membrane time constant."""
+        return self._membrane_time_constant
+
+    def get_threshold_potential(self) -> float:
+        """Get the threshold potential."""
+        return self._threshold_potential
+
+    def get_reset_potential(self) -> float:
+        """Get the reset potential."""
+        return self._reset_potential
+
+    def get_refractory_period(self) -> float:
+        """Get the refractory period."""
+        return self._refractory_period
+
+    def get_resting_potential(self) -> float:
+        """Get the resting potential."""
+        return self._resting_potential
+
+    def get_spike_count(self) -> int:
+        """Get the spike count."""
+        return self._spike_count
+
+    def increment_spike_count(self) -> None:
+        """Increment the spike count."""
+        self._spike_count += 1
+
+    def get_last_spike_times(self) -> Dict[int, float]:
+        """Get the last spike times dictionary."""
+        return self._last_spike_times
+
+    def set_last_spike_time(self, node_id: int, time: float) -> None:
+        """Set the last spike time for a node."""
+        self._last_spike_times[node_id] = time
+
+    def get_refractory_nodes(self) -> Dict[int, float]:
+        """Get the refractory nodes dictionary."""
+        return self._refractory_nodes
+
+    def set_refractory_node(self, node_id: int, time: float) -> None:
+        """Set a node as refractory for a given time."""
+        self._refractory_nodes[node_id] = time
+
+    def remove_refractory_node(self, node_id: int) -> None:
+        """Remove a node from refractory state."""
+        if node_id in self._refractory_nodes:
+            del self._refractory_nodes[node_id]
+
+    def update_refractory_node(self, node_id: int, time_step: float) -> None:
+        """Update refractory time for a node."""
+        if node_id in self._refractory_nodes:
+            self._refractory_nodes[node_id] -= time_step
+            if self._refractory_nodes[node_id] <= 0:
+                del self._refractory_nodes[node_id]
+
+    def get_synaptic_calculator(self):
+        """Get the synaptic calculator."""
+        return self._synaptic_calculator
+
+    def calculate_synaptic_inputs_internal(self, graph: Data, node_energies: Dict[int, float]) -> np.ndarray:
+        """Calculate synaptic inputs for all neurons (internal method)."""
+        return self._calculate_all_synaptic_inputs(graph, node_energies)
+
+    def calculate_synaptic_input_internal(self, graph: Data, node_id: int) -> float:
+        """Calculate synaptic input for a neuron (internal method)."""
+        return self._calculate_synaptic_input(graph, node_id)
+
     def initialize_neural_state(self, graph: Data) -> bool:
         """
         Initialize neural state for the given graph.
@@ -102,9 +178,10 @@ class NeuralProcessingService(INeuralProcessor):
             self._refractory_nodes.clear()
 
             # Initialize neural state
-            self._neural_state.is_initialized = True
-            self._neural_state.total_neurons = len(graph.node_labels)
-            self._neural_state.active_neurons = 0
+            current_state = self.get_neural_state_internal()
+            current_state.is_initialized = True
+            current_state.total_neurons = len(graph.node_labels)
+            current_state.active_neurons = 0
 
             return True
 
@@ -132,7 +209,7 @@ class NeuralProcessingService(INeuralProcessor):
             node_energies = energy_state.node_energies if hasattr(energy_state, 'node_energies') else {}
 
             # Calculate synaptic inputs for all nodes at once (optimized)
-            synaptic_inputs = self._calculate_all_synaptic_inputs(graph, node_energies)
+            synaptic_inputs = self.calculate_synaptic_inputs_internal(graph, node_energies)
 
             # Update membrane potentials
             for i, node in enumerate(graph.node_labels):
@@ -140,13 +217,11 @@ class NeuralProcessingService(INeuralProcessor):
                     continue
 
                 node_id = node.get('id', i)
-                current_potential = node.get('membrane_potential', self._resting_potential)
+                current_potential = node.get('membrane_potential', self.get_resting_potential())
 
                 # Skip refractory neurons
-                if node_id in self._refractory_nodes:
-                    self._refractory_nodes[node_id] -= time_step
-                    if self._refractory_nodes[node_id] <= 0:
-                        del self._refractory_nodes[node_id]
+                if node_id in self.get_refractory_nodes():
+                    self.update_refractory_node(node_id, time_step)
                     continue
 
                 # Get synaptic input for this node
@@ -154,7 +229,7 @@ class NeuralProcessingService(INeuralProcessor):
 
                 # Energy-modulated membrane dynamics
                 energy_level = node_energies.get(node_id, 1.0)
-                effective_time_constant = self._membrane_time_constant * (0.5 + 0.5 * energy_level)
+                effective_time_constant = self.get_membrane_time_constant() * (0.5 + 0.5 * energy_level)
 
                 # Update membrane potential
                 delta_v = (synaptic_input - current_potential + self._resting_potential) * (time_step / effective_time_constant)
@@ -197,11 +272,11 @@ class NeuralProcessingService(INeuralProcessor):
                     continue
 
                 node_id = node.get('id', i)
-                membrane_potential = node.get('membrane_potential', self._resting_potential)
+                membrane_potential = node.get('membrane_potential', self.get_resting_potential())
 
                 # Check for spike
-                if (membrane_potential >= self._threshold_potential and
-                    node_id not in self._refractory_nodes):
+                if (membrane_potential >= self.get_threshold_potential() and
+                    node_id not in self.get_refractory_nodes()):
 
                     # Generate spike
                     spike_event = SpikeEvent(
@@ -212,15 +287,15 @@ class NeuralProcessingService(INeuralProcessor):
                     spike_events.append(spike_event)
 
                     # Reset membrane potential
-                    node['membrane_potential'] = self._reset_potential
-                    graph.x[i, 0] = self._reset_potential
+                    node['membrane_potential'] = self.get_reset_potential()
+                    graph.x[i, 0] = self.get_reset_potential()
 
                     # Set refractory period
-                    self._refractory_nodes[node_id] = self._refractory_period
-                    self._last_spike_times[node_id] = current_time
+                    self.set_refractory_node(node_id, self.get_refractory_period())
+                    self.set_last_spike_time(node_id, current_time)
 
                     # Update statistics
-                    self._spike_count += 1
+                    self.increment_spike_count()
                     active_neurons += 1
 
                     # Publish spike event
@@ -231,8 +306,9 @@ class NeuralProcessingService(INeuralProcessor):
                     })
 
             # Update neural state
-            self._neural_state.active_neurons = active_neurons
-            self._neural_state.total_spikes = self._spike_count
+            current_state = self.get_neural_state_internal()
+            current_state.active_neurons = active_neurons
+            current_state.total_spikes = self.get_spike_count()
 
             return graph, spike_events
 
@@ -274,7 +350,7 @@ class NeuralProcessingService(INeuralProcessor):
             self._spike_count = 0
             self._last_spike_times.clear()
             self._refractory_nodes.clear()
-            self._neural_state = NeuralState()
+            self.set_neural_state_internal(NeuralState())
             return True
         except Exception as e:
             print(f"Error resetting neural state: {e}")
@@ -286,12 +362,13 @@ class NeuralProcessingService(INeuralProcessor):
 
     def get_neural_statistics(self) -> Dict[str, Any]:
         """Get neural processing statistics."""
+        current_state = self.get_neural_state_internal()
         return {
-            "total_spikes": self._spike_count,
-            "active_neurons": self._neural_state.active_neurons,
-            "total_neurons": self._neural_state.total_neurons,
-            "refractory_neurons": len(self._refractory_nodes),
-            "spike_rate": self._spike_count / max(1, len(self._last_spike_times))
+            "total_spikes": self.get_spike_count(),
+            "active_neurons": current_state.active_neurons,
+            "total_neurons": current_state.total_neurons,
+            "refractory_neurons": len(self.get_refractory_nodes()),
+            "spike_rate": self.get_spike_count() / max(1, len(self.get_last_spike_times()))
         }
 
     def validate_neural_integrity(self, graph: Optional[Data]) -> Dict[str, Any]:
@@ -346,9 +423,9 @@ class NeuralProcessingService(INeuralProcessor):
         num_nodes = len(graph.node_labels)
 
         # Use optimized synaptic calculator if available
-        if self._synaptic_calculator is not None and hasattr(graph, 'edge_attributes'):
+        if self.get_synaptic_calculator() is not None and hasattr(graph, 'edge_attributes'):
             try:
-                return self._synaptic_calculator.calculate_synaptic_inputs(
+                return self.get_synaptic_calculator().calculate_synaptic_inputs(
                     graph.edge_attributes,
                     node_energies,
                     num_nodes=num_nodes
@@ -360,7 +437,7 @@ class NeuralProcessingService(INeuralProcessor):
         synaptic_inputs = np.zeros(num_nodes, dtype=np.float64)
         for i in range(num_nodes):
             node_id = graph.node_labels[i].get('id', i)
-            synaptic_inputs[i] = self._calculate_synaptic_input(graph, node_id)
+            synaptic_inputs[i] = self.calculate_synaptic_input_internal(graph, node_id)
 
         return synaptic_inputs
 
@@ -420,7 +497,7 @@ class NeuralProcessingService(INeuralProcessor):
         if graph is None or not hasattr(graph, 'node_labels'):
             return 0.0
 
-        return self._calculate_synaptic_input(graph, neuron_id)
+        return self.calculate_synaptic_input_internal(graph, neuron_id)
 
     def configure_neural_parameters(self, parameters: Dict[str, Any]) -> bool:
         """
@@ -433,6 +510,9 @@ class NeuralProcessingService(INeuralProcessor):
             bool: True if parameters updated successfully
         """
         try:
+            # Note: For configuration parameters, we would need setter methods
+            # For now, we'll keep the direct access but this should be refactored
+            # to use proper setter methods in a future iteration
             for key, value in parameters.items():
                 if key == 'membrane_time_constant':
                     self._membrane_time_constant = float(value)
@@ -457,12 +537,13 @@ class NeuralProcessingService(INeuralProcessor):
         Returns:
             Dict[str, float]: Neural metrics
         """
+        current_state = self.get_neural_state_internal()
         return {
-            "total_spikes": self._spike_count,
-            "active_neurons": self._neural_state.active_neurons,
-            "total_neurons": self._neural_state.total_neurons,
-            "refractory_neurons": len(self._refractory_nodes),
-            "spike_rate": self._spike_count / max(1, len(self._last_spike_times)),
+            "total_spikes": self.get_spike_count(),
+            "active_neurons": current_state.active_neurons,
+            "total_neurons": current_state.total_neurons,
+            "refractory_neurons": len(self.get_refractory_nodes()),
+            "spike_rate": self.get_spike_count() / max(1, len(self.get_last_spike_times())),
             "average_membrane_potential": 0.0  # Would need to calculate from graph
         }
 
@@ -480,8 +561,8 @@ class NeuralProcessingService(INeuralProcessor):
 
     def cleanup(self) -> None:
         """Clean up resources."""
-        self._last_spike_times.clear()
-        self._refractory_nodes.clear()
+        self.get_last_spike_times().clear()
+        self.get_refractory_nodes().clear()
 
 
 

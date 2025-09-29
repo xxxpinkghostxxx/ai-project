@@ -166,6 +166,38 @@ class OptimizedNodeManager:
         self._lock = threading.RLock()
         self._memory_limit_mb = 1024  # 1GB default memory limit
         log_step("OptimizedNodeManager initialized", max_nodes=max_nodes)
+
+    def get_memory_limit(self) -> int:
+        """Get the memory limit in MB."""
+        return self._memory_limit_mb
+
+    def set_memory_limit_internal(self, limit_mb: int) -> None:
+        """Set the memory limit in MB (internal method)."""
+        self._memory_limit_mb = limit_mb
+
+    def get_lock(self) -> threading.RLock():
+        """Get the internal lock."""
+        return self._lock
+
+    def find_available_index_internal(self) -> Optional[int]:
+        """Find an available index for a new node (internal method)."""
+        return self._find_available_index()
+
+    def generate_node_id_internal(self, node_type: str) -> int:
+        """Generate a unique node ID (internal method)."""
+        return self._generate_node_id(node_type)
+
+    def initialize_node_data_internal(self, index: int, node_id: int, spec: Dict[str, Any]) -> None:
+        """Initialize node data at the given index (internal method)."""
+        self._initialize_node_data(index, node_id, spec)
+
+    def validate_float_internal(self, value: Any, min_val: float, max_val: float, field_name: str) -> float:
+        """Validate and clamp float values (internal method)."""
+        return self._validate_float(value, min_val, max_val, field_name)
+
+    def remove_node_internal(self, node_id: int) -> None:
+        """Remove a single node (internal method)."""
+        self._remove_node(node_id)
     
     def create_node_batch(self, node_specs: List[Dict[str, Any]]) -> List[int]:
         """Create multiple nodes in a batch operation with validation."""
@@ -187,7 +219,7 @@ class OptimizedNodeManager:
 
                     # Check memory usage before creating nodes
                     current_memory_mb = self.node_data.nbytes / (1024 * 1024)
-                    if current_memory_mb > self._memory_limit_mb * 0.9:  # 90% of limit
+                    if current_memory_mb > self.get_memory_limit() * 0.9:  # 90% of limit
                         logging.warning(f"Memory usage high ({current_memory_mb:.1f}MB), limiting node creation")
                         break
 
@@ -196,7 +228,7 @@ class OptimizedNodeManager:
                         break
 
                     # Find available index
-                    index = self._find_available_index()
+                    index = self.find_available_index_internal()
                     if index is None:
                         logging.warning("No available indices for new nodes")
                         break
@@ -211,11 +243,11 @@ class OptimizedNodeManager:
                     if not isinstance(node_type, str):
                         node_type = 'dynamic'
 
-                    node_id = self._generate_node_id(node_type)
+                    node_id = self.generate_node_id_internal(node_type)
 
                     # Initialize node data with error handling
                     try:
-                        self._initialize_node_data(index, node_id, spec)
+                        self.initialize_node_data_internal(index, node_id, spec)
                     except Exception as e:
                         logging.error(f"Failed to initialize node data for index {index}: {e}")
                         continue
@@ -279,16 +311,16 @@ class OptimizedNodeManager:
 
         try:
             # Initialize basic properties with validation
-            self.node_data[index, 0] = self._validate_float(spec.get('energy', 1.0), -1000.0, 1000.0, 'energy')
-            self.node_data[index, 1] = self._validate_float(spec.get('membrane_potential', 0.0), -100.0, 100.0, 'membrane_potential')
-            self.node_data[index, 2] = self._validate_float(spec.get('threshold', 0.5), -10.0, 10.0, 'threshold')
-            self.node_data[index, 3] = self._validate_float(spec.get('refractory_timer', 0.0), 0.0, 1000.0, 'refractory_timer')
-            self.node_data[index, 4] = self._validate_float(spec.get('last_activation', 0.0), 0.0, float('inf'), 'last_activation')
+            self.node_data[index, 0] = self.validate_float_internal(spec.get('energy', 1.0), -1000.0, 1000.0, 'energy')
+            self.node_data[index, 1] = self.validate_float_internal(spec.get('membrane_potential', 0.0), -100.0, 100.0, 'membrane_potential')
+            self.node_data[index, 2] = self.validate_float_internal(spec.get('threshold', 0.5), -10.0, 10.0, 'threshold')
+            self.node_data[index, 3] = self.validate_float_internal(spec.get('refractory_timer', 0.0), 0.0, 1000.0, 'refractory_timer')
+            self.node_data[index, 4] = self.validate_float_internal(spec.get('last_activation', 0.0), 0.0, float('inf'), 'last_activation')
             self.node_data[index, 5] = 1.0 if spec.get('plasticity_enabled', True) else 0.0
-            self.node_data[index, 6] = self._validate_float(spec.get('eligibility_trace', 0.0), -100.0, 100.0, 'eligibility_trace')
+            self.node_data[index, 6] = self.validate_float_internal(spec.get('eligibility_trace', 0.0), -100.0, 100.0, 'eligibility_trace')
             self.node_data[index, 7] = time.time()  # Always use current time for last_update
             self.node_data[index, 8] = 1.0 if spec.get('state', 'active') == 'active' else 0.0
-            self.node_data[index, 9] = self._validate_float(spec.get('type_code', 0.0), 0.0, 100.0, 'type_code')
+            self.node_data[index, 9] = self.validate_float_internal(spec.get('type_code', 0.0), 0.0, 100.0, 'type_code')
 
             # Store metadata with validation
             self.node_metadata[index] = {
@@ -296,8 +328,8 @@ class OptimizedNodeManager:
                 'type': str(spec.get('type', 'dynamic'))[:50],  # Limit string length
                 'behavior': str(spec.get('behavior', 'dynamic'))[:50],
                 'state': str(spec.get('state', 'active'))[:20],
-                'x': self._validate_float(spec.get('x', 0.0), -10000.0, 10000.0, 'x'),
-                'y': self._validate_float(spec.get('y', 0.0), -10000.0, 10000.0, 'y')
+                'x': self.validate_float_internal(spec.get('x', 0.0), -10000.0, 10000.0, 'x'),
+                'y': self.validate_float_internal(spec.get('y', 0.0), -10000.0, 10000.0, 'y')
             }
 
         except Exception as e:
@@ -345,19 +377,19 @@ class OptimizedNodeManager:
                 try:
                     # Update node data with validation
                     if 'energy' in updates:
-                        self.node_data[index, 0] = self._validate_float(updates['energy'], -1000.0, 1000.0, 'energy')
+                        self.node_data[index, 0] = self.validate_float_internal(updates['energy'], -1000.0, 1000.0, 'energy')
                     if 'membrane_potential' in updates:
-                        self.node_data[index, 1] = self._validate_float(updates['membrane_potential'], -100.0, 100.0, 'membrane_potential')
+                        self.node_data[index, 1] = self.validate_float_internal(updates['membrane_potential'], -100.0, 100.0, 'membrane_potential')
                     if 'threshold' in updates:
-                        self.node_data[index, 2] = self._validate_float(updates['threshold'], -10.0, 10.0, 'threshold')
+                        self.node_data[index, 2] = self.validate_float_internal(updates['threshold'], -10.0, 10.0, 'threshold')
                     if 'refractory_timer' in updates:
-                        self.node_data[index, 3] = self._validate_float(updates['refractory_timer'], 0.0, 1000.0, 'refractory_timer')
+                        self.node_data[index, 3] = self.validate_float_internal(updates['refractory_timer'], 0.0, 1000.0, 'refractory_timer')
                     if 'last_activation' in updates:
-                        self.node_data[index, 4] = self._validate_float(updates['last_activation'], 0.0, float('inf'), 'last_activation')
+                        self.node_data[index, 4] = self.validate_float_internal(updates['last_activation'], 0.0, float('inf'), 'last_activation')
                     if 'plasticity_enabled' in updates:
                         self.node_data[index, 5] = 1.0 if updates['plasticity_enabled'] else 0.0
                     if 'eligibility_trace' in updates:
-                        self.node_data[index, 6] = self._validate_float(updates['eligibility_trace'], -100.0, 100.0, 'eligibility_trace')
+                        self.node_data[index, 6] = self.validate_float_internal(updates['eligibility_trace'], -100.0, 100.0, 'eligibility_trace')
                     if 'last_update' in updates:
                         self.node_data[index, 7] = time.time()  # Always use current time
                     if 'state' in updates:
@@ -441,7 +473,7 @@ class OptimizedNodeManager:
                     inactive_nodes.append(node_id)
             
             for node_id in inactive_nodes:
-                self._remove_node(node_id)
+                self.remove_node_internal(node_id)
             
             if inactive_nodes:
                 log_step("Removed inactive nodes", count=len(inactive_nodes))
@@ -497,8 +529,8 @@ class OptimizedNodeManager:
                 'memory_usage_mb': memory_usage_mb,
                 'operations_per_second': self.stats['operations_per_second'],
                 'spatial_index_cells': len(self.spatial_index.grid),
-                'memory_limit_mb': self._memory_limit_mb,
-                'memory_usage_percent': (memory_usage_mb / self._memory_limit_mb * 100) if self._memory_limit_mb > 0 else 0.0
+                'memory_limit_mb': self.get_memory_limit(),
+                'memory_usage_percent': (memory_usage_mb / self.get_memory_limit() * 100) if self.get_memory_limit() > 0 else 0.0
             }
     
     def cleanup(self):
@@ -536,16 +568,16 @@ class OptimizedNodeManager:
         """Set memory limit in MB."""
         if limit_mb <= 0:
             raise ValueError("Memory limit must be positive")
-        with self._lock:
-            self._memory_limit_mb = limit_mb
+        with self.get_lock():
+            self.set_memory_limit_internal(limit_mb)
             log_step("Memory limit updated", limit_mb=limit_mb)
 
     def validate_memory_usage(self) -> bool:
         """Validate current memory usage against limits."""
-        with self._lock:
+        with self.get_lock():
             current_mb = self.node_data.nbytes / (1024 * 1024)
-            if current_mb > self._memory_limit_mb:
-                logging.warning(f"Memory usage ({current_mb:.1f}MB) exceeds limit ({self._memory_limit_mb}MB)")
+            if current_mb > self.get_memory_limit():
+                logging.warning(f"Memory usage ({current_mb:.1f}MB) exceeds limit ({self.get_memory_limit()}MB)")
                 return False
             return True
 

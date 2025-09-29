@@ -5,26 +5,26 @@ This script measures the performance improvements achieved by integrating
 C++ extensions into the neural simulation system.
 """
 
-import time
-import numpy as np
-from typing import Dict, List, Any
-import psutil
 import os
+import sys
+import time
+from typing import Dict, List, Any
+
+import numpy as np
+import psutil
+from torch_geometric.data import Data
 
 # Import components to benchmark
-import sys
-import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 try:
-    from cpp_extensions import SynapticCalculator, create_synaptic_calculator
+    from src.utils.cpp_extensions import create_synaptic_calculator
     CPP_EXTENSIONS_AVAILABLE = True
 except ImportError:
     CPP_EXTENSIONS_AVAILABLE = False
     print("C++ extensions not available, using fallback")
 
 from src.neural.enhanced_neural_dynamics import EnhancedNeuralDynamics
-from torch_geometric.data import Data
 
 
 class PerformanceBenchmark:
@@ -74,11 +74,11 @@ class PerformanceBenchmark:
 
     def benchmark_synaptic_calculator(self, sizes: List[int]) -> List[Dict[str, Any]]:
         """Benchmark synaptic calculator performance."""
-        results = []
+        synaptic_results = []
 
         if not CPP_EXTENSIONS_AVAILABLE:
             print("C++ extensions not available, skipping synaptic calculator benchmark")
-            return results
+            return synaptic_results
 
         for num_edges in sizes:
             print(f"Benchmarking synaptic calculator with {num_edges} edges...")
@@ -101,7 +101,7 @@ class PerformanceBenchmark:
             start_time = time.perf_counter()
             iterations = 100
             for _ in range(iterations):
-                synaptic_inputs = calculator.calculate_synaptic_inputs(
+                _ = calculator.calculate_synaptic_inputs(
                     graph.edge_attributes, node_energies, num_nodes=num_nodes
                 )
             end_time = time.perf_counter()
@@ -109,7 +109,7 @@ class PerformanceBenchmark:
             avg_time = (end_time - start_time) / iterations
             throughput = num_edges / avg_time  # edges per second
 
-            results.append({
+            synaptic_results.append({
                 "test": "synaptic_calculator",
                 "size": num_edges,
                 "avg_time": avg_time,
@@ -117,11 +117,11 @@ class PerformanceBenchmark:
                 "units": "edges/sec"
             })
 
-        return results
+        return synaptic_results
 
     def benchmark_neural_dynamics(self, sizes: List[int]) -> List[Dict[str, Any]]:
         """Benchmark neural dynamics performance."""
-        results = []
+        neural_results = []
 
         for num_nodes in sizes:
             print(f"Benchmarking neural dynamics with {num_nodes} nodes...")
@@ -145,7 +145,7 @@ class PerformanceBenchmark:
 
             avg_time = (end_time - start_time) / iterations
 
-            results.append({
+            neural_results.append({
                 "test": "neural_dynamics",
                 "size": num_nodes,
                 "avg_time": avg_time,
@@ -153,7 +153,7 @@ class PerformanceBenchmark:
                 "units": "nodes/sec"
             })
 
-        return results
+        return neural_results
 
     def run_comprehensive_benchmark(self) -> Dict[str, Any]:
         """Run comprehensive performance benchmark."""
@@ -205,7 +205,10 @@ class PerformanceBenchmark:
                 "throughputs": throughputs,
                 "best_throughput": max(throughputs),
                 "worst_throughput": min(throughputs),
-                "scalability_ratio": throughputs[-1] / throughputs[0] if len(throughputs) > 1 else 1.0
+                "scalability_ratio": (
+                    throughputs[-1] / throughputs[0]
+                    if len(throughputs) > 1 else 1.0
+                )
             }
 
         return summary
@@ -231,7 +234,11 @@ class PerformanceBenchmark:
         for test_type, stats in benchmark_results["summary"].items():
             print(f"  {test_type}:")
             # Get units from the first result of this test type
-            units = next((r['units'] for r in benchmark_results["results"] if r['test'] == test_type), 'items/sec')
+            units = next(
+                (r['units'] for r in benchmark_results["results"]
+                 if r['test'] == test_type),
+                'items/sec'
+            )
             print(f"    Best throughput: {stats['best_throughput']:.0f} {units.split('/')[0]}/sec")
             print(f"    Scalability ratio: {stats['scalability_ratio']:.2f}x")
 
@@ -259,22 +266,25 @@ class MockEdge:
         self.type = edge_type
 
     def get_effective_weight(self) -> float:
+        """Get the effective weight of the edge.
+
+        Returns:
+            float: The weight value of the edge, representing connection strength
+                  in the mock testing framework.
+
+        This method serves as a simple getter for the edge weight property,
+        providing a consistent interface for accessing edge weight values
+        during performance benchmarking and testing scenarios.
+        """
         return self.weight
 
 
 def run_benchmark():
     """Run the performance benchmark."""
     benchmark = PerformanceBenchmark()
-    results = benchmark.run_comprehensive_benchmark()
-    benchmark.print_report(results)
-    return results
-
-
+    benchmark_results = benchmark.run_comprehensive_benchmark()
+    benchmark.print_report(benchmark_results)
+    return benchmark_results
 if __name__ == "__main__":
     results = run_benchmark()
-
-
-
-
-
 

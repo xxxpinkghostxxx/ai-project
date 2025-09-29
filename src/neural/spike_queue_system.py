@@ -41,6 +41,42 @@ class SpikeQueue:
         self._max_size = max_size
         self._spike_count = 0
         self._dropped_spikes = 0
+
+    def get_queue_internal(self) -> List[Spike]:
+        """Get the internal queue."""
+        return self._queue
+
+    def get_lock_internal(self) -> threading.RLock():
+        """Get the internal lock."""
+        return self._lock
+
+    def get_max_size_internal(self) -> int:
+        """Get the maximum queue size."""
+        return self._max_size
+
+    def get_spike_count_internal(self) -> int:
+        """Get the spike count."""
+        return self._spike_count
+
+    def set_spike_count_internal(self, count: int) -> None:
+        """Set the spike count."""
+        self._spike_count = count
+
+    def get_dropped_spikes_internal(self) -> int:
+        """Get the dropped spikes count."""
+        return self._dropped_spikes
+
+    def increment_dropped_spikes_internal(self) -> None:
+        """Increment the dropped spikes count."""
+        self._dropped_spikes += 1
+
+    def validate_heap_structure_internal(self) -> bool:
+        """Validate heap structure (internal method)."""
+        return self._validate_heap_structure()
+
+    def repair_heap_internal(self) -> None:
+        """Repair heap structure (internal method)."""
+        self._repair_heap()
         self.stats = {
             'total_spikes': 0,
             'processed_spikes': 0,
@@ -59,64 +95,66 @@ class SpikeQueue:
                 logging.error(f"Invalid spike timestamp: {spike.timestamp}")
                 self.stats['invalid_timestamps'] = self.stats.get('invalid_timestamps', 0) + 1
                 return False
-            if len(self._queue) >= self._max_size:
-                self._dropped_spikes += 1
+            if len(self.get_queue_internal()) >= self.get_max_size_internal():
+                self.increment_dropped_spikes_internal()
                 self.stats['dropped_spikes'] += 1
                 return False
             try:
-                heapq.heappush(self._queue, spike)
-                self._spike_count += 1
+                heapq.heappush(self.get_queue_internal(), spike)
+                self.set_spike_count_internal(self.get_spike_count_internal() + 1)
                 self.stats['total_spikes'] += 1
                 self.stats['spikes_by_type'][spike.spike_type] += 1
                 current_size = len(self._queue)
                 if current_size > self.stats['queue_size_max']:
                     self.stats['queue_size_max'] = current_size
                 if self.stats['total_spikes'] % 1000 == 0:
-                    self._validate_heap_structure()
+                    self.validate_heap_structure_internal()
                 return True
             except Exception as e:
                 logging.error(f"Heap corruption detected during spike insertion: {e}")
-                self._repair_heap()
+                self.repair_heap_internal()
                 return False
     def pop(self) -> Optional[Spike]:
-        with self._lock:
-            if self._queue:
-                self._spike_count -= 1
-                spike = heapq.heappop(self._queue)
+        with self.get_lock_internal():
+            if self.get_queue_internal():
+                self.set_spike_count_internal(self.get_spike_count_internal() - 1)
+                spike = heapq.heappop(self.get_queue_internal())
                 self.stats['processed_spikes'] += 1
                 return spike
             return None
     def peek(self) -> Optional[Spike]:
-        with self._lock:
-            return self._queue[0] if self._queue else None
+        with self.get_lock_internal():
+            queue = self.get_queue_internal()
+            return queue[0] if queue else None
     def size(self) -> int:
-        with self._lock:
-            return self._spike_count
+        with self.get_lock_internal():
+            return self.get_spike_count_internal()
     def clear(self):
-        with self._lock:
-            self._queue.clear()
-            self._spike_count = 0
+        with self.get_lock_internal():
+            self.get_queue_internal().clear()
+            self.set_spike_count_internal(0)
     def get_spikes_in_timeframe(self, start_time: float, end_time: float) -> List[Spike]:
-        with self._lock:
+        with self.get_lock_internal():
             spikes = []
             temp_queue = []
-            while self._queue:
-                spike = heapq.heappop(self._queue)
+            queue = self.get_queue_internal()
+            while queue:
+                spike = heapq.heappop(queue)
                 if start_time <= spike.timestamp <= end_time:
                     spikes.append(spike)
                 else:
                     temp_queue.append(spike)
             for spike in temp_queue:
-                heapq.heappush(self._queue, spike)
+                heapq.heappush(queue, spike)
             return spikes
     def get_statistics(self) -> Dict[str, Any]:
-        with self._lock:
+        with self.get_lock_internal():
             stats = self.stats.copy()
-            stats['current_queue_size'] = self._spike_count
-            stats['drop_rate'] = (self._dropped_spikes / max(1, self.stats['total_spikes'] + self._dropped_spikes)) * 100
+            stats['current_queue_size'] = self.get_spike_count_internal()
+            stats['drop_rate'] = (self.get_dropped_spikes_internal() / max(1, self.stats['total_spikes'] + self.get_dropped_spikes_internal())) * 100
             return stats
     def reset_statistics(self):
-        with self._lock:
+        with self.get_lock_internal():
             self.stats = {
                 'total_spikes': 0,
                 'processed_spikes': 0,
@@ -128,18 +166,19 @@ class SpikeQueue:
                 'invalid_timestamps': 0,
                 'heap_repairs': 0
             }
-            self._dropped_spikes = 0
+            self._dropped_spikes = 0  # This should use the setter but keeping for now
     def _validate_heap_structure(self) -> bool:
         try:
-            for i in range(len(self._queue)):
+            queue = self.get_queue_internal()
+            for i in range(len(queue)):
                 left_child = 2 * i + 1
                 right_child = 2 * i + 2
-                if left_child < len(self._queue):
-                    if self._queue[i].timestamp > self._queue[left_child].timestamp:
+                if left_child < len(queue):
+                    if queue[i].timestamp > queue[left_child].timestamp:
                         logging.error(f"Heap property violated at index {i} (left child)")
                         return False
-                if right_child < len(self._queue):
-                    if self._queue[i].timestamp > self._queue[right_child].timestamp:
+                if right_child < len(queue):
+                    if queue[i].timestamp > queue[right_child].timestamp:
                         logging.error(f"Heap property violated at index {i} (right child)")
                         return False
             return True
@@ -149,13 +188,13 @@ class SpikeQueue:
     def _repair_heap(self):
         try:
             logging.warning("Attempting to repair corrupted heap")
-            heapq.heapify(self._queue)
+            heapq.heapify(self.get_queue_internal())
             self.stats['heap_repairs'] += 1
             logging.info("Heap repair completed")
         except Exception as e:
             logging.error(f"Heap repair failed: {e}")
-            self._queue.clear()
-            self._spike_count = 0
+            self.get_queue_internal().clear()
+            self.set_spike_count_internal(0)
             logging.error("Heap cleared due to unrecoverable corruption")
 
 

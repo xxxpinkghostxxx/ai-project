@@ -2,7 +2,7 @@
 Pattern consolidation utilities to reduce code duplication.
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, Callable
 
 
 def _get_constants():

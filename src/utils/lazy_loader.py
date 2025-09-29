@@ -21,6 +21,68 @@ class LazyLoader:
         self._factory_functions: Dict[str, Callable[[], Any]] = {}
         self._priorities: Dict[str, int] = {}
         self._dependencies: Dict[str, list] = {}
+
+    def get_lock_internal(self) -> threading.RLock():
+        """Get the internal lock."""
+        return self._lock
+
+    def get_loaded_components_internal(self) -> Dict[str, Any]:
+        """Get the loaded components dictionary."""
+        return self._loaded_components
+
+    def set_loaded_component_internal(self, name: str, component: Any) -> None:
+        """Set a loaded component."""
+        self._loaded_components[name] = component
+
+    def get_loading_flags_internal(self) -> Dict[str, bool]:
+        """Get the loading flags dictionary."""
+        return self._loading_flags
+
+    def set_loading_flag_internal(self, name: str, flag: bool) -> None:
+        """Set a loading flag."""
+        self._loading_flags[name] = flag
+
+    def get_load_times_internal(self) -> Dict[str, float]:
+        """Get the load times dictionary."""
+        return self._load_times
+
+    def set_load_time_internal(self, name: str, time: float) -> None:
+        """Set a load time."""
+        self._load_times[name] = time
+
+    def get_load_callbacks_internal(self) -> Dict[str, list]:
+        """Get the load callbacks dictionary."""
+        return self._load_callbacks
+
+    def add_load_callback_internal(self, name: str, callback) -> None:
+        """Add a load callback."""
+        if name not in self._load_callbacks:
+            self._load_callbacks[name] = []
+        self._load_callbacks[name].append(callback)
+
+    def get_factory_functions_internal(self) -> Dict[str, Callable[[], Any]]:
+        """Get the factory functions dictionary."""
+        return self._factory_functions
+
+    def set_factory_function_internal(self, name: str, func: Callable[[], Any]) -> None:
+        """Set a factory function."""
+        self._factory_functions[name] = func
+
+    def get_priorities_internal(self) -> Dict[str, int]:
+        """Get the priorities dictionary."""
+        return self._priorities
+
+    def set_priority_internal(self, name: str, priority: int) -> None:
+        """Set a priority."""
+        self._priorities[name] = priority
+
+    def get_dependencies_internal(self) -> Dict[str, list]:
+        """Get the dependencies dictionary."""
+        return self._dependencies
+
+    def set_dependencies_internal(self, name: str, deps: list) -> None:
+        """Set dependencies."""
+        self._dependencies[name] = deps
     
     def lazy_load(self, component_name: str, factory_func: Callable[[], Any],
                     priority: int = 0, dependencies: list = None) -> Any:
@@ -36,52 +98,53 @@ class LazyLoader:
         Returns:
             The loaded component
         """
-        with self._lock:
-            if component_name in self._loaded_components:
-                return self._loaded_components[component_name]
+        with self.get_lock_internal():
+            if component_name in self.get_loaded_components_internal():
+                return self.get_loaded_components_internal()[component_name]
 
             # Store factory function and metadata for potential preloading
-            self._factory_functions[component_name] = factory_func
-            self._priorities[component_name] = priority
-            self._dependencies[component_name] = dependencies or []
+            self.set_factory_function_internal(component_name, factory_func)
+            self.set_priority_internal(component_name, priority)
+            self.set_dependencies_internal(component_name, dependencies or [])
 
             # Load dependencies first
             deps = dependencies or []
             for dep in deps:
-                if dep not in self._loaded_components:
-                    if dep in self._factory_functions:
-                        self.lazy_load(dep, self._factory_functions[dep],
-                                     self._priorities.get(dep, 0),
-                                     self._dependencies.get(dep, []))
+                if dep not in self.get_loaded_components_internal():
+                    if dep in self.get_factory_functions_internal():
+                        self.lazy_load(dep, self.get_factory_functions_internal()[dep],
+                                     self.get_priorities_internal().get(dep, 0),
+                                     self.get_dependencies_internal().get(dep, []))
                     else:
                         raise ValueError(f"Dependency {dep} for {component_name} has no factory function")
 
             # Check if already loading (prevent recursive loading)
-            if self._loading_flags.get(component_name, False):
+            if self.get_loading_flags_internal().get(component_name, False):
                 # Wait for loading to complete
                 start_time = time.time()
-                while self._loading_flags.get(component_name, False):
+                while self.get_loading_flags_internal().get(component_name, False):
                     if time.time() - start_time > 30:  # 30 second timeout
                         raise TimeoutError(f"Timeout waiting for {component_name} to load")
                     time.sleep(0.01)
-                return self._loaded_components[component_name]
+                return self.get_loaded_components_internal()[component_name]
 
             # Mark as loading
-            self._loading_flags[component_name] = True
+            self.set_loading_flag_internal(component_name, True)
 
             try:
                 start_time = time.time()
                 component = factory_func()
                 load_time = time.time() - start_time
 
-                self._loaded_components[component_name] = component
-                self._load_times[component_name] = load_time
-                self._loading_flags[component_name] = False
+                self.set_loaded_component_internal(component_name, component)
+                self.set_load_time_internal(component_name, load_time)
+                self.set_loading_flag_internal(component_name, False)
 
                 logging.info(f"Lazy loaded {component_name} in {load_time:.3f}s")
 
                 # Trigger callbacks
-                for callback in self._load_callbacks.get(component_name, []):
+                callbacks = self.get_load_callbacks_internal().get(component_name, [])
+                for callback in callbacks:
                     try:
                         callback(component)
                     except Exception as e:
@@ -90,7 +153,7 @@ class LazyLoader:
                 return component
 
             except Exception as e:
-                self._loading_flags[component_name] = False
+                self.set_loading_flag_internal(component_name, False)
                 logging.error(f"Failed to lazy load {component_name}: {e}")
                 raise
     
@@ -105,20 +168,20 @@ class LazyLoader:
         import concurrent.futures
 
         def load_component(name):
-            with self._lock:
-                if name in self._loaded_components:
+            with self.get_lock_internal():
+                if name in self.get_loaded_components_internal():
                     return name, True
 
                 # Check if factory function exists
-                if name not in self._factory_functions:
+                if name not in self.get_factory_functions_internal():
                     logging.warning(f"No factory function registered for component: {name}")
                     return name, False
 
                 try:
                     # Load the component using stored factory function
-                    component = self.lazy_load(name, self._factory_functions[name],
-                                             self._priorities.get(name, 0),
-                                             self._dependencies.get(name, []))
+                    component = self.lazy_load(name, self.get_factory_functions_internal()[name],
+                                             self.get_priorities_internal().get(name, 0),
+                                             self.get_dependencies_internal().get(name, []))
                     return name, True
                 except Exception as e:
                     logging.error(f"Failed to preload component {name}: {e}")
@@ -135,49 +198,48 @@ class LazyLoader:
     
     def get_load_time(self, component_name: str) -> Optional[float]:
         """Get the load time for a component."""
-        with self._lock:
-            return self._load_times.get(component_name)
+        with self.get_lock_internal():
+            return self.get_load_times_internal().get(component_name)
     
     def add_load_callback(self, component_name: str, callback: Callable[[Any], None]):
         """Add a callback to be called when a component is loaded."""
-        with self._lock:
-            if component_name not in self._load_callbacks:
-                self._load_callbacks[component_name] = []
-            self._load_callbacks[component_name].append(callback)
+        with self.get_lock_internal():
+            self.add_load_callback_internal(component_name, callback)
     
     def is_loaded(self, component_name: str) -> bool:
         """Check if a component is loaded."""
-        with self._lock:
-            return component_name in self._loaded_components
+        with self.get_lock_internal():
+            return component_name in self.get_loaded_components_internal()
     
     def get_stats(self) -> Dict[str, Any]:
         """Get loading statistics."""
-        with self._lock:
+        with self.get_lock_internal():
             return {
-                'loaded_components': list(self._loaded_components.keys()),
-                'load_times': self._load_times.copy(),
-                'total_components': len(self._loaded_components)
+                'loaded_components': list(self.get_loaded_components_internal().keys()),
+                'load_times': self.get_load_times_internal().copy(),
+                'total_components': len(self.get_loaded_components_internal())
             }
     
     def cleanup(self):
         """Clean up all loaded components."""
-        with self._lock:
+        with self.get_lock_internal():
             # Iterate over a copy of keys to avoid "dictionary changed size during iteration" error
-            for component_name in list(self._loaded_components.keys()):
-                component = self._loaded_components.get(component_name)
+            loaded_components = self.get_loaded_components_internal()
+            for component_name in list(loaded_components.keys()):
+                component = loaded_components.get(component_name)
                 if component and hasattr(component, 'cleanup'):
                     try:
                         component.cleanup()
                     except Exception as e:
                         logging.error(f"Error cleaning up {component_name}: {e}")
 
-            self._loaded_components.clear()
-            self._loading_flags.clear()
-            self._load_times.clear()
-            self._load_callbacks.clear()
-            self._factory_functions.clear()
-            self._priorities.clear()
-            self._dependencies.clear()
+            loaded_components.clear()
+            self.get_loading_flags_internal().clear()
+            self.get_load_times_internal().clear()
+            self.get_load_callbacks_internal().clear()
+            self.get_factory_functions_internal().clear()
+            self.get_priorities_internal().clear()
+            self.get_dependencies_internal().clear()
 
 # Global lazy loader instance
 _global_lazy_loader = LazyLoader()

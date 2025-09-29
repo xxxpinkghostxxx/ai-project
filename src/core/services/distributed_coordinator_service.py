@@ -67,6 +67,79 @@ class DistributedCoordinatorService(IDistributedCoordinator):
             "energy": self._route_energy_task
         }
 
+    # Public accessor methods for private attributes
+    def get_nodes(self) -> Dict[str, NodeInfo]:
+        """Get all registered nodes."""
+        return self._nodes
+
+    def get_tasks(self) -> Dict[str, DistributedTask]:
+        """Get all tasks."""
+        return self._tasks
+
+    def get_task_queue(self) -> deque:
+        """Get the task queue."""
+        return self._task_queue
+
+    def get_completed_tasks(self) -> Dict[str, DistributedTask]:
+        """Get completed tasks."""
+        return self._completed_tasks
+
+    def get_heartbeat_interval(self) -> float:
+        """Get heartbeat interval."""
+        return self._heartbeat_interval
+
+    def set_heartbeat_interval(self, interval: float) -> None:
+        """Set heartbeat interval."""
+        self._heartbeat_interval = interval
+
+    def get_task_timeout(self) -> float:
+        """Get task timeout."""
+        return self._task_timeout
+
+    def set_task_timeout(self, timeout: float) -> None:
+        """Set task timeout."""
+        self._task_timeout = timeout
+
+    def get_max_tasks_per_node(self) -> int:
+        """Get maximum tasks per node."""
+        return self._max_tasks_per_node
+
+    def set_max_tasks_per_node(self, max_tasks: int) -> None:
+        """Set maximum tasks per node."""
+        self._max_tasks_per_node = max_tasks
+
+    def get_load_balance_threshold(self) -> float:
+        """Get load balance threshold."""
+        return self._load_balance_threshold
+
+    def set_load_balance_threshold(self, threshold: float) -> None:
+        """Set load balance threshold."""
+        self._load_balance_threshold = threshold
+
+    def is_coordinating(self) -> bool:
+        """Check if coordination is active."""
+        return self._is_coordinating
+
+    def set_coordinating(self, coordinating: bool) -> None:
+        """Set coordination status."""
+        self._is_coordinating = coordinating
+
+    def get_coordination_thread(self) -> Optional[threading.Thread]:
+        """Get coordination thread."""
+        return self._coordination_thread
+
+    def set_coordination_thread(self, thread: Optional[threading.Thread]) -> None:
+        """Set coordination thread."""
+        self._coordination_thread = thread
+
+    def get_lock(self) -> threading.RLock:
+        """Get the coordination lock."""
+        return self._lock
+
+    def get_task_type_routing(self) -> Dict[str, callable]:
+        """Get task type routing configuration."""
+        return self._task_type_routing
+
     def initialize_distributed_system(self, config: Dict[str, Any]) -> bool:
         """
         Initialize the distributed neural simulation system.
@@ -78,28 +151,29 @@ class DistributedCoordinatorService(IDistributedCoordinator):
             bool: True if initialization successful
         """
         try:
-            with self._lock:
+            with self.get_lock():
                 # Update configuration
-                self._heartbeat_interval = config.get('heartbeat_interval', 5.0)
-                self._task_timeout = config.get('task_timeout', 30.0)
-                self._max_tasks_per_node = config.get('max_tasks_per_node', 10)
-                self._load_balance_threshold = config.get('load_balance_threshold', 0.8)
+                self.set_heartbeat_interval(config.get('heartbeat_interval', 5.0))
+                self.set_task_timeout(config.get('task_timeout', 30.0))
+                self.set_max_tasks_per_node(config.get('max_tasks_per_node', 10))
+                self.set_load_balance_threshold(config.get('load_balance_threshold', 0.8))
 
                 # Start coordination if not already running
-                if not self._is_coordinating:
-                    self._is_coordinating = True
-                    self._coordination_thread = threading.Thread(
+                if not self.is_coordinating():
+                    self.set_coordinating(True)
+                    coordination_thread = threading.Thread(
                         target=self._coordination_loop,
                         daemon=True,
                         name="DistributedCoordinator"
                     )
-                    self._coordination_thread.start()
+                    self.set_coordination_thread(coordination_thread)
+                    coordination_thread.start()
 
                 # Publish initialization event
                 self.event_coordinator.publish(
                     "distributed_system_initialized",
                     {
-                        "node_count": len(self._nodes),
+                        "node_count": len(self.get_nodes()),
                         "config": config,
                         "timestamp": time.time()
                     }
@@ -122,14 +196,15 @@ class DistributedCoordinatorService(IDistributedCoordinator):
             bool: True if registration successful
         """
         try:
-            with self._lock:
-                if node_info.node_id in self._nodes:
+            with self.get_lock():
+                nodes = self.get_nodes()
+                if node_info.node_id in nodes:
                     print(f"Node {node_info.node_id} already registered")
                     return False
 
                 node_info.status = "active"
                 node_info.last_heartbeat = time.time()
-                self._nodes[node_info.node_id] = node_info
+                nodes[node_info.node_id] = node_info
 
                 # Publish node registration event
                 self.event_coordinator.publish(
@@ -159,15 +234,16 @@ class DistributedCoordinatorService(IDistributedCoordinator):
             bool: True if unregistration successful
         """
         try:
-            with self._lock:
-                if node_id not in self._nodes:
+            with self.get_lock():
+                nodes = self.get_nodes()
+                if node_id not in nodes:
                     return False
 
                 # Handle any tasks assigned to this node
                 self._handle_node_removal(node_id)
 
                 # Remove the node
-                del self._nodes[node_id]
+                del nodes[node_id]
 
                 # Publish node unregistration event
                 self.event_coordinator.publish(
@@ -195,16 +271,18 @@ class DistributedCoordinatorService(IDistributedCoordinator):
             bool: True if task submitted successfully
         """
         try:
-            with self._lock:
-                if task.task_id in self._tasks:
+            with self.get_lock():
+                tasks = self.get_tasks()
+                task_queue = self.get_task_queue()
+                if task.task_id in tasks:
                     print(f"Task {task.task_id} already exists")
                     return False
 
                 task.created_time = time.time()
                 task.status = "pending"
 
-                self._tasks[task.task_id] = task
-                self._task_queue.append(task)
+                tasks[task.task_id] = task
+                task_queue.append(task)
 
                 # Publish task submission event
                 self.event_coordinator.publish(
@@ -233,12 +311,14 @@ class DistributedCoordinatorService(IDistributedCoordinator):
         Returns:
             Optional[Any]: Task result if available
         """
-        with self._lock:
-            if task_id in self._completed_tasks:
-                task = self._completed_tasks[task_id]
+        with self.get_lock():
+            completed_tasks = self.get_completed_tasks()
+            tasks = self.get_tasks()
+            if task_id in completed_tasks:
+                task = completed_tasks[task_id]
                 return task.result
-            elif task_id in self._tasks:
-                task = self._tasks[task_id]
+            elif task_id in tasks:
+                task = tasks[task_id]
                 if task.status == "completed":
                     return task.result
 
@@ -252,8 +332,10 @@ class DistributedCoordinatorService(IDistributedCoordinator):
             Dict[str, Any]: Workload balancing results
         """
         try:
-            with self._lock:
-                active_nodes = [node for node in self._nodes.values() if node.status == "active"]
+            with self.get_lock():
+                nodes = self.get_nodes()
+                load_balance_threshold = self.get_load_balance_threshold()
+                active_nodes = [node for node in nodes.values() if node.status == "active"]
 
                 if not active_nodes:
                     return {"success": False, "error": "No active nodes available"}
@@ -265,11 +347,11 @@ class DistributedCoordinatorService(IDistributedCoordinator):
                 # Identify overloaded and underloaded nodes
                 overloaded = [
                     node for node in active_nodes
-                    if node.workload > avg_workload * self._load_balance_threshold
+                    if node.workload > avg_workload * load_balance_threshold
                 ]
                 underloaded = [
                     node for node in active_nodes
-                    if node.workload < avg_workload * (1 - self._load_balance_threshold)
+                    if node.workload < avg_workload * (1 - load_balance_threshold)
                 ]
 
                 # Perform load balancing
@@ -320,12 +402,13 @@ class DistributedCoordinatorService(IDistributedCoordinator):
             bool: True if failure handled successfully
         """
         try:
-            with self._lock:
-                if node_id not in self._nodes:
+            with self.get_lock():
+                nodes = self.get_nodes()
+                if node_id not in nodes:
                     return False
 
                 # Mark node as failed
-                self._nodes[node_id].status = "failed"
+                nodes[node_id].status = "failed"
 
                 # Handle tasks assigned to failed node
                 self._handle_node_removal(node_id)
@@ -356,8 +439,9 @@ class DistributedCoordinatorService(IDistributedCoordinator):
             bool: True if synchronization successful
         """
         try:
-            with self._lock:
-                active_nodes = [node for node in self._nodes.values() if node.status == "active"]
+            with self.get_lock():
+                nodes = self.get_nodes()
+                active_nodes = [node for node in nodes.values() if node.status == "active"]
 
                 if not active_nodes:
                     return False
@@ -404,23 +488,26 @@ class DistributedCoordinatorService(IDistributedCoordinator):
         Returns:
             Dict[str, Any]: System status information
         """
-        with self._lock:
-            active_nodes = [node for node in self._nodes.values() if node.status == "active"]
-            failed_nodes = [node for node in self._nodes.values() if node.status == "failed"]
+        with self.get_lock():
+            nodes = self.get_nodes()
+            tasks = self.get_tasks()
+            completed_tasks = self.get_completed_tasks()
+            active_nodes = [node for node in nodes.values() if node.status == "active"]
+            failed_nodes = [node for node in nodes.values() if node.status == "failed"]
 
-            pending_tasks = [task for task in self._tasks.values() if task.status == "pending"]
-            running_tasks = [task for task in self._tasks.values() if task.status == "running"]
-            completed_tasks = list(self._completed_tasks.values())
+            pending_tasks = [task for task in tasks.values() if task.status == "pending"]
+            running_tasks = [task for task in tasks.values() if task.status == "running"]
+            completed_tasks_list = list(completed_tasks.values())
 
             return {
-                "total_nodes": len(self._nodes),
+                "total_nodes": len(nodes),
                 "active_nodes": len(active_nodes),
                 "failed_nodes": len(failed_nodes),
                 "pending_tasks": len(pending_tasks),
                 "running_tasks": len(running_tasks),
-                "completed_tasks": len(completed_tasks),
-                "total_tasks": len(self._tasks),
-                "is_coordinating": self._is_coordinating,
+                "completed_tasks": len(completed_tasks_list),
+                "total_tasks": len(tasks),
+                "is_coordinating": self.is_coordinating(),
                 "timestamp": time.time()
             }
 
@@ -432,8 +519,9 @@ class DistributedCoordinatorService(IDistributedCoordinator):
             Dict[str, Any]: Energy optimization results
         """
         try:
-            with self._lock:
-                active_nodes = [node for node in self._nodes.values() if node.status == "active"]
+            with self.get_lock():
+                nodes = self.get_nodes()
+                active_nodes = [node for node in nodes.values() if node.status == "active"]
 
                 if not active_nodes:
                     return {"success": False, "error": "No active nodes available"}
@@ -516,25 +604,27 @@ class DistributedCoordinatorService(IDistributedCoordinator):
             bool: True if migration successful
         """
         try:
-            with self._lock:
-                if task_id not in self._tasks:
+            with self.get_lock():
+                tasks = self.get_tasks()
+                nodes = self.get_nodes()
+                if task_id not in tasks:
                     return False
 
-                if target_node_id not in self._nodes:
+                if target_node_id not in nodes:
                     return False
 
-                task = self._tasks[task_id]
+                task = tasks[task_id]
                 old_node = task.assigned_node
 
                 # Update task assignment
                 task.assigned_node = target_node_id
 
                 # Update node workloads
-                if old_node and old_node in self._nodes:
-                    self._nodes[old_node].workload = max(0, self._nodes[old_node].workload - 1)
+                if old_node and old_node in nodes:
+                    nodes[old_node].workload = max(0, nodes[old_node].workload - 1)
 
-                if target_node_id in self._nodes:
-                    self._nodes[target_node_id].workload += 1
+                if target_node_id in nodes:
+                    nodes[target_node_id].workload += 1
 
                 # Publish task migration event
                 self.event_coordinator.publish(
@@ -555,7 +645,7 @@ class DistributedCoordinatorService(IDistributedCoordinator):
 
     def _coordination_loop(self) -> None:
         """Main coordination loop for distributed system management."""
-        while self._is_coordinating:
+        while self.is_coordinating():
             try:
                 # Process pending tasks
                 self._process_pending_tasks()
@@ -567,11 +657,13 @@ class DistributedCoordinatorService(IDistributedCoordinator):
                 self._update_node_heartbeats()
 
                 # Perform periodic load balancing
-                if len(self._nodes) > 1:
+                nodes = self.get_nodes()
+                if len(nodes) > 1:
                     self.balance_workload()
 
                 # Sleep for coordination interval
-                time.sleep(self._heartbeat_interval)
+                heartbeat_interval = self.get_heartbeat_interval()
+                time.sleep(heartbeat_interval)
 
             except (ValueError, RuntimeError, OSError) as e:
                 print(f"Error in coordination loop: {e}")
@@ -579,20 +671,23 @@ class DistributedCoordinatorService(IDistributedCoordinator):
 
     def _process_pending_tasks(self) -> None:
         """Process pending tasks in the queue."""
-        with self._lock:
+        with self.get_lock():
+            task_queue = self.get_task_queue()
+            nodes = self.get_nodes()
+            max_tasks_per_node = self.get_max_tasks_per_node()
             # Process up to 10 tasks per iteration
-            for _ in range(min(10, len(self._task_queue))):
-                if not self._task_queue:
+            for _ in range(min(10, len(task_queue))):
+                if not task_queue:
                     break
 
-                task = self._task_queue.popleft()
+                task = task_queue.popleft()
 
                 # Find suitable node for task
                 target_node = self._find_suitable_node(task)
                 if target_node:
                     task.assigned_node = target_node.node_id
                     task.status = "running"
-                    self._nodes[target_node.node_id].workload += 1
+                    nodes[target_node.node_id].workload += 1
 
                     # Publish task assignment event
                     self.event_coordinator.publish(
@@ -606,19 +701,22 @@ class DistributedCoordinatorService(IDistributedCoordinator):
                     )
                 else:
                     # No suitable node found, requeue task
-                    self._task_queue.append(task)
+                    task_queue.append(task)
 
     def _find_suitable_node(self, task: DistributedTask) -> Optional[NodeInfo]:
         """Find a suitable node for the given task."""
-        active_nodes = [node for node in self._nodes.values()
-                       if node.status == "active" and node.workload < self._max_tasks_per_node]
+        nodes = self.get_nodes()
+        max_tasks_per_node = self.get_max_tasks_per_node()
+        task_type_routing = self.get_task_type_routing()
+        active_nodes = [node for node in nodes.values()
+                       if node.status == "active" and node.workload < max_tasks_per_node]
 
         if not active_nodes:
             return None
 
         # Use task-specific routing if available
-        if task.task_type in self._task_type_routing:
-            return self._task_type_routing[task.task_type](task, active_nodes)
+        if task.task_type in task_type_routing:
+            return task_type_routing[task.task_type](task, active_nodes)
 
         # Default routing: lowest workload
         return min(active_nodes, key=lambda node: node.workload)
@@ -661,19 +759,22 @@ class DistributedCoordinatorService(IDistributedCoordinator):
     def _check_task_timeouts(self) -> None:
         """Check for timed out tasks and handle them."""
         current_time = time.time()
-        timeout_threshold = current_time - self._task_timeout
+        task_timeout = self.get_task_timeout()
+        timeout_threshold = current_time - task_timeout
 
-        with self._lock:
+        with self.get_lock():
+            tasks = self.get_tasks()
+            nodes = self.get_nodes()
             timed_out_tasks = []
-            for task in self._tasks.values():
+            for task in tasks.values():
                 if task.status == "running" and task.created_time < timeout_threshold:
                     timed_out_tasks.append(task)
 
             for task in timed_out_tasks:
                 task.status = "failed"
-                if task.assigned_node and task.assigned_node in self._nodes:
-                    self._nodes[task.assigned_node].workload = max(
-                        0, self._nodes[task.assigned_node].workload - 1
+                if task.assigned_node and task.assigned_node in nodes:
+                    nodes[task.assigned_node].workload = max(
+                        0, nodes[task.assigned_node].workload - 1
                     )
 
                 # Publish task timeout event
@@ -682,7 +783,7 @@ class DistributedCoordinatorService(IDistributedCoordinator):
                     {
                         "task_id": task.task_id,
                         "assigned_node": task.assigned_node,
-                        "timeout_duration": self._task_timeout,
+                        "timeout_duration": task_timeout,
                         "timestamp": current_time
                     }
                 )
@@ -690,10 +791,12 @@ class DistributedCoordinatorService(IDistributedCoordinator):
     def _update_node_heartbeats(self) -> None:
         """Update node heartbeat status."""
         current_time = time.time()
-        heartbeat_threshold = current_time - (self._heartbeat_interval * 3)
+        heartbeat_interval = self.get_heartbeat_interval()
+        heartbeat_threshold = current_time - (heartbeat_interval * 3)
 
-        with self._lock:
-            for node in self._nodes.values():
+        with self.get_lock():
+            nodes = self.get_nodes()
+            for node in nodes.values():
                 if node.last_heartbeat < heartbeat_threshold and node.status == "active":
                     # Node missed heartbeat, mark as inactive
                     node.status = "inactive"
@@ -711,29 +814,33 @@ class DistributedCoordinatorService(IDistributedCoordinator):
 
     def _handle_node_removal(self, node_id: str) -> None:
         """Handle removal of a node by reassigning its tasks."""
+        tasks = self.get_tasks()
+        task_queue = self.get_task_queue()
         # Find tasks assigned to this node
-        assigned_tasks = [task for task in self._tasks.values()
+        assigned_tasks = [task for task in tasks.values()
                          if task.assigned_node == node_id and task.status == "running"]
 
         # Requeue tasks
         for task in assigned_tasks:
             task.assigned_node = None
             task.status = "pending"
-            self._task_queue.appendleft(task)  # Add to front of queue
+            task_queue.appendleft(task)  # Add to front of queue
 
     def _get_tasks_for_node(self, node_id: str) -> List[DistributedTask]:
         """Get all tasks assigned to a specific node."""
-        return [task for task in self._tasks.values()
+        tasks = self.get_tasks()
+        return [task for task in tasks.values()
                 if task.assigned_node == node_id and task.status == "running"]
 
     def cleanup(self) -> None:
         """Clean up resources."""
-        self._is_coordinating = False
-        if self._coordination_thread and self._coordination_thread.is_alive():
-            self._coordination_thread.join(timeout=2.0)
+        self.set_coordinating(False)
+        coordination_thread = self.get_coordination_thread()
+        if coordination_thread and coordination_thread.is_alive():
+            coordination_thread.join(timeout=2.0)
 
-        with self._lock:
-            self._nodes.clear()
-            self._tasks.clear()
-            self._task_queue.clear()
-            self._completed_tasks.clear()
+        with self.get_lock():
+            self.get_nodes().clear()
+            self.get_tasks().clear()
+            self.get_task_queue().clear()
+            self.get_completed_tasks().clear()

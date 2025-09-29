@@ -402,7 +402,7 @@ class UnifiedErrorHandler:
                   severity: ErrorSeverity, category: ErrorCategory):
         """Log error with appropriate level."""
         error_type = type(error).__name__
-        error_msg = f"{error_type} in {context.component}.{context.function}: {str(error)}"
+        error_msg = "%s in %s.%s: %s"
         
         if severity == ErrorSeverity.CRITICAL:
             self.logger.critical(error_msg)
@@ -588,7 +588,7 @@ def safe_initialize_component(component_name: str, init_func: Callable,
 
     try:
         result = init_func()
-        logging.info(f"{component_name} initialized successfully")
+        logging.info("%s initialized successfully", component_name)
         return result
     except Exception as e:
         error_handler = get_error_handler()
@@ -627,7 +627,7 @@ def safe_process_step(process_func: Callable, step_name: str,
         return result if isinstance(result, bool) else True
     except Exception as e:
         error_handler = get_error_handler()
-        error_handler.handle_error(e, f"processing {step_name} (step {step_counter})",
+        error_handler.handle_error(e, "processing %s (step %s)",
                                  severity=ErrorSeverity.MEDIUM,
                                  category=ErrorCategory.SIMULATION)
         return False

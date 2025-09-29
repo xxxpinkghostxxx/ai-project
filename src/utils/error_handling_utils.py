@@ -25,7 +25,7 @@ def safe_graph_access(graph, attribute: str, default_value: Any = None) -> Any:
     try:
         return getattr(graph, attribute, default_value)
     except Exception as e:
-        message = f"Failed to access graph attribute {attribute}: {e}"
+        message = "Failed to access graph attribute %s: %s"
         logging.warning(message)
         print_warning(message)
         return default_value
@@ -38,7 +38,7 @@ def safe_hasattr(obj, *attributes) -> bool:
     try:
         return all(hasattr(obj, attr) for attr in attributes)
     except Exception as e:
-        message = f"Failed to check attributes {attributes}: {e}"
+        message = "Failed to check attributes %s: %s"
         logging.warning(message)
         print_warning(message)
         return False
@@ -84,7 +84,7 @@ class ErrorContext:
                 except Exception:
                     pass
 
-            error_msg = f"Error in {self.context}: {exc_val}"
+            error_msg = "Error in %s: %s"
             if duration > 1.0:
                 error_msg += f" (took {duration:.2f}s)"
             if memory_used is not None:
@@ -111,7 +111,7 @@ class ErrorContext:
 
 
 def handle_errors(context: str = "operation",
-                  exceptions: Tuple[Type[Exception], ...] = (Exception,),
+                  exceptions: tuple = (Exception,),
                   log_level: str = "warning",
                   cleanup_func: Optional[Callable] = None,
                   re_raise: bool = False):
@@ -137,7 +137,7 @@ def handle_errors(context: str = "operation",
                 else:
                     duration = 0
 
-                error_msg = f"Error in {context}: {e}"
+                error_msg = "Error in %s: %s"
                 if duration > 0.1:
                     error_msg += f" (took {duration:.3f}s)"
 
@@ -201,7 +201,7 @@ def performance_monitor(func: Callable) -> Callable:
 
             # Log performance metrics for slow operations
             if duration > 1.0:  # Only log if operation took more than 1 second
-                perf_msg = f"Performance: {func.__name__} took {duration:.3f}s"
+                perf_msg = "Performance: %s took %.3f"
                 if memory_used is not None:
                     perf_msg += f", memory: {memory_used / 1024 / 1024:.1f}MB"
                 logging.info(perf_msg)
@@ -224,7 +224,7 @@ def memory_guard(memory_limit_mb: int = 1000, cleanup_func: Optional[Callable] =
 
         # Check if memory limit exceeded
         if memory_used > memory_limit_mb * 1024 * 1024:
-            warning_msg = f"Memory usage exceeded limit: {memory_used / 1024 / 1024:.1f}MB (limit: {memory_limit_mb}MB)"
+            warning_msg = "Memory usage exceeded limit: %.1fMB (limit: %sMB)"
             logging.warning(warning_msg)
             print_warning(warning_msg)
 
@@ -246,7 +246,7 @@ def thread_safe_operation(lock: threading.Lock, timeout: float = 5.0):
         @wraps(func)
         def wrapper(*args, **kwargs):
             if not lock.acquire(timeout=timeout):
-                error_msg = f"Could not acquire lock for {func.__name__} within {timeout}s"
+                error_msg = "Could not acquire lock for %s within %ss"
                 logging.error(error_msg)
                 raise TimeoutError(error_msg)
 
@@ -296,12 +296,12 @@ def safe_tensor_operation(operation: Callable, context: str = "tensor operation"
     try:
         return operation()
     except (RuntimeError, ValueError, TypeError) as e:
-        error_msg = f"Tensor operation failed in {context}: {e}"
+        error_msg = "Tensor operation failed in %s: %s"
         logging.warning(error_msg)
         print_warning(error_msg)
         return fallback_value
     except Exception as e:
-        error_msg = f"Unexpected error in tensor operation {context}: {e}"
+        error_msg = "Unexpected error in tensor operation %s: %s"
         logging.error(error_msg)
         print_error(error_msg)
         return fallback_value
@@ -313,12 +313,12 @@ def safe_file_operation(file_path: str, operation: Callable,
     try:
         return operation()
     except (FileNotFoundError, PermissionError, OSError) as e:
-        error_msg = f"File operation failed in {context} for {file_path}: {e}"
+        error_msg = "File operation failed in %s for %s: %s"
         logging.error(error_msg)
         print_error(error_msg)
         return None
     except Exception as e:
-        error_msg = f"Unexpected error in file operation {context}: {e}"
+        error_msg = "Unexpected error in file operation %s: %s"
         logging.error(error_msg)
         print_error(error_msg)
         return None
@@ -337,15 +337,15 @@ def safe_network_operation(operation: Callable, context: str = "network operatio
                 ConnectionError, TimeoutError) as e:
             if attempt < retries - 1:
                 wait_time = 2 ** attempt  # Exponential backoff
-                logging.warning(f"Network operation failed in {context}, retrying in {wait_time}s: {e}")
+                logging.warning("Network operation failed in %s, retrying in %ss: %s", context, wait_time, e)
                 time.sleep(wait_time)
             else:
-                error_msg = f"Network operation failed in {context} after {retries} attempts: {e}"
+                error_msg = "Network operation failed in %s after %s attempts: %s"
                 logging.error(error_msg)
                 print_error(error_msg)
                 return None
         except Exception as e:
-            error_msg = f"Unexpected error in network operation {context}: {e}"
+            error_msg = "Unexpected error in network operation %s: %s"
             logging.error(error_msg)
             print_error(error_msg)
             return None
@@ -370,7 +370,7 @@ def safe_graph_operation(operation: Callable, graph_context: str = "graph",
     try:
         return operation()
     except Exception as e:
-        logging.warning(f"{error_msg}: {e}")
+        logging.warning("%s: %s", error_msg, e)
         print_warning(f"{error_msg}: {e}")
         return None
 
@@ -382,7 +382,7 @@ def handle_critical_error(error: Exception, context: str = "",
     Replaces repeated critical error handling patterns.
     """
     error_message = f"Critical error in {context}" if context else "Critical error"
-    logging.error(f"{error_message}: {error}")
+    logging.error("%s: %s", error_message, error)
     print_error(f"{error_message}: {error}")
 
     if fallback_action:
@@ -399,7 +399,7 @@ def log_and_continue(error: Exception, context: str = "",
     Log error and continue execution with fallback.
     Replaces repeated log-and-continue patterns.
     """
-    logging.warning(f"Error in {context}: {error}")
+    logging.warning("Error in %s: %s", context, error)
     print_warning(f"Error in {context}: {error}")
     logging.info(continue_msg)
     print_info(continue_msg)

@@ -85,7 +85,7 @@ class MemorySystem:
                     'source': int(source_idx),
                     'weight': 1.0,
                     'type': 'excitatory',
-                    'source_behavior': source_node.get('behavior', 'unknown')
+                    'source_behavior': graph.node_labels[source_idx].get('behavior', 'unknown')
                 })
         try:
             self.memory_traces[node_idx] = {
@@ -166,12 +166,12 @@ class MemorySystem:
     def recall_patterns(self, graph, target_node_idx):
 
         recalled_patterns = []
-        for _, memory_trace in self.memory_traces.items():
+        for node_idx, memory_trace in self.memory_traces.items():
             if self._is_pattern_relevant(memory_trace, target_node_idx, graph):
                 relevance = self._calculate_pattern_relevance(memory_trace, target_node_idx, graph)
                 if relevance > self.recall_threshold:
                     recalled_patterns.append({
-                        'memory_id': memory_idx,
+                        'memory_id': node_idx,
                         'pattern': memory_trace,
                         'relevance': relevance
                     })

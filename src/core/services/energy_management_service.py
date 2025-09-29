@@ -80,7 +80,7 @@ class EnergyManagementService(IEnergyManager):
                     energy_value = node['energy']
                 else:
                     energy_value = 0.5 + 0.4 * (i % 5) / 4.0  # Range: 0.5 to 0.9
-                energy_value = min(energy_value, self._energy_cap)
+                energy_value = min(energy_value, self.energy_cap)
 
                 self._node_energies[node_id] = energy_value
 
@@ -91,8 +91,8 @@ class EnergyManagementService(IEnergyManager):
 
             # Initialize energy state
             self._energy_state.is_initialized = True
-            self._energy_state.total_system_energy = sum(self._node_energies.values())
-            self._energy_state.node_energies = self._node_energies.copy()
+            self._energy_state.total_system_energy = self.get_total_system_energy()
+            self._energy_state.node_energies = self.node_energies
 
             return True
 
@@ -120,9 +120,9 @@ class EnergyManagementService(IEnergyManager):
 
         try:
             # Apply metabolic decay to all nodes
-            for node_id, energy in self._node_energies.items():
-                decayed_energy = energy * self._decay_rate
-                self._node_energies[node_id] = decayed_energy
+            for node_id, energy in self.node_energies.items():
+                decayed_energy = energy * self.decay_rate
+                self.set_node_energy(node_id, decayed_energy)
 
                 # Update graph
                 self._update_node_energy_in_graph(graph, node_id, decayed_energy)
@@ -139,11 +139,11 @@ class EnergyManagementService(IEnergyManager):
             # Apply metabolic costs for spiking neurons
             for spike_event in spike_events:
                 node_id = spike_event.neuron_id
-                if node_id in self._node_energies:
-                    current_energy = self._node_energies[node_id]
-                    metabolic_cost = min(current_energy * 0.1, self._metabolic_cost_per_spike)
+                if node_id in self.node_energies:
+                    current_energy = self.get_node_energy(node_id)
+                    metabolic_cost = min(current_energy * 0.1, self.metabolic_cost_per_spike)
                     new_energy = current_energy - metabolic_cost
-                    self._node_energies[node_id] = new_energy
+                    self.set_node_energy(node_id, new_energy)
 
                     # Update graph
                     self._update_node_energy_in_graph(graph, node_id, new_energy)
@@ -157,8 +157,7 @@ class EnergyManagementService(IEnergyManager):
                     ))
 
             # Update energy state
-            self._energy_state.total_system_energy = sum(self._node_energies.values())
-            self._energy_state.node_energies = self._node_energies.copy()
+            self.update_energy_state_totals()
             self._energy_flows.extend(energy_flows)
 
             return graph, energy_flows
@@ -188,10 +187,10 @@ class EnergyManagementService(IEnergyManager):
             # Use time_step to calculate metabolic rate
             metabolic_rate = 0.001 * time_step  # Base metabolic rate scaled by time step
 
-            for node_id, energy in self._node_energies.items():
+            for node_id, energy in self.node_energies.items():
                 metabolic_cost = energy * metabolic_rate
                 new_energy = energy - metabolic_cost
-                self._node_energies[node_id] = new_energy
+                self.set_node_energy(node_id, new_energy)
 
                 self._update_node_energy_in_graph(graph, node_id, new_energy)
 
@@ -215,18 +214,18 @@ class EnergyManagementService(IEnergyManager):
             return graph
 
         try:
-            total_energy = sum(self._node_energies.values())
-            num_nodes = len(self._node_energies)
+            total_energy = self.get_total_system_energy()
+            num_nodes = len(self.node_energies)
             if num_nodes > 0:
                 average_energy = total_energy / num_nodes
 
-                for node_id, energy in self._node_energies.items():
+                for node_id, energy in self.node_energies.items():
                     # Apply homeostasis adjustment towards average
-                    adjustment = self._homeostasis_strength * (average_energy - energy)
+                    adjustment = self.homeostasis_strength * (average_energy - energy)
                     new_energy = energy + adjustment
-                    new_energy = max(0.1, min(new_energy, self._energy_cap))
+                    new_energy = max(0.1, min(new_energy, self.energy_cap))
 
-                    self._node_energies[node_id] = new_energy
+                    self.set_node_energy(node_id, new_energy)
                     self._update_node_energy_in_graph(graph, node_id, new_energy)
 
             return graph
@@ -254,7 +253,7 @@ class EnergyManagementService(IEnergyManager):
         try:
             for i, node in enumerate(graph.node_labels):
                 node_id = node.get('id', i)
-                energy = self._node_energies.get(node_id, 1.0)
+                energy = self.get_node_energy(node_id)
 
                 # Energy-modulated neural properties
                 if energy < 0.3:
@@ -284,6 +283,7 @@ class EnergyManagementService(IEnergyManager):
             bool: True if reset successful
         """
         try:
+            # Clear using public interfaces
             self._node_energies.clear()
             self._energy_flows.clear()
             self._total_energy_history.clear()
@@ -297,12 +297,73 @@ class EnergyManagementService(IEnergyManager):
         """Get current energy state."""
         return self._energy_state
 
+    @property
+    def energy_cap(self) -> float:
+        """Get the energy capacity limit."""
+        return self._energy_cap
+
+    @property
+    def decay_rate(self) -> float:
+        """Get the energy decay rate."""
+        return self._decay_rate
+
+    @property
+    def metabolic_cost_per_spike(self) -> float:
+        """Get the metabolic cost per spike."""
+        return self._metabolic_cost_per_spike
+
+    @property
+    def homeostasis_target(self) -> float:
+        """Get the homeostasis target value."""
+        return self._homeostasis_target
+
+    @property
+    def homeostasis_strength(self) -> float:
+        """Get the homeostasis strength."""
+        return self._homeostasis_strength
+
+    @property
+    def node_energies(self) -> Dict[int, float]:
+        """Get the node energies dictionary."""
+        return self._node_energies.copy()
+
+    @property
+    def energy_flows(self) -> List[EnergyFlow]:
+        """Get the energy flows list."""
+        return self._energy_flows.copy()
+
+    @property
+    def total_energy_history(self) -> List[float]:
+        """Get the total energy history list."""
+        return self._total_energy_history.copy()
+
+    def get_node_energy(self, node_id: int) -> float:
+        """Get energy for a specific node."""
+        return self._node_energies.get(node_id, 0.0)
+
+    def set_node_energy(self, node_id: int, energy: float) -> None:
+        """Set energy for a specific node."""
+        self._node_energies[node_id] = min(energy, self._energy_cap)
+
+    def add_energy_flow(self, energy_flow: EnergyFlow) -> None:
+        """Add an energy flow to the tracking list."""
+        self._energy_flows.append(energy_flow)
+
+    def get_total_system_energy(self) -> float:
+        """Get the total energy across all nodes."""
+        return sum(self._node_energies.values())
+
+    def update_energy_state_totals(self) -> None:
+        """Update the energy state totals."""
+        self._energy_state.total_system_energy = self.get_total_system_energy()
+        self._energy_state.node_energies = self.node_energies
+
     def get_energy_statistics(self) -> Dict[str, Any]:
         """Get energy management statistics."""
-        if not self._node_energies:
+        if not self.node_energies:
             return {}
 
-        energies = list(self._node_energies.values())
+        energies = list(self.node_energies.values())
         return {
             "total_system_energy": sum(energies),
             "average_energy": np.mean(energies),
@@ -310,7 +371,7 @@ class EnergyManagementService(IEnergyManager):
             "min_energy": min(energies),
             "max_energy": max(energies),
             "energy_distribution": np.histogram(energies, bins=10)[0].tolist(),
-            "total_energy_flows": len(self._energy_flows)
+            "total_energy_flows": len(self.energy_flows)
         }
 
     def validate_energy_conservation(self, graph: Optional[Data]) -> Dict[str, Any]:
@@ -325,15 +386,15 @@ class EnergyManagementService(IEnergyManager):
         """
         issues = []
 
-        if not self._node_energies:
+        if not self.node_energies:
             issues.append("No energy data available")
             return {"valid": False, "issues": issues}
 
-        total_energy = sum(self._node_energies.values())
+        total_energy = self.get_total_system_energy()
 
         # Check for energy conservation (should not change dramatically)
-        if self._total_energy_history:
-            previous_total = self._total_energy_history[-1]
+        if self.total_energy_history:
+            previous_total = self.total_energy_history[-1]
             energy_change_percent = (
                 abs(total_energy - previous_total) / max(previous_total, 0.001) * 100
             )
@@ -387,15 +448,15 @@ class EnergyManagementService(IEnergyManager):
         Returns:
             float: Energy efficiency metric
         """
-        if not self._node_energies:
+        if not self.node_energies:
             return 0.0
 
-        total_energy = sum(self._node_energies.values())
+        total_energy = self.get_total_system_energy()
         if total_energy == 0:
             return 0.0
 
         # Simple efficiency metric based on energy distribution
-        energy_variance = np.var(list(self._node_energies.values()))
+        energy_variance = np.var(list(self.node_energies.values()))
         efficiency = 1.0 / (1.0 + energy_variance / total_energy)
 
         return min(1.0, efficiency)
@@ -435,10 +496,10 @@ class EnergyManagementService(IEnergyManager):
         Returns:
             Dict[str, float]: Energy metrics
         """
-        if not self._node_energies:
+        if not self.node_energies:
             return {}
 
-        energies = list(self._node_energies.values())
+        energies = list(self.node_energies.values())
         return {
             "total_energy": sum(energies),
             "average_energy": np.mean(energies),
@@ -446,7 +507,7 @@ class EnergyManagementService(IEnergyManager):
             "min_energy": min(energies),
             "max_energy": max(energies),
             "energy_efficiency": self.calculate_energy_efficiency(None),  # Simplified
-            "energy_flow_count": len(self._energy_flows)
+            "energy_flow_count": len(self.energy_flows)
         }
 
     def apply_energy_boost(self, graph: Data, neuron_ids: List[int], boost_amount: float) -> Data:
@@ -466,15 +527,15 @@ class EnergyManagementService(IEnergyManager):
 
         try:
             for node_id in neuron_ids:
-                if node_id in self._node_energies:
-                    current_energy = self._node_energies[node_id]
-                    new_energy = min(current_energy + boost_amount, self._energy_cap)
-                    self._node_energies[node_id] = new_energy
+                if node_id in self.node_energies:
+                    current_energy = self.get_node_energy(node_id)
+                    new_energy = min(current_energy + boost_amount, self.energy_cap)
+                    self.set_node_energy(node_id, new_energy)
 
                     self._update_node_energy_in_graph(graph, node_id, new_energy)
 
                     # Record energy flow
-                    self._energy_flows.append(EnergyFlow(
+                    self.add_energy_flow(EnergyFlow(
                         source_id=-1,  # External source
                         target_id=node_id,
                         amount=boost_amount,
@@ -499,11 +560,11 @@ class EnergyManagementService(IEnergyManager):
         """
         anomalies = []
 
-        if not self._node_energies:
+        if not self.node_energies:
             return anomalies
 
         try:
-            energies = list(self._node_energies.values())
+            energies = list(self.node_energies.values())
             mean_energy = np.mean(energies)
             std_energy = np.std(energies)
 
@@ -513,7 +574,7 @@ class EnergyManagementService(IEnergyManager):
             # Detect anomalies (energies more than 0.5 from mean)
             threshold = 0.5
 
-            for node_id, energy in self._node_energies.items():
+            for node_id, energy in self.node_energies.items():
                 deviation = abs(energy - mean_energy)
                 if deviation > threshold:
                     anomaly = {

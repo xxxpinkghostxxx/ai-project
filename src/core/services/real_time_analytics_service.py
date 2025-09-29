@@ -170,7 +170,7 @@ class RealTimeAnalyticsService(IRealTimeAnalytics):
                 "timestamp": current_time
             }
 
-        except (ValueError, TypeError, ZeroDivisionError, StatisticsError) as e:
+        except (ValueError, TypeError, ZeroDivisionError) as e:
             print(f"Error analyzing performance trends: {e}")
             return {"error": str(e)}
 
@@ -229,7 +229,7 @@ class RealTimeAnalyticsService(IRealTimeAnalytics):
                 "timestamp": current_time
             }
 
-        except (ValueError, TypeError, ZeroDivisionError, StatisticsError) as e:
+        except (ValueError, TypeError, ZeroDivisionError) as e:
             print(f"Error predicting system behavior: {e}")
             return {"error": str(e)}
 
@@ -290,7 +290,7 @@ class RealTimeAnalyticsService(IRealTimeAnalytics):
 
             return anomalies
 
-        except (ValueError, TypeError, ZeroDivisionError, StatisticsError) as e:
+        except (ValueError, TypeError, ZeroDivisionError) as e:
             print(f"Error detecting anomalies: {e}")
             return []
 
@@ -512,7 +512,7 @@ class RealTimeAnalyticsService(IRealTimeAnalytics):
                 "timestamp": time.time()
             }
 
-        except (ValueError, TypeError, ZeroDivisionError, StatisticsError) as e:
+        except (ValueError, TypeError, ZeroDivisionError) as e:
             print(f"Error tracking energy efficiency: {e}")
             return {"error": str(e)}
 

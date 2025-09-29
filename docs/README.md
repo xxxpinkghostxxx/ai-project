@@ -17,55 +17,34 @@ This system implements a sophisticated neural simulation that combines:
 
 ### Service-Oriented Architecture (SOA)
 
-The system has been fully migrated from a monolithic architecture to a service-oriented architecture with dependency injection. The monolithic `SimulationManager` has been completely removed and replaced with 9 core services orchestrated by the `SimulationCoordinator`.
+The system has been fully migrated from a monolithic architecture to a service-oriented architecture with dependency injection. The monolithic `SimulationManager` has been completely removed and replaced with specialized services orchestrated by the `SimulationCoordinator`.
 
-#### Core Services
+For detailed information about the SOA, see [SOA_ARCHITECTURE.md](SOA_ARCHITECTURE.md).
 
-##### 1. SimulationCoordinator (`core/services/simulation_coordinator.py`)
-- Central orchestrator for all neural simulation services
-- Manages simulation lifecycle and service coordination
-- Handles dependency injection and service resolution
-- Provides unified interface for simulation control
+#### Core Services Summary
 
-##### 2. NeuralProcessingService (`core/services/neural_processing_service.py`)
-- Handles neural dynamics and spiking behavior
-- Manages node behavior updates and state transitions
-- Processes neural integration and enhanced systems
+The system includes 9 core services plus additional advanced services:
 
-##### 3. EnergyManagementService (`core/services/energy_management_service.py`)
-- Manages energy flow and metabolic processes
-- Handles membrane potential dynamics and homeostasis
-- Regulates energy conservation and metabolic costs
+**Core Services:**
+- **SimulationCoordinator**: Central orchestrator for all neural simulation services
+- **NeuralProcessingService**: Handles neural dynamics and spiking behavior
+- **EnergyManagementService**: Manages energy flow and metabolic processes
+- **LearningService**: Coordinates plasticity and learning mechanisms
+- **SensoryProcessingService**: Processes visual and audio input data
+- **GraphManagementService**: Manages neural graph structure and operations
+- **PerformanceMonitoringService**: Monitors system performance and resource usage
+- **EventCoordinationService**: Manages event-driven communication between services
+- **ConfigurationService**: Provides centralized configuration management
 
-##### 4. LearningService (`core/services/learning_service.py`)
-- Coordinates plasticity and learning mechanisms
-- Implements STDP, Hebbian learning, and memory formation
-- Manages connection consolidation and synaptic plasticity
-
-##### 5. SensoryProcessingService (`core/services/sensory_processing_service.py`)
-- Processes visual and audio input data
-- Handles sensory integration and feature extraction
-- Manages multi-modal sensory data flow
-
-##### 6. GraphManagementService (`core/services/graph_management_service.py`)
-- Manages neural graph structure and operations
-- Handles graph validation, integrity checking, and persistence
-- Provides graph transformation and merging capabilities
-
-##### 7. PerformanceMonitoringService (`core/services/performance_monitoring_service.py`)
-- Monitors system performance and resource usage
-- Tracks simulation metrics and health indicators
-- Provides real-time performance analytics
-
-##### 8. EventCoordinationService (`core/services/event_coordination_service.py`)
-- Manages event-driven communication between services
-- Handles asynchronous event processing and queuing
-- Coordinates service interactions through events
-
-##### 9. ConfigurationService (`core/services/configuration_service.py`)
-- Provides centralized configuration management
-- Handles runtime configuration updates and validation
-- Manages environment variables and config file parsing
+**Advanced Services:**
+- **RealTimeAnalyticsService**: Real-time performance monitoring and predictive analytics
+- **AdaptiveConfigurationService**: Dynamic parameter adjustment based on system performance
+- **DistributedCoordinatorService**: Multi-node coordination and load balancing
+- **FaultToleranceService**: Failure detection and recovery mechanisms
+- **GPUAcceleratorService**: GPU acceleration for compute-intensive operations
+- **CloudDeploymentService**: Cloud deployment and scaling management
+- **LoadBalancingService**: Load balancing across distributed nodes
+- **MLOptimizerService**: ML-based optimization of system parameters
 
 #### Infrastructure Components
 
@@ -330,79 +309,27 @@ This system is designed for:
 
 ## 📁 Project Structure
 
-The project follows a service-oriented architecture with clear separation of concerns. The monolithic `SimulationManager` has been replaced with specialized services orchestrated by the `SimulationCoordinator`.
+The project follows a service-oriented architecture with clear separation of concerns. For detailed project structure and organization, see the [Documentation Index](docs/DOCUMENTATION_INDEX.md).
+
+### High-Level Structure
 
 ```
 ai-project/
-├── core/
-│   ├── unified_launcher.py       # Composition root and application entry point
-│   ├── services/                 # SOA services (8 specialized services)
-│   │   ├── simulation_coordinator.py
-│   │   ├── neural_processing_service.py
-│   │   ├── energy_management_service.py
-│   │   ├── learning_service.py
-│   │   ├── sensory_processing_service.py
-│   │   ├── graph_management_service.py
-│   │   ├── performance_monitoring_service.py
-│   │   ├── event_coordination_service.py
-│   │   └── configuration_service.py
-│   ├── interfaces/               # Service contracts and interfaces
-│   └── main_graph.py             # Graph utilities
-├── config/
-│   ├── unified_config_manager.py # Unified configuration management
-│   └── config.ini                # Configuration file
-├── utils/
-│   ├── unified_error_handler.py  # Unified error handling
-│   ├── performance_monitor.py    # Performance monitoring
-│   ├── lazy_loader.py            # Lazy loading system
-│   ├── performance_cache.py      # Performance caching
-│   ├── static_allocator.py       # Memory allocation
-│   └── other_utils.py            # Common utilities (logging, stats, etc.)
-├── neural/
-│   ├── behavior_engine.py        # Node behavior management
-│   ├── connection_logic.py       # Intelligent connection formation
-│   ├── network_metrics.py        # Network analysis and metrics
-│   ├── event_driven_system.py    # Event-based processing
-│   └── spike_queue_system.py     # Spike processing system
-├── energy/
-│   ├── energy_behavior.py        # Energy flow and consumption
-│   ├── energy_constants.py       # Centralized energy parameters
-│   ├── node_access_layer.py      # ID-based node operations
-│   ├── node_id_manager.py        # Node ID management
-│   └── energy_system_validator.py # Energy integration validation
-├── learning/
-│   ├── learning_engine.py        # STDP and pattern learning
-│   ├── live_hebbian_learning.py  # Real-time learning with energy modulation
-│   ├── memory_system.py          # Memory formation and persistence
-│   └── homeostasis_controller.py # Energy balance regulation
-├── sensory/
-│   ├── visual_energy_bridge.py   # Visual input processing
-│   ├── audio_to_neural_bridge.py # Audio feature extraction
-│   └── sensory_workspace_mapper.py # Sensory-to-workspace mapping
-├── ui/
-│   ├── ui_engine.py              # User interface and visualization
-│   ├── ui_state_manager.py       # UI state management
-│   └── screen_graph.py           # Screen capture utilities
-├── docs/
-│   ├── README.md                 # Main documentation
-│   ├── CONSOLIDATED_DOCUMENTATION.md # Complete API reference
-│   ├── ENERGY_LEARNING_INTEGRATION.md # Energy-learning integration
-│   ├── OPTIMIZATION_REPORT.md    # Performance optimizations
-│   ├── QUICK_START_GUIDE.md      # Quick start guide
-│   └── other_docs.md             # Additional documentation
-├── tests/
-│   ├── comprehensive_simulation_test.py # Comprehensive testing
-│   ├── comprehensive_test_framework.py  # Test framework
-│   ├── debug_simulation_manager.py      # Debug utilities
-│   ├── simple_energy_test.py            # Energy system tests
-│   ├── test_energy_learning.py          # Energy-learning tests
-│   └── other_tests.py                    # Additional tests
-├── analysis/
-│   ├── comprehensive_test_report.json   # Test reports
-│   ├── energy_validation_report.json    # Energy validation
-│   └── simulation_metrics_*.json        # Performance metrics
-├── requirements.txt              # Dependencies
-└── README.md                     # This file
+├── core/                 # Core SOA infrastructure
+│   ├── unified_launcher.py       # Application entry point
+│   ├── services/                 # Service implementations
+│   └── interfaces/               # Service contracts
+├── src/                  # Main source code
+│   ├── neural/           # Neural processing systems
+│   ├── energy/           # Energy management systems
+│   ├── learning/         # Learning and memory systems
+│   ├── sensory/          # Sensory integration systems
+│   ├── ui/               # User interface systems
+│   └── utils/            # Utility systems
+├── config/               # Configuration management
+├── docs/                 # Documentation
+├── tests/                # Test suite
+└── requirements.txt      # Dependencies
 ```
 
 ## 🤝 Contributing
@@ -413,7 +340,31 @@ ai-project/
 4. Add tests if applicable
 5. Submit a pull request
 
-## 📄 License
+## 📚 Documentation
+
+The project includes comprehensive documentation organized for different audiences:
+
+### 📖 For Users
+- **[Quick Start Guide](docs/QUICK_START_GUIDE.md)** - Get started quickly with installation and basic usage
+- **[README.md](README.md)** - This file with project overview and architecture
+- **[Documentation Index](docs/DOCUMENTATION_INDEX.md)** - Complete guide to all documentation
+
+### 🔧 For Developers
+- **[Consolidated Documentation](docs/CONSOLIDATED_DOCUMENTATION.md)** - Complete API reference and examples
+- **[SOA Architecture](docs/SOA_ARCHITECTURE.md)** - Detailed service-oriented architecture design
+- **[Service Interfaces](docs/SERVICE_INTERFACES.md)** - Service interface definitions and contracts
+- **[Component Reference](docs/COMPONENT_REFERENCE.md)** - Component implementation details
+
+### 🧬 For Researchers
+- **[Energy-Learning Integration](docs/ENERGY_LEARNING_INTEGRATION.md)** - Biological modeling with energy modulation
+- **[Energy System Analysis](docs/ENERGY_SYSTEM_ANALYSIS.md)** - Energy dynamics and validation
+- **[Optimization Report](docs/OPTIMIZATION_REPORT.md)** - Performance analysis and recommendations
+
+### 📊 Additional Resources
+- **[Migration Patterns](docs/MIGRATION_PATTERNS.md)** - Code migration strategies
+- **[Optimization Summary](docs/OPTIMIZATION_SUMMARY.md)** - Performance optimization overview
+
+##  License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
