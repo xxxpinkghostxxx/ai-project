@@ -166,11 +166,11 @@ class NodeIDManager:
                 try:
                     metadata_size = len(json.dumps(metadata).encode('utf-8'))
                     if metadata_size > self._metadata_size_limit:
-                        logging.warning(f"Metadata size {metadata_size} exceeds limit {self._metadata_size_limit}, truncating")
+                        logging.warning("Metadata size %s exceeds limit %s, truncating", metadata_size, self._metadata_size_limit)
                         # Keep only essential metadata
                         metadata = {'size_exceeded': True, 'original_size': metadata_size}
                 except Exception as e:
-                    logging.warning(f"Could not calculate metadata size: {e}")
+                    logging.warning("Could not calculate metadata size: %s", e)
                     metadata = {'size_error': str(e)}
 
             # Check if we can generate more IDs

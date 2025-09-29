@@ -1,7 +1,3 @@
-
-import sys
-import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 """
 Unified Launcher for Neural Simulation System.
 
@@ -9,6 +5,10 @@ This module provides the main entry point for launching the neural simulation sy
 with different profiles and configurations. It handles service registration, dependency
 injection, and system initialization.
 """
+
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from typing import Dict, Any
 
@@ -21,8 +21,6 @@ from src.core.interfaces.service_registry import IServiceRegistry
 from src.core.services.configuration_service import ConfigurationService
 from src.core.interfaces.configuration_service import IConfigurationService
 from src.core.services.performance_monitoring_service import PerformanceMonitoringService
-
-# Service imports
 from src.core.services.adaptive_configuration_service import AdaptiveConfigurationService
 from src.core.services.cloud_deployment_service import CloudDeploymentService
 from src.core.services.distributed_coordinator_service import DistributedCoordinatorService
@@ -39,8 +37,6 @@ from src.core.services.real_time_analytics_service import RealTimeAnalyticsServi
 from src.core.services.real_time_visualization_service import RealTimeVisualizationService
 from src.core.services.sensory_processing_service import SensoryProcessingService
 from src.core.services.simulation_coordinator import SimulationCoordinator
-
-# Interface imports
 from src.core.interfaces.adaptive_configuration import IAdaptiveConfiguration
 from src.core.interfaces.cloud_deployment import ICloudDeployment
 from src.core.interfaces.distributed_coordinator import IDistributedCoordinator
@@ -59,9 +55,9 @@ from src.core.interfaces.real_time_visualization import IRealTimeVisualization
 from src.core.interfaces.sensory_processor import ISensoryProcessor
 from src.core.interfaces.simulation_coordinator import ISimulationCoordinator
 
-# Optional imports
+
 try:
-    import torch
+    import torch  # type: ignore[import]
 except ImportError:
     torch = None
 
@@ -117,8 +113,8 @@ class UnifiedLauncher:
             except ImportError as e:
                 print(f"  [FAIL] {module_name}: {e}")
                 failed_imports.append(module_name)
-            except Exception as e:
-                logging.exception("Broad exception caught during import test for %s", module_name)
+            except (AttributeError, TypeError) as e:
+                logging.exception("Exception caught during import test for %s", module_name)
                 print(f"  [WARN] {module_name}: {e}")
                 failed_imports.append(module_name)
         if failed_imports:
@@ -162,8 +158,8 @@ class UnifiedLauncher:
             print(f"  Memory: {capacity_info['memory_available_gb']:.1f}GB available")
             print(f"  CPU: {capacity_info['cpu_count']} cores")
             return capacity_info
-        except Exception as e:
-            logging.exception("Broad exception caught during capacity test")
+        except (OSError, ValueError) as e:
+            logging.exception("Exception caught during capacity test")
             print(f"  Capacity test failed: {e}")
             return {'sufficient_memory': True, 'sufficient_cpu': True}
     def launch_with_profile(self, profile: str) -> bool:
@@ -205,8 +201,8 @@ class UnifiedLauncher:
             else:
                 print(f"Invalid configuration for profile: {profile}")
                 return False
-        except Exception as e:
-            logging.exception("Broad exception caught during launch")
+        except RuntimeError as e:
+            logging.exception("Exception caught during launch")
             print(f"Launch failed: {e}")
             traceback.print_exc()
             return False
@@ -241,8 +237,8 @@ class UnifiedLauncher:
                 print_error("No UI class or function specified")
                 return False
             return True
-        except Exception as e:
-            logging.exception("Broad exception caught during UI launch")
+        except (ImportError, AttributeError) as e:
+            logging.exception("Exception caught during UI launch")
             print(f"UI launch failed: {e}")
             traceback.print_exc()
             return False
@@ -309,16 +305,11 @@ def main():
         for service_interface in all_services:
             service_registry.resolve(service_interface)
         print_success("All services resolved successfully!")
-    except Exception as e:
-        logging.exception("Broad exception caught during service resolution")
+    except (KeyError, ValueError) as e:
+        logging.exception("Exception caught during service resolution")
         print_error(f"Service resolution failed: {e}")
         return 1
     success = launcher.launch_with_profile(profile)
     return 0 if success else 1
 if __name__ == "__main__":
     sys.exit(main())
-
-
-
-
-

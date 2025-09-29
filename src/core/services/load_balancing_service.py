@@ -7,7 +7,7 @@ handling workload distribution and optimization across distributed nodes.
 
 import time
 import statistics
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from collections import defaultdict, deque
 
 from ..interfaces.load_balancer import ILoadBalancer, LoadMetrics

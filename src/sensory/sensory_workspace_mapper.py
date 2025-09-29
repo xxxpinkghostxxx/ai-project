@@ -1,6 +1,6 @@
 
 import numpy as np
-from typing import Dict, Any, List, Optional, Tuple, Callable
+from typing import Dict, Any, List, Tuple
 
 import time
 
@@ -39,6 +39,7 @@ class SensoryWorkspaceMapper:
         self.bus = get_event_bus()
         self.bus.subscribe('SENSORY_INPUT_AUDIO', self._on_audio_input)
         self.bus.subscribe('SENSORY_INPUT_VISUAL', self._on_visual_input)
+        self.previous_visual_data = None
         log_step("SensoryWorkspaceMapper initialized", workspace_size=workspace_size)
     def map_visual_to_workspace(self, graph: Data, visual_data: np.ndarray,
                                step: int) -> Data:

@@ -49,7 +49,7 @@ class ComprehensiveSimulationTester:
             'performance_metrics': {},
             'errors': []
         }
-        self.simulation_manager = None
+        self.simulation_manager: Optional[SimulationCoordinator] = None
         self.node_manager = get_optimized_node_manager()
         self.cache_manager = get_performance_cache_manager()
         self.lazy_loader = get_lazy_loader()

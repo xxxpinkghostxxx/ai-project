@@ -2,7 +2,7 @@
 
 
 import torch
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 
 from torch_geometric.data import Data
 

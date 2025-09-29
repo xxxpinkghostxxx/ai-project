@@ -6,7 +6,7 @@ from collections import defaultdict
 class EventBus:
     """
     Thread-safe in-memory event bus for pub-sub pattern.
-    Supports emit(event_type: str, data: dict) and subscribe(event_type: str, callback: Callable).
+    Supports emit(event_type: str, data: dict), publish(event_type: str, data: dict) and subscribe(event_type: str, callback: Callable).
     """
     def __init__(self):
         self._subscribers: Dict[str, list[Callable[[str, Dict[str, Any]], None]]] = defaultdict(list)
@@ -21,6 +21,18 @@ class EventBus:
 
     def emit(self, event_type: str, data: Dict[str, Any]) -> None:
         """Emit an event with data to all subscribers."""
+        if not isinstance(data, dict):
+            raise ValueError("Data must be a dict")
+        with self._lock:
+            for callback in self._subscribers.get(event_type, []):
+                try:
+                    callback(event_type, data)
+                except Exception:
+                    # Silent fail for robustness; could log in production
+                    pass
+
+    def publish(self, event_type: str, data: Dict[str, Any]) -> None:
+        """Publish an event with data to all subscribers."""
         if not isinstance(data, dict):
             raise ValueError("Data must be a dict")
         with self._lock:

@@ -73,7 +73,7 @@ class SimpleRegressionModel:
             self.trained = True
             return True
 
-        except Exception as e:
+        except (ValueError, TypeError, ZeroDivisionError, IndexError) as e:
             print(f"Error training regression model: {e}")
             return False
 
@@ -235,7 +235,7 @@ class MLOptimizerService(IMLOptimizer):
 
             return False
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             print(f"Error training optimization model: {e}")
             return False
 
@@ -284,7 +284,7 @@ class MLOptimizerService(IMLOptimizer):
                 "timestamp": time.time()
             }
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             print(f"Error predicting optimal configuration: {e}")
             return {"error": str(e)}
 
@@ -369,7 +369,7 @@ class MLOptimizerService(IMLOptimizer):
 
             return experiment_id
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             print(f"Error running optimization experiment: {e}")
             return ""
 
@@ -390,7 +390,7 @@ class MLOptimizerService(IMLOptimizer):
             experiment = self.experiments[experiment_id]
             return experiment.to_dict()
 
-        except Exception as e:
+        except (KeyError, AttributeError, TypeError) as e:
             print(f"Error getting experiment status: {e}")
             return {"error": str(e)}
 
@@ -459,7 +459,7 @@ class MLOptimizerService(IMLOptimizer):
 
             return optimization_results
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             print(f"Error applying ML optimization: {e}")
             return {"error": str(e)}
 
@@ -536,7 +536,7 @@ class MLOptimizerService(IMLOptimizer):
 
             return impact_analysis
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, ZeroDivisionError) as e:
             print(f"Error analyzing optimization impact: {e}")
             return {"error": str(e)}
 
@@ -606,7 +606,7 @@ class MLOptimizerService(IMLOptimizer):
 
             return recommendations
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError) as e:
             print(f"Error getting optimization recommendations: {e}")
             return []
 
@@ -678,7 +678,7 @@ class MLOptimizerService(IMLOptimizer):
 
             return validation_results
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, ZeroDivisionError) as e:
             print(f"Error validating optimization model: {e}")
             return {"error": str(e)}
 
@@ -699,7 +699,7 @@ class MLOptimizerService(IMLOptimizer):
 
             return max(0.0, r_squared)  # Ensure non-negative
 
-        except Exception:
+        except (ValueError, TypeError, ZeroDivisionError):
             return 0.0
 
     def _calculate_feature_importance(self, model: SimpleRegressionModel) -> Dict[str, float]:
@@ -715,7 +715,7 @@ class MLOptimizerService(IMLOptimizer):
                 for feature, coeff in model.coefficients.items()
             }
 
-        except Exception:
+        except (ValueError, TypeError, ZeroDivisionError):
             return {}
 
     def _evaluate_parameters(self, parameters: Dict[str, float], optimization_target: str) -> float:
@@ -756,7 +756,7 @@ class MLOptimizerService(IMLOptimizer):
 
             return max(0.0, min(100.0, score))  # Clamp to reasonable range
 
-        except Exception:
+        except (ValueError, TypeError, KeyError):
             return 50.0  # Default score
 
     def _estimate_prediction_confidence(self, model: SimpleRegressionModel,
@@ -777,7 +777,7 @@ class MLOptimizerService(IMLOptimizer):
 
             return min(1.0, confidence)
 
-        except Exception:
+        except (ValueError, TypeError, KeyError):
             return 0.5
 
     def cleanup(self) -> None:

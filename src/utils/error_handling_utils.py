@@ -8,10 +8,9 @@ import time
 import psutil
 import gc
 import threading
-from typing import Any, Callable, Optional, Dict, List, Type, Union, Tuple
+from typing import Any, Callable, Optional, Type
 from functools import wraps
 from contextlib import contextmanager
-import traceback
 
 from config.consolidated_constants import ERROR_MESSAGES
 from src.utils.print_utils import print_error, print_warning, print_info
@@ -384,14 +383,14 @@ def handle_critical_error(error: Exception, context: str = "",
     """
     error_message = f"Critical error in {context}" if context else "Critical error"
     logging.error(f"{error_message}: {error}")
-    print_error(error_message, error)
+    print_error(f"{error_message}: {error}")
 
     if fallback_action:
         try:
             fallback_action()
         except Exception as fallback_e:
             logging.error(f"Fallback action also failed: {fallback_e}")
-            print_error("Fallback action also failed", fallback_e)
+            print_error(f"Fallback action also failed: {fallback_e}")
 
 
 def log_and_continue(error: Exception, context: str = "",

@@ -8,7 +8,7 @@ import logging
 from typing import Optional, Dict, Any
 
 from src.utils.logging_utils import log_step
-from src.utils.print_utils import print_invalid_slot, print_error
+from src.utils.print_utils import print_invalid_slot
 
 
 

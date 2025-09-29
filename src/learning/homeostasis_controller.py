@@ -7,7 +7,7 @@ import torch
 
 from src.energy.energy_behavior import get_node_energy_cap
 
-from config.unified_config_manager import get_homeostasis_config, get_config, config
+from config.unified_config_manager import get_config, config
 from src.utils.logging_utils import log_step
 from src.neural.death_and_birth_logic import get_node_birth_threshold, get_node_death_threshold
 
@@ -109,31 +109,31 @@ class HomeostasisController:
     def __init__(self):
         try:
             self.enable_adaptive_regulation = get_config('Homeostasis', 'enable_adaptive_regulation', True, bool)
-        except Exception:
+        except (KeyError, ValueError, TypeError):
             self.enable_adaptive_regulation = True
         try:
             self.enable_memory_integration = get_config('Homeostasis', 'enable_memory_integration', True, bool)
-        except Exception:
+        except (KeyError, ValueError, TypeError):
             self.enable_memory_integration = True
         try:
             self.enable_validation = get_config('Homeostasis', 'enable_validation', True, bool)
-        except Exception:
+        except (KeyError, ValueError, TypeError):
             self.enable_validation = True
         try:
             self.target_energy_ratio = get_config('Homeostasis', 'target_energy_ratio', 0.6, float)
-        except Exception:
+        except (KeyError, ValueError, TypeError):
             self.target_energy_ratio = 0.6
         try:
             self.criticality_threshold = get_config('Homeostasis', 'criticality_threshold', 0.1, float)
-        except Exception:
+        except (KeyError, ValueError, TypeError):
             self.criticality_threshold = 0.1
         try:
             self.regulation_rate = get_config('Homeostasis', 'regulation_rate', 0.001, float)
-        except Exception:
+        except (KeyError, ValueError, TypeError):
             self.regulation_rate = 0.001
         try:
             self.regulation_interval = get_config('Homeostasis', 'regulation_interval', 100, int)
-        except Exception:
+        except (KeyError, ValueError, TypeError):
             self.regulation_interval = 100
         self.branching_target = 1.0
         self.energy_variance_threshold = 0.2
@@ -160,7 +160,7 @@ class HomeostasisController:
                         avg_energy=avg_energy,
                         energy_variance=energy_variance,
                         connectivity_density=connectivity_density)
-            except Exception as e:
+            except (AttributeError, ValueError, TypeError) as e:
                 log_step("Metrics calculation failed, using fallback", error=str(e))
                 if hasattr(graph, 'x'):
                     total_energy = float(torch.sum(graph.x[:, 0]).item())
@@ -305,7 +305,7 @@ class HomeostasisController:
                         branching_ratio=branching_ratio,
                         connectivity_density=connectivity_metrics.get('density', 0.0),
                         energy_variance=energy_metrics.get('energy_variance', 0.0))
-            except Exception as e:
+            except (AttributeError, ValueError, TypeError) as e:
                 log_step("Metrics calculation failed, using fallback", error=str(e))
                 branching_ratio = self._calculate_branching_ratio(graph)
         else:
@@ -371,6 +371,8 @@ class HomeostasisController:
         return 0.0
     def _apply_criticality_regulation(self, graph, regulation_type, current_ratio):
 
+        log_step("Applying criticality regulation", regulation_type=regulation_type)
+        regulation_action = None
         max_energy = get_node_energy_cap()
         if regulation_type == 'supercritical':
             regulation_action = 'reduce_excitation'
@@ -390,6 +392,7 @@ class HomeostasisController:
                     scale_factor=scale_factor)
             if hasattr(graph, 'x'):
                 graph.x[:, 0] = torch.clamp(graph.x[:, 0] * scale_factor, 0, max_energy)
+        log_step("regulation_action assigned", action=regulation_action)
         if not hasattr(graph, 'homeostasis_data'):
             graph.homeostasis_data = {}
         graph.homeostasis_data['criticality_regulation'] = {
@@ -474,7 +477,7 @@ class HomeostasisController:
                 energy_metrics = metrics.get('energy_balance', {})
                 energy_ratio = energy_metrics.get('energy_ratio', 0.0)
                 energy_variance = energy_metrics.get('energy_variance', 0.0)
-            except:
+            except (AttributeError, ValueError, TypeError):
                 energy_ratio = 0.0
                 energy_variance = 0.0
         return {'energy_ratio': energy_ratio, 'energy_variance': energy_variance}
@@ -487,7 +490,7 @@ class HomeostasisController:
             try:
                 metrics = graph.network_metrics.calculate_comprehensive_metrics(graph)
                 branching_ratio = metrics.get('criticality', 0.0)
-            except:
+            except (AttributeError, ValueError, TypeError):
                 branching_ratio = 0.0
         return {'branching_ratio': branching_ratio}
 

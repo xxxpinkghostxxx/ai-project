@@ -2,7 +2,7 @@
 import time
 import heapq
 import threading
-from typing import Dict, Any, List, Optional, Tuple, Callable
+from typing import Dict, Any, List, Optional
 
 from dataclasses import dataclass
 from enum import Enum

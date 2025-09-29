@@ -9,7 +9,7 @@ import threading
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from torch_geometric.data import Data
 import torch
 

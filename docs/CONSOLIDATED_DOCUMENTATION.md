@@ -451,7 +451,11 @@ criticality = metrics.calculate_criticality(graph)
 ```python
 # Learning Engine - STDP and pattern learning
 from learning.learning_engine import LearningEngine
-learning_engine = LearningEngine()
+from energy.node_access_layer import NodeAccessLayer
+
+# Initialize access layer with graph
+access_layer = NodeAccessLayer(graph)
+learning_engine = LearningEngine(access_layer)
 graph = learning_engine.consolidate_connections(graph)
 graph = learning_engine.apply_memory_influence(graph)
 

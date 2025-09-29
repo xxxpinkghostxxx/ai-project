@@ -4,7 +4,7 @@ import numpy as np
 import numba as nb
 import torch
 import threading
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 
 from torch_geometric.data import Data
 from collections import defaultdict, deque
@@ -27,8 +27,8 @@ class EnhancedNeuralDynamics:
             self.config = get_learning_config()
             self.system_constants = get_system_constants()
             self.enhanced_config = get_enhanced_nodes_config()
-        except Exception as e:
-            logging.error(f"Failed to load configuration: {e}")
+        except (KeyError, ValueError, TypeError, ImportError) as e:
+            logging.error("Failed to load configuration: %s", e)
             # Use default values
             self.config = {}
             self.system_constants = {}
@@ -89,7 +89,7 @@ class EnhancedNeuralDynamics:
 
         try:
             self.event_bus = get_event_bus()
-        except Exception as e:
+        except (ImportError, AttributeError, RuntimeError) as e:
             logging.warning(f"Failed to get event bus: {e}")
             self.event_bus = None
 
@@ -100,14 +100,14 @@ class EnhancedNeuralDynamics:
         try:
             val = float(value)
             if np.isnan(val):
-                logging.warning(f"Value {val} for {field_name} is NaN, using default")
+                logging.warning("Value %s for %s is NaN, using default", val, field_name)
                 return min_val if min_val > 0 else 0.0
             if not (min_val <= val <= max_val):
-                logging.warning(f"Value {val} for {field_name} out of range [{min_val}, {max_val}], clamping")
+                logging.warning("Value %s for %s out of range [%s, %s], clamping", val, field_name, min_val, max_val)
                 val = max(min_val, min(max_val, val))
             return val
         except (ValueError, TypeError, OverflowError):
-            logging.warning(f"Invalid value {value} for {field_name}, using default")
+            logging.warning("Invalid value %s for %s, using default", value, field_name)
             return min_val if min_val > 0 else 0.0
 
     def update_neural_dynamics(self, graph: Data, step: int) -> Data:
@@ -141,8 +141,8 @@ class EnhancedNeuralDynamics:
                 graph = self._update_homeostatic_control(graph, step)
                 self._update_neuromodulation(step)
                 return graph
-            except Exception as e:
-                logging.error(f"Error in neural dynamics update at step {step}: {e}")
+            except (AttributeError, ValueError, TypeError, RuntimeError) as e:
+                logging.error("Error in neural dynamics update at step %s: %s", step, e)
                 log_step("Error in neural dynamics update", error=str(e), step=step)
                 return graph
     def _update_membrane_dynamics(self, graph: Data, step: int) -> Data:
@@ -194,7 +194,7 @@ class EnhancedNeuralDynamics:
                 log_step("Spike occurred", node_id=node_id, membrane_potential=v_mem)
                 try:
                     self.event_bus.emit('SPIKE', {'node_id': node_id, 'timestamp': current_time})
-                except Exception:
+                except (AttributeError, TypeError, RuntimeError):
                     pass  # Fallback: direct calls already handled
             if refractory_timer > 0:
                 access_layer.update_node_property(node_id, 'refractory_timer',
@@ -255,7 +255,7 @@ class EnhancedNeuralDynamics:
                                 if not isinstance(effective_weight, (int, float)):
                                     continue
                                 effective_weight = max(-100.0, min(100.0, effective_weight))  # Clamp weight
-                            except Exception:
+                            except (AttributeError, ValueError, TypeError):
                                 continue
                         else:
                             # Fallback to weight attribute
@@ -279,18 +279,18 @@ class EnhancedNeuralDynamics:
                                     isinstance(source_energy, (int, float)) and
                                     source_energy > gate_threshold):
                                     total_input += effective_weight
-                            except Exception:
+                            except (AttributeError, ValueError, TypeError):
                                 pass  # Skip on error
 
                         # Prevent runaway values
                         total_input = max(min_input, min(max_input, total_input))
 
-                except Exception as e:
-                    logging.debug(f"Error processing edge {edge_idx} for node {node_id}: {e}")
+                except (AttributeError, ValueError, TypeError, IndexError) as e:
+                    logging.debug("Error processing edge %s for node %s: %s", edge_idx, node_id, e)
                     continue
 
-        except Exception as e:
-            logging.warning(f"Error in synaptic input calculation for node {node_id}: {e}")
+        except (AttributeError, ValueError, TypeError, IndexError) as e:
+            logging.warning("Error in synaptic input calculation for node %s: %s", node_id, e)
 
         return total_input
     def _process_spikes(self, graph: Data, step: int) -> Data:
@@ -350,7 +350,7 @@ class EnhancedNeuralDynamics:
                 continue
                 
             # Diagnostic: Log STDP attempt
-            logging.debug(f"[DYNAMICS] STDP for edge {edge_idx}: source={source_id} ({len(source_spikes)} spikes), target={target_id} ({len(target_spikes)} spikes)")
+            logging.debug("[DYNAMICS] STDP for edge %s: source=%s (%s spikes), target=%s (%s spikes)", edge_idx, source_id, len(source_spikes), target_id, len(target_spikes))
             source_array = np.array(source_spikes, dtype=np.float64)
             target_array = np.array(target_spikes, dtype=np.float64)
             stdp_window_s = self.stdp_window / 1000.0
@@ -363,7 +363,7 @@ class EnhancedNeuralDynamics:
                 source_node = access_layer.get_node_by_id(source_id)
                 target_node = access_layer.get_node_by_id(target_id)
                 if source_node is None or target_node is None:
-                    logging.warning(f"[DYNAMICS] Skipping STDP for invalid edge {edge_idx}: source_id={source_id} (valid={source_node is not None}), target_id={target_id} (valid={target_node is not None})")
+                    logging.warning("[DYNAMICS] Skipping STDP for invalid edge %s: source_id=%s (valid=%s), target_id=%s (valid=%s)", edge_idx, source_id, source_node is not None, target_id, target_node is not None)
                     continue
                 
                 new_weight = max(ConnectionConstants.WEIGHT_MIN,
@@ -372,7 +372,7 @@ class EnhancedNeuralDynamics:
                 edge.weight = new_weight
                 edge.update_eligibility_trace(weight_change)
                 self.stats['stdp_events'] += 1
-                logging.info(f"[DYNAMICS] STDP weight update: source={source_id}, target={target_id}, change={weight_change:.4f}, new_weight={new_weight:.4f}")
+                logging.info("[DYNAMICS] STDP weight update: source=%s, target=%s, change=%.4f, new_weight=%.4f", source_id, target_id, weight_change, new_weight)
         return graph
     def _update_ieg_tagging(self, graph: Data, step: int) -> Data:
 
@@ -516,8 +516,8 @@ class EnhancedNeuralDynamics:
             # Clamp ratio to reasonable bounds
             return max(0.1, min(10.0, ratio))
 
-        except Exception as e:
-            logging.warning(f"Error calculating E/I ratio: {e}")
+        except (AttributeError, ValueError, TypeError, ZeroDivisionError) as e:
+            logging.warning("Error calculating E/I ratio: %s", e)
             return 1.0
     def _adjust_ei_balance(self, graph: Data, current_ratio: float):
         if not hasattr(graph, 'edge_attributes'):
@@ -586,7 +586,7 @@ class EnhancedNeuralDynamics:
         # Validate and clamp level
         level = float(level)
         if np.isnan(level):
-            logging.warning(f"Neuromodulator level is NaN, setting to 0.0")
+            logging.warning("Neuromodulator level is NaN, setting to 0.0")
             level = 0.0
         else:
             level = max(0.0, min(1.0, level))
@@ -599,11 +599,11 @@ class EnhancedNeuralDynamics:
             elif neuromodulator == 'norepinephrine':
                 self.norepinephrine_level = level
             else:
-                logging.warning(f"Unknown neuromodulator: {neuromodulator}")
+                logging.warning("Unknown neuromodulator: %s", neuromodulator)
                 return
 
             self.neuromodulators[neuromodulator] = level
-            log_step(f"Neuromodulator {neuromodulator} set to {level}")
+            log_step("Neuromodulator %s set to %s", neuromodulator, level)
     def _update_neuromodulation(self, step: int):
         self.dopamine_level *= self.neuromodulator_decay
         self.acetylcholine_level *= self.neuromodulator_decay
@@ -694,7 +694,7 @@ if __name__ == "__main__":
         print(f"Dynamics system created with {len(dynamics.stats)} statistics tracked")
         stats = dynamics.get_statistics()
         print(f"Initial statistics: {stats}")
-    except Exception as e:
+    except (AttributeError, ValueError, TypeError, ImportError) as e:
         print(f"EnhancedNeuralDynamics test failed: {e}")
     print("EnhancedNeuralDynamics test completed!")
 

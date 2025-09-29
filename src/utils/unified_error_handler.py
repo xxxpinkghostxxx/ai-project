@@ -9,8 +9,7 @@ import traceback
 import time
 import threading
 import functools
-import weakref
-from typing import Dict, List, Any, Optional, Callable, Type, Union, Tuple
+from typing import Dict, List, Any, Optional, Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from collections import defaultdict, deque

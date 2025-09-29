@@ -28,13 +28,26 @@ from src.utils.logging_utils import log_step
 from src.neural.enhanced_neural_dynamics import EnhancedNeuralDynamics
 from src.energy.energy_behavior import EnergyCalculator, get_node_energy_cap
 from src.neural.connection_logic import EnhancedEdge, ConnectionConstants
-from main_graph import initialize_main_graph
+from src.core.main_graph import initialize_main_graph
 from src.neural.death_and_birth_logic import remove_dead_dynamic_nodes, birth_new_dynamic_nodes, get_node_death_threshold, get_node_birth_threshold, handle_node_death, analyze_memory_patterns_for_birth
 from src.neural.event_driven_system import create_event_driven_system, NeuralEvent, EventType, EventDrivenSystem
 from src.learning.learning_engine import LearningEngine
 import logging
 from io import StringIO
 from unittest import mock
+from unittest.mock import Mock, MagicMock
+
+# SimulationCoordinator imports
+from src.core.services.simulation_coordinator import SimulationCoordinator
+from src.core.interfaces.service_registry import IServiceRegistry
+from src.core.interfaces.neural_processor import INeuralProcessor
+from src.core.interfaces.energy_manager import IEnergyManager
+from src.core.interfaces.learning_engine import ILearningEngine
+from src.core.interfaces.sensory_processor import ISensoryProcessor
+from src.core.interfaces.performance_monitor import IPerformanceMonitor
+from src.core.interfaces.graph_manager import IGraphManager
+from src.core.interfaces.event_coordinator import IEventCoordinator
+from src.core.interfaces.configuration_service import IConfigurationService
 
 
 class TestCategory(Enum):
@@ -518,14 +531,14 @@ class UnifiedTestFramework:
     def _test_critical_imports(self) -> Tuple[bool, Dict[str, Any]]:
         """Test critical module imports."""
         try:
-            import simulation_manager
+            from src.core.services.simulation_coordinator import SimulationCoordinator
             import neural.behavior_engine
             import energy.energy_behavior
             import neural.connection_logic
-            import main_graph
+            import src.core.main_graph
             import energy.node_access_layer
             import energy.node_id_manager
-            
+
             return True, {'imports': 'successful'}
         except ImportError as e:
             return False, {'error': str(e)}
@@ -561,10 +574,31 @@ class UnifiedTestFramework:
     def _test_simulation_manager_creation(self) -> Tuple[bool, Dict[str, Any]]:
         """Test simulation manager creation."""
         try:
-            from simulation_manager import create_simulation_manager
-            
-            sim_manager = create_simulation_manager()
-            
+            # Create mocked services for SimulationCoordinator
+            service_registry = Mock(spec=IServiceRegistry)
+            neural_processor = Mock(spec=INeuralProcessor)
+            energy_manager = Mock(spec=IEnergyManager)
+            learning_engine = Mock(spec=ILearningEngine)
+            sensory_processor = Mock(spec=ISensoryProcessor)
+            performance_monitor = Mock(spec=IPerformanceMonitor)
+            graph_manager = Mock(spec=IGraphManager)
+            event_coordinator = Mock(spec=IEventCoordinator)
+            configuration_service = Mock(spec=IConfigurationService)
+
+            # Configure mocks for initialization
+            graph_manager.initialize_graph.return_value = Data()
+            neural_processor.initialize_neural_state.return_value = True
+            energy_manager.initialize_energy_state.return_value = True
+            learning_engine.initialize_learning_state.return_value = True
+            sensory_processor.initialize_sensory_pathways.return_value = True
+            performance_monitor.start_monitoring.return_value = True
+
+            sim_manager = SimulationCoordinator(
+                service_registry, neural_processor, energy_manager,
+                learning_engine, sensory_processor, performance_monitor,
+                graph_manager, event_coordinator, configuration_service
+            )
+
             return sim_manager is not None, {
                 'manager_created': True,
                 'type': type(sim_manager).__name__
@@ -575,15 +609,47 @@ class UnifiedTestFramework:
     def _test_single_simulation_step(self) -> Tuple[bool, Dict[str, Any]]:
         """Test single simulation step execution."""
         try:
-            from simulation_manager import create_simulation_manager
-            from main_graph import initialize_main_graph
-            
-            sim_manager = create_simulation_manager()
+            from src.core.main_graph import initialize_main_graph
+
+            # Create mocked services for SimulationCoordinator
+            service_registry = Mock(spec=IServiceRegistry)
+            neural_processor = Mock(spec=INeuralProcessor)
+            energy_manager = Mock(spec=IEnergyManager)
+            learning_engine = Mock(spec=ILearningEngine)
+            sensory_processor = Mock(spec=ISensoryProcessor)
+            performance_monitor = Mock(spec=IPerformanceMonitor)
+            graph_manager = Mock(spec=IGraphManager)
+            event_coordinator = Mock(spec=IEventCoordinator)
+            configuration_service = Mock(spec=IConfigurationService)
+
+            # Configure mocks for initialization and execution
             graph = initialize_main_graph(scale=0.25)
-            sim_manager.set_graph(graph)
-            
-            success = sim_manager.run_single_step()
-            
+            graph_manager.initialize_graph.return_value = graph
+            neural_processor.initialize_neural_state.return_value = True
+            energy_manager.initialize_energy_state.return_value = True
+            learning_engine.initialize_learning_state.return_value = True
+            sensory_processor.initialize_sensory_pathways.return_value = True
+            performance_monitor.start_monitoring.return_value = True
+
+            # Configure for step execution
+            neural_processor.process_neural_dynamics.return_value = (graph, [])
+            energy_manager.update_energy_flows.return_value = (graph, [])
+            learning_engine.apply_plasticity.return_value = (graph, [])
+            graph_manager.update_node_lifecycle.return_value = graph
+            energy_manager.regulate_energy_homeostasis.return_value = graph
+
+            sim_manager = SimulationCoordinator(
+                service_registry, neural_processor, energy_manager,
+                learning_engine, sensory_processor, performance_monitor,
+                graph_manager, event_coordinator, configuration_service
+            )
+
+            # Initialize and start simulation
+            sim_manager.initialize_simulation()
+            sim_manager.start_simulation()
+
+            success = sim_manager.execute_simulation_step(1)
+
             return success, {
                 'step_executed': success,
                 'graph_nodes': len(graph.node_labels) if hasattr(graph, 'node_labels') else 0
@@ -594,20 +660,52 @@ class UnifiedTestFramework:
     def _test_simulation_progression(self) -> Tuple[bool, Dict[str, Any]]:
         """Test simulation progression over multiple steps."""
         try:
-            from simulation_manager import create_simulation_manager
-            from main_graph import initialize_main_graph
-            
-            sim_manager = create_simulation_manager()
+            from src.core.main_graph import initialize_main_graph
+
+            # Create mocked services for SimulationCoordinator
+            service_registry = Mock(spec=IServiceRegistry)
+            neural_processor = Mock(spec=INeuralProcessor)
+            energy_manager = Mock(spec=IEnergyManager)
+            learning_engine = Mock(spec=ILearningEngine)
+            sensory_processor = Mock(spec=ISensoryProcessor)
+            performance_monitor = Mock(spec=IPerformanceMonitor)
+            graph_manager = Mock(spec=IGraphManager)
+            event_coordinator = Mock(spec=IEventCoordinator)
+            configuration_service = Mock(spec=IConfigurationService)
+
+            # Configure mocks for initialization and execution
             graph = initialize_main_graph(scale=0.25)
-            sim_manager.set_graph(graph)
-            
+            graph_manager.initialize_graph.return_value = graph
+            neural_processor.initialize_neural_state.return_value = True
+            energy_manager.initialize_energy_state.return_value = True
+            learning_engine.initialize_learning_state.return_value = True
+            sensory_processor.initialize_sensory_pathways.return_value = True
+            performance_monitor.start_monitoring.return_value = True
+
+            # Configure for step execution
+            neural_processor.process_neural_dynamics.return_value = (graph, [])
+            energy_manager.update_energy_flows.return_value = (graph, [])
+            learning_engine.apply_plasticity.return_value = (graph, [])
+            graph_manager.update_node_lifecycle.return_value = graph
+            energy_manager.regulate_energy_homeostasis.return_value = graph
+
+            sim_manager = SimulationCoordinator(
+                service_registry, neural_processor, energy_manager,
+                learning_engine, sensory_processor, performance_monitor,
+                graph_manager, event_coordinator, configuration_service
+            )
+
+            # Initialize and start simulation
+            sim_manager.initialize_simulation()
+            sim_manager.start_simulation()
+
             steps_completed = 0
             for i in range(10):
-                if sim_manager.run_single_step():
+                if sim_manager.execute_simulation_step(i + 1):
                     steps_completed += 1
                 else:
                     break
-            
+
             return steps_completed == 10, {
                 'steps_completed': steps_completed,
                 'expected_steps': 10
@@ -619,7 +717,7 @@ class UnifiedTestFramework:
         """Test energy behavior and dynamics."""
         try:
             from src.energy.energy_behavior import get_node_energy_cap, apply_energy_behavior
-            from main_graph import initialize_main_graph
+            from src.core.main_graph import initialize_main_graph
             
             graph = initialize_main_graph(scale=0.25)
             energy_cap = get_node_energy_cap()
@@ -638,7 +736,7 @@ class UnifiedTestFramework:
         """Test connection logic and formation."""
         try:
             from src.neural.connection_logic import create_basic_connections, get_edge_attributes
-            from main_graph import initialize_main_graph
+            from src.core.main_graph import initialize_main_graph
             
             graph = initialize_main_graph(scale=0.25)
             initial_edges = graph.edge_index.shape[1] if hasattr(graph, 'edge_index') else 0
@@ -1126,7 +1224,8 @@ class UnifiedTestFramework:
     def _test_hebbian_ltp(self) -> Tuple[bool, Dict[str, Any]]:
         """Test Hebbian LTP on positive delta_t spike timing."""
         try:
-            engine = LearningEngine()
+            mock_access_layer = MagicMock()
+            engine = LearningEngine(mock_access_layer)
             
             pre_node = {'id': 1}
             post_node = {'id': 2}
@@ -1156,7 +1255,8 @@ class UnifiedTestFramework:
     def _test_hebbian_ltd(self) -> Tuple[bool, Dict[str, Any]]:
         """Test Hebbian LTD on negative delta_t spike timing."""
         try:
-            engine = LearningEngine()
+            mock_access_layer = MagicMock()
+            engine = LearningEngine(mock_access_layer)
             
             pre_node = {'id': 1}
             post_node = {'id': 2}
@@ -1186,7 +1286,8 @@ class UnifiedTestFramework:
     def _test_learning_consolidation(self) -> Tuple[bool, Dict[str, Any]]:
         """Test eligibility trace consolidation to weight updates."""
         try:
-            engine = LearningEngine()
+            mock_access_layer = MagicMock()
+            engine = LearningEngine(mock_access_layer)
             
             class MockGraph:
                 def __init__(self):
@@ -1268,47 +1369,80 @@ class UnifiedTestFramework:
     def _test_full_simulation_cycle(self) -> Tuple[bool, Dict[str, Any]]:
         """E2E test for full simulation cycle."""
         try:
-            from simulation_manager import create_simulation_manager
-            from main_graph import initialize_main_graph
+            from src.core.main_graph import initialize_main_graph
             from src.utils.event_bus import get_event_bus
             from src.learning.learning_engine import LearningEngine
             from src.ui.ui_engine import update_ui_display
 
-            sim_manager = create_simulation_manager()
+            # Create mocked services for SimulationCoordinator
+            service_registry = Mock(spec=IServiceRegistry)
+            neural_processor = Mock(spec=INeuralProcessor)
+            energy_manager = Mock(spec=IEnergyManager)
+            learning_engine = Mock(spec=ILearningEngine)
+            sensory_processor = Mock(spec=ISensoryProcessor)
+            performance_monitor = Mock(spec=IPerformanceMonitor)
+            graph_manager = Mock(spec=IGraphManager)
+            event_coordinator = Mock(spec=IEventCoordinator)
+            configuration_service = Mock(spec=IConfigurationService)
+
+            # Configure mocks for initialization and execution
             graph = initialize_main_graph(scale=0.5)
-            sim_manager.set_graph(graph)
-            
+            graph_manager.initialize_graph.return_value = graph
+            neural_processor.initialize_neural_state.return_value = True
+            energy_manager.initialize_energy_state.return_value = True
+            learning_engine.initialize_learning_state.return_value = True
+            sensory_processor.initialize_sensory_pathways.return_value = True
+            performance_monitor.start_monitoring.return_value = True
+
+            # Configure for step execution
+            neural_processor.process_neural_dynamics.return_value = (graph, [])
+            energy_manager.update_energy_flows.return_value = (graph, [])
+            learning_engine.apply_plasticity.return_value = (graph, [])
+            graph_manager.update_node_lifecycle.return_value = graph
+            energy_manager.regulate_energy_homeostasis.return_value = graph
+
+            sim_manager = SimulationCoordinator(
+                service_registry, neural_processor, energy_manager,
+                learning_engine, sensory_processor, performance_monitor,
+                graph_manager, event_coordinator, configuration_service
+            )
+
+            # Initialize and start simulation
+            sim_manager.initialize_simulation()
+            sim_manager.start_simulation()
+
             initial_node_count = len(graph.node_labels) if hasattr(graph, 'node_labels') else 0
-            
-            learning_engine = LearningEngine()
-            
+
+            mock_access_layer = MagicMock()
+            learning_engine = LearningEngine(mock_access_layer)
+
             bus = get_event_bus()
             event_calls = {'SPIKE': 0, 'GRAPH_UPDATE': 0}
-            
+
             def mock_callback(event_type, data):
                 if event_type in event_calls:
                     event_calls[event_type] += 1
-            
+
             orig_subscribe = bus.subscribe
             bus.subscribe = mock.Mock(side_effect=lambda et, cb: [mock_callback(et, None)] if et in ['SPIKE', 'GRAPH_UPDATE'] else orig_subscribe(et, cb))
-            
+
             ui_mock = mock.Mock()
-            
+
             for i in range(500):
-                sim_manager.run_single_step()
-                update_ui_display(ui_mock, sim_manager.graph)
-            
+                sim_manager.execute_simulation_step(i + 1)
+                update_ui_display()
+
             bus.subscribe = orig_subscribe  # Restore
-            
+
             final_node_count = len(sim_manager.graph.node_labels) if hasattr(sim_manager.graph, 'node_labels') else 0
-            
+
             node_changes = abs(final_node_count - initial_node_count) > 0
             learning_gt0 = sum(learning_engine.learning_stats.values()) > 0 if hasattr(learning_engine, 'learning_stats') else False
             events_gt0 = event_calls['SPIKE'] > 0 and event_calls['GRAPH_UPDATE'] > 0
-            
+
             # Type hints runtime check (skip mypy, assert no runtime errors)
             type_ok = True  # Basic check, assume no errors since executed
-            
+
             return node_changes and learning_gt0 and events_gt0 and type_ok, {
                 'node_changes': node_changes,
                 'learning_gt0': learning_gt0,
@@ -1323,15 +1457,14 @@ class UnifiedTestFramework:
     def _test_stress_growth(self) -> Tuple[bool, Dict[str, Any]]:
         """Stress test for organic growth and full cycles."""
         try:
-            from simulation_manager import create_simulation_manager
-            from main_graph import initialize_main_graph
+            from src.core.main_graph import initialize_main_graph
             import psutil
             import time
             from timeit import timeit
             from numba import jit
 
             process = psutil.Process()
-            
+
             # Numba timeit on jitted funcs
             @jit(nopython=True)
             def jitted_update(nodes_count):
@@ -1339,48 +1472,81 @@ class UnifiedTestFramework:
                 for i in range(nodes_count):
                     total += float(i) * 0.1
                 return total
-            
+
             jit_time = timeit('jitted_update(1000)', globals=globals(), number=1000)
             non_jit_time = timeit('sum(i*0.1 for i in range(1000))', number=1000)
             numba_speedup = non_jit_time / jit_time > 1.5
-            
-            sim_manager = create_simulation_manager()
+
+            # Create mocked services for SimulationCoordinator
+            service_registry = Mock(spec=IServiceRegistry)
+            neural_processor = Mock(spec=INeuralProcessor)
+            energy_manager = Mock(spec=IEnergyManager)
+            learning_engine = Mock(spec=ILearningEngine)
+            sensory_processor = Mock(spec=ISensoryProcessor)
+            performance_monitor = Mock(spec=IPerformanceMonitor)
+            graph_manager = Mock(spec=IGraphManager)
+            event_coordinator = Mock(spec=IEventCoordinator)
+            configuration_service = Mock(spec=IConfigurationService)
+
+            # Configure mocks for initialization and execution
             graph = initialize_main_graph(scale=2.0)
-            sim_manager.set_graph(graph)
-            
+            graph_manager.initialize_graph.return_value = graph
+            neural_processor.initialize_neural_state.return_value = True
+            energy_manager.initialize_energy_state.return_value = True
+            learning_engine.initialize_learning_state.return_value = True
+            sensory_processor.initialize_sensory_pathways.return_value = True
+            performance_monitor.start_monitoring.return_value = True
+
+            # Configure for step execution
+            neural_processor.process_neural_dynamics.return_value = (graph, [])
+            energy_manager.update_energy_flows.return_value = (graph, [])
+            learning_engine.apply_plasticity.return_value = (graph, [])
+            graph_manager.update_node_lifecycle.return_value = graph
+            energy_manager.regulate_energy_homeostasis.return_value = graph
+
+            sim_manager = SimulationCoordinator(
+                service_registry, neural_processor, energy_manager,
+                learning_engine, sensory_processor, performance_monitor,
+                graph_manager, event_coordinator, configuration_service
+            )
+
+            # Initialize and start simulation
+            sim_manager.initialize_simulation()
+            sim_manager.start_simulation()
+
             initial_node_count = len(graph.node_labels) if hasattr(graph, 'node_labels') else 0
             previous_count = initial_node_count
             birth_death_events = 0
             step_times = []
-            
+
             start_time = time.perf_counter()
             memory_start = process.memory_info().rss / (1024 ** 3)
-            
+
             for i in range(10000):
                 step_start = time.perf_counter()
-                sim_manager.run_single_step()
+                sim_manager.execute_simulation_step(i + 1)
                 step_time = time.perf_counter() - step_start
                 step_times.append(step_time)
-                
+
                 current_node_count = len(sim_manager.graph.node_labels) if hasattr(sim_manager.graph, 'node_labels') else 0
                 if current_node_count != previous_count:
                     birth_death_events += abs(current_node_count - previous_count)
                     previous_count = current_node_count
-                
+
                 if i % 1000 == 0:
                     current_memory_gb = process.memory_info().rss / (1024 ** 3)
                     if current_memory_gb > 2.0:
                         return False, {'memory_exceeded_gb': current_memory_gb, 'at_step': i}
-            
+
             avg_step_time = sum(step_times) / len(step_times) if step_times else 0
             memory_end = process.memory_info().rss / (1024 ** 3)
             total_time = time.perf_counter() - start_time
-            
+
             perf_ok = avg_step_time < 0.01  # <10ms post-numba
             memory_ok = memory_end < 2.0
             events_gt10 = birth_death_events > 10
             no_crash = True
-            
+
             return perf_ok and memory_ok and events_gt10 and no_crash and numba_speedup, {
                 'avg_step_time_s': avg_step_time,
                 'memory_gb_end': memory_end,

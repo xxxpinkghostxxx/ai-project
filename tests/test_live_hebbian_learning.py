@@ -324,12 +324,12 @@ class TestLiveHebbianLearning:
         graph.x = torch.tensor([[100.0]], dtype=torch.float32)
         graph.node_labels = [{'id': 0}]
 
-        result = self.learning_system._update_activity_history(graph, 0)
+        self.learning_system._update_activity_history(graph, 0)
         # Should handle without crashing
 
         # Zero energy
         graph.x = torch.tensor([[0.0]], dtype=torch.float32)
-        result = self.learning_system._update_activity_history(graph, 0)
+        self.learning_system._update_activity_history(graph, 0)
         # Should handle without crashing
 
     def test_cleanup(self):

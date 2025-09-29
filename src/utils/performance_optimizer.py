@@ -4,15 +4,11 @@ Provides real-time performance monitoring, optimization suggestions, and adaptiv
 """
 
 import time
-import threading
-import psutil
-import gc
-from typing import Dict, List, Any, Optional, Callable, Tuple
+from typing import Dict, List, Any, Callable
 from dataclasses import dataclass, field
-from collections import deque, defaultdict
+from collections import defaultdict
 from enum import Enum
 import numpy as np
-import weakref
 from src.utils.unified_error_handler import ErrorSeverity
 from src.utils.unified_performance_system import get_performance_monitor, PerformanceMonitor
 
@@ -53,164 +49,6 @@ class OptimizationSuggestion:
     category: str
     parameters: Dict[str, Any] = field(default_factory=dict)
 
-class PerformanceMonitor:
-    """Real-time performance monitoring system."""
-    
-    def __init__(self, history_size: int = 1000, update_interval: float = 1.0):
-        self.history_size = history_size
-        self.update_interval = update_interval
-        self.metrics_history = deque(maxlen=history_size)
-        self.running = False
-        self.monitor_thread = None
-        self._lock = threading.RLock()
-        
-        # Performance thresholds
-        self.thresholds = {
-            'cpu_warning': 80.0,
-            'cpu_critical': 95.0,
-            'memory_warning': 80.0,
-            'memory_critical': 95.0,
-            'fps_warning': 30.0,
-            'fps_critical': 15.0,
-            'step_time_warning': 50.0,  # ms
-            'step_time_critical': 100.0  # ms
-        }
-        
-        # Callbacks
-        self.threshold_callbacks = defaultdict(list)
-        
-        # Initialize process
-        self.process = psutil.Process()
-        self.initial_memory = self.process.memory_info().rss / 1024 / 1024
-    
-    def start(self):
-        """Start performance monitoring."""
-        if not self.running:
-            self.running = True
-            self.monitor_thread = threading.Thread(target=self._monitoring_loop, daemon=True)
-            self.monitor_thread.start()
-    
-    def stop(self):
-        """Stop performance monitoring."""
-        self.running = False
-        if self.monitor_thread and self.monitor_thread.is_alive():
-            self.monitor_thread.join(timeout=10.0)  # Increased timeout for safety
-    
-    def _monitoring_loop(self):
-        """Main monitoring loop."""
-        while self.running:
-            try:
-                metrics = self._collect_metrics()
-                self._update_history(metrics)
-                self._check_thresholds(metrics)
-                time.sleep(self.update_interval)
-            except Exception as e:
-                from src.utils.unified_error_handler import get_error_handler
-                error_handler = get_error_handler()
-                error_handler.handle_error(e, "performance_monitoring_loop", severity=ErrorSeverity.MEDIUM)
-                time.sleep(1)
-    
-    def _collect_metrics(self) -> PerformanceMetrics:
-        """Collect current performance metrics."""
-        # System metrics
-        cpu_percent = self.process.cpu_percent()
-        memory_info = self.process.memory_info()
-        memory_used_mb = memory_info.rss / 1024 / 1024
-        memory_available_mb = psutil.virtual_memory().available / 1024 / 1024
-        memory_percent = self.process.memory_percent()
-        
-        # GC metrics
-        gc_stats = gc.get_stats()
-        gc_collections = sum(stat['collections'] for stat in gc_stats)
-        
-        return PerformanceMetrics(
-            timestamp=time.time(),
-            cpu_percent=cpu_percent,
-            memory_percent=memory_percent,
-            memory_used_mb=memory_used_mb,
-            memory_available_mb=memory_available_mb,
-            simulation_fps=0.0,  # Will be updated by simulation
-            step_time_ms=0.0,    # Will be updated by simulation
-            node_count=0,        # Will be updated by simulation
-            edge_count=0,        # Will be updated by simulation
-            event_queue_size=0,  # Will be updated by simulation
-            spike_queue_size=0,  # Will be updated by simulation
-            gc_collections=gc_collections,
-            gc_time_ms=0.0
-        )
-    
-    def _update_history(self, metrics: PerformanceMetrics):
-        """Update metrics history."""
-        with self._lock:
-            self.metrics_history.append(metrics)
-    
-    def _check_thresholds(self, metrics: PerformanceMetrics):
-        """Check performance thresholds and trigger callbacks."""
-        # CPU threshold checks
-        if metrics.cpu_percent >= self.thresholds['cpu_critical']:
-            self._trigger_callback('cpu_critical', metrics)
-        elif metrics.cpu_percent >= self.thresholds['cpu_warning']:
-            self._trigger_callback('cpu_warning', metrics)
-        
-        # Memory threshold checks
-        if metrics.memory_percent >= self.thresholds['memory_critical']:
-            self._trigger_callback('memory_critical', metrics)
-        elif metrics.memory_percent >= self.thresholds['memory_warning']:
-            self._trigger_callback('memory_warning', metrics)
-        
-        # FPS threshold checks
-        if metrics.simulation_fps > 0:
-            if metrics.simulation_fps <= self.thresholds['fps_critical']:
-                self._trigger_callback('fps_critical', metrics)
-            elif metrics.simulation_fps <= self.thresholds['fps_warning']:
-                self._trigger_callback('fps_warning', metrics)
-        
-        # Step time threshold checks
-        if metrics.step_time_ms > 0:
-            if metrics.step_time_ms >= self.thresholds['step_time_critical']:
-                self._trigger_callback('step_time_critical', metrics)
-            elif metrics.step_time_ms >= self.thresholds['step_time_warning']:
-                self._trigger_callback('step_time_warning', metrics)
-    
-    def _trigger_callback(self, threshold_name: str, metrics: PerformanceMetrics):
-        """Trigger callbacks for threshold violations."""
-        for callback in self.threshold_callbacks[threshold_name]:
-            try:
-                callback(threshold_name, metrics)
-            except Exception as e:
-                from src.utils.unified_error_handler import get_error_handler
-                error_handler = get_error_handler()
-                error_handler.handle_error(e, "threshold_callback", severity=ErrorSeverity.LOW)
-    
-    def add_threshold_callback(self, threshold_name: str, callback: Callable):
-        """Add a callback for threshold violations."""
-        self.threshold_callbacks[threshold_name].append(callback)
-    
-    def update_simulation_metrics(self, fps: float, step_time_ms: float, 
-                                 node_count: int, edge_count: int,
-                                 event_queue_size: int, spike_queue_size: int):
-        """Update simulation-specific metrics."""
-        with self._lock:
-            if self.metrics_history:
-                latest = self.metrics_history[-1]
-                latest.simulation_fps = fps
-                latest.step_time_ms = step_time_ms
-                latest.node_count = node_count
-                latest.edge_count = edge_count
-                latest.event_queue_size = event_queue_size
-                latest.spike_queue_size = spike_queue_size
-    
-    def get_current_metrics(self) -> Optional[PerformanceMetrics]:
-        """Get current performance metrics."""
-        with self._lock:
-            return self.metrics_history[-1] if self.metrics_history else None
-    
-    def get_metrics_history(self, limit: int = None) -> List[PerformanceMetrics]:
-        """Get metrics history."""
-        with self._lock:
-            if limit is None:
-                return list(self.metrics_history)
-            return list(self.metrics_history)[-limit:]
 
 class PerformanceOptimizer:
     """Performance optimization system."""

@@ -141,6 +141,7 @@ class ConnectionConstants:
     WEIGHT_MIN = 0.1
     ELIGIBILITY_TRACE_DECAY = 0.95
     ELIGIBILITY_TRACE_UPDATE = 0.1
+    DYNAMIC_ENERGY_THRESHOLD_FRACTION = 0.8
 
 
 class OscillatorConstants:

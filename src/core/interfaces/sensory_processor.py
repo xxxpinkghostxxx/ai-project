@@ -56,7 +56,6 @@ class ISensoryProcessor(ABC):
         Returns:
             The updated neural graph with sensory data integrated.
         """
-        pass
 
     @abstractmethod
     def initialize_sensory_pathways(self, graph: Data) -> bool:
@@ -69,7 +68,6 @@ class ISensoryProcessor(ABC):
         Returns:
             bool: True if initialization successful, False otherwise
         """
-        pass
 
     @abstractmethod
     def apply_sensory_adaptation(self, graph: Data, adaptation_rate: float) -> Data:
@@ -83,20 +81,11 @@ class ISensoryProcessor(ABC):
         Returns:
             Data: Updated graph with sensory adaptation applied
         """
-        pass
 
     @abstractmethod
     def get_sensory_state(self) -> Dict[str, Any]:
         """
         Get the current state of sensory processing.
-
-        Returns:
-            Dict[str, Any]: Current sensory processing state
-        """
-        pass
-
-
-
-
-
-
+Returns:
+    Dict[str, Any]: Current sensory processing state
+"""

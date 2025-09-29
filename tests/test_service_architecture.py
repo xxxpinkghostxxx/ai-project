@@ -6,19 +6,18 @@ validating dependency injection, service coordination, and biological plausibili
 while maintaining performance requirements.
 """
 
-import unittest
-import time
+# pylint: disable=protected-access
+
 import sys
 import os
-from unittest.mock import Mock, MagicMock
+
+import unittest
+from unittest.mock import Mock
 from torch_geometric.data import Data
 
-# Add the project root to the Python path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from src.core.services.service_registry import ServiceRegistry, ServiceNotFoundError, ServiceResolutionError
+from src.core.services.service_registry import ServiceRegistry, ServiceNotFoundError
 from src.core.services.simulation_coordinator import SimulationCoordinator
-from src.core.interfaces.simulation_coordinator import ISimulationCoordinator
+from src.core.interfaces.simulation_coordinator import ISimulationCoordinator, SimulationState
 from src.core.interfaces.neural_processor import INeuralProcessor
 from src.core.interfaces.energy_manager import IEnergyManager
 from src.core.interfaces.learning_engine import ILearningEngine
@@ -29,11 +28,15 @@ from src.core.interfaces.event_coordinator import IEventCoordinator
 from src.core.interfaces.configuration_service import IConfigurationService
 from src.core.interfaces.service_registry import IServiceRegistry, ServiceLifetime, ServiceHealth
 
+# Add the project root to the Python path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Test implementation classes for interface validation
 class MockSimulationCoordinator(ISimulationCoordinator):
+    """Mock implementation of ISimulationCoordinator for testing purposes."""
+
     def __init__(self):
-        pass
+        self.value = None
 
     def initialize_simulation(self, config=None):
         return True
@@ -51,7 +54,6 @@ class MockSimulationCoordinator(ISimulationCoordinator):
         return True
 
     def get_simulation_state(self):
-        from src.core.interfaces.simulation_coordinator import SimulationState
         return SimulationState()
 
     def get_neural_graph(self):
@@ -72,6 +74,12 @@ class MockSimulationCoordinator(ISimulationCoordinator):
     def load_simulation_state(self, filepath: str):
         return True
 
+    def run_single_step(self) -> bool:
+        return True
+
+    def cleanup(self):
+        pass
+
 
 class TestServiceRegistry(unittest.TestCase):
     """Test cases for the ServiceRegistry dependency injection container."""
@@ -87,7 +95,9 @@ class TestServiceRegistry(unittest.TestCase):
         service_instance.value = 42
 
         # Register service
-        self.registry.register(ISimulationCoordinator, MockSimulationCoordinator, ServiceLifetime.SINGLETON)
+        self.registry.register(
+            ISimulationCoordinator, MockSimulationCoordinator, ServiceLifetime.SINGLETON
+        )
 
         # Register instance
         self.registry.register_instance(ISimulationCoordinator, service_instance)
@@ -102,7 +112,9 @@ class TestServiceRegistry(unittest.TestCase):
     def test_register_and_resolve_transient(self):
         """Test registering and resolving a transient service."""
         # Register service
-        self.registry.register(ISimulationCoordinator, MockSimulationCoordinator, ServiceLifetime.TRANSIENT)
+        self.registry.register(
+            ISimulationCoordinator, MockSimulationCoordinator, ServiceLifetime.TRANSIENT
+        )
 
         # Resolve service multiple times
         resolved1 = self.registry.resolve(ISimulationCoordinator)
@@ -335,7 +347,9 @@ class TestSimulationCoordinator(unittest.TestCase):
         metrics = self.coordinator.get_performance_metrics()
 
         self.assertEqual(metrics["current_step_time"], 0.05)
-        self.assertAlmostEqual(metrics["average_step_time"], 0.05, places=2)  # (0.04 + 0.05 + 0.06) / 3
+        self.assertAlmostEqual(
+            metrics["average_step_time"], 0.05, places=2
+        )  # (0.04 + 0.05 + 0.06) / 3
         self.assertEqual(metrics["memory_usage"], 150.5)
         self.assertEqual(metrics["cpu_usage"], 45.2)
 
@@ -349,7 +363,9 @@ class TestSimulationCoordinator(unittest.TestCase):
         # Mock validation responses
         self.graph_manager.validate_graph_integrity.return_value = {"valid": True, "issues": []}
         self.neural_processor.validate_neural_integrity.return_value = {"valid": True, "issues": []}
-        self.energy_manager.validate_energy_conservation.return_value = {"energy_conservation_rate": 0.95}
+        self.energy_manager.validate_energy_conservation.return_value = {
+            "energy_conservation_rate": 0.95
+        }
 
         result = self.coordinator.validate_simulation_integrity()
 
@@ -370,33 +386,25 @@ class TestSimulationCoordinator(unittest.TestCase):
         self.assertFalse(result)
 
 
-class TestServiceIntegration:
+class TestServiceIntegration(unittest.TestCase):
     """Test cases for service integration and biological plausibility."""
 
     def test_energy_as_central_integrator(self):
         """Test that energy serves as the central integrator."""
         # This would test the complete integration where energy modulates
         # neural activity, learning, and all other processes
-        pass
+        # TODO: Implement test
 
     def test_biological_plausibility(self):
         """Test that the architecture maintains biological plausibility."""
         # This would validate that neural dynamics, energy flows, and
         # learning mechanisms follow biological principles
-        pass
+        # TODO: Implement test
 
     def test_performance_requirements(self):
-        """Test that performance requirements are met (<100ms steps)."""
+        """Test that performance requirements are met (less than 100ms steps)."""
         # This would benchmark the service orchestration performance
-        pass
-
-
+        # TODO: Implement test
 if __name__ == "__main__":
     # Run all tests using unittest framework
     unittest.main(verbosity=2)
-
-
-
-
-
-

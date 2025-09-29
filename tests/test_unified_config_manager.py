@@ -10,16 +10,22 @@ import unittest
 import tempfile
 import os
 import json
-import yaml
 import time
-from unittest.mock import Mock, patch, MagicMock
 import threading
-from pathlib import Path
+import yaml
 
 from config.unified_config_manager import (
-    UnifiedConfigManager, ConfigValidator, ConfigSchema, ConfigChange,
-    ConfigType, get_config_manager, get_config, set_config,
+    UnifiedConfigManager, ConfigValidator, ConfigSchema,
+    ConfigType, get_config_manager, set_config,
     get_system_constants, get_enhanced_nodes_config, get_learning_config
+)
+
+from config.consolidated_constants import (
+    UI_CONSTANTS, ERROR_MESSAGES, LOG_MESSAGES, FILE_PATHS,
+    NODE_PROPERTIES, CONNECTION_PROPERTIES, SYSTEM_STATES,
+    NODE_STATES, NODE_TYPES, CONNECTION_TYPES, PERFORMANCE_METRICS,
+    THRESHOLDS, DEFAULT_VALUES, PRINT_PATTERNS, EXCEPTION_TYPES,
+    FUNCTION_NAMES, CLASS_NAMES
 )
 
 
@@ -59,10 +65,9 @@ class TestConfigValidator(unittest.TestCase):
 
     def test_validate_boolean_success(self):
         """Test boolean validation."""
-        schema = ConfigSchema('test', ConfigType.BOOLEAN, True, 'Test bool')
-        self.assertTrue(self.validator.validate_boolean(True, schema))
-        self.assertTrue(self.validator.validate_boolean(False, schema))
-        self.assertFalse(self.validator.validate_boolean('true', schema))
+        self.assertTrue(ConfigValidator.validate_boolean(True))
+        self.assertTrue(ConfigValidator.validate_boolean(False))
+        self.assertFalse(ConfigValidator.validate_boolean('true'))
 
     def test_validate_list_success(self):
         """Test list validation."""
@@ -176,7 +181,10 @@ class TestUnifiedConfigManager(unittest.TestCase):
         """Test full validation."""
         schema = ConfigSchema('test.valid', ConfigType.INTEGER, 5, 'Test', min_value=0, max_value=10)
         self.manager.register_schema(schema)
-        out_of_range_schema = ConfigSchema('test.out_of_range', ConfigType.INTEGER, 5, 'Test', min_value=0, max_value=10)
+        out_of_range_schema = ConfigSchema(
+            'test.out_of_range', ConfigType.INTEGER, 5, 'Test',
+            min_value=0, max_value=10
+        )
         self.manager.register_schema(out_of_range_schema)
 
         self.manager.set('test.valid', 7)  # Valid
@@ -213,7 +221,7 @@ class TestUnifiedConfigManagerFileOperations(unittest.TestCase):
             self.assertTrue(self.manager.save_to_file(save_file, 'json'))
 
             # Verify saved file
-            with open(save_file, 'r') as f:
+            with open(save_file, 'r', encoding='utf-8') as f:
                 saved_data = json.load(f)
             self.assertEqual(saved_data['section']['new_key'], 'new_value')
 
@@ -397,7 +405,10 @@ class TestUnifiedConfigManagerErrorHandling(unittest.TestCase):
 
     def test_validation_errors(self):
         """Test various validation errors."""
-        schema = ConfigSchema('test.int', ConfigType.INTEGER, 5, 'Test int', min_value=0, max_value=10)
+        schema = ConfigSchema(
+            'test.int', ConfigType.INTEGER, 5, 'Test int',
+            min_value=0, max_value=10
+        )
         self.manager.register_schema(schema)
 
         # Test invalid type
@@ -411,7 +422,7 @@ class TestUnifiedConfigManagerErrorHandling(unittest.TestCase):
     def test_watcher_exceptions(self):
         """Test exception handling in watchers."""
         def failing_callback(key, old_val, new_val):
-            raise Exception("Watcher failed")
+            raise ValueError("Watcher failed")
 
         self.manager.watch('test.watch', failing_callback)
         # Should not raise exception when watcher fails
@@ -500,7 +511,8 @@ class TestUnifiedConfigManagerPerformance(unittest.TestCase):
         def concurrent_worker():
             for i in range(100):
                 self.manager.set(f'concurrent.key_{threading.current_thread().ident}_{i}', f'value_{i}')
-                self.manager.get(f'concurrent.key_{threading.current_thread().ident}_{i-1}' if i > 0 else 'nonexistent')
+                key = f'concurrent.key_{threading.current_thread().ident}_{i-1}' if i > 0 else 'nonexistent'
+                self.manager.get(key)
 
         threads = [threading.Thread(target=concurrent_worker) for _ in range(10)]
 
@@ -555,7 +567,7 @@ class TestUnifiedConfigManagerRealWorldUsage(unittest.TestCase):
         """Test dynamic configuration updates during runtime."""
         update_count = {'count': 0}
 
-        def update_callback(key, old_val, new_val):
+        def update_callback(_key, _old_val, _new_val):
             update_count['count'] += 1
 
         # Watch for changes
@@ -580,10 +592,9 @@ class TestUnifiedConfigManagerRealWorldUsage(unittest.TestCase):
 
         # Create new manager and import
         new_manager = UnifiedConfigManager()
-        import json
         imported_config = json.loads(json_export)
-        flat_config = new_manager._flatten_config(imported_config)
-        new_manager.config.update(flat_config)
+        for section, values in imported_config.items():
+            new_manager.set_section(section, values)
 
         self.assertEqual(new_manager.get('workflow.test1'), 'value1')
         self.assertEqual(new_manager.get('workflow.test2'), 42)
@@ -608,14 +619,6 @@ class TestConsolidatedConstants(unittest.TestCase):
 
     def test_constants_defined(self):
         """Test that all constant groups are defined."""
-        from config.consolidated_constants import (
-            UI_CONSTANTS, ERROR_MESSAGES, LOG_MESSAGES, FILE_PATHS,
-            NODE_PROPERTIES, CONNECTION_PROPERTIES, SYSTEM_STATES,
-            NODE_STATES, NODE_TYPES, CONNECTION_TYPES, PERFORMANCE_METRICS,
-            THRESHOLDS, DEFAULT_VALUES, PRINT_PATTERNS, EXCEPTION_TYPES,
-            FUNCTION_NAMES, CLASS_NAMES
-        )
-
         # Test that constants are dictionaries
         self.assertIsInstance(UI_CONSTANTS, dict)
         self.assertIsInstance(ERROR_MESSAGES, dict)
@@ -623,8 +626,6 @@ class TestConsolidatedConstants(unittest.TestCase):
 
     def test_key_accessibility(self):
         """Test that keys are accessible."""
-        from config.consolidated_constants import UI_CONSTANTS, DEFAULT_VALUES
-
         # Test UI constants
         self.assertIn('SIMULATION_STATUS_RUNNING', UI_CONSTANTS)
         self.assertEqual(UI_CONSTANTS['SIMULATION_STATUS_RUNNING'], 'Running')
@@ -635,14 +636,6 @@ class TestConsolidatedConstants(unittest.TestCase):
 
     def test_no_duplicates(self):
         """Test that there are no duplicate keys across constants."""
-        from config.consolidated_constants import (
-            UI_CONSTANTS, ERROR_MESSAGES, LOG_MESSAGES, FILE_PATHS,
-            NODE_PROPERTIES, CONNECTION_PROPERTIES, SYSTEM_STATES,
-            NODE_STATES, NODE_TYPES, CONNECTION_TYPES, PERFORMANCE_METRICS,
-            THRESHOLDS, DEFAULT_VALUES, PRINT_PATTERNS, EXCEPTION_TYPES,
-            FUNCTION_NAMES, CLASS_NAMES
-        )
-
         all_constants = [
             UI_CONSTANTS, ERROR_MESSAGES, LOG_MESSAGES, FILE_PATHS,
             NODE_PROPERTIES, CONNECTION_PROPERTIES, SYSTEM_STATES,
@@ -661,13 +654,6 @@ class TestConsolidatedConstants(unittest.TestCase):
         if duplicates:
             print(f"Duplicate keys: {duplicates}")
         self.assertEqual(len(all_keys), len(unique_keys), "Duplicate keys found in constants")
-
-
 if __name__ == '__main__':
     unittest.main()
-
-
-
-
-
 

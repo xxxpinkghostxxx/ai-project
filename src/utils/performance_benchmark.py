@@ -6,7 +6,7 @@ Provides comprehensive testing and profiling capabilities.
 import time
 import threading
 import logging
-from typing import Dict, List, Any, Optional, Callable
+from typing import Dict, List, Any, Callable
 from dataclasses import dataclass
 from datetime import datetime
 import psutil

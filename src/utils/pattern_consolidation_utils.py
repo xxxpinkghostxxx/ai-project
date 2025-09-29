@@ -2,20 +2,54 @@
 Pattern consolidation utilities to reduce code duplication.
 """
 
-from typing import Dict, Any, List, Optional, Tuple, Callable
-from config.consolidated_constants import (
-    UI_CONSTANTS, ERROR_MESSAGES, LOG_MESSAGES, NODE_PROPERTIES,
-    CONNECTION_PROPERTIES, SYSTEM_STATES, NODE_STATES, NODE_TYPES,
-    CONNECTION_TYPES, PERFORMANCE_METRICS, THRESHOLDS, DEFAULT_VALUES
-)
+from typing import Dict, Any
 
 
-def create_standard_node(node_id: int, node_type: str = 'dynamic', 
+def _get_constants():
+    """Lazy import of consolidated constants to avoid circular imports."""
+    from config.consolidated_constants import (
+        UI_CONSTANTS, ERROR_MESSAGES, LOG_MESSAGES, NODE_PROPERTIES,
+        CONNECTION_PROPERTIES, SYSTEM_STATES, NODE_STATES, NODE_TYPES,
+        CONNECTION_TYPES, PERFORMANCE_METRICS, THRESHOLDS, DEFAULT_VALUES
+    )
+    return {
+        'UI_CONSTANTS': UI_CONSTANTS,
+        'ERROR_MESSAGES': ERROR_MESSAGES,
+        'LOG_MESSAGES': LOG_MESSAGES,
+        'NODE_PROPERTIES': NODE_PROPERTIES,
+        'CONNECTION_PROPERTIES': CONNECTION_PROPERTIES,
+        'SYSTEM_STATES': SYSTEM_STATES,
+        'NODE_STATES': NODE_STATES,
+        'NODE_TYPES': NODE_TYPES,
+        'CONNECTION_TYPES': CONNECTION_TYPES,
+        'PERFORMANCE_METRICS': PERFORMANCE_METRICS,
+        'THRESHOLDS': THRESHOLDS,
+        'DEFAULT_VALUES': DEFAULT_VALUES
+    }
+
+
+# Cache for constants
+_constants_cache = None
+
+
+def _get_cached_constants():
+    """Get cached constants with lazy loading."""
+    global _constants_cache
+    if _constants_cache is None:
+        _constants_cache = _get_constants()
+    return _constants_cache
+
+
+def create_standard_node(node_id: int, node_type: str = 'dynamic',
                         subtype: str = 'standard', **kwargs) -> Dict[str, Any]:
     """
     Create a standard node with common properties.
     Replaces repeated node creation patterns.
     """
+    consts = _get_cached_constants()
+    NODE_PROPERTIES = consts['NODE_PROPERTIES']
+    NODE_STATES = consts['NODE_STATES']
+    DEFAULT_VALUES = consts['DEFAULT_VALUES']
     return {
         NODE_PROPERTIES['ID']: node_id,
         NODE_PROPERTIES['TYPE']: node_type,
@@ -54,6 +88,8 @@ def create_sensory_node(node_id: int, x: float, y: float, energy: float = 0.0, *
     Create a sensory node with spatial coordinates and energy.
     Replaces repeated sensory node creation patterns.
     """
+    consts = _get_cached_constants()
+    NODE_STATES = consts['NODE_STATES']
     return create_standard_node(
         node_id=node_id,
         node_type='sensory',
@@ -90,6 +126,9 @@ def create_standard_connection(source_id: int, target_id: int,
     Create a standard connection with common properties.
     Replaces repeated connection creation patterns.
     """
+    consts = _get_cached_constants()
+    CONNECTION_PROPERTIES = consts['CONNECTION_PROPERTIES']
+    DEFAULT_VALUES = consts['DEFAULT_VALUES']
     return {
         CONNECTION_PROPERTIES['SOURCE']: source_id,
         CONNECTION_PROPERTIES['TARGET']: target_id,
@@ -126,6 +165,8 @@ def create_standard_performance_metrics() -> Dict[str, Any]:
     Create standard performance metrics dictionary.
     Replaces repeated performance metrics initialization patterns.
     """
+    consts = _get_cached_constants()
+    PERFORMANCE_METRICS = consts['PERFORMANCE_METRICS']
     return {
         PERFORMANCE_METRICS['STEP_TIME']: 0.0,
         PERFORMANCE_METRICS['TOTAL_RUNTIME']: 0.0,
@@ -145,6 +186,8 @@ def create_standard_ui_elements() -> Dict[str, str]:
     Create standard UI element tags.
     Replaces repeated UI element creation patterns.
     """
+    consts = _get_cached_constants()
+    UI_CONSTANTS = consts['UI_CONSTANTS']
     return {
         'main_window': UI_CONSTANTS['MAIN_WINDOW_TAG'],
         'status_text': UI_CONSTANTS['STATUS_TEXT_TAG'],
@@ -206,30 +249,35 @@ def create_standard_validation_patterns() -> Dict[str, Callable]:
     Create standard validation patterns.
     Replaces repeated validation patterns.
     """
+    consts = _get_cached_constants()
+    DEFAULT_VALUES = consts['DEFAULT_VALUES']
+    NODE_TYPES = consts['NODE_TYPES']
+    CONNECTION_TYPES = consts['CONNECTION_TYPES']
+
     def validate_node_id(node_id: Any) -> bool:
         """Validate node ID with standard pattern."""
         return isinstance(node_id, int) and node_id >= 0
-    
+
     def validate_energy_value(energy: Any) -> bool:
         """Validate energy value with standard pattern."""
         return isinstance(energy, (int, float)) and 0 <= energy <= DEFAULT_VALUES['ENERGY_CAP']
-    
+
     def validate_threshold_value(threshold: Any) -> bool:
         """Validate threshold value with standard pattern."""
         return isinstance(threshold, (int, float)) and 0 <= threshold <= 1.0
-    
+
     def validate_weight_value(weight: Any) -> bool:
         """Validate weight value with standard pattern."""
         return isinstance(weight, (int, float)) and 0 <= weight <= 5.0
-    
+
     def validate_node_type(node_type: Any) -> bool:
         """Validate node type with standard pattern."""
         return isinstance(node_type, str) and node_type in NODE_TYPES.values()
-    
+
     def validate_connection_type(connection_type: Any) -> bool:
         """Validate connection type with standard pattern."""
         return isinstance(connection_type, str) and connection_type in CONNECTION_TYPES.values()
-    
+
     return {
         'node_id': validate_node_id,
         'energy': validate_energy_value,

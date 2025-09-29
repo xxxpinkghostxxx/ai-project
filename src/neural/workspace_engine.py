@@ -1,6 +1,6 @@
 
 import numpy as np
-from typing import Dict, Any, List, Optional, Tuple, Callable
+from typing import Dict, Any
 
 
 from torch_geometric.data import Data
@@ -75,6 +75,7 @@ class WorkspaceEngine:
             node['last_update'] = step
         except Exception as e:
             log_step("Error updating workspace node", error=str(e))
+        return None
 
     def _update_workspace_statistics(self, graph: Data):
         try:

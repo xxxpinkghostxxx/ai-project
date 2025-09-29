@@ -7,9 +7,9 @@ try:
     HAS_MSS = True
 except ImportError:
     HAS_MSS = False
-from PIL import ImageGrab
+from PIL import Image, ImageGrab  # pylint: disable=no-member
 try:
-    import cv2
+    import cv2  # pylint: disable=no-member
     HAS_CV2 = True
 except ImportError:
     HAS_CV2 = False
@@ -56,11 +56,11 @@ def capture_screen(scale=1.0):
         new_w, new_h = int(w * scale), int(h * scale)
         try:
             if HAS_CV2:
-                img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+                img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)  # pylint: disable=no-member
                 log_step("capture_screen: resized with cv2", new_shape=img.shape)
             else:
-                pil_img = ImageGrab.Image.fromarray(img)
-                pil_img = pil_img.resize((new_w, new_h), ImageGrab.Image.LANCZOS)
+                pil_img = Image.fromarray(img)
+                pil_img = pil_img.resize((new_w, new_h), Image.Resampling.LANCZOS)  # pylint: disable=no-member
                 img = np.array(pil_img)
                 log_step("capture_screen: resized with PIL", new_shape=img.shape)
         except Exception as e:

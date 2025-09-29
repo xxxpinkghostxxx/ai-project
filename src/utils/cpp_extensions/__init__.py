@@ -21,14 +21,7 @@ except ImportError:
         from .synaptic_calculator import SynapticCalculator, create_synaptic_calculator
     except ImportError as e:
         raise ImportError(
-            f"No synaptic_calculator implementation available. "
-            f"Please ensure the module is properly installed. Error: {e}"
-        )
-
-__all__ = ['SynapticCalculator', 'create_synaptic_calculator']
-
-
-
-
-
-
+            "No synaptic_calculator implementation available. "
+            "Please ensure the module is properly installed. "
+            f"Error: {e}"
+        ) from e

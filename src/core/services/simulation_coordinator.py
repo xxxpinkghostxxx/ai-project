@@ -294,6 +294,18 @@ class SimulationCoordinator(ISimulationCoordinator):
         """Get the current neural graph with all node and connection data."""
         return self._neural_graph
 
+    @property
+    def graph(self) -> Optional[Data]:
+        """Get the current neural graph (backward compatibility property)."""
+        return self._neural_graph
+
+    def get_access_layer(self):
+        """Get the node access layer instance for the current neural graph."""
+        if self._neural_graph is None:
+            return None
+        from src.energy.node_access_layer import NodeAccessLayer
+        return NodeAccessLayer(self._neural_graph)
+
     def update_configuration(self, config_updates: Dict[str, Any]) -> bool:
         """Update simulation configuration parameters dynamically."""
         try:
@@ -429,6 +441,38 @@ class SimulationCoordinator(ISimulationCoordinator):
         except Exception as e:
             print(f"Failed to load neural map from slot {slot}: {e}")
             return False
+
+    def run_single_step(self) -> bool:
+        """
+        Execute a single simulation step, incrementing the step count.
+
+        This method provides a convenient way to run one simulation step,
+        automatically managing the step counter.
+
+        Returns:
+            bool: True if the step executed successfully, False otherwise
+        """
+        self._simulation_state.step_count += 1
+        return self.execute_simulation_step(self._simulation_state.step_count)
+
+    def cleanup(self):
+        """
+        Clean up simulation resources and reset state.
+
+        This method stops the simulation if running and performs cleanup operations
+        to free resources and reset the coordinator to a clean state.
+        """
+        try:
+            if self._simulation_state.is_running:
+                self.stop_simulation()
+            # Reset to clean state
+            self.reset_simulation()
+            # Clear any cached data
+            self._neural_graph = None
+            self._step_times.clear()
+            self._last_step_start_time = 0.0
+        except Exception as e:
+            print(f"Cleanup failed: {e}")
 
 
 

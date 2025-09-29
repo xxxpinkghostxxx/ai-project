@@ -128,7 +128,7 @@ class TestNeuralEdgeCases:
         }]
 
         # Should handle zero capacity
-        result = engine._update_workspace_node(graph, 0, 1)
+        engine._update_workspace_node(graph, 0, 1)
         # Should not crash
 
     def test_persistence_corrupted_data(self):
@@ -381,7 +381,7 @@ class TestNeuralEdgeCases:
         }]
 
         # Should handle extreme values
-        result = engine._update_workspace_node(graph, 0, 1)
+        engine._update_workspace_node(graph, 0, 1)
         # Should not crash
 
     def test_persistence_path_traversal_attempt(self):

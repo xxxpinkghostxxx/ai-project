@@ -423,9 +423,9 @@ class TestUIIntegration(unittest.TestCase):
 
     def test_ui_event_driven_updates(self):
         """Test event-driven UI updates."""
-        from src.utils.event_bus import get_event_bus
+        from src.utils.event_bus import get_event_bus, EventBus
 
-        event_bus = get_event_bus()
+        event_bus: EventBus = get_event_bus()
 
         # Subscribe to events (as done in ui_engine)
         update_calls = []

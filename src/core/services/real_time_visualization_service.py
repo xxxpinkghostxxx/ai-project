@@ -10,9 +10,8 @@ import time
 import json
 import base64
 import threading
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional
 from collections import defaultdict, deque
-from datetime import datetime
 
 from ..interfaces.real_time_visualization import (
     IRealTimeVisualization, VisualizationData, VisualizationLayer, CameraController
@@ -214,7 +213,7 @@ class RealTimeVisualizationService(IRealTimeVisualization):
 
             return True
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             print(f"Error initializing visualization: {e}")
             return False
 
@@ -251,7 +250,7 @@ class RealTimeVisualizationService(IRealTimeVisualization):
 
             return layer_id
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             print(f"Error creating visualization layer: {e}")
             return ""
 
@@ -277,7 +276,7 @@ class RealTimeVisualizationService(IRealTimeVisualization):
 
             return True
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             print(f"Error updating visualization data: {e}")
             return False
 
@@ -308,7 +307,7 @@ class RealTimeVisualizationService(IRealTimeVisualization):
 
             return frame_data
 
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError, RuntimeError) as e:
             print(f"Error rendering frame: {e}")
             return {"error": str(e)}
 
@@ -351,7 +350,7 @@ class RealTimeVisualizationService(IRealTimeVisualization):
             else:
                 return b"Unsupported format"
 
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError, RuntimeError) as e:
             print(f"Error creating visualization snapshot: {e}")
             return f"Error: {str(e)}".encode('utf-8')
 
@@ -369,7 +368,7 @@ class RealTimeVisualizationService(IRealTimeVisualization):
             self.rendering_engine.update_camera(camera_command)
             return True
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             print(f"Error controlling camera: {e}")
             return False
 
@@ -398,7 +397,7 @@ class RealTimeVisualizationService(IRealTimeVisualization):
 
             return effect_id
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             print(f"Error adding visualization effect: {e}")
             return ""
 
@@ -429,7 +428,7 @@ class RealTimeVisualizationService(IRealTimeVisualization):
 
             return sequence_id
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             print(f"Error creating animation sequence: {e}")
             return ""
 
@@ -456,7 +455,7 @@ class RealTimeVisualizationService(IRealTimeVisualization):
 
             return metrics
 
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError, RuntimeError) as e:
             print(f"Error getting visualization metrics: {e}")
             return {"error": str(e)}
 
@@ -515,7 +514,7 @@ class RealTimeVisualizationService(IRealTimeVisualization):
 
             return True
 
-        except Exception as e:
+        except (ValueError, TypeError, IOError, OSError, KeyError) as e:
             print(f"Error exporting visualization data: {e}")
             return False
 
@@ -541,14 +540,14 @@ class RealTimeVisualizationService(IRealTimeVisualization):
                 # Sleep to maintain CPU efficiency
                 time.sleep(0.001)  # 1ms sleep
 
-            except Exception as e:
+            except (ValueError, TypeError, AttributeError, RuntimeError) as e:
                 print(f"Error in rendering loop: {e}")
                 time.sleep(0.1)  # Sleep longer on error
 
     def _update_animations(self, current_time: float):
         """Update active animations."""
         try:
-            for anim_id, animation in list(self.rendering_engine.animations.items()):
+            for _, animation in list(self.rendering_engine.animations.items()):
                 if not animation["enabled"]:
                     continue
 
@@ -559,7 +558,7 @@ class RealTimeVisualizationService(IRealTimeVisualization):
                     # Animation complete
                     animation["enabled"] = False
 
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError, RuntimeError) as e:
             print(f"Error updating animations: {e}")
 
     def cleanup(self) -> None:

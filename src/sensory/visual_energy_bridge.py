@@ -1,6 +1,6 @@
 
 import numpy as np
-from typing import Dict, Any, List, Optional, Tuple, Callable
+from typing import Dict, Any, List
 
 
 
@@ -8,7 +8,7 @@ from torch_geometric.data import Data
 
 from src.utils.logging_utils import log_step
 
-import cv2
+import cv2  # pylint: disable=no-member
 import threading
 import time
 from src.utils.event_bus import get_event_bus
@@ -81,7 +81,7 @@ class VisualEnergyBridge:
                 features['edge_variance'] = np.var(edge_magnitude)
             motion_magnitude = 0.0
             if self.prev_frame is not None:
-                diff = cv2.absdiff(screen_data, self.prev_frame)
+                diff = cv2.absdiff(screen_data, self.prev_frame)  # pylint: disable=no-member
                 motion_magnitude = np.mean(diff)
                 features['motion_magnitude'] = motion_magnitude
                 features['motion_variance'] = np.var(diff)
@@ -343,7 +343,7 @@ class VisualEnergyBridge:
         if self.running:
             return
         try:
-            self.capture = cv2.VideoCapture(0)
+            self.capture = cv2.VideoCapture(0)  # pylint: disable=no-member
             if not self.capture.isOpened():
                 raise Exception("Cannot open webcam")
             self.running = True
@@ -378,12 +378,12 @@ class VisualEnergyBridge:
 
     def _compute_visual_energy(self, frame):
         try:
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            edges = cv2.Canny(gray, 50, 150)
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)  # pylint: disable=no-member
+            edges = cv2.Canny(gray, 50, 150)  # pylint: disable=no-member
             edge_energy = np.mean(edges) / 255.0
             if self.prev_frame is not None:
-                prev_gray = cv2.cvtColor(self.prev_frame, cv2.COLOR_BGR2GRAY)
-                motion = cv2.absdiff(gray, prev_gray)
+                prev_gray = cv2.cvtColor(self.prev_frame, cv2.COLOR_BGR2GRAY)  # pylint: disable=no-member
+                motion = cv2.absdiff(gray, prev_gray)  # pylint: disable=no-member
                 motion_energy = np.mean(motion) / 255.0
             else:
                 motion_energy = 0.0

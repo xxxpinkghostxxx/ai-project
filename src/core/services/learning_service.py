@@ -86,7 +86,7 @@ class LearningService(ILearningEngine):
 
             return True
 
-        except Exception as e:
+        except (AttributeError, ValueError, TypeError) as e:
             print(f"Failed to initialize learning state: {e}")
             return False
 
@@ -125,7 +125,7 @@ class LearningService(ILearningEngine):
 
             return graph
 
-        except Exception as e:
+        except (AttributeError, ValueError, TypeError, KeyError) as e:
             print(f"Error modulating learning by energy: {e}")
             return graph
 
@@ -153,7 +153,7 @@ class LearningService(ILearningEngine):
             node_energies = energy_state.node_energies if hasattr(energy_state, 'node_energies') else {}
 
             # Process STDP for each edge
-            for edge_idx, edge in enumerate(graph.edge_attributes):
+            for _, edge in enumerate(graph.edge_attributes):
                 if edge is None:
                     continue
 
@@ -193,13 +193,14 @@ class LearningService(ILearningEngine):
 
                     # Create plasticity event
                     plasticity_event = PlasticityEvent(
-                        source_neuron=source_id,
-                        target_neuron=target_id,
+                        source_id=source_id,
+                        target_id=target_id,
                         weight_change=actual_change,
-                        plasticity_type="stdp",
-                        timestamp=time.time(),
-                        energy_factor=energy_factor
+                        event_type="stdp"
                     )
+                    plasticity_event.timestamp = time.time()
+                    plasticity_event.energy_factor = energy_factor
+                    plasticity_event.energy_modulated = energy_factor > 0.0
                     plasticity_events.append(plasticity_event)
 
                     # Publish event
@@ -217,7 +218,7 @@ class LearningService(ILearningEngine):
 
             return graph, plasticity_events
 
-        except Exception as e:
+        except (AttributeError, ValueError, TypeError, KeyError, RuntimeError) as e:
             print(f"Error applying STDP learning: {e}")
             return graph, plasticity_events
 
@@ -241,7 +242,7 @@ class LearningService(ILearningEngine):
             energy_state = self.energy_manager.get_energy_state()
             node_energies = energy_state.node_energies if hasattr(energy_state, 'node_energies') else {}
 
-            for edge_idx, edge in enumerate(graph.edge_attributes):
+            for _, edge in enumerate(graph.edge_attributes):
                 if edge is None:
                     continue
 
@@ -263,24 +264,24 @@ class LearningService(ILearningEngine):
 
                     weight_change = new_weight - edge.weight
                     edge.weight = new_weight
-
                     # Decay eligibility trace
                     self._eligibility_traces[edge_key] *= 0.5
 
                     # Create consolidation event
                     consolidation_event = PlasticityEvent(
-                        source_neuron=source_id,
-                        target_neuron=target_id,
+                        source_id=source_id,
+                        target_id=target_id,
                         weight_change=weight_change,
-                        plasticity_type="consolidation",
-                        timestamp=time.time(),
-                        energy_factor=energy_factor
+                        event_type="consolidation"
                     )
+                    consolidation_event.timestamp = time.time()
+                    consolidation_event.energy_factor = energy_factor
+                    consolidation_event.energy_modulated = energy_factor > 0.0
                     consolidation_events.append(consolidation_event)
 
             return graph, consolidation_events
 
-        except Exception as e:
+        except (AttributeError, ValueError, TypeError, KeyError, RuntimeError) as e:
             print(f"Error consolidating memories: {e}")
             return graph, consolidation_events
 
@@ -297,7 +298,7 @@ class LearningService(ILearningEngine):
             self._eligibility_traces.clear()
             self._learning_state = LearningState()
             return True
-        except Exception as e:
+        except (AttributeError, ValueError, TypeError) as e:
             print(f"Error resetting learning state: {e}")
             return False
 
@@ -417,7 +418,7 @@ class LearningService(ILearningEngine):
             node_energies = energy_state.node_energies if hasattr(energy_state, 'node_energies') else {}
 
             # Apply Hebbian learning based on correlations
-            for edge_idx, edge in enumerate(graph.edge_attributes):
+            for _, edge in enumerate(graph.edge_attributes):
                 if edge is None:
                     continue
 
@@ -443,13 +444,14 @@ class LearningService(ILearningEngine):
 
                     # Create plasticity event
                     plasticity_event = PlasticityEvent(
-                        source_neuron=source_id,
-                        target_neuron=target_id,
+                        source_id=source_id,
+                        target_id=target_id,
                         weight_change=weight_change,
-                        plasticity_type="hebbian",
-                        timestamp=time.time(),
-                        energy_factor=energy_factor
+                        event_type="hebbian"
                     )
+                    plasticity_event.timestamp = time.time()
+                    plasticity_event.energy_factor = energy_factor
+                    plasticity_event.energy_modulated = energy_factor > 0.0
                     plasticity_events.append(plasticity_event)
 
             # Update learning state
@@ -458,7 +460,7 @@ class LearningService(ILearningEngine):
 
             return graph, plasticity_events
 
-        except Exception as e:
+        except (AttributeError, ValueError, TypeError, KeyError, RuntimeError) as e:
             print(f"Error applying Hebbian learning: {e}")
             return graph, plasticity_events
 
@@ -495,7 +497,7 @@ class LearningService(ILearningEngine):
 
             return graph
 
-        except Exception as e:
+        except (AttributeError, ValueError, TypeError, RuntimeError) as e:
             print(f"Error applying homeostatic scaling: {e}")
             return graph
 
@@ -540,7 +542,7 @@ class LearningService(ILearningEngine):
 
             return graph, structural_changes
 
-        except Exception as e:
+        except (AttributeError, ValueError, TypeError, RuntimeError) as e:
             print(f"Error applying structural plasticity: {e}")
             return graph, structural_changes
 
@@ -570,7 +572,7 @@ class LearningService(ILearningEngine):
                     self._energy_learning_modulation = bool(value)
 
             return True
-        except Exception as e:
+        except (ValueError, TypeError, KeyError) as e:
             print(f"Error configuring learning parameters: {e}")
             return False
 
@@ -621,7 +623,7 @@ class LearningService(ILearningEngine):
 
             return graph
 
-        except Exception as e:
+        except (AttributeError, ValueError, TypeError, KeyError) as e:
             print(f"Error updating eligibility traces: {e}")
             return graph
 

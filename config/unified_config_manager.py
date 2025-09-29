@@ -14,8 +14,20 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from collections import defaultdict
-from src.utils.print_utils import print_info, print_warning, print_error
 from src.utils.logging_utils import log_step
+
+
+def _get_print_utils():
+    """Lazy import of print utilities to avoid circular imports."""
+    from src.utils.print_utils import print_info, print_warning, print_error
+    return print_info, print_warning, print_error
+
+
+def _get_cached_print_utils():
+    """Get cached print utilities with lazy loading."""
+    if not hasattr(_get_cached_print_utils, 'cache'):
+        _get_cached_print_utils.cache = _get_print_utils()
+    return _get_cached_print_utils.cache
 
 
 class ConfigType(Enum):
@@ -95,7 +107,7 @@ class ConfigValidator:
             return False
     
     @staticmethod
-    def validate_boolean(value: Any, schema: ConfigSchema) -> bool:
+    def validate_boolean(value: Any) -> bool:
         """Validate boolean value."""
         return isinstance(value, bool)
     
@@ -130,7 +142,7 @@ class ConfigValidator:
         elif schema.config_type == ConfigType.FLOAT:
             return cls.validate_float(value, schema)
         elif schema.config_type == ConfigType.BOOLEAN:
-            return cls.validate_boolean(value, schema)
+            return cls.validate_boolean(value)
         elif schema.config_type == ConfigType.LIST:
             return cls.validate_list(value, schema)
         elif schema.config_type == ConfigType.DICT:
@@ -341,27 +353,29 @@ class UnifiedConfigManager:
     
     def _notify_watchers(self, key: str, old_value: Any, new_value: Any):
         """Notify watchers of configuration changes."""
+        _, _, print_error = _get_cached_print_utils()
         for callback in self.watchers[key]:
             try:
                 callback(key, old_value, new_value)
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 print_error(f"Config watcher callback failed: {e}")
     
     def load_from_file(self, file_path: str) -> bool:
         """Load configuration from file."""
+        _, print_warning, print_error = _get_cached_print_utils()
         try:
             file_path = Path(file_path)
             if not file_path.exists():
                 print_warning(f"Config file not found: {file_path}")
                 return False
-            
+
             if file_path.suffix.lower() == '.json':
-                with open(file_path, 'r') as f:
+                with open(file_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     flat_data = self._flatten_config(data)
                     self.config.update(flat_data)
             elif file_path.suffix.lower() in ['.yml', '.yaml']:
-                with open(file_path, 'r') as f:
+                with open(file_path, 'r', encoding='utf-8') as f:
                     data = yaml.safe_load(f)
                     flat_data = self._flatten_config(data)
                     self.config.update(flat_data)
@@ -374,11 +388,11 @@ class UnifiedConfigManager:
 
             # Validate and reset any invalid loaded values
             self._validate_and_reset()
-            
+
             log_step(f"Configuration loaded from {file_path}")
             return True
-            
-        except Exception as e:
+
+        except Exception as e:  # pylint: disable=broad-exception-caught
             print_error(f"Failed to load config from {file_path}: {e}")
             return False
     
@@ -399,27 +413,28 @@ class UnifiedConfigManager:
                     else:
                         self.config[full_key] = value
     
-    def save_to_file(self, file_path: str, format: str = "json") -> bool:
+    def save_to_file(self, file_path: str, fmt: str = "json") -> bool:
         """Save configuration to file."""
+        _, _, print_error = _get_cached_print_utils()
         try:
             file_path = Path(file_path)
 
-            if format.lower() == 'json':
-                with open(file_path, 'w') as f:
+            if fmt.lower() == 'json':
+                with open(file_path, 'w', encoding='utf-8') as f:
                     json.dump(self._unflatten_config(self.config), f, indent=2)
-            elif format.lower() in ['yml', 'yaml']:
-                with open(file_path, 'w') as f:
+            elif fmt.lower() in ['yml', 'yaml']:
+                with open(file_path, 'w', encoding='utf-8') as f:
                     yaml.dump(self._unflatten_config(self.config), f, default_flow_style=False)
-            elif format.lower() == 'ini':
+            elif fmt.lower() == 'ini':
                 self._save_ini_config(file_path)
             else:
-                print_error(f"Unsupported save format: {format}")
+                print_error(f"Unsupported save format: {fmt}")
                 return False
 
             log_step(f"Configuration saved to {file_path}")
             return True
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             print_error(f"Failed to save config to {file_path}: {e}")
             return False
     
@@ -433,7 +448,7 @@ class UnifiedConfigManager:
             else:
                 sections['General'][key] = str(value)
         
-        with open(file_path, 'w') as f:
+        with open(file_path, 'w', encoding='utf-8') as f:
             for section, options in sections.items():
                 f.write(f"[{section}]\n")
                 for option, value in options.items():
@@ -474,6 +489,7 @@ class UnifiedConfigManager:
 
     def _validate_and_reset(self):
         """Validate loaded config and reset invalid values to defaults."""
+        _, print_warning, _ = _get_cached_print_utils()
         errors = self.validate_all()
         for key, error_msgs in errors.items():
             if key in self.schemas:
@@ -492,14 +508,14 @@ class UnifiedConfigManager:
                 return [k for k in self.config.keys() if k.startswith(f"{section}.")]
             return list(self.config.keys())
     
-    def export_config(self, format: str = "json") -> str:
+    def export_config(self, fmt: str = "json") -> str:
         """Export configuration as string."""
-        if format.lower() == 'json':
+        if fmt.lower() == 'json':
             return json.dumps(self._unflatten_config(self.config), indent=2)
-        elif format.lower() in ['yml', 'yaml']:
+        elif fmt.lower() in ['yml', 'yaml']:
             return yaml.dump(self._unflatten_config(self.config), default_flow_style=False)
         else:
-            raise ValueError(f"Unsupported export format: {format}")
+            raise ValueError(f"Unsupported export format: {fmt}")
     
     # Backward compatibility methods
     def get_float(self, section: str, key: str, default: float = 0.0) -> float:
@@ -551,16 +567,11 @@ class UnifiedConfigManager:
             self.load_from_file(self.config_file)
 
 
-# Global configuration manager instance
-_config_manager = None
-
-
 def get_config_manager() -> UnifiedConfigManager:
     """Get the global configuration manager."""
-    global _config_manager
-    if _config_manager is None:
-        _config_manager = UnifiedConfigManager()
-    return _config_manager
+    if not hasattr(get_config_manager, 'instance'):
+        get_config_manager.instance = UnifiedConfigManager()
+    return get_config_manager.instance
 
 
 # Convenience functions for backward compatibility

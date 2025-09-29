@@ -5,7 +5,7 @@ Applies all optimizations to critical paths and provides configuration managemen
 
 import logging
 import time
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 from dataclasses import dataclass
 
 @dataclass
@@ -197,7 +197,7 @@ class OptimizationApplier:
     def _setup_performance_monitoring(self):
         """Setup comprehensive performance monitoring."""
         try:
-            from src.utils.unified_performance_system import initialize_performance_monitoring
+            from .unified_performance_system import initialize_performance_monitoring
 
             monitor = initialize_performance_monitoring(update_interval=1.0)
             self.applied_optimizations.append('performance_monitoring')

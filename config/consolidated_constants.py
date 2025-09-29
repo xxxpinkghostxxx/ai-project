@@ -198,42 +198,49 @@ def load_constants_from_config():
         # Load energy cap
         energy_cap = config_manager.get('SystemConstants.node_energy_cap', 5.0)
         DEFAULT_VALUES['ENERGY_CAP'] = energy_cap
-        logger.info(f"Loaded ENERGY_CAP from config: {energy_cap}")
+        logger.info("Loaded ENERGY_CAP from config: %s", energy_cap)
 
         # Load other constants if they exist in config
         threshold = config_manager.get('SystemConstants.threshold_default', 0.5)
         DEFAULT_VALUES['THRESHOLD_DEFAULT'] = threshold
-        logger.info(f"Loaded THRESHOLD_DEFAULT from config: {threshold}")
+        logger.info("Loaded THRESHOLD_DEFAULT from config: %s", threshold)
 
         learning_rate = config_manager.get('Learning.plasticity_rate', 0.01)
         DEFAULT_VALUES['LEARNING_RATE'] = learning_rate
-        logger.info(f"Loaded LEARNING_RATE from config: {learning_rate}")
+        logger.info("Loaded LEARNING_RATE from config: %s", learning_rate)
 
         refractory = config_manager.get('SystemConstants.refractory_period', 0.1)
         DEFAULT_VALUES['REFRACTORY_PERIOD'] = refractory
-        logger.info(f"Loaded REFRACTORY_PERIOD from config: {refractory}")
+        logger.info("Loaded REFRACTORY_PERIOD from config: %s", refractory)
 
         integration = config_manager.get('EnhancedNodes.integrator_threshold', 0.5)
         DEFAULT_VALUES['INTEGRATION_RATE'] = integration
-        logger.info(f"Loaded INTEGRATION_RATE from config: {integration}")
+        logger.info("Loaded INTEGRATION_RATE from config: %s", integration)
 
         relay_amp = config_manager.get('EnhancedNodes.relay_amplification', 1.5)
         DEFAULT_VALUES['RELAY_AMPLIFICATION'] = relay_amp
-        logger.info(f"Loaded RELAY_AMPLIFICATION from config: {relay_amp}")
+        logger.info("Loaded RELAY_AMPLIFICATION from config: %s", relay_amp)
 
         highway_boost = config_manager.get('EnhancedNodes.highway_energy_boost', 2.0)
         DEFAULT_VALUES['HIGHWAY_ENERGY_BOOST'] = highway_boost
-        logger.info(f"Loaded HIGHWAY_ENERGY_BOOST from config: {highway_boost}")
+        logger.info("Loaded HIGHWAY_ENERGY_BOOST from config: %s", highway_boost)
 
         logger.info("Constants loaded successfully from config")
 
-    except Exception as e:
-        logger.error(f"Failed to load constants from config: {e}")
+    except ImportError as e:
+        # Circular import - will load later when needed
+        logger.debug("Deferred loading constants due to circular import: %s", e)
+    except (KeyError, ValueError, TypeError) as e:
+        logger.error("Failed to load constants from config: %s", e)
         logger.info("Using default hardcoded values")
 
 
-# Load constants on import
-load_constants_from_config()
+# Load constants on import (lazy to avoid circular imports)
+try:
+    load_constants_from_config()
+except ImportError:
+    # If there's a circular import, constants will be loaded when first accessed
+    pass
 
 # Common Print Patterns
 PRINT_PATTERNS = {

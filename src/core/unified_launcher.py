@@ -5,16 +5,27 @@ This module provides the main entry point for launching the neural simulation sy
 with different profiles and configurations. It handles service registration, dependency
 injection, and system initialization.
 """
-
 import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+# Standard library imports
 from typing import Dict, Any
-
 import logging
 import traceback
 
+# Third-party imports
+try:
+    import torch
+except ImportError:
+    torch = None
+
+try:
+    import psutil
+except ImportError:
+    psutil = None
+
+# Local imports
 from src.utils.print_utils import print_info, print_success, print_error, print_warning
 from src.core.services.service_registry import ServiceRegistry
 from src.core.interfaces.service_registry import IServiceRegistry
@@ -54,6 +65,12 @@ from src.core.interfaces.load_balancer import ILoadBalancer
 from src.core.interfaces.ml_optimizer import IMLOptimizer
 from src.core.interfaces.neural_processor import INeuralProcessor
 from src.core.interfaces.performance_monitor import IPerformanceMonitor
+from src.core.interfaces.real_time_analytics import IRealTimeAnalytics
+from src.core.interfaces.real_time_visualization import IRealTimeVisualization
+from src.core.interfaces.sensory_processor import ISensoryProcessor
+from src.core.interfaces.simulation_coordinator import ISimulationCoordinator
+
+
 from src.core.interfaces.real_time_analytics import IRealTimeAnalytics
 from src.core.interfaces.real_time_visualization import IRealTimeVisualization
 from src.core.interfaces.sensory_processor import ISensoryProcessor

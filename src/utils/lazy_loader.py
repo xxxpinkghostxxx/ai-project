@@ -209,7 +209,7 @@ def lazy_component(component_name: str, priority: int = 0, dependencies: list = 
 def create_lazy_simulation_coordinator():
     """Lazy factory for simulation coordinator."""
     from src.core.services.simulation_coordinator import SimulationCoordinator
-    return SimulationCoordinator()
+    return SimulationCoordinator(None, None, None, None, None, None, None, None, None)
 
 def create_lazy_ui_engine():
     """Lazy factory for UI engine."""

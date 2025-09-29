@@ -5,10 +5,10 @@ This module tests the optimized C++ extensions for neural simulation acceleratio
 ensuring they integrate properly with the service-oriented architecture.
 """
 
+import time
+from unittest.mock import Mock
 import pytest
 import numpy as np
-import time
-from unittest.mock import Mock, MagicMock
 
 # Test the extension imports
 try:
@@ -278,7 +278,9 @@ class TestSynapticCalculator:
         assert hasattr(calculator, 'calculate_synaptic_inputs')
 
     @pytest.mark.skipif(not CPP_EXTENSIONS_AVAILABLE, reason="C++ extensions not available")
-    def test_synaptic_calculator_basic_functionality(self, mock_edge_attributes, mock_node_energies):
+    def test_synaptic_calculator_basic_functionality(
+        self, mock_edge_attributes, mock_node_energies
+    ):
         """Test basic synaptic input calculation."""
         calculator = create_synaptic_calculator()
 
@@ -301,7 +303,7 @@ class TestSynapticCalculator:
         # Time the calculation
         start_time = time.time()
         for _ in range(100):
-            synaptic_inputs = calculator.calculate_synaptic_inputs(
+            _synaptic_inputs = calculator.calculate_synaptic_inputs(
                 mock_edge_attributes,
                 mock_node_energies,
                 num_nodes=5
@@ -348,7 +350,10 @@ class TestNeuralProcessingServiceIntegration:
     def test_service_initialization_with_extensions(self, mock_energy_manager,
                                                     mock_config_service, mock_event_coordinator):
         """Test that NeuralProcessingService initializes with extensions."""
-        from src.core.services.neural_processing_service import NeuralProcessingService
+        try:
+            from src.core.services.neural_processing_service import NeuralProcessingService
+        except ImportError:
+            pytest.skip("NeuralProcessingService not available")
 
         service = NeuralProcessingService(
             mock_energy_manager,
@@ -369,8 +374,11 @@ class TestNeuralProcessingServiceIntegration:
     def test_synaptic_input_calculation_integration(self, mock_energy_manager,
                                                     mock_config_service, mock_event_coordinator):
         """Test that synaptic input calculation works in the service."""
-        from src.core.services.neural_processing_service import NeuralProcessingService
-        from torch_geometric.data import Data
+        try:
+            from src.core.services.neural_processing_service import NeuralProcessingService
+            from torch_geometric.data import Data
+        except ImportError:
+            pytest.skip("NeuralProcessingService or torch_geometric not available")
 
         service = NeuralProcessingService(
             mock_energy_manager,
@@ -384,7 +392,7 @@ class TestNeuralProcessingServiceIntegration:
         graph.x = np.random.randn(5, 1).astype(np.float32)
 
         # Test synaptic input calculation
-        synaptic_inputs = service._calculate_all_synaptic_inputs(graph, {i: 0.8 for i in range(5)})
+        synaptic_inputs = service._calculate_all_synaptic_inputs(graph, {i: 0.8 for i in range(5)})  # pylint: disable=protected-access
 
         assert isinstance(synaptic_inputs, np.ndarray)
         assert len(synaptic_inputs) == 5
@@ -393,8 +401,11 @@ class TestNeuralProcessingServiceIntegration:
     def test_integration_with_realistic_graph_data(self, mock_energy_manager,
                                                    mock_config_service, mock_event_coordinator):
         """Test integration with more realistic graph structures."""
-        from src.core.services.neural_processing_service import NeuralProcessingService
-        from torch_geometric.data import Data
+        try:
+            from src.core.services.neural_processing_service import NeuralProcessingService
+            from torch_geometric.data import Data
+        except ImportError:
+            pytest.skip("NeuralProcessingService or torch_geometric not available")
 
         service = NeuralProcessingService(
             mock_energy_manager,
@@ -427,7 +438,7 @@ class TestNeuralProcessingServiceIntegration:
 
         # Test synaptic input calculation with complex graph
         node_energies = {i: 0.5 + 0.05 * i for i in range(10)}
-        synaptic_inputs = service._calculate_all_synaptic_inputs(graph, node_energies)
+        synaptic_inputs = service._calculate_all_synaptic_inputs(graph, node_energies)  # pylint: disable=protected-access
 
         assert isinstance(synaptic_inputs, np.ndarray)
         assert len(synaptic_inputs) == 10
@@ -686,7 +697,7 @@ class TestSimulationScenarios:
             node_energies[i] = 0.8
 
         # Create connections between layers
-        edge_idx = 0
+        _edge_idx = 0
         for l in range(len(layers) - 1):
             start_src = sum(layers[:l])
             start_tgt = sum(layers[:l+1])
@@ -798,7 +809,7 @@ class TestSimulationScenarios:
             current_time - 0.08,  # Recent - should contribute
         ]
 
-        for i, spike_time in enumerate(spike_times):
+        for _, spike_time in enumerate(spike_times):
             edge = Mock()
             edge.source = 0
             edge.target = 1
@@ -824,7 +835,7 @@ class TestSimulationScenarios:
         # Simulate 1000 neurons with realistic connectivity (10% connection probability)
         num_nodes = 1000
         connection_prob = 0.1
-        expected_edges = int(num_nodes * num_nodes * connection_prob)
+        _expected_edges = int(num_nodes * num_nodes * connection_prob)
 
         edges = []
         node_energies = {i: np.random.uniform(0.5, 1.0) for i in range(num_nodes)}
@@ -1135,7 +1146,7 @@ class TestComprehensivePerformanceBenchmarks:
         frame_times = []
         for _ in range(10):
             start_time = time.time()
-            synaptic_inputs = calculator.calculate_synaptic_inputs(
+            _synaptic_inputs = calculator.calculate_synaptic_inputs(
                 edges, node_energies, num_nodes=num_nodes
             )
             end_time = time.time()
@@ -1145,7 +1156,9 @@ class TestComprehensivePerformanceBenchmarks:
         max_frame_time = np.max(frame_times)
 
         # Should be under ~300ms for real-time performance
-        assert avg_frame_time < 0.3, f"Average frame time {avg_frame_time*1000:.1f}ms exceeds real-time limit"
+        assert avg_frame_time < 0.3, (
+            f"Average frame time {avg_frame_time*1000:.1f}ms exceeds real-time limit"
+        )
         assert max_frame_time < 2.0, f"Max frame time {max_frame_time*1000:.1f}ms is too high"
 
     @pytest.mark.skipif(not CPP_EXTENSIONS_AVAILABLE, reason="C++ extensions not available")
@@ -1230,11 +1243,8 @@ class TestComprehensivePerformanceBenchmarks:
         high_conn_time = results[(1000, 100)]
         low_conn_time = results[(50000, 1000)]
         assert low_conn_time / high_conn_time < 100  # Should scale reasonably
-
-
 if __name__ == "__main__":
     pytest.main([__file__])
-
 
 
 

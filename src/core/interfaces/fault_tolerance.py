@@ -48,7 +48,6 @@ class IFaultTolerance(ABC):
         Returns:
             List[FailureEvent]: List of detected failures
         """
-        pass
 
     @abstractmethod
     def handle_node_failure(self, node_id: str) -> Dict[str, Any]:
@@ -61,10 +60,11 @@ class IFaultTolerance(ABC):
         Returns:
             Dict[str, Any]: Recovery actions taken
         """
-        pass
 
     @abstractmethod
-    def handle_service_failure(self, service_name: str, node_id: Optional[str] = None) -> Dict[str, Any]:
+    def handle_service_failure(
+        self, service_name: str, node_id: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Handle failure of a specific service.
 
@@ -75,7 +75,6 @@ class IFaultTolerance(ABC):
         Returns:
             Dict[str, Any]: Recovery actions taken
         """
-        pass
 
     @abstractmethod
     def initiate_failover(self, primary_component: str, backup_component: str) -> bool:
@@ -89,7 +88,6 @@ class IFaultTolerance(ABC):
         Returns:
             bool: True if failover successful
         """
-        pass
 
     @abstractmethod
     def create_backup(self, component_id: str) -> Dict[str, Any]:
@@ -102,7 +100,6 @@ class IFaultTolerance(ABC):
         Returns:
             Dict[str, Any]: Backup creation results
         """
-        pass
 
     @abstractmethod
     def validate_system_integrity(self) -> Dict[str, Any]:
@@ -112,7 +109,6 @@ class IFaultTolerance(ABC):
         Returns:
             Dict[str, Any]: System integrity assessment
         """
-        pass
 
     @abstractmethod
     def get_failure_statistics(self) -> Dict[str, Any]:
@@ -122,10 +118,3 @@ class IFaultTolerance(ABC):
         Returns:
             Dict[str, Any]: Failure statistics and analysis
         """
-        pass
-
-
-
-
-
-

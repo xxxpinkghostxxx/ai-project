@@ -2,6 +2,14 @@
 import time
 import numpy as np
 from src.utils.logging_utils import log_step
+"""
+
+Memory System Module
+
+This module provides a comprehensive memory system for neural networks, including memory trace formation, consolidation, decay, and pattern recall.
+
+"""
+
 
 
 DEFAULT_MEMORY_STRENGTH = 1.0
@@ -73,7 +81,6 @@ class MemorySystem:
             target_edges = edge_index[1] == node_idx
             for edge_idx in np.where(target_edges)[0]:
                 source_idx = edge_index[0, edge_idx]
-                source_node = graph.node_labels[source_idx]
                 incoming_edges.append({
                     'source': int(source_idx),
                     'weight': 1.0,
@@ -159,7 +166,7 @@ class MemorySystem:
     def recall_patterns(self, graph, target_node_idx):
 
         recalled_patterns = []
-        for memory_idx, memory_trace in self.memory_traces.items():
+        for _, memory_trace in self.memory_traces.items():
             if self._is_pattern_relevant(memory_trace, target_node_idx, graph):
                 relevance = self._calculate_pattern_relevance(memory_trace, target_node_idx, graph)
                 if relevance > self.recall_threshold:

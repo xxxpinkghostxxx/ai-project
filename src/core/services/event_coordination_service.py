@@ -9,7 +9,6 @@ neural simulation services.
 import threading
 from typing import Dict, Any, List, Callable, Optional
 from collections import defaultdict, deque
-from datetime import datetime
 
 from ..interfaces.event_coordinator import IEventCoordinator, Event
 
@@ -45,10 +44,11 @@ class EventCoordinationService(IEventCoordinator):
 
             # Notify subscribers
             if event_type in self._subscribers:
-                for subscriber in self._subscribers[event_type][:]:  # Copy to avoid modification during iteration
+                for subscriber in self._subscribers[event_type][:]:  # Copy to avoid
+                    # modification during iteration
                     try:
                         subscriber["handler"](event)
-                    except Exception as e:
+                    except (AttributeError, TypeError, ValueError, RuntimeError) as e:
                         print(f"Error in event handler for {event_type}: {e}")
                         # Remove broken subscribers
                         if subscriber in self._subscribers[event_type]:
@@ -89,7 +89,7 @@ class EventCoordinationService(IEventCoordinator):
             bool: True if subscription was removed
         """
         with self._lock:
-            for event_type, subscribers in self._subscribers.items():
+            for _, subscribers in self._subscribers.items():
                 for subscriber in subscribers:
                     if subscriber["id"] == subscription_id:
                         subscribers.remove(subscriber)
@@ -110,7 +110,10 @@ class EventCoordinationService(IEventCoordinator):
         with self._lock:
             if event_type:
                 # Filter by event type
-                filtered_events = [event for event in self._event_history if event.event_type == event_type]
+                filtered_events = [
+                    event for event in self._event_history
+                    if event.event_type == event_type
+                ]
                 return list(filtered_events)[-limit:]
             else:
                 return list(self._event_history)[-limit:]
@@ -123,7 +126,6 @@ class EventCoordinationService(IEventCoordinator):
         immediately when published, so this method is a no-op.
         """
         # Events are processed synchronously on publish, so no pending events
-        pass
 
     def get_subscription_stats(self) -> Dict[str, Any]:
         """
@@ -220,9 +222,3 @@ class EventCoordinationService(IEventCoordinator):
         with self._lock:
             self._subscribers.clear()
             self._event_history.clear()
-
-
-
-
-
-

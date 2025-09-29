@@ -55,7 +55,7 @@ class ISimulationCoordinator(ABC):
         Returns:
             bool: True if initialization successful, False otherwise
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def start_simulation(self) -> bool:
@@ -65,7 +65,7 @@ class ISimulationCoordinator(ABC):
         Returns:
             bool: True if simulation started successfully, False otherwise
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def stop_simulation(self) -> bool:
@@ -75,7 +75,7 @@ class ISimulationCoordinator(ABC):
         Returns:
             bool: True if simulation stopped successfully, False otherwise
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def reset_simulation(self) -> bool:
@@ -85,7 +85,7 @@ class ISimulationCoordinator(ABC):
         Returns:
             bool: True if reset successful, False otherwise
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def execute_simulation_step(self, step: int) -> bool:
@@ -102,7 +102,7 @@ class ISimulationCoordinator(ABC):
         Returns:
             bool: True if step executed successfully, False otherwise
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def get_simulation_state(self) -> SimulationState:
@@ -112,7 +112,7 @@ class ISimulationCoordinator(ABC):
         Returns:
             SimulationState: Current simulation state including metrics and status
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def get_neural_graph(self) -> Optional[Data]:
@@ -122,7 +122,7 @@ class ISimulationCoordinator(ABC):
         Returns:
             Optional[Data]: Current PyTorch Geometric graph, None if not available
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def update_configuration(self, config_updates: Dict[str, Any]) -> bool:
@@ -135,7 +135,7 @@ class ISimulationCoordinator(ABC):
         Returns:
             bool: True if configuration updated successfully, False otherwise
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def get_performance_metrics(self) -> Dict[str, float]:
@@ -145,7 +145,7 @@ class ISimulationCoordinator(ABC):
         Returns:
             Dict[str, float]: Performance metrics including step times, memory usage, etc.
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def validate_simulation_integrity(self) -> Dict[str, Any]:
@@ -155,7 +155,7 @@ class ISimulationCoordinator(ABC):
         Returns:
             Dict[str, Any]: Validation results with any issues found
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def save_simulation_state(self, filepath: str) -> bool:
@@ -168,7 +168,7 @@ class ISimulationCoordinator(ABC):
         Returns:
             bool: True if state saved successfully, False otherwise
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def load_simulation_state(self, filepath: str) -> bool:
@@ -181,10 +181,28 @@ class ISimulationCoordinator(ABC):
         Returns:
             bool: True if state loaded successfully, False otherwise
         """
-        pass
+        raise NotImplementedError()
 
+    @abstractmethod
+    def run_single_step(self) -> bool:
+        """
+        Execute a single simulation step, incrementing the step count.
 
+        This method provides a convenient way to run one simulation step,
+        automatically managing the step counter.
 
+        Returns:
+            bool: True if the step executed successfully, False otherwise
+        """
+        raise NotImplementedError()
 
+    @abstractmethod
+    def cleanup(self):
+        """
+        Clean up simulation resources and reset state.
 
+        This method stops the simulation if running and performs cleanup operations
+        to free resources and reset the coordinator to a clean state.
+        """
+        raise NotImplementedError()
 

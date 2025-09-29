@@ -8,6 +8,8 @@ insights into neural simulation performance and resource usage.
 
 import time
 import psutil
+import platform
+import sys
 import threading
 from typing import Dict, Any, List, Optional
 from collections import deque
@@ -263,8 +265,8 @@ class PerformanceMonitoringService(IPerformanceMonitor):
                 "cpu_count_logical": psutil.cpu_count(logical=True),
                 "memory_total": psutil.virtual_memory().total / (1024**3),  # GB
                 "memory_available": psutil.virtual_memory().available / (1024**3),  # GB
-                "platform": psutil.platform,
-                "python_version": psutil.python_version(),
+                "platform": platform.system(),
+                "python_version": platform.python_version(),
                 "process_id": self._process.pid,
                 "process_name": self._process.name()
             }

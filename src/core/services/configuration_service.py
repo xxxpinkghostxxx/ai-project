@@ -8,7 +8,8 @@ for all neural simulation services.
 
 import os
 import json
-from typing import Dict, Any, List, Optional
+import configparser
+from typing import Dict, Any, Optional
 from threading import RLock
 
 from ..interfaces.configuration_service import (
@@ -91,25 +92,54 @@ class ConfigurationService(IConfigurationService):
             ConfigurationScope.GLOBAL.value: {
                 "simulation_enabled": {"type": "bool", "required": True},
                 "debug_mode": {"type": "bool", "required": False},
-                "log_level": {"type": "str", "required": False, "values": ["DEBUG", "INFO", "WARNING", "ERROR"]},
+                "log_level": {
+                    "type": "str",
+                    "required": False,
+                    "values": ["DEBUG", "INFO", "WARNING", "ERROR"]
+                },
                 "max_simulation_steps": {"type": "int", "required": False, "min": 1, "max": 100000},
                 "time_step": {"type": "float", "required": False, "min": 0.0001, "max": 1.0},
                 "random_seed": {"type": "int", "required": False}
             },
             ConfigurationScope.NEURAL.value: {
-                "membrane_time_constant": {"type": "float", "required": False, "min": 1.0, "max": 100.0},
-                "threshold_potential": {"type": "float", "required": False, "min": -100.0, "max": 0.0},
+                "membrane_time_constant": {
+                    "type": "float",
+                    "required": False,
+                    "min": 1.0,
+                    "max": 100.0
+                },
+                "threshold_potential": {
+                    "type": "float",
+                    "required": False,
+                    "min": -100.0,
+                    "max": 0.0
+                },
                 "reset_potential": {"type": "float", "required": False, "min": -100.0, "max": 0.0},
                 "refractory_period": {"type": "float", "required": False, "min": 0.1, "max": 10.0},
-                "resting_potential": {"type": "float", "required": False, "min": -100.0, "max": 0.0},
+                "resting_potential": {
+                    "type": "float",
+                    "required": False,
+                    "min": -100.0,
+                    "max": 0.0
+                },
                 "spike_threshold": {"type": "float", "required": False, "min": 0.0, "max": 1.0}
             },
             ConfigurationScope.ENERGY.value: {
                 "energy_cap": {"type": "float", "required": False, "min": 1.0, "max": 10.0},
                 "decay_rate": {"type": "float", "required": False, "min": 0.9, "max": 1.0},
-                "metabolic_cost_per_spike": {"type": "float", "required": False, "min": 0.0, "max": 1.0},
+                "metabolic_cost_per_spike": {
+                    "type": "float",
+                    "required": False,
+                    "min": 0.0,
+                    "max": 1.0
+                },
                 "homeostasis_target": {"type": "float", "required": False, "min": 0.1, "max": 2.0},
-                "homeostasis_strength": {"type": "float", "required": False, "min": 0.0, "max": 0.1},
+                "homeostasis_strength": {
+                    "type": "float",
+                    "required": False,
+                    "min": 0.0,
+                    "max": 0.1
+                },
                 "energy_learning_modulation": {"type": "bool", "required": False}
             },
             ConfigurationScope.LEARNING.value: {
@@ -117,7 +147,12 @@ class ConfigurationService(IConfigurationService):
                 "ltp_rate": {"type": "float", "required": False, "min": 0.0, "max": 0.1},
                 "ltd_rate": {"type": "float", "required": False, "min": 0.0, "max": 0.1},
                 "eligibility_decay": {"type": "float", "required": False, "min": 0.8, "max": 1.0},
-                "consolidation_threshold": {"type": "float", "required": False, "min": 0.0, "max": 1.0},
+                "consolidation_threshold": {
+                    "type": "float",
+                    "required": False,
+                    "min": 0.0,
+                    "max": 1.0
+                },
                 "learning_enabled": {"type": "bool", "required": False}
             }
         }
@@ -134,10 +169,8 @@ class ConfigurationService(IConfigurationService):
         """
         try:
             if config_path and os.path.exists(config_path):
-                import configparser
                 config = configparser.ConfigParser()
                 config.read(config_path)
-                
                 loaded_config = {s: dict(config.items(s)) for s in config.sections()}
 
                 # Merge loaded configuration with defaults
@@ -164,7 +197,7 @@ class ConfigurationService(IConfigurationService):
                 # Use defaults
                 return True
 
-        except Exception as e:
+        except (IOError, OSError, configparser.Error) as e:
             print(f"Error loading configuration: {e}")
             return False
 
@@ -180,13 +213,13 @@ class ConfigurationService(IConfigurationService):
         """
         try:
             with self._lock:
-                with open(config_path, 'w') as f:
+                with open(config_path, 'w', encoding='utf-8') as f:
                     json.dump(self._config, f, indent=2)
 
                 self._config_path = config_path
                 return True
 
-        except Exception as e:
+        except (IOError, OSError) as e:
             print(f"Error saving configuration: {e}")
             return False
 
@@ -210,7 +243,9 @@ class ConfigurationService(IConfigurationService):
             scope_config = self._config.get(scope.value, {})
             return scope_config.get(key)
 
-    def set_parameter(self, key: str, value: Any, scope: ConfigurationScope = ConfigurationScope.GLOBAL) -> bool:
+    def set_parameter(
+        self, key: str, value: Any, scope: ConfigurationScope = ConfigurationScope.GLOBAL
+    ) -> bool:
         """
         Set a configuration parameter.
 
@@ -235,7 +270,7 @@ class ConfigurationService(IConfigurationService):
                     print(f"Parameter validation failed for {key} = {value}")
                     return False
 
-        except Exception as e:
+        except ValueError as e:
             print(f"Error setting parameter: {e}")
             return False
 
@@ -270,7 +305,9 @@ class ConfigurationService(IConfigurationService):
             "total_parameters": sum(len(scope) for scope in self._config.values())
         }
 
-    def get_configuration_schema(self, scope: Optional[ConfigurationScope] = None) -> Dict[str, Any]:
+    def get_configuration_schema(
+        self, scope: Optional[ConfigurationScope] = None
+    ) -> Dict[str, Any]:
         """
         Get configuration schema for validation.
 
@@ -343,14 +380,8 @@ class ConfigurationService(IConfigurationService):
         if "values" in schema_def and isinstance(value, str):
             if value not in schema_def["values"]:
                 issues.append(f"Value '{value}' not in allowed values: {schema_def['values']}")
-
         return {
             "valid": len(issues) == 0,
             "issues": issues
         }
-
-
-
-
-
 

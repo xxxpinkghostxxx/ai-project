@@ -7,12 +7,9 @@ with auto-scaling, multi-cloud support, and cost optimization.
 """
 
 import time
-import json
 import uuid
 import threading
 from typing import Dict, Any, List, Optional, Tuple
-from collections import defaultdict
-from datetime import datetime
 
 from ..interfaces.cloud_deployment import (
     ICloudDeployment, DeploymentConfig, ScalingPolicy, CloudResource
@@ -64,7 +61,7 @@ class ContainerManager:
                 "status": "built"
             }
             return True
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error building container image: {e}")
             return False
 
@@ -77,7 +74,7 @@ class ContainerManager:
             self.images[image_name]["registry"] = registry
             self.images[image_name]["pushed_at"] = time.time()
             return True
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error pushing container image: {e}")
             return False
 
@@ -95,7 +92,7 @@ class ContainerManager:
                 "environment": config.get("environment", {})
             }
             return container_id
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error creating container: {e}")
             return ""
 
@@ -108,7 +105,7 @@ class ContainerManager:
             self.containers[container_id]["status"] = "running"
             self.containers[container_id]["started_at"] = time.time()
             return True
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error starting container: {e}")
             return False
 
@@ -121,7 +118,7 @@ class ContainerManager:
             self.containers[container_id]["status"] = "stopped"
             self.containers[container_id]["stopped_at"] = time.time()
             return True
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error stopping container: {e}")
             return False
 
@@ -223,7 +220,7 @@ class CloudDeploymentService(ICloudDeployment):
 
             return deployment_id
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error creating deployment: {e}")
             return ""
 
@@ -261,7 +258,7 @@ class CloudDeploymentService(ICloudDeployment):
             # Apply updates to cloud resources
             return self._apply_deployment_updates(deployment_id)
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error updating deployment: {e}")
             return False
 
@@ -283,7 +280,7 @@ class CloudDeploymentService(ICloudDeployment):
 
             # Get associated resources
             resources = []
-            for resource_id, resource in self.cloud_resources.items():
+            for resource in self.cloud_resources.values():
                 if resource.tags.get("deployment_id") == deployment_id:
                     resources.append(resource.to_dict())
 
@@ -304,10 +301,11 @@ class CloudDeploymentService(ICloudDeployment):
                 "resources": resources,
                 "scaling_policies": policies,
                 "created_at": deployment.created_at,
-                "uptime": time.time() - deployment.created_at if deployment.status == "running" else 0
+                "uptime": (time.time() - deployment.created_at
+                          if deployment.status == "running" else 0)
             }
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error getting deployment status: {e}")
             return {"error": str(e)}
 
@@ -329,7 +327,8 @@ class CloudDeploymentService(ICloudDeployment):
             deployment = self.deployments[deployment_id]
 
             # Validate scaling bounds
-            if instance_count < deployment.min_instances or instance_count > deployment.max_instances:
+            if (instance_count < deployment.min_instances or
+                instance_count > deployment.max_instances):
                 return False
 
             # Update instance count
@@ -338,7 +337,7 @@ class CloudDeploymentService(ICloudDeployment):
             # Apply scaling to cloud resources
             return self._scale_cloud_resources(deployment_id, instance_count)
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error scaling deployment: {e}")
             return False
 
@@ -373,7 +372,7 @@ class CloudDeploymentService(ICloudDeployment):
 
             return policy_id
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error creating scaling policy: {e}")
             return ""
 
@@ -421,16 +420,21 @@ class CloudDeploymentService(ICloudDeployment):
                         "metric": policy["metric_name"],
                         "current_value": metric_value,
                         "threshold": policy["scale_out_threshold"],
-                        "recommended_instances": min(deployment.instance_count + 1, deployment.max_instances)
+                        "recommended_instances": min(
+                            deployment.instance_count + 1, deployment.max_instances
+                        )
                     })
-                elif metric_value < policy["scale_in_threshold"] and deployment.instance_count > deployment.min_instances:
+                elif (metric_value < policy["scale_in_threshold"] and
+                      deployment.instance_count > deployment.min_instances):
                     recommendations.append({
                         "action": "scale_in",
                         "policy_id": policy["policy_id"],
                         "metric": policy["metric_name"],
                         "current_value": metric_value,
                         "threshold": policy["scale_in_threshold"],
-                        "recommended_instances": max(deployment.instance_count - 1, deployment.min_instances)
+                        "recommended_instances": max(
+                            deployment.instance_count - 1, deployment.min_instances
+                        )
                     })
 
             return {
@@ -444,7 +448,7 @@ class CloudDeploymentService(ICloudDeployment):
                 "recommendations": recommendations
             }
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error getting scaling status: {e}")
             return {"error": str(e)}
 
@@ -471,8 +475,9 @@ class CloudDeploymentService(ICloudDeployment):
                 # Create platform-specific config
                 platform_config = base_config.copy()
                 platform_config["platform"] = platform
-                platform_config["region"] = deployment_config.get(f"{platform}_region",
-                                                                self.cloud_providers[platform].regions[0])
+                platform_config["region"] = deployment_config.get(
+                    f"{platform}_region", self.cloud_providers[platform].regions[0]
+                )
 
                 # Create deployment for this platform
                 deployment_id = self.create_deployment(platform_config)
@@ -481,11 +486,13 @@ class CloudDeploymentService(ICloudDeployment):
 
             return deployment_ids
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error deploying to multiple clouds: {e}")
             return []
 
-    def get_deployment_costs(self, deployment_id: str, time_range: Optional[Tuple[float, float]] = None) -> Dict[str, Any]:
+    def get_deployment_costs(
+        self, deployment_id: str, time_range: Optional[Tuple[float, float]] = None
+    ) -> Dict[str, Any]:
         """
         Get cost information for a deployment.
 
@@ -549,7 +556,7 @@ class CloudDeploymentService(ICloudDeployment):
                 "cost_per_hour": total_cost / hours_running if hours_running > 0 else 0
             }
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error getting deployment costs: {e}")
             return {"error": str(e)}
 
@@ -581,13 +588,13 @@ class CloudDeploymentService(ICloudDeployment):
             }
 
             # Add associated resources to backup
-            for resource_id, resource in self.cloud_resources.items():
+            for resource in self.cloud_resources.values():
                 if resource.tags.get("deployment_id") == deployment_id:
                     self.backup_storage[backup_id]["resources"].append(resource.to_dict())
 
             return backup_id
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error creating backup: {e}")
             return ""
 
@@ -632,7 +639,7 @@ class CloudDeploymentService(ICloudDeployment):
                         del self.deployments[new_deployment_id]
 
                         # Update resource tags
-                        for resource_id, resource in self.cloud_resources.items():
+                        for resource in self.cloud_resources.values():
                             if resource.tags.get("deployment_id") == new_deployment_id:
                                 resource.tags["deployment_id"] = deployment_id
                 else:
@@ -640,7 +647,7 @@ class CloudDeploymentService(ICloudDeployment):
 
             return True
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error restoring deployment: {e}")
             return False
 
@@ -683,7 +690,7 @@ class CloudDeploymentService(ICloudDeployment):
 
             return True
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error terminating deployment: {e}")
             return False
 
@@ -708,12 +715,13 @@ class CloudDeploymentService(ICloudDeployment):
             if deployment.min_instances > deployment.max_instances:
                 return False
 
-            if deployment.instance_count < deployment.min_instances or deployment.instance_count > deployment.max_instances:
+            if (deployment.instance_count < deployment.min_instances or
+                deployment.instance_count > deployment.max_instances):
                 return False
 
             return True
 
-        except Exception:
+        except RuntimeError:
             return False
 
     def _start_deployment_process(self, deployment_id: str):
@@ -733,7 +741,9 @@ class CloudDeploymentService(ICloudDeployment):
                 resource.status = "running"
                 resource.public_ip = f"192.168.1.{10 + i}"
                 resource.private_ip = f"10.0.0.{10 + i}"
-                resource.cost_per_hour = self.cloud_providers[deployment.platform].get_price(deployment.instance_type)
+                resource.cost_per_hour = self.cloud_providers[deployment.platform].get_price(
+                    deployment.instance_type
+                )
                 resource.tags = {"deployment_id": deployment_id, "instance_index": str(i)}
 
                 self.cloud_resources[resource_id] = resource
@@ -741,7 +751,7 @@ class CloudDeploymentService(ICloudDeployment):
             # Update deployment status
             deployment.status = "running"
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error in deployment process: {e}")
             if deployment_id in self.deployments:
                 self.deployments[deployment_id].status = "failed"
@@ -753,14 +763,15 @@ class CloudDeploymentService(ICloudDeployment):
 
             # Update instance count if changed
             current_instances = sum(1 for r in self.cloud_resources.values()
-                                  if r.tags.get("deployment_id") == deployment_id and r.status == "running")
+                                  if (r.tags.get("deployment_id") == deployment_id and
+                                      r.status == "running"))
 
             if current_instances != deployment.instance_count:
                 return self._scale_cloud_resources(deployment_id, deployment.instance_count)
 
             return True
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error applying deployment updates: {e}")
             return False
 
@@ -788,8 +799,13 @@ class CloudDeploymentService(ICloudDeployment):
                     resource.status = "running"
                     resource.public_ip = f"192.168.1.{20 + i}"
                     resource.private_ip = f"10.0.0.{20 + i}"
-                    resource.cost_per_hour = self.cloud_providers[deployment.platform].get_price(deployment.instance_type)
-                    resource.tags = {"deployment_id": deployment_id, "instance_index": str(current_count + i)}
+                    resource.cost_per_hour = self.cloud_providers[deployment.platform].get_price(
+                        deployment.instance_type
+                    )
+                    resource.tags = {
+                        "deployment_id": deployment_id,
+                        "instance_index": str(current_count + i)
+                    }
 
                     self.cloud_resources[resource_id] = resource
 
@@ -801,7 +817,7 @@ class CloudDeploymentService(ICloudDeployment):
 
             return True
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error scaling cloud resources: {e}")
             return False
 
@@ -817,9 +833,3 @@ class CloudDeploymentService(ICloudDeployment):
         self.cloud_resources.clear()
         self.cost_history.clear()
         self.backup_storage.clear()
-
-
-
-
-
-

@@ -4,9 +4,7 @@ Provides pre-allocated buffers to avoid dynamic memory allocation during runtime
 """
 
 import numpy as np
-import threading
-import logging
-from typing import Optional, List, Dict, Any
+from typing import List, Dict, Any
 
 from collections import deque
 

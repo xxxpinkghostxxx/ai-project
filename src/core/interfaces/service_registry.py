@@ -44,7 +44,10 @@ class ServiceDescriptor:
         """Convert service descriptor to dictionary."""
         return {
             'service_type': f"{self.service_type.__module__}.{self.service_type.__name__}",
-            'implementation_type': f"{self.implementation_type.__module__}.{self.implementation_type.__name__}",
+            'implementation_type': (
+                f"{self.implementation_type.__module__}."
+                f"{self.implementation_type.__name__}"
+            ),
             'lifetime': self.lifetime.value,
             'health': self.health.value,
             'dependencies': [f"{dep.__module__}.{dep.__name__}" for dep in self.dependencies],
@@ -61,7 +64,7 @@ class IServiceRegistry(ABC):
     """
 
     @abstractmethod
-    def register[T](self, service_type: Type[T], implementation_type: Type[T],
+    def register(self, service_type: Type[T], implementation_type: Type[T],
                    lifetime: ServiceLifetime = ServiceLifetime.SINGLETON) -> None:
         """
         Register a service implementation for a given service type.
@@ -71,10 +74,10 @@ class IServiceRegistry(ABC):
             implementation_type: The concrete implementation type
             lifetime: The lifetime scope for the service
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
-    def register_instance[T](self, service_type: Type[T], instance: T) -> None:
+    def register_instance(self, service_type: Type[T], instance: T) -> None:
         """
         Register a pre-created service instance.
 
@@ -82,10 +85,10 @@ class IServiceRegistry(ABC):
             service_type: The service interface type
             instance: The pre-created service instance
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
-    def resolve[T](self, service_type: Type[T]) -> T:
+    def resolve(self, service_type: Type[T]) -> T:
         """
         Resolve a service instance for the given service type.
 
@@ -103,7 +106,7 @@ class IServiceRegistry(ABC):
             ServiceNotFoundError: If no implementation is registered for the service type
             ServiceResolutionError: If the service cannot be instantiated
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def is_registered(self, service_type: Type) -> bool:
@@ -116,7 +119,7 @@ class IServiceRegistry(ABC):
         Returns:
             bool: True if the service type is registered, False otherwise
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def get_service_descriptor(self, service_type: Type) -> Optional[ServiceDescriptor]:
@@ -129,7 +132,7 @@ class IServiceRegistry(ABC):
         Returns:
             Optional[ServiceDescriptor]: The service descriptor, or None if not registered
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def get_registered_services(self) -> List[Type]:
@@ -139,7 +142,7 @@ class IServiceRegistry(ABC):
         Returns:
             List[Type]: List of registered service interface types
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def unregister(self, service_type: Type) -> bool:
@@ -152,14 +155,14 @@ class IServiceRegistry(ABC):
         Returns:
             bool: True if the service was unregistered, False if it wasn't registered
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def clear(self) -> None:
         """
         Clear all registered services and reset the registry.
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def get_service_health(self, service_type: Type) -> ServiceHealth:
@@ -172,7 +175,7 @@ class IServiceRegistry(ABC):
         Returns:
             ServiceHealth: The health status of the service
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def update_service_health(self, service_type: Type, health: ServiceHealth) -> None:
@@ -183,7 +186,7 @@ class IServiceRegistry(ABC):
             service_type: The service interface type
             health: The new health status
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def validate_dependencies(self) -> Dict[str, Any]:
@@ -196,7 +199,7 @@ class IServiceRegistry(ABC):
         Returns:
             Dict[str, Any]: Validation results with any dependency issues
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def get_dependency_graph(self) -> Dict[str, List[str]]:
@@ -206,7 +209,7 @@ class IServiceRegistry(ABC):
         Returns:
             Dict[str, List[str]]: Dependency graph mapping service names to their dependencies
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def create_scope(self) -> 'IServiceRegistry':
@@ -219,17 +222,11 @@ class IServiceRegistry(ABC):
         Returns:
             IServiceRegistry: A new scoped service registry
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def dispose_scope(self) -> None:
         """
         Dispose of a scoped service registry and clean up scoped instances.
         """
-        pass
-
-
-
-
-
-
+        raise NotImplementedError()

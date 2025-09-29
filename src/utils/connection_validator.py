@@ -4,8 +4,7 @@ Centralized validation system for neural graph connections.
 """
 
 import threading
-from typing import Dict, List, Any, Optional, Tuple
-from src.utils.logging_utils import log_step
+from typing import Dict, List, Any, Optional
 
 
 class ConnectionValidationError(Exception):

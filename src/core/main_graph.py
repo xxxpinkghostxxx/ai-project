@@ -1,16 +1,28 @@
-from src.ui.screen_graph import capture_screen, create_pixel_gray_graph, RESOLUTION_SCALE
-from src.neural.dynamic_nodes import add_dynamic_nodes
-from src.utils.pattern_consolidation_utils import create_workspace_node, create_sensory_node, create_dynamic_node
-import torch
+"""
+Main graph creation and management utilities.
+
+This module provides functions for creating and initializing neural graphs,
+including workspace grids, test graphs, and main simulation graphs.
+"""
+# pylint: disable=import-error
+
 import logging
 import threading
 
- 
+import torch
+import numpy as np
+from torch_geometric.data import Data
+
+from src.neural.connection_logic import EnhancedEdge
+from src.neural.dynamic_nodes import add_dynamic_nodes
+from src.ui.screen_graph import capture_screen, create_pixel_gray_graph, RESOLUTION_SCALE
+from src.utils.pattern_consolidation_utils import create_workspace_node
+from src.energy.node_id_manager import get_id_manager
 
 
 def create_workspace_grid():
+    """Create a 16x16 grid of workspace nodes for cognitive processing."""
 
-    from src.energy.node_id_manager import get_id_manager
     id_manager = get_id_manager()
     grid_size = 16
     num_nodes = grid_size * grid_size
@@ -40,7 +52,6 @@ def create_workspace_grid():
             node_labels.append(node_label)
             id_manager.register_node_index(node_id, node_index)
     edge_index = torch.empty((2, 0), dtype=torch.long)
-    from torch_geometric.data import Data
     workspace_graph = Data(
         x=x,
         edge_index=edge_index,
@@ -52,9 +63,8 @@ def create_workspace_grid():
 
 
 def merge_graphs(graph1, graph2):
+    """Merge two graphs by concatenating nodes and adjusting edge indices."""
 
-    from torch_geometric.data import Data
-    from src.energy.node_id_manager import get_id_manager
     combined_x = torch.cat([graph1.x, graph2.x], dim=0)
     combined_labels = graph1.node_labels + graph2.node_labels
     id_manager = get_id_manager()
@@ -87,14 +97,11 @@ def merge_graphs(graph1, graph2):
 
 def create_test_graph(num_sensory=100, num_dynamic=20):
     """Create a test graph with sensory and dynamic nodes for testing purposes."""
-    import numpy as np
-    from torch_geometric.data import Data
-    from src.energy.node_id_manager import get_id_manager
-    
     id_manager = get_id_manager()
-    x = torch.abs(torch.randn(num_sensory + num_dynamic, 1)) * 100  # Positive initial energies 0-100
+    x = (
+        torch.abs(torch.randn(num_sensory + num_dynamic, 1)) * 100
+    )  # Positive initial energies 0-100
     node_labels = []
-    
     # Create sensory nodes
     for i in range(num_sensory):
         node_id = id_manager.generate_unique_id("sensory")
@@ -113,7 +120,6 @@ def create_test_graph(num_sensory=100, num_dynamic=20):
             'last_update': 0
         })
         id_manager.register_node_index(node_id, i)
-    
     # Create dynamic nodes
     for i in range(num_sensory, num_sensory + num_dynamic):
         node_id = id_manager.generate_unique_id("dynamic")
@@ -132,7 +138,6 @@ def create_test_graph(num_sensory=100, num_dynamic=20):
             'last_update': 0
         })
         id_manager.register_node_index(node_id, i)
-    
     # Create random connections
     edge_list = []
     for i in range(min(50, num_sensory + num_dynamic)):
@@ -140,9 +145,11 @@ def create_test_graph(num_sensory=100, num_dynamic=20):
         target = np.random.randint(0, num_sensory + num_dynamic)
         if source != target:
             edge_list.append([source, target])
-    
-    edge_index = torch.tensor(edge_list, dtype=torch.long).t() if edge_list else torch.empty((2, 0), dtype=torch.long)
-    
+    edge_index = (
+        torch.tensor(edge_list, dtype=torch.long).t()
+        if edge_list
+        else torch.empty((2, 0), dtype=torch.long)
+    )
     return Data(
         x=x,
         edge_index=edge_index,
@@ -152,14 +159,12 @@ def create_test_graph(num_sensory=100, num_dynamic=20):
 
 def create_test_graph_with_workspace(num_sensory=100, num_dynamic=20, num_workspace=100):
     """Create a test graph with sensory, dynamic, and workspace nodes for testing purposes."""
-    import numpy as np
-    from torch_geometric.data import Data
-    from src.energy.node_id_manager import get_id_manager
-    
+    # pylint: disable=too-many-locals
     id_manager = get_id_manager()
-    x = torch.abs(torch.randn(num_sensory + num_dynamic + num_workspace, 1)) * 100  # Positive initial
+    x = (
+        torch.abs(torch.randn(num_sensory + num_dynamic + num_workspace, 1)) * 100
+    )  # Positive initial
     node_labels = []
-    
     # Create sensory nodes with spatial coordinates
     for i in range(num_sensory):
         node_id = id_manager.generate_unique_id("sensory")
@@ -182,7 +187,6 @@ def create_test_graph_with_workspace(num_sensory=100, num_dynamic=20, num_worksp
             'last_update': 0
         })
         id_manager.register_node_index(node_id, i)
-    
     # Create dynamic nodes
     for i in range(num_sensory, num_sensory + num_dynamic):
         node_id = id_manager.generate_unique_id("dynamic")
@@ -201,7 +205,6 @@ def create_test_graph_with_workspace(num_sensory=100, num_dynamic=20, num_worksp
             'last_update': 0
         })
         id_manager.register_node_index(node_id, i)
-    
     # Create workspace nodes
     for i in range(num_sensory + num_dynamic, num_sensory + num_dynamic + num_workspace):
         node_id = id_manager.generate_unique_id("workspace")
@@ -227,7 +230,6 @@ def create_test_graph_with_workspace(num_sensory=100, num_dynamic=20, num_worksp
             'workspace_focus': 3.0
         })
         id_manager.register_node_index(node_id, i)
-    
     # Create random connections
     edge_list = []
     for i in range(min(50, num_sensory + num_dynamic + num_workspace)):
@@ -235,9 +237,11 @@ def create_test_graph_with_workspace(num_sensory=100, num_dynamic=20, num_worksp
         target = np.random.randint(0, num_sensory + num_dynamic + num_workspace)
         if source != target:
             edge_list.append([source, target])
-    
-    edge_index = torch.tensor(edge_list, dtype=torch.long).t() if edge_list else torch.empty((2, 0), dtype=torch.long)
-    
+    edge_index = (
+        torch.tensor(edge_list, dtype=torch.long).t()
+        if edge_list
+        else torch.empty((2, 0), dtype=torch.long)
+    )
     return Data(
         x=x,
         edge_index=edge_index,
@@ -246,11 +250,12 @@ def create_test_graph_with_workspace(num_sensory=100, num_dynamic=20, num_worksp
 
 
 def initialize_main_graph(scale=RESOLUTION_SCALE):
+    """Initialize the main simulation graph with screen capture, dynamic nodes, and workspace."""
+    # pylint: disable=too-many-locals,too-many-branches,too-many-statements,protected-access
 
     arr = capture_screen(scale=scale)
     pixel_graph = create_pixel_gray_graph(arr)
     # Register pixel graph node IDs in the ID manager
-    from src.energy.node_id_manager import get_id_manager
     id_manager = get_id_manager()
     for idx, node in enumerate(pixel_graph.node_labels):
         node_id = node.get('id')
@@ -262,11 +267,10 @@ def initialize_main_graph(scale=RESOLUTION_SCALE):
     main_graph = add_dynamic_nodes(pixel_graph)
     workspace_graph = create_workspace_grid()
     full_graph = merge_graphs(main_graph, workspace_graph)
-    if len(full_graph.node_labels) == 0:
+    if not full_graph.node_labels:
         full_graph = add_dynamic_nodes(full_graph, num_dynamic=5)
 
     # Ensure all node IDs are registered in the ID manager
-    from src.energy.node_id_manager import get_id_manager
     id_manager = get_id_manager()
     for idx, node in enumerate(full_graph.node_labels):
         node_id = node.get('id')
@@ -274,9 +278,6 @@ def initialize_main_graph(scale=RESOLUTION_SCALE):
             id_manager.register_node_index(node_id, idx)
 
     # Fast initialization of sparse random edges with bounded average out-degree
-    import numpy as np
-    from src.neural.connection_logic import EnhancedEdge
-
     num_nodes = full_graph.x.shape[0]
     edge_list = []
 
@@ -293,7 +294,11 @@ def initialize_main_graph(scale=RESOLUTION_SCALE):
     seen = set()
 
     if num_nodes > 1:
-        logging.info(f"[INIT] Generating initial edges with avg_out_degree={avg_out_degree}, num_nodes={num_nodes}")
+        logging.info(
+            "[INIT] Generating initial edges with avg_out_degree=%s, num_nodes=%s",
+            avg_out_degree,
+            num_nodes
+        )
         # Pre-allocate edge types and weights for better performance
         edge_types = ['excitatory', 'inhibitory', 'modulatory']
         type_weights = [0.6, 0.3, 0.1]  # Favor excitatory connections
@@ -326,41 +331,43 @@ def initialize_main_graph(scale=RESOLUTION_SCALE):
 
                 # Periodic progress logging and soft cap enforcement
                 if len(edge_list) % 10000 == 0:
-                    logging.info(f"[INIT] Edge generation progress: {len(edge_list)} edges")
+                    logging.info("[INIT] Edge generation progress: %s edges", len(edge_list))
                 if len(edge_list) >= max_initial_edges:
                     break
 
             if len(edge_list) >= max_initial_edges:
                 break
 
-    full_graph.edge_index = torch.tensor(edge_list, dtype=torch.long).t().contiguous() if edge_list else torch.empty((2, 0), dtype=torch.long).contiguous()
+    full_graph.edge_index = (
+        torch.tensor(edge_list, dtype=torch.long).t().contiguous()
+        if edge_list
+        else torch.empty((2, 0), dtype=torch.long).contiguous()
+    )
     edge_count = full_graph.edge_index.shape[1]
     density = (edge_count / (num_nodes * (num_nodes - 1))) if num_nodes > 1 else 0.0
-    logging.info(f"Graph created with {len(full_graph.node_labels)} nodes and {edge_count} initial edges (density: {density:.6f})")
+    logging.info(
+        "Graph created with %s nodes and %s initial edges (density: %.6f)",
+        len(full_graph.node_labels),
+        edge_count,
+        density
+    )
     return full_graph
 if __name__ == "__main__":
     import time
     print("Press Ctrl+C to stop.")
     try:
-        max_iterations = 1000  # Add graceful exit condition
-        iteration_count = 0
-        while iteration_count < max_iterations:
+        MAX_ITERATIONS = 1000  # Add graceful exit condition
+        ITERATION_COUNT = 0
+        while ITERATION_COUNT < MAX_ITERATIONS:
             graph = initialize_main_graph()
             print(f"Graph: {len(graph.x)} nodes (including dynamic nodes)")
             print(f"First 6 node labels: {graph.node_labels[:6]}")
             print(f"Last 6 node labels: {graph.node_labels[-6:]}")
             time.sleep(0.5)
-            iteration_count += 1
-        print(f"Test completed after {max_iterations} iterations")
+            ITERATION_COUNT += 1
+        print(f"Test completed after {MAX_ITERATIONS} iterations")
     except KeyboardInterrupt:
         print("Stopped.")
-    except Exception as e:
+    except (ValueError, KeyError, RuntimeError, OSError) as e:
         print(f"Unexpected error in main loop: {e}")
         time.sleep(1.0)  # Brief pause before potential restart
-
-
-
-
-
-
-

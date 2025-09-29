@@ -42,7 +42,7 @@ def handle_node_death(graph: Data, node_id: int, strategy: Optional[Union[str, c
 
     try:
         if not hasattr(graph, 'node_labels') or node_id >= len(graph.node_labels):
-            logging.warning(f"Invalid node_id {node_id} for death handling")
+            logging.warning("Invalid node_id %s for death handling", node_id)
             return graph
         node = graph.node_labels[node_id]
         node_type = node.get('type', 'unknown')
@@ -74,17 +74,17 @@ def handle_node_death(graph: Data, node_id: int, strategy: Optional[Union[str, c
             success = remove_node_from_graph(graph, node_id)
             if success:
                 if logging.getLogger().isEnabledFor(logging.DEBUG):
-                    logging.debug(f"Node {node_id} ({node_type}) removed successfully (energy: {node_energy:.2f})")
+                    logging.debug("Node %s (%s) removed successfully (energy: %.2f)", node_id, node_type, node_energy)
             else:
-                logging.warning(f"Failed to remove node {node_id}")
+                logging.warning("Failed to remove node %s", node_id)
         else:
-            logging.debug(f"Node {node_id} not removed (strategy: {strategy}, energy: {node_energy:.2f})")
+            logging.debug("Node %s not removed (strategy: %s, energy: %.2f)", node_id, strategy, node_energy)
         return graph
     except (ValueError, TypeError, AttributeError, IndexError) as e:
-        logging.error(f"Error handling node death for node {node_id}: {e}")
+        logging.error("Error handling node death for node %s: %s", node_id, e)
         return graph
     except Exception as e:
-        logging.error(f"Unexpected error handling node death for node {node_id}: {e}")
+        logging.error("Unexpected error handling node death for node %s: %s", node_id, e)
         return graph
 
 
@@ -99,7 +99,7 @@ def handle_node_birth(graph: Data, birth_params: Optional[Dict[str, Any]] = None
             success = add_node_to_graph(graph, new_node)
             if success:
                 if logging.getLogger().isEnabledFor(logging.DEBUG):
-                    logging.debug(f"New node created: type={birth_params.get('type')}, energy={birth_params.get('energy')}")
+                    logging.debug("New node created: type=%s, energy=%s", birth_params.get('type'), birth_params.get('energy'))
             else:
                 logging.warning("Failed to add new node to graph")
         else:
@@ -121,7 +121,7 @@ def remove_node_from_graph(graph: Data, node_id: int) -> bool:
         if hasattr(graph, 'x') and graph.x is not None:
             try:
                 if node_id < 0 or node_id >= graph.x.shape[0]:
-                    logging.error(f"Invalid node_id {node_id} for tensor of shape {graph.x.shape}")
+                    logging.error("Invalid node_id %s for tensor of shape %s", node_id, graph.x.shape)
                     return False
                 if node_id + 1 > graph.x.shape[0]:
                     new_x = graph.x[:node_id]
@@ -129,7 +129,7 @@ def remove_node_from_graph(graph: Data, node_id: int) -> bool:
                     new_x = torch.cat([graph.x[:node_id], graph.x[node_id+1:]], dim=0)
                 graph.x = new_x
             except (RuntimeError, IndexError, OverflowError) as e:
-                logging.error(f"Tensor slicing failed for node {node_id}: {e}")
+                logging.error("Tensor slicing failed for node %s: %s", node_id, e)
                 return False
         if hasattr(graph, 'edge_index') and graph.edge_index is not None:
             edge_index = graph.edge_index
@@ -157,7 +157,7 @@ def remove_node_from_graph(graph: Data, node_id: int) -> bool:
                         edge.target -= 1
                 graph.edge_attributes = valid_edges
                 if logging.getLogger().isEnabledFor(logging.DEBUG):
-                    logging.debug(f"[DEATH] Single removal: remapped {len(valid_edges)} edge attributes")
+                    logging.debug("[DEATH] Single removal: remapped %s edge attributes", len(valid_edges))
         # Update ID manager to reflect the new indices
         id_manager = get_id_manager()
         # Full remap: clear old mappings and re-register all
@@ -168,13 +168,13 @@ def remove_node_from_graph(graph: Data, node_id: int) -> bool:
             if node_id is not None:
                 id_manager.register_node_index(node_id, new_idx)
         if logging.getLogger().isEnabledFor(logging.DEBUG):
-            logging.debug(f"[DEATH] Node {node_id} removed and IDs remapped (total nodes: {len(graph.node_labels)})")
+            logging.debug("[DEATH] Node %s removed and IDs remapped (total nodes: %s)", node_id, len(graph.node_labels))
         return True
     except (ValueError, TypeError, AttributeError, IndexError, RuntimeError) as e:
-        logging.error(f"Error removing node {node_id} from graph: {e}")
+        logging.error("Error removing node %s from graph: %s", node_id, e)
         return False
     except Exception as e:
-        logging.error(f"Unexpected error removing node {node_id} from graph: {e}")
+        logging.error("Unexpected error removing node %s from graph: %s", node_id, e)
         return False
 
 
@@ -212,10 +212,10 @@ def create_new_node(graph: Data, birth_params: Dict[str, Any]) -> Optional[Dict[
             node_label['relay_amplification'] = birth_params.get('relay_amplification', 1.5)
         return node_label
     except (ValueError, TypeError, AttributeError, KeyError) as e:
-        logging.error(f"Error creating new node: {e}")
+        logging.error("Error creating new node: %s", e)
         return None
     except Exception as e:
-        logging.error(f"Unexpected error creating new node: {e}")
+        logging.error("Unexpected error creating new node: %s", e)
         return None
 
 
@@ -228,13 +228,13 @@ def add_node_to_graph(graph: Data, new_node: Dict[str, Any]) -> bool:
         else:
             graph.x = torch.tensor([[new_node['energy']]], dtype=torch.float32)
         if logging.getLogger().isEnabledFor(logging.DEBUG):
-            logging.debug(f"Node {new_node['id']} added to graph")
+            logging.debug("Node %s added to graph", new_node['id'])
         return True
     except (ValueError, TypeError, AttributeError, RuntimeError) as e:
-        logging.error(f"Error adding node to graph: {e}")
+        logging.error("Error adding node to graph: %s", e)
         return False
     except Exception as e:
-        logging.error(f"Unexpected error adding node to graph: {e}")
+        logging.error("Unexpected error adding node to graph: %s", e)
         return False
 
 
@@ -268,7 +268,7 @@ def remove_dead_dynamic_nodes(graph: Data) -> Data:
         min_degree = min(degrees)
         max_degree = max(degrees)
         if logging.getLogger().isEnabledFor(logging.DEBUG):
-            logging.debug(f"[DEATH] Checked {num_dynamic} dynamic nodes: min_energy={min_energy:.2f}, max_energy={max_energy:.2f}, min_degree={min_degree}, max_degree={max_degree}, threshold={threshold}")
+            logging.debug("[DEATH] Checked %s dynamic nodes: min_energy=%.2f, max_energy=%.2f, min_degree=%s, max_degree=%s, threshold=%s", num_dynamic, min_energy, max_energy, min_degree, max_degree, threshold)
     else:
         if logging.getLogger().isEnabledFor(logging.DEBUG):
             logging.debug("[DEATH] No dynamic nodes to check")
@@ -281,7 +281,7 @@ def remove_dead_dynamic_nodes(graph: Data) -> Data:
     num_low_energy = sum(1 for _, e, _ in dynamic_nodes if e < threshold)
     num_isolated = sum(1 for _, _, d in dynamic_nodes if d < min_connections)
     if logging.getLogger().isEnabledFor(logging.DEBUG):
-        logging.debug(f"[DEATH] Found {len(to_remove)} candidates for removal (low_energy={num_low_energy}, isolated={num_isolated}, threshold={threshold}, min_conn={min_connections})")
+        logging.debug("[DEATH] Found %s candidates for removal (low_energy=%s, isolated=%s, threshold=%s, min_conn=%s)", len(to_remove), num_low_energy, num_isolated, threshold, min_connections)
     
     if not to_remove:
         logging.debug("[DEATH] No nodes meet removal criteria")
@@ -290,7 +290,7 @@ def remove_dead_dynamic_nodes(graph: Data) -> Data:
     for idx, energy, degree in [(idx, graph.x[idx].item(), graph.node_labels[idx].get('degree', 0)) for idx in to_remove]:
         reason = 'low_energy' if energy < threshold else 'isolation'
         if logging.getLogger().isEnabledFor(logging.DEBUG):
-            logging.debug(f"[DEATH] Node {idx} removed ({reason}: energy={energy:.2f}, degree={degree})")
+            logging.debug("[DEATH] Node %s removed (%s: energy=%.2f, degree=%s)", idx, reason, energy, degree)
     
     to_remove_set = set(to_remove)
     keep_indices = [i for i in range(len(graph.node_labels)) if i not in to_remove_set]
@@ -319,7 +319,7 @@ def remove_dead_dynamic_nodes(graph: Data) -> Data:
         graph.edge_index = torch.stack([remapped_sources[valid_remap_mask], remapped_targets[valid_remap_mask]])
 
         if logging.getLogger().isEnabledFor(logging.DEBUG):
-            logging.debug(f"[DEATH] Batch removal: remapped {graph.edge_index.shape[1]} edges from {filtered_edge_index.shape[1]} surviving")
+            logging.debug("[DEATH] Batch removal: remapped %s edges from %s surviving", graph.edge_index.shape[1], filtered_edge_index.shape[1])
 
     if hasattr(graph, 'edge_attributes') and graph.edge_attributes:
         import threading
@@ -338,7 +338,7 @@ def remove_dead_dynamic_nodes(graph: Data) -> Data:
             graph.edge_attributes = valid_edges
             after_len = len(graph.edge_attributes)
             if logging.getLogger().isEnabledFor(logging.DEBUG):
-                logging.debug(f"[DEATH] Batch removal: cleaned edge_attributes from {before_len} to {after_len}, remapped {len(valid_edges)}")
+                logging.debug("[DEATH] Batch removal: cleaned edge_attributes from %s to %s, remapped %s", before_len, after_len, len(valid_edges))
     else:
         if logging.getLogger().isEnabledFor(logging.DEBUG):
             logging.debug("[DEATH] No edge_attributes for batch cleanup")
@@ -356,13 +356,13 @@ def remove_dead_dynamic_nodes(graph: Data) -> Data:
     final_edge_count = graph.edge_index.shape[1] if hasattr(graph, 'edge_index') and graph.edge_index is not None else 0
     attr_count = len(graph.edge_attributes) if hasattr(graph, 'edge_attributes') else 0
     if logging.getLogger().isEnabledFor(logging.DEBUG):
-        logging.debug(f"[DEATH] Final graph state: nodes={len(graph.node_labels)}, edges={final_edge_count}, attributes={attr_count}")
+        logging.debug("[DEATH] Final graph state: nodes=%s, edges=%s, attributes=%s", len(graph.node_labels), final_edge_count, attr_count)
     if attr_count != final_edge_count:
-        logging.warning(f"[DEATH] Mismatch between edge_index ({final_edge_count}) and edge_attributes ({attr_count})")
+        logging.warning("[DEATH] Mismatch between edge_index (%s) and edge_attributes (%s)", final_edge_count, attr_count)
 
     final_nodes = len(graph.node_labels)
     if logging.getLogger().isEnabledFor(logging.DEBUG):
-        logging.debug(f"[DEATH] Removal complete: {final_nodes} nodes remaining (removed {len(to_remove)})")
+        logging.debug("[DEATH] Removal complete: %s nodes remaining (removed %s)", final_nodes, len(to_remove))
     
     if hasattr(graph, 'x') and graph.x is not None:
         assert len(graph.node_labels) == graph.x.shape[0], "Node label and feature count mismatch after node death"
@@ -379,11 +379,11 @@ def birth_new_dynamic_nodes(graph: Data) -> Data:
     
     # Check if we can expand the graph
     if not id_manager.can_expand_graph(1):
-        logging.warning(f"[BIRTH] Graph expansion limit reached. Cannot create new nodes. Capacity: {id_manager.get_expansion_capacity()}")
+        logging.warning("[BIRTH] Graph expansion limit reached. Cannot create new nodes. Capacity: %s", id_manager.get_expansion_capacity())
         return graph
 
     if logging.getLogger().isEnabledFor(logging.DEBUG):
-        logging.debug(f"[BIRTH] Checking for node birth with threshold {get_node_birth_threshold()}")
+        logging.debug("[BIRTH] Checking for node birth with threshold %s", get_node_birth_threshold())
     x = graph.x
     node_labels = graph.node_labels
     num_nodes = len(node_labels)
@@ -399,7 +399,7 @@ def birth_new_dynamic_nodes(graph: Data) -> Data:
     if dynamic_indices:
         sample_energies = dynamic_energies[:5].tolist()
         if logging.getLogger().isEnabledFor(logging.DEBUG):
-            logging.debug(f"[BIRTH] Sample dynamic node energies: {sample_energies}")
+            logging.debug("[BIRTH] Sample dynamic node energies: %s", sample_energies)
     new_features = []
     new_labels = []
     birth_cost = get_node_birth_cost()
@@ -443,16 +443,16 @@ def birth_new_dynamic_nodes(graph: Data) -> Data:
             })
             id_manager.register_node_index(new_node_id, new_node_index)
             logging.info(
-                f"[BIRTH] Node {idx} spawned new node {new_node_id} with energy {new_energy:.2f} (parent energy now {x[idx].item():.2f})"
+                "[BIRTH] Node %s spawned new node %s with energy %.2f (parent energy now %.2f)", idx, new_node_id, new_energy, x[idx].item()
             )
             spawned_from_energy = True
             
             # Diagnostic: Log new node ID for connection formation tracking
-            logging.info(f"[BIRTH] New node ID registered: {new_node_id} at index {new_node_index}")
+            logging.info("[BIRTH] New node ID registered: %s at index %s", new_node_id, new_node_index)
     # Density-based spawn if low node count and no energy-based spawns
     if not spawned_from_energy and num_nodes < 1000:
         if logging.getLogger().isEnabledFor(logging.DEBUG):
-            logging.debug(f"[BIRTH] Low density (nodes={num_nodes}), forcing one spawn")
+            logging.debug("[BIRTH] Low density (nodes=%s), forcing one spawn", num_nodes)
         default_energy = 0.5 * energy_cap
         new_features.append([default_energy])
         id_manager = get_id_manager()
@@ -485,11 +485,11 @@ def birth_new_dynamic_nodes(graph: Data) -> Data:
         })
         id_manager.register_node_index(new_node_id, new_node_index)
         if logging.getLogger().isEnabledFor(logging.DEBUG):
-            logging.debug(f"[BIRTH] Density-spawned node {new_node_id} with energy {default_energy:.2f}")
+            logging.debug("[BIRTH] Density-spawned node %s with energy %.2f", new_node_id, default_energy)
 
         # Diagnostic: Log new node ID for connection formation tracking
         if logging.getLogger().isEnabledFor(logging.DEBUG):
-            logging.debug(f"[BIRTH] Density new node ID registered: {new_node_id} at index {new_node_index}")
+            logging.debug("[BIRTH] Density new node ID registered: %s at index %s", new_node_id, new_node_index)
     if new_features:
         new_features_tensor = torch.tensor(new_features, dtype=x.dtype)
         graph.x = torch.cat([x, new_features_tensor], dim=0)
@@ -512,11 +512,11 @@ def birth_new_dynamic_nodes(graph: Data) -> Data:
                     connected += 1
                 attempts += 1
             if logging.getLogger().isEnabledFor(logging.DEBUG):
-                logging.debug(f"[BIRTH] New node {new_id} connected to {connected} existing nodes")
+                logging.debug("[BIRTH] New node %s connected to %s existing nodes", new_id, connected)
         # Log edge count after birth connections
         edge_count = graph.edge_index.shape[1] if hasattr(graph, 'edge_index') and graph.edge_index is not None else 0
         if logging.getLogger().isEnabledFor(logging.DEBUG):
-            logging.debug(f"[BIRTH] Graph edge count after adding connections for new nodes: {edge_count}")
+            logging.debug("[BIRTH] Graph edge count after adding connections for new nodes: %s", edge_count)
         assert len(graph.node_labels) == graph.x.shape[0], "Node label and feature count mismatch after node birth"
     return graph
 

@@ -101,7 +101,7 @@ class TestScreenGraph(unittest.TestCase):
 
         result = rgb_to_gray(mock_arr)
 
-        np.dot.assert_called_once()
+        np.dot.assert_called_once()  # pylint: disable=no-member
         self.assertIsNotNone(result)
 
     def test_rgb_to_gray_invalid_shape(self):
@@ -148,7 +148,7 @@ class TestScreenGraph(unittest.TestCase):
 
         result = capture_screen()
 
-        np.zeros.assert_called_once()
+        np.zeros.assert_called_once()  # pylint: disable=no-member
         self.assertIsNotNone(result)
 
     def test_capture_screen_with_scaling(self):
@@ -372,7 +372,7 @@ class TestScreenGraph(unittest.TestCase):
 
         result = rgb_to_gray(test_rgb)
 
-        np.dot.assert_called_with(test_rgb[..., :3], [0.2125, 0.7154, 0.0721])
+        np.dot.assert_called_with(test_rgb[..., :3], [0.2125, 0.7154, 0.0721])  # pylint: disable=no-member
         self.assertEqual(result, expected_gray)
 
     def test_graph_node_properties(self):

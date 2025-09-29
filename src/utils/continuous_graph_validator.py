@@ -5,9 +5,8 @@ Provides ongoing validation and automatic repair of neural simulation graphs.
 
 import threading
 import time
-import logging
 import torch
-from typing import Dict, List, Any, Optional, Callable
+from typing import Dict, Any, Optional, Callable
 from src.utils.logging_utils import log_step
 from src.utils.graph_integrity_manager import get_graph_integrity_manager
 from src.utils.connection_validator import get_connection_validator

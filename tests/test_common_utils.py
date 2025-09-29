@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
 import time
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 from torch_geometric.data import Data
 import torch
 

@@ -9,9 +9,8 @@ and optimization recommendations for neural simulation systems.
 import time
 import statistics
 import threading
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional
 from collections import defaultdict, deque
-from datetime import datetime, timedelta
 
 from ..interfaces.real_time_analytics import (
     IRealTimeAnalytics, AnalyticsMetric, PredictionModel
@@ -111,7 +110,7 @@ class RealTimeAnalyticsService(IRealTimeAnalytics):
 
             return metrics
 
-        except Exception as e:
+        except (AttributeError, ValueError, TypeError, RuntimeError) as e:
             print(f"Error collecting system metrics: {e}")
             return []
 
@@ -171,7 +170,7 @@ class RealTimeAnalyticsService(IRealTimeAnalytics):
                 "timestamp": current_time
             }
 
-        except Exception as e:
+        except (ValueError, TypeError, ZeroDivisionError, StatisticsError) as e:
             print(f"Error analyzing performance trends: {e}")
             return {"error": str(e)}
 
@@ -230,7 +229,7 @@ class RealTimeAnalyticsService(IRealTimeAnalytics):
                 "timestamp": current_time
             }
 
-        except Exception as e:
+        except (ValueError, TypeError, ZeroDivisionError, StatisticsError) as e:
             print(f"Error predicting system behavior: {e}")
             return {"error": str(e)}
 
@@ -291,7 +290,7 @@ class RealTimeAnalyticsService(IRealTimeAnalytics):
 
             return anomalies
 
-        except Exception as e:
+        except (ValueError, TypeError, ZeroDivisionError, StatisticsError) as e:
             print(f"Error detecting anomalies: {e}")
             return []
 
@@ -365,7 +364,7 @@ class RealTimeAnalyticsService(IRealTimeAnalytics):
 
             return recommendations
 
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError, RuntimeError) as e:
             print(f"Error generating optimization recommendations: {e}")
             return []
 
@@ -431,7 +430,7 @@ class RealTimeAnalyticsService(IRealTimeAnalytics):
 
             return report
 
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError, RuntimeError) as e:
             print(f"Error creating performance report: {e}")
             return {"error": str(e)}
 
@@ -473,7 +472,7 @@ class RealTimeAnalyticsService(IRealTimeAnalytics):
             self.service_health_status = health_status
             return health_status
 
-        except Exception as e:
+        except (AttributeError, ValueError, TypeError, RuntimeError) as e:
             print(f"Error monitoring service health: {e}")
             return {"error": str(e)}
 
@@ -513,7 +512,7 @@ class RealTimeAnalyticsService(IRealTimeAnalytics):
                 "timestamp": time.time()
             }
 
-        except Exception as e:
+        except (ValueError, TypeError, ZeroDivisionError, StatisticsError) as e:
             print(f"Error tracking energy efficiency: {e}")
             return {"error": str(e)}
 
@@ -648,7 +647,7 @@ class RealTimeAnalyticsService(IRealTimeAnalytics):
                 # Sleep for collection interval
                 time.sleep(self.collection_interval)
 
-            except Exception as e:
+            except (AttributeError, ValueError, TypeError, RuntimeError) as e:
                 print(f"Error in analytics monitoring loop: {e}")
                 time.sleep(5.0)
 

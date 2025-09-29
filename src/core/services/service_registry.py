@@ -7,7 +7,7 @@ neural simulation system.
 """
 
 import inspect
-from typing import Type, TypeVar, Optional, Dict, Any, List, Set
+from typing import Type, TypeVar, Optional, Dict, Any, List
 from threading import RLock
 
 from ..interfaces.service_registry import (

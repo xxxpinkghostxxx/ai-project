@@ -8,8 +8,8 @@ imported and used from Python code.
 from setuptools import setup, Extension
 try:
     from Cython.Build import cythonize
-except ImportError:
-    raise ImportError("Cython is required to build the extensions. Please install it with 'pip install Cython'")
+except ImportError as exc:
+    raise ImportError("Cython is required to build the extensions. Please install it with 'pip install Cython'") from exc
 import numpy as np
 import os
 

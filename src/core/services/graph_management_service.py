@@ -10,7 +10,8 @@ import os
 import json
 import pickle
 import torch
-from typing import Dict, Any, List, Optional, Tuple
+import time
+from typing import Dict, Any, Optional
 from torch_geometric.data import Data
 
 from ..interfaces.graph_manager import IGraphManager
@@ -130,7 +131,7 @@ class GraphManagementService(IGraphManager):
                 "nodes": len(node_labels),
                 "edges": edge_index.shape[1],
                 "node_types": node_types,
-                "timestamp": torch.cuda.Event().elapsed_time() if torch.cuda.is_available() else 0
+                "timestamp": time.time()
             })
 
             return graph
@@ -201,7 +202,7 @@ class GraphManagementService(IGraphManager):
                 "filepath": filepath,
                 "nodes": len(graph.node_labels) if hasattr(graph, 'node_labels') else 0,
                 "edges": graph.edge_index.shape[1] if hasattr(graph, 'edge_index') else 0,
-                "timestamp": torch.cuda.Event().elapsed_time() if torch.cuda.is_available() else 0
+                "timestamp": time.time()
             })
 
             return graph
@@ -247,7 +248,7 @@ class GraphManagementService(IGraphManager):
                 "filepath": filepath,
                 "nodes": len(graph.node_labels) if hasattr(graph, 'node_labels') else 0,
                 "edges": graph.edge_index.shape[1] if hasattr(graph, 'edge_index') else 0,
-                "timestamp": torch.cuda.Event().elapsed_time() if torch.cuda.is_available() else 0
+                "timestamp": time.time()
             })
 
             return True

@@ -5,10 +5,8 @@ Provides LRU caching, batch operations, and memory-efficient data structures.
 
 import threading
 import time
-from typing import Dict, List, Any, Optional, Tuple, Callable
-from collections import OrderedDict, deque
-import logging
-import weakref
+from typing import Dict, List, Any, Optional, Callable
+from collections import OrderedDict
 
 class LRUCache:
     """Thread-safe LRU cache with size limits."""
@@ -79,10 +77,10 @@ class BatchOperationCache:
     def __init__(self, batch_size: int = 100):
         self.batch_size = batch_size
         self.operation_cache: Dict[str, Dict[str, Any]] = {}
-        self.pending_operations: Dict[str, List[Tuple]] = {}
+        self.pending_operations: Dict[str, List[tuple]] = {}
         self._lock = threading.RLock()
     
-    def add_operation(self, operation_type: str, operation_data: Tuple):
+    def add_operation(self, operation_type: str, operation_data: tuple):
         """Add an operation to be batched."""
         with self._lock:
             if operation_type not in self.pending_operations:
@@ -113,7 +111,7 @@ class BatchOperationCache:
                     'count': len(group_ops)
                 }
     
-    def _group_similar_operations(self, operations: List[Tuple]) -> Dict[str, List[Tuple]]:
+    def _group_similar_operations(self, operations: List[tuple]) -> Dict[str, List[tuple]]:
         """Group similar operations for batch processing."""
         groups = {}
         for op in operations:
@@ -124,7 +122,7 @@ class BatchOperationCache:
             groups[group_key].append(op)
         return groups
     
-    def _execute_batch_operation(self, operation_type: str, operations: List[Tuple]) -> Any:
+    def _execute_batch_operation(self, operation_type: str, operations: List[tuple]) -> Any:
         """Execute a batch of operations."""
         # This would be implemented based on the specific operation type
         # For now, return a placeholder
@@ -276,14 +274,14 @@ class PerformanceCacheManager:
         cache_key = f"connection:{source_id}:{target_id}"
         self.lru_cache.put(cache_key, data)
     
-    def batch_node_updates(self, updates: List[Tuple[int, Dict[str, Any]]]):
+    def batch_node_updates(self, updates: List[tuple[int, Dict[str, Any]]]):
         """Batch node update operations."""
         for node_id, update_data in updates:
             self.batch_cache.add_operation('node_update', (node_id, update_data))
         
         self.stats['batch_operations'] += len(updates)
     
-    def batch_connection_updates(self, updates: List[Tuple[int, int, Dict[str, Any]]]):
+    def batch_connection_updates(self, updates: List[tuple[int, int, Dict[str, Any]]]):
         """Batch connection update operations."""
         for source_id, target_id, update_data in updates:
             self.batch_cache.add_operation('connection_update', (source_id, target_id, update_data))

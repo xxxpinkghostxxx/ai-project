@@ -6,16 +6,14 @@ handling energy flow, conservation, metabolic costs, and homeostasis
 while serving as the central integrator for all neural simulation modules.
 """
 
-import time
 import logging
-import numpy as np
 from typing import Dict, Any, List, Optional, Tuple
+import numpy as np
 from torch_geometric.data import Data
 
 from ..interfaces.energy_manager import IEnergyManager, EnergyState, EnergyFlow
 from ..interfaces.configuration_service import IConfigurationService
 from ..interfaces.event_coordinator import IEventCoordinator
-from ..interfaces.neural_processor import SpikeEvent
 
 
 class EnergyManagementService(IEnergyManager):
@@ -65,7 +63,7 @@ class EnergyManagementService(IEnergyManager):
         """
         try:
             if graph is None or not hasattr(graph, 'node_labels'):
-                logging.error(f"Graph is None or missing node_labels attribute")
+                logging.error("Graph is None or missing node_labels attribute")
                 return False
 
             if graph.node_labels is None:
@@ -76,7 +74,8 @@ class EnergyManagementService(IEnergyManager):
 
             for i, node in enumerate(graph.node_labels):
                 node_id = node.get('id', i)
-                # Use existing energy if present, otherwise initialize with moderate levels for diversity
+                # Use existing energy if present, otherwise initialize with moderate levels
+                # for diversity
                 if 'energy' in node:
                     energy_value = node['energy']
                 else:
@@ -97,11 +96,13 @@ class EnergyManagementService(IEnergyManager):
 
             return True
 
-        except Exception as e:
-            logging.error(f"Failed to initialize energy state: {e}")
+        except RuntimeError as e:
+            logging.error("Failed to initialize energy state: %s", e)
             return False
 
-    def update_energy_flows(self, graph: Data, spike_events: List[Any]) -> Tuple[Data, List[EnergyFlow]]:
+    def update_energy_flows(
+        self, graph: Data, spike_events: List[Any]
+    ) -> Tuple[Data, List[EnergyFlow]]:
         """
         Update energy flows based on neural activity.
 
@@ -162,8 +163,8 @@ class EnergyManagementService(IEnergyManager):
 
             return graph, energy_flows
 
-        except Exception as e:
-            logging.error(f"Error updating energy flows: {e}")
+        except RuntimeError as e:
+            logging.error("Error updating energy flows: %s", e)
             return graph, energy_flows
 
     def apply_metabolic_costs(self, graph: Data, time_step: float) -> Data:
@@ -196,8 +197,8 @@ class EnergyManagementService(IEnergyManager):
 
             return graph
 
-        except Exception as e:
-            logging.error(f"Error applying metabolic costs: {e}")
+        except RuntimeError as e:
+            logging.error("Error applying metabolic costs: %s", e)
             return graph
 
     def regulate_energy_homeostasis(self, graph: Data) -> Data:
@@ -230,8 +231,8 @@ class EnergyManagementService(IEnergyManager):
 
             return graph
 
-        except Exception as e:
-            logging.error(f"Error regulating energy homeostasis: {e}")
+        except RuntimeError as e:
+            logging.error("Error regulating energy homeostasis: %s", e)
             return graph
 
     def modulate_neural_activity(self, graph: Data) -> Data:
@@ -271,8 +272,8 @@ class EnergyManagementService(IEnergyManager):
 
             return graph
 
-        except Exception as e:
-            logging.error(f"Error modulating neural activity: {e}")
+        except RuntimeError as e:
+            logging.error("Error modulating neural activity: %s", e)
             return graph
 
     def reset_energy_state(self) -> bool:
@@ -288,8 +289,8 @@ class EnergyManagementService(IEnergyManager):
             self._total_energy_history.clear()
             self._energy_state = EnergyState()
             return True
-        except Exception as e:
-            logging.error(f"Error resetting energy state: {e}")
+        except RuntimeError as e:
+            logging.error("Error resetting energy state: %s", e)
             return False
 
     def get_energy_state(self) -> EnergyState:
@@ -333,7 +334,9 @@ class EnergyManagementService(IEnergyManager):
         # Check for energy conservation (should not change dramatically)
         if self._total_energy_history:
             previous_total = self._total_energy_history[-1]
-            energy_change_percent = abs(total_energy - previous_total) / max(previous_total, 0.001) * 100
+            energy_change_percent = (
+                abs(total_energy - previous_total) / max(previous_total, 0.001) * 100
+            )
 
             if energy_change_percent > 20.0:  # More than 20% change
                 issues.append(f"Energy change too large: {energy_change_percent:.1f}%")
@@ -348,8 +351,11 @@ class EnergyManagementService(IEnergyManager):
             "valid": len(issues) == 0,
             "issues": issues,
             "total_energy": total_energy,
-            "energy_change_percent": energy_change_percent if 'energy_change_percent' in locals() else 0.0,
-            "energy_conservation_rate": 1.0 - (energy_change_percent / 100.0) if 'energy_change_percent' in locals() else 1.0
+            "energy_change_percent": (
+                energy_change_percent if 'energy_change_percent' in locals() else 0.0
+            ),
+            "energy_conservation_rate": 1.0 - (energy_change_percent / 100.0) \
+                if 'energy_change_percent' in locals() else 1.0
         }
 
     def _update_node_energy_in_graph(self, graph: Data, node_id: int, energy: float) -> None:
@@ -418,8 +424,8 @@ class EnergyManagementService(IEnergyManager):
                     self._homeostasis_strength = float(value)
 
             return True
-        except Exception as e:
-            logging.error(f"Error configuring energy parameters: {e}")
+        except ValueError as e:
+            logging.error("Error configuring energy parameters: %s", e)
             return False
 
     def get_energy_metrics(self) -> Dict[str, float]:
@@ -477,8 +483,8 @@ class EnergyManagementService(IEnergyManager):
 
             return graph
 
-        except Exception as e:
-            logging.error(f"Error applying energy boost: {e}")
+        except RuntimeError as e:
+            logging.error("Error applying energy boost: %s", e)
             return graph
 
     def detect_energy_anomalies(self, graph: Data) -> List[Dict[str, Any]]:
@@ -522,8 +528,8 @@ class EnergyManagementService(IEnergyManager):
 
             return anomalies
 
-        except Exception as e:
-            logging.error(f"Error detecting energy anomalies: {e}")
+        except RuntimeError as e:
+            logging.error("Error detecting energy anomalies: %s", e)
             return anomalies
 
     def cleanup(self) -> None:
@@ -531,9 +537,3 @@ class EnergyManagementService(IEnergyManager):
         self._node_energies.clear()
         self._energy_flows.clear()
         self._total_energy_history.clear()
-
-
-
-
-
-

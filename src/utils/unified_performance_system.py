@@ -9,14 +9,12 @@ import threading
 import logging
 import gc
 import psutil
-from typing import Dict, List, Any, Optional, Callable, Tuple
+from typing import Dict, List, Any, Callable
 from dataclasses import dataclass, field
 from collections import deque, defaultdict
 from enum import Enum
 import numpy as np
-import weakref
-from datetime import datetime
-from src.utils.print_utils import print_info, print_warning, print_error
+from src.utils.print_utils import print_error
 from src.utils.logging_utils import log_step
 
 
@@ -704,6 +702,15 @@ def record_simulation_error():
 def record_simulation_warning():
     """Record a simulation warning."""
     get_performance_monitor().record_warning()
+
+
+def initialize_performance_monitoring(update_interval: float = 1.0) -> PerformanceMonitor:
+    """Initialize and return the performance monitor with specified update interval."""
+    global _performance_monitor
+    if _performance_monitor is None:
+        _performance_monitor = PerformanceMonitor(update_interval=update_interval)
+        _performance_monitor.start()
+    return _performance_monitor
 
 
 def get_system_performance_metrics() -> Dict[str, float]:

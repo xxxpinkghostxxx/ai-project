@@ -6,7 +6,7 @@ providing validation, migration, and dynamic updates for all system parameters.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 from enum import Enum
 
 
@@ -31,35 +31,34 @@ class IConfigurationService(ABC):
     @abstractmethod
     def load_configuration(self, config_path: Optional[str] = None) -> bool:
         """Load configuration from file or default."""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def save_configuration(self, config_path: str) -> bool:
         """Save current configuration to file."""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def get_parameter(self, key: str, scope: ConfigurationScope = ConfigurationScope.GLOBAL) -> Any:
         """Get a configuration parameter."""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
-    def set_parameter(self, key: str, value: Any, scope: ConfigurationScope = ConfigurationScope.GLOBAL) -> bool:
+    def set_parameter(
+        self, key: str, value: Any,
+        scope: ConfigurationScope = ConfigurationScope.GLOBAL
+    ) -> bool:
         """Set a configuration parameter."""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def validate_configuration(self) -> Dict[str, Any]:
         """Validate current configuration."""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
-    def get_configuration_schema(self, scope: Optional[ConfigurationScope] = None) -> Dict[str, Any]:
+    def get_configuration_schema(
+        self, scope: Optional[ConfigurationScope] = None
+    ) -> Dict[str, Any]:
         """Get configuration schema for validation."""
-        pass
-
-
-
-
-
-
+        raise NotImplementedError

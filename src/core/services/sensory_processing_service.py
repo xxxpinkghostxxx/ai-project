@@ -8,7 +8,7 @@ patterns while maintaining biological plausibility and energy integration.
 
 import time
 import numpy as np
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List
 from torch_geometric.data import Data
 
 from ..interfaces.sensory_processor import ISensoryProcessor, SensoryInput

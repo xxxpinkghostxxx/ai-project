@@ -5,10 +5,9 @@ Implements object pooling patterns to reduce garbage collection pressure.
 
 import threading
 import time
-from typing import Dict, List, Any, Optional, TypeVar, Generic
-from collections import defaultdict, deque
+from typing import Dict, Any, Optional, TypeVar, Generic
+from collections import deque
 from dataclasses import dataclass
-import weakref
 from src.utils.unified_error_handler import ErrorSeverity
 
 T = TypeVar('T')

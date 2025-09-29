@@ -6,7 +6,7 @@ import torch
 from torch_geometric.data import Data
 from src.energy.node_id_manager import get_id_manager
 from src.neural.dynamic_nodes import add_dynamic_nodes
-from main_graph import initialize_main_graph
+from src.core.main_graph import initialize_main_graph
 from src.neural.network_metrics import NetworkMetrics
 from src.neural.death_and_birth_logic import birth_new_dynamic_nodes, remove_dead_dynamic_nodes
 import logging

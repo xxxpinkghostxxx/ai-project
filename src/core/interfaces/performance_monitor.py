@@ -47,25 +47,22 @@ class IPerformanceMonitor(ABC):
     @abstractmethod
     def start_monitoring(self) -> bool:
         """Start performance monitoring."""
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def stop_monitoring(self) -> bool:
         """Stop performance monitoring."""
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def get_current_metrics(self) -> PerformanceMetrics:
         """Get current performance metrics."""
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def get_historical_metrics(self, time_range: int = 60) -> List[PerformanceMetrics]:
         """Get historical performance metrics."""
-        pass
-
-
-
+        raise NotImplementedError()
 
 
 

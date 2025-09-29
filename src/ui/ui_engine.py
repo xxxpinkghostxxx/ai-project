@@ -4,9 +4,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.utils.event_bus import get_event_bus
 from typing import Optional
-from unittest.mock import Mock
 
-from dearpygui import dearpygui as dpg
+from dearpygui import dearpygui as dpg  # pylint: disable=no-member
 import time
 import math
 import logging
@@ -506,7 +505,7 @@ def update_graph_visualization():
     pan_x = ui_state.get_simulation_state().get('viz_pan_x', 0.0)
     pan_y = ui_state.get_simulation_state().get('viz_pan_y', 0.0)
 
-    dpg.clear_draw_list()
+    dpg.clear_draw_list()  # pylint: disable=no-member
 
     if show_nodes and hasattr(graph, 'node_labels') and graph.node_labels:
         # Use node positions if available, else simple layout
@@ -1017,7 +1016,7 @@ def export_metrics():
 def force_close_application():
     """Force close the application with cleanup."""
     # Skip DPG calls in test environments to avoid crashes
-    skip = 'pytest' in sys.modules
+    skip = 'pytest' in sys.modules  # pylint: disable=used-before-assignment
     if skip:
         return
 
@@ -1040,7 +1039,6 @@ def force_close_application():
     except Exception as e:
         log_step(f"Error during force close: {e}")
         # Emergency exit
-        import sys
         sys.exit(1)
 
 

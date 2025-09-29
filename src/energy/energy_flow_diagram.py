@@ -3,8 +3,6 @@ Energy Flow Diagram Generator
 Creates visual representations of energy flow through the neural simulation system.
 """
 
-from typing import Dict, List, Any, Optional
-import numpy as np
 import re
 
 class EnergyFlowDiagram:

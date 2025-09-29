@@ -7,7 +7,7 @@ neural modulation while maintaining biological plausibility.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Tuple
 from torch_geometric.data import Data
 
 
@@ -31,7 +31,9 @@ class EnergyState:
             'total_system_energy': self.total_system_energy,
             'energy_distribution': self.energy_distribution.copy(),
             'metabolic_costs': self.metabolic_costs.copy(),
-            'energy_flows': {f"{src}_{tgt}": flow for (src, tgt), flow in self.energy_flows.items()},
+            'energy_flows': {
+                f"{src}_{tgt}": flow for (src, tgt), flow in self.energy_flows.items()
+            },
             'energy_efficiency': self.energy_efficiency,
             'energy_conservation_rate': self.energy_conservation_rate
         }
@@ -80,10 +82,11 @@ class IEnergyManager(ABC):
         Returns:
             bool: True if initialization successful, False otherwise
         """
-        pass
 
     @abstractmethod
-    def update_energy_flows(self, graph: Data, spike_events: List[Any]) -> Tuple[Data, List[EnergyFlow]]:
+    def update_energy_flows(
+        self, graph: Data, spike_events: List[Any]
+    ) -> Tuple[Data, List[EnergyFlow]]:
         """
         Update energy flows based on neural activity and spike events.
 
@@ -97,7 +100,6 @@ class IEnergyManager(ABC):
         Returns:
             Tuple[Data, List[EnergyFlow]]: Updated graph and energy flow events
         """
-        pass
 
     @abstractmethod
     def apply_metabolic_costs(self, graph: Data, time_step: float) -> Data:
@@ -114,7 +116,6 @@ class IEnergyManager(ABC):
         Returns:
             Data: Updated graph with applied metabolic costs
         """
-        pass
 
     @abstractmethod
     def regulate_energy_homeostasis(self, graph: Data) -> Data:
@@ -130,7 +131,6 @@ class IEnergyManager(ABC):
         Returns:
             Data: Updated graph with homeostasis regulation applied
         """
-        pass
 
     @abstractmethod
     def modulate_neural_activity(self, graph: Data) -> Data:
@@ -146,7 +146,6 @@ class IEnergyManager(ABC):
         Returns:
             Data: Updated graph with energy-based neural modulation
         """
-        pass
 
     @abstractmethod
     def calculate_energy_efficiency(self, graph: Data) -> float:
@@ -159,7 +158,6 @@ class IEnergyManager(ABC):
         Returns:
             float: Energy efficiency metric (information processed per energy unit)
         """
-        pass
 
     @abstractmethod
     def validate_energy_conservation(self, graph: Data) -> Dict[str, Any]:
@@ -172,7 +170,6 @@ class IEnergyManager(ABC):
         Returns:
             Dict[str, Any]: Validation results with conservation metrics
         """
-        pass
 
     @abstractmethod
     def get_energy_state(self) -> EnergyState:
@@ -182,7 +179,6 @@ class IEnergyManager(ABC):
         Returns:
             EnergyState: Current energy state information
         """
-        pass
 
     @abstractmethod
     def reset_energy_state(self) -> bool:
@@ -192,7 +188,6 @@ class IEnergyManager(ABC):
         Returns:
             bool: True if reset successful, False otherwise
         """
-        pass
 
     @abstractmethod
     def configure_energy_parameters(self, parameters: Dict[str, Any]) -> bool:
@@ -205,7 +200,6 @@ class IEnergyManager(ABC):
         Returns:
             bool: True if parameters updated successfully, False otherwise
         """
-        pass
 
     @abstractmethod
     def get_energy_metrics(self) -> Dict[str, float]:
@@ -215,7 +209,6 @@ class IEnergyManager(ABC):
         Returns:
             Dict[str, float]: Energy metrics including efficiency, conservation, etc.
         """
-        pass
 
     @abstractmethod
     def apply_energy_boost(self, graph: Data, neuron_ids: List[int], boost_amount: float) -> Data:
@@ -230,7 +223,6 @@ class IEnergyManager(ABC):
         Returns:
             Data: Updated graph with energy boosts applied
         """
-        pass
 
     @abstractmethod
     def detect_energy_anomalies(self, graph: Data) -> List[Dict[str, Any]]:
@@ -243,10 +235,3 @@ class IEnergyManager(ABC):
         Returns:
             List[Dict[str, Any]]: List of detected energy anomalies
         """
-        pass
-
-
-
-
-
-

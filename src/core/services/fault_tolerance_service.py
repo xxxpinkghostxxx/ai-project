@@ -42,10 +42,10 @@ class FaultToleranceService(IFaultTolerance):
         self.distributed_coordinator = distributed_coordinator
 
         # Fault tolerance state
-        self._failure_history: deque = deque(maxlen=1000)
-        self._component_health: Dict[str, Dict[str, Any]] = {}
-        self._backup_components: Dict[str, str] = {}
-        self._recovery_procedures: Dict[str, List[Dict[str, Any]]] = {}
+        self.failure_history: deque = deque(maxlen=1000)
+        self.component_health: Dict[str, Dict[str, Any]] = {}
+        self.backup_components: Dict[str, str] = {}
+        self.recovery_procedures: Dict[str, List[Dict[str, Any]]] = {}
 
         # Monitoring settings
         self._health_check_interval = 10.0  # seconds
@@ -60,7 +60,7 @@ class FaultToleranceService(IFaultTolerance):
         # Monitoring thread
         self._monitoring_active = False
         self._monitoring_thread: Optional[threading.Thread] = None
-        self._lock = threading.RLock()
+        self.lock = threading.RLock()
 
     def detect_failures(self) -> List[FailureEvent]:
         """
@@ -72,7 +72,7 @@ class FaultToleranceService(IFaultTolerance):
         failures = []
 
         try:
-            with self._lock:
+            with self.lock:
                 # Get system status
                 system_status = self.distributed_coordinator.get_system_status()
                 current_time = time.time()
@@ -139,7 +139,7 @@ class FaultToleranceService(IFaultTolerance):
 
                 # Record failures
                 for failure in failures:
-                    self._failure_history.append(failure)
+                    self.failure_history.append(failure)
                     self._total_failures += 1
 
                     # Publish failure event
@@ -152,7 +152,7 @@ class FaultToleranceService(IFaultTolerance):
 
                 return failures
 
-        except Exception as e:
+        except (KeyError, AttributeError, TypeError) as e:
             print(f"Error detecting failures: {e}")
             return []
 
@@ -189,10 +189,12 @@ class FaultToleranceService(IFaultTolerance):
                 })
 
             # Update component health
-            self._component_health[node_id] = {
+            self.component_health[node_id] = {
                 "status": "failed",
                 "last_failure": time.time(),
-                "recovery_attempts": self._component_health.get(node_id, {}).get('recovery_attempts', 0) + 1
+                "recovery_attempts": (
+                    self.component_health.get(node_id, {}).get('recovery_attempts', 0) + 1
+                )
             }
 
             # Publish recovery event
@@ -209,7 +211,7 @@ class FaultToleranceService(IFaultTolerance):
                 "timestamp": time.time()
             }
 
-        except Exception as e:
+        except (KeyError, AttributeError, TypeError) as e:
             print(f"Error handling node failure: {e}")
             return {
                 "success": False,
@@ -217,7 +219,9 @@ class FaultToleranceService(IFaultTolerance):
                 "node_id": node_id
             }
 
-    def handle_service_failure(self, service_name: str, node_id: Optional[str] = None) -> Dict[str, Any]:
+    def handle_service_failure(
+        self, service_name: str, node_id: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Handle failure of a specific service.
 
@@ -232,7 +236,7 @@ class FaultToleranceService(IFaultTolerance):
             recovery_actions = []
 
             # Attempt service restart (simplified)
-            restart_success = self._attempt_service_restart(service_name, node_id)
+            restart_success = self._attempt_service_restart(service_name)
             recovery_actions.append({
                 "action": "restart_service",
                 "service": service_name,
@@ -243,7 +247,7 @@ class FaultToleranceService(IFaultTolerance):
 
             # If restart failed, try failover
             if not restart_success:
-                backup_service = self._backup_components.get(service_name)
+                backup_service = self.backup_components.get(service_name)
                 if backup_service:
                     failover_success = self.initiate_failover(service_name, backup_service)
                     recovery_actions.append({
@@ -256,10 +260,15 @@ class FaultToleranceService(IFaultTolerance):
 
             # Update component health
             component_key = f"{service_name}_{node_id}" if node_id else service_name
-            self._component_health[component_key] = {
-                "status": "failed" if not any(action["success"] for action in recovery_actions) else "recovered",
+            self.component_health[component_key] = {
+                "status": (
+                    "failed" if not any(action["success"] for action in recovery_actions)
+                    else "recovered"
+                ),
                 "last_failure": time.time(),
-                "recovery_attempts": self._component_health.get(component_key, {}).get('recovery_attempts', 0) + 1
+                "recovery_attempts": (
+                    self.component_health.get(component_key, {}).get('recovery_attempts', 0) + 1
+                )
             }
 
             # Publish recovery event
@@ -279,7 +288,7 @@ class FaultToleranceService(IFaultTolerance):
                 "timestamp": time.time()
             }
 
-        except Exception as e:
+        except (KeyError, AttributeError, TypeError) as e:
             print(f"Error handling service failure: {e}")
             return {
                 "success": False,
@@ -301,7 +310,7 @@ class FaultToleranceService(IFaultTolerance):
         """
         try:
             # Update backup component registry
-            self._backup_components[primary_component] = backup_component
+            self.backup_components[primary_component] = backup_component
 
             # Notify distributed coordinator
             # This would typically involve more complex failover logic
@@ -316,7 +325,7 @@ class FaultToleranceService(IFaultTolerance):
 
             return True
 
-        except Exception as e:
+        except (KeyError, AttributeError, TypeError) as e:
             print(f"Error initiating failover: {e}")
             return False
 
@@ -335,10 +344,10 @@ class FaultToleranceService(IFaultTolerance):
             backup_id = f"{component_id}_backup_{int(time.time())}"
 
             # Register backup
-            self._backup_components[component_id] = backup_id
+            self.backup_components[component_id] = backup_id
 
             # Initialize backup component health
-            self._component_health[backup_id] = {
+            self.component_health[backup_id] = {
                 "status": "active",
                 "backup_for": component_id,
                 "created_time": time.time()
@@ -358,7 +367,7 @@ class FaultToleranceService(IFaultTolerance):
                 "timestamp": time.time()
             }
 
-        except Exception as e:
+        except (KeyError, AttributeError, TypeError) as e:
             print(f"Error creating backup: {e}")
             return {
                 "success": False,
@@ -397,18 +406,25 @@ class FaultToleranceService(IFaultTolerance):
                 warnings.append(f"Task backlog: {pending_tasks} pending, {running_tasks} running")
 
             # Check recent failures
-            recent_failures = [f for f in self._failure_history
+            recent_failures = [f for f in self.failure_history
                              if time.time() - f.timestamp < 300]  # Last 5 minutes
 
             if len(recent_failures) > 5:
-                issues.append(f"High failure rate: {len(recent_failures)} failures in last 5 minutes")
+                issues.append(
+                    f"High failure rate: {len(recent_failures)} failures in last 5 minutes"
+                )
 
             # Check backup coverage
             critical_components = ["neural_processor", "energy_manager", "learning_service"]
-            backup_coverage = sum(1 for comp in critical_components if comp in self._backup_components)
+            backup_coverage = sum(
+                1 for comp in critical_components if comp in self.backup_components
+            )
 
             if backup_coverage < len(critical_components):
-                warnings.append(f"Incomplete backup coverage: {backup_coverage}/{len(critical_components)} critical components have backups")
+                warnings.append(
+                    f"Incomplete backup coverage: {backup_coverage}/{len(critical_components)} "
+                    "critical components have backups"
+                )
 
             return {
                 "integrity_score": max(0, 100 - len(issues) * 20 - len(warnings) * 10),
@@ -423,7 +439,7 @@ class FaultToleranceService(IFaultTolerance):
                 "timestamp": time.time()
             }
 
-        except Exception as e:
+        except (KeyError, AttributeError, TypeError) as e:
             print(f"Error validating system integrity: {e}")
             return {
                 "integrity_score": 0,
@@ -440,20 +456,23 @@ class FaultToleranceService(IFaultTolerance):
             Dict[str, Any]: Failure statistics and analysis
         """
         try:
-            with self._lock:
+            with self.lock:
                 # Analyze failure history
                 failure_types = defaultdict(int)
                 severity_counts = defaultdict(int)
                 component_failures = defaultdict(int)
 
-                for failure in self._failure_history:
+                for failure in self.failure_history:
                     failure_types[failure.failure_type] += 1
                     severity_counts[failure.severity] += 1
                     component_failures[failure.affected_component] += 1
 
                 # Calculate recovery rate
                 total_recovery_attempts = self._successful_recoveries + self._failed_recoveries
-                recovery_rate = (self._successful_recoveries / total_recovery_attempts) if total_recovery_attempts > 0 else 0
+                recovery_rate = (
+                    (self._successful_recoveries / total_recovery_attempts)
+                    if total_recovery_attempts > 0 else 0
+                )
 
                 # Identify most failure-prone components
                 most_failed_components = sorted(
@@ -470,22 +489,21 @@ class FaultToleranceService(IFaultTolerance):
                     "failure_types": dict(failure_types),
                     "severity_distribution": dict(severity_counts),
                     "most_failed_components": most_failed_components,
-                    "failure_history_size": len(self._failure_history),
-                    "component_health_status": dict(self._component_health),
+                    "failure_history_size": len(self.failure_history),
+                    "component_health_status": dict(self.component_health),
                     "timestamp": time.time()
                 }
 
-        except Exception as e:
+        except (KeyError, AttributeError, TypeError) as e:
             print(f"Error getting failure statistics: {e}")
             return {"error": str(e)}
 
-    def _attempt_service_restart(self, service_name: str, node_id: Optional[str]) -> bool:
+    def _attempt_service_restart(self, service_name: str) -> bool:
         """
         Attempt to restart a failed service.
 
         Args:
             service_name: Name of the service to restart
-            node_id: ID of the node where service is located
 
         Returns:
             bool: True if restart successful
@@ -506,7 +524,7 @@ class FaultToleranceService(IFaultTolerance):
 
             return restart_successful
 
-        except Exception as e:
+        except (KeyError, AttributeError, TypeError) as e:
             print(f"Error attempting service restart: {e}")
             self._failed_recoveries += 1
             return False
@@ -555,21 +573,14 @@ class FaultToleranceService(IFaultTolerance):
                 # Sleep for monitoring interval
                 time.sleep(self._health_check_interval)
 
-            except Exception as e:
+            except (KeyError, AttributeError, TypeError) as e:
                 print(f"Error in fault tolerance monitoring loop: {e}")
                 time.sleep(5.0)
-
-    def cleanup(self) -> None:
-        """Clean up resources."""
-        self.stop_monitoring()
-        with self._lock:
-            self._failure_history.clear()
-            self._component_health.clear()
-            self._backup_components.clear()
-            self._recovery_procedures.clear()
-
-
-
-
-
-
+def cleanup(self) -> None:
+    """Clean up resources."""
+    self.stop_monitoring()
+    with self.lock:
+        self.failure_history.clear()
+        self.component_health.clear()
+        self.backup_components.clear()
+        self.recovery_procedures.clear()

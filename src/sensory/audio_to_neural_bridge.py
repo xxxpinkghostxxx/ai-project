@@ -5,11 +5,9 @@ import torch
 from torch_geometric.data import Data
 
 import logging
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List
 from src.utils.logging_utils import log_step
-from src.energy.node_access_layer import get_node_by_id, update_node_property
-from energy import NodeAccessLayer
-from src.utils.common_utils import safe_hasattr, safe_get_attr
+from src.energy.node_access_layer import NodeAccessLayer
 
 import importlib
 

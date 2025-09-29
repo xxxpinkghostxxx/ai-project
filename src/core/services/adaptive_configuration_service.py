@@ -6,9 +6,7 @@ enabling self-tuning of system parameters based on performance metrics and workl
 """
 
 import time
-import ast
-import operator
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional
 
 from ..interfaces.adaptive_configuration import (
     IAdaptiveConfiguration, ConfigurationParameter, AdaptationRule
@@ -16,6 +14,7 @@ from ..interfaces.adaptive_configuration import (
 from ..interfaces.configuration_service import IConfigurationService
 from ..interfaces.event_coordinator import IEventCoordinator
 from ..interfaces.real_time_analytics import IRealTimeAnalytics
+from ..interfaces.configuration_service import ConfigurationScope
 
 
 class AdaptiveConfigurationService(IAdaptiveConfiguration):
@@ -82,7 +81,7 @@ class AdaptiveConfigurationService(IAdaptiveConfiguration):
 
             return True
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error registering parameter: {e}")
             return False
 
@@ -117,7 +116,7 @@ class AdaptiveConfigurationService(IAdaptiveConfiguration):
 
             return True
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error adding adaptation rule: {e}")
             return False
 
@@ -156,7 +155,7 @@ class AdaptiveConfigurationService(IAdaptiveConfiguration):
 
             return actions
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error evaluating adaptation rules: {e}")
             return []
 
@@ -204,8 +203,9 @@ class AdaptiveConfigurationService(IAdaptiveConfiguration):
             parameter.adaptation_history.append((time.time(), new_value))
 
             # Update configuration service
-            from ..interfaces.configuration_service import ConfigurationScope
-            self.configuration_service.set_parameter(parameter_name, new_value, ConfigurationScope.GLOBAL)
+            self.configuration_service.set_parameter(
+                parameter_name, new_value, ConfigurationScope.GLOBAL
+            )
 
             # Record adaptation
             adaptation_record = {
@@ -222,7 +222,7 @@ class AdaptiveConfigurationService(IAdaptiveConfiguration):
 
             return True
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error applying adaptation: {e}")
             return False
 
@@ -277,7 +277,7 @@ class AdaptiveConfigurationService(IAdaptiveConfiguration):
                 "timestamp": time.time()
             }
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error getting optimal configuration: {e}")
             return {"error": str(e)}
 
@@ -307,11 +307,15 @@ class AdaptiveConfigurationService(IAdaptiveConfiguration):
                 current_param = self.parameters[param_name]
 
                 # Estimate performance impact
-                performance_impact = self._estimate_parameter_impact(param_name, current_param.current_value, new_value)
+                performance_impact = self._estimate_parameter_impact(
+                    param_name, current_param.current_value, new_value
+                )
                 impact_analysis["estimated_impacts"][param_name] = performance_impact
 
                 # Assess risk
-                risk_level = self._assess_adaptation_risk(param_name, current_param.current_value, new_value)
+                risk_level = self._assess_adaptation_risk(
+                    param_name, current_param.current_value, new_value
+                )
                 impact_analysis["risk_assessment"][param_name] = risk_level
 
                 # Generate recommendations
@@ -324,7 +328,7 @@ class AdaptiveConfigurationService(IAdaptiveConfiguration):
 
             return impact_analysis
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error analyzing configuration impact: {e}")
             return {"error": str(e)}
 
@@ -367,7 +371,7 @@ class AdaptiveConfigurationService(IAdaptiveConfiguration):
 
             return True
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error creating configuration profile: {e}")
             return False
 
@@ -408,7 +412,7 @@ class AdaptiveConfigurationService(IAdaptiveConfiguration):
 
             return success_count == len(profile["parameters"])
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error loading configuration profile: {e}")
             return False
 
@@ -441,7 +445,7 @@ class AdaptiveConfigurationService(IAdaptiveConfiguration):
 
             return True
 
-        except Exception as e:
+        except ValueError as e:
             print(f"Error validating rule: {e}")
             return False
 
@@ -475,11 +479,11 @@ class AdaptiveConfigurationService(IAdaptiveConfiguration):
 
             return False
 
-        except Exception as e:
+        except ValueError as e:
             print(f"Error evaluating condition: {e}")
             return False
 
-    def _parse_action(self, action: str, metrics: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _parse_action(self, action: str, _metrics: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Parse and execute an adaptation action."""
         try:
             # Simple action parsing (supports basic operations)
@@ -526,7 +530,7 @@ class AdaptiveConfigurationService(IAdaptiveConfiguration):
 
             return None
 
-        except Exception as e:
+        except ValueError as e:
             print(f"Error parsing action: {e}")
             return None
 
@@ -552,7 +556,9 @@ class AdaptiveConfigurationService(IAdaptiveConfiguration):
         except (ValueError, TypeError):
             return False
 
-    def _estimate_parameter_impact(self, param_name: str, old_value: Any, new_value: Any) -> Dict[str, Any]:
+    def _estimate_parameter_impact(
+        self, param_name: str, old_value: Any, new_value: Any
+    ) -> Dict[str, Any]:
         """Estimate the performance impact of a parameter change."""
         try:
             impact = {"performance_change": 0.0, "energy_change": 0.0, "stability_change": 0.0}
@@ -575,7 +581,7 @@ class AdaptiveConfigurationService(IAdaptiveConfiguration):
 
             return impact
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error estimating parameter impact: {e}")
             return {"error": str(e)}
 
@@ -601,7 +607,7 @@ class AdaptiveConfigurationService(IAdaptiveConfiguration):
                 "overall_score": total_performance - abs(total_energy) - abs(total_stability)
             }
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error estimating performance impact: {e}")
             return {"error": str(e)}
 
@@ -629,7 +635,7 @@ class AdaptiveConfigurationService(IAdaptiveConfiguration):
             else:
                 return "low"
 
-        except Exception:
+        except ValueError:
             return "medium"
 
     def cleanup(self) -> None:
@@ -638,9 +644,5 @@ class AdaptiveConfigurationService(IAdaptiveConfiguration):
         self.adaptation_rules.clear()
         self.configuration_profiles.clear()
         self.adaptation_history.clear()
-
-
-
-
 
 

@@ -7,8 +7,7 @@ import gc
 import psutil
 import threading
 import time
-import logging
-from typing import Dict, List, Any, Optional, Callable
+from typing import Dict, List, Any, Callable
 from src.utils.logging_utils import log_step
 from src.utils.reader_writer_lock import get_graph_lock
 

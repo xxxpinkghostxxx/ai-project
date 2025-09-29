@@ -7,7 +7,7 @@ learning, and energy computations.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, Optional
 from torch_geometric.data import Data
 import torch
 
@@ -56,7 +56,7 @@ class IGPUAccelerator(ABC):
         Returns:
             bool: True if GPU resources initialized successfully
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def submit_gpu_task(self, task: GPUComputeTask) -> bool:
@@ -69,7 +69,7 @@ class IGPUAccelerator(ABC):
         Returns:
             bool: True if task submitted successfully
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def get_gpu_task_result(self, task_id: str) -> Optional[Any]:
@@ -82,7 +82,7 @@ class IGPUAccelerator(ABC):
         Returns:
             Optional[Any]: Task result if available
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def accelerate_neural_dynamics(self, graph: Data, time_step: int) -> Data:
@@ -96,7 +96,7 @@ class IGPUAccelerator(ABC):
         Returns:
             Data: Updated graph with computed neural dynamics
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def accelerate_learning(self, graph: Data, learning_data: Dict[str, Any]) -> Data:
@@ -110,7 +110,7 @@ class IGPUAccelerator(ABC):
         Returns:
             Data: Updated graph with applied learning
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def accelerate_energy_computation(self, graph: Data) -> Data:
@@ -123,7 +123,7 @@ class IGPUAccelerator(ABC):
         Returns:
             Data: Updated graph with computed energy flows
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def get_gpu_memory_info(self) -> Dict[str, Any]:
@@ -133,7 +133,7 @@ class IGPUAccelerator(ABC):
         Returns:
             Dict[str, Any]: GPU memory statistics and usage
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def get_gpu_performance_metrics(self) -> Dict[str, float]:
@@ -143,7 +143,7 @@ class IGPUAccelerator(ABC):
         Returns:
             Dict[str, float]: GPU performance metrics
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def optimize_gpu_memory(self) -> Dict[str, Any]:
@@ -153,7 +153,7 @@ class IGPUAccelerator(ABC):
         Returns:
             Dict[str, Any]: Memory optimization results
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def synchronize_gpu_operations(self) -> bool:
@@ -163,10 +163,4 @@ class IGPUAccelerator(ABC):
         Returns:
             bool: True if synchronization successful
         """
-        pass
-
-
-
-
-
-
+        raise NotImplementedError()

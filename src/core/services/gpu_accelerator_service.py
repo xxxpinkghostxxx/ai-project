@@ -7,11 +7,12 @@ and energy computations for high-performance neural simulation.
 """
 
 import time
+from collections import defaultdict, deque
+import gc
+from typing import Dict, Any, Optional
 import torch
 import torch.nn as nn
-from typing import Dict, Any, List, Optional, Tuple
 from torch_geometric.data import Data
-from collections import defaultdict, deque
 
 from ..interfaces.gpu_accelerator import IGPUAccelerator, GPUComputeTask
 from ..interfaces.configuration_service import IConfigurationService
@@ -34,15 +35,15 @@ class GPUNeuralDynamics(nn.Module):
         # Energy modulation
         self.energy_modulator = nn.Linear(hidden_size + 1, hidden_size)
 
-    def forward(self, x: torch.Tensor, edge_index: torch.Tensor,
-                edge_attr: Optional[torch.Tensor], energy: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, _edge_index: torch.Tensor,
+                _edge_attr: Optional[torch.Tensor], energy: torch.Tensor) -> torch.Tensor:
         """
         Forward pass for GPU-accelerated neural dynamics.
 
         Args:
             x: Node features
-            edge_index: Edge indices
-            edge_attr: Edge attributes
+            _edge_index: Edge indices (unused)
+            _edge_attr: Edge attributes (unused)
             energy: Node energy values
 
         Returns:
@@ -83,7 +84,7 @@ class GPULearningModule(nn.Module):
         self.energy_gate = nn.Linear(64, 1)
 
     def forward(self, pre_nodes: torch.Tensor, post_nodes: torch.Tensor,
-                energy: torch.Tensor, delta_t: float) -> torch.Tensor:
+                energy: torch.Tensor, _delta_t: float) -> torch.Tensor:
         """
         Forward pass for GPU-accelerated learning.
 
@@ -91,7 +92,7 @@ class GPULearningModule(nn.Module):
             pre_nodes: Pre-synaptic node features
             post_nodes: Post-synaptic node features
             energy: Energy values
-            delta_t: Time difference for STDP
+            _delta_t: Time difference for STDP (unused)
 
         Returns:
             torch.Tensor: Weight changes
@@ -207,7 +208,7 @@ class GPUAcceleratorService(IGPUAccelerator):
 
             return True
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error initializing GPU resources: {e}")
             return False
 
@@ -244,7 +245,7 @@ class GPUAcceleratorService(IGPUAccelerator):
 
             return True
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error submitting GPU task: {e}")
             return False
 
@@ -283,11 +284,15 @@ class GPUAcceleratorService(IGPUAccelerator):
 
             # Create edge index if not present
             if hasattr(graph, 'edge_index') and graph.edge_index is not None:
-                edge_index_gpu = graph.edge_index.to(self.device)
-                edge_attr_gpu = graph.edge_attr.to(self.device) if hasattr(graph, 'edge_attr') else None
+                edge_index_gpu = graph.edge_index.to(
+                    self.device)
+                edge_attr_gpu = (
+                    graph.edge_attr.to(self.device)
+                    if hasattr(graph, 'edge_attr')
+                    else None
+                )
             else:
                 # Create minimal edge structure
-                num_nodes = x_gpu.shape[0]
                 edge_index_gpu = torch.empty(2, 0, dtype=torch.long, device=self.device)
                 edge_attr_gpu = None
 
@@ -314,7 +319,7 @@ class GPUAcceleratorService(IGPUAccelerator):
 
             return graph
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error accelerating neural dynamics: {e}")
             return graph
 
@@ -349,15 +354,17 @@ class GPUAcceleratorService(IGPUAccelerator):
                 num_nodes = x_gpu.shape[0]
                 if num_nodes >= 2:
                     # Select random pre and post synaptic nodes
-                    pre_indices = torch.randint(0, num_nodes, (min(100, num_nodes),), device=self.device)
-                    post_indices = torch.randint(0, num_nodes, (min(100, num_nodes),), device=self.device)
+                    pre_indices = torch.randint(0, num_nodes,
+                                                (min(100, num_nodes),), device=self.device)
+                    post_indices = torch.randint(0, num_nodes,
+                                                 (min(100, num_nodes),), device=self.device)
 
                     pre_nodes = x_gpu[pre_indices]
                     post_nodes = x_gpu[post_indices]
                     energy_values = energy_gpu[pre_indices]
 
-                    # Compute weight changes
-                    weight_changes = self.learning_model(
+                    # Compute weight changes (placeholder for future implementation)
+                    self.learning_model(
                         pre_nodes, post_nodes, energy_values, delta_t
                     )
 
@@ -378,7 +385,7 @@ class GPUAcceleratorService(IGPUAccelerator):
 
             return graph
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error accelerating learning: {e}")
             return graph
 
@@ -419,7 +426,8 @@ class GPUAcceleratorService(IGPUAccelerator):
                     # Aggregate neighbor energies
                     neighbor_sums.scatter_add_(0, edge_index_gpu[1], x_gpu[edge_index_gpu[0]])
                     neighbor_counts.scatter_add_(0, edge_index_gpu[1],
-                                               torch.ones(edge_index_gpu.shape[1], 1, device=self.device))
+                                                 torch.ones(edge_index_gpu.shape[1], 1,
+                                                            device=self.device))
 
                     # Average with neighbors (diffusion)
                     diffusion_rate = torch.tensor(0.1, device=self.device)
@@ -446,7 +454,7 @@ class GPUAcceleratorService(IGPUAccelerator):
 
             return graph
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error accelerating energy computation: {e}")
             return graph
 
@@ -478,7 +486,7 @@ class GPUAcceleratorService(IGPUAccelerator):
                 "pool_used": self.memory_pool.get('total', 0) - self.memory_pool.get('available', 0)
             }
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error getting GPU memory info: {e}")
             return {"gpu_available": False, "error": str(e)}
 
@@ -495,7 +503,10 @@ class GPUAcceleratorService(IGPUAccelerator):
         try:
             metrics = {
                 "gpu_available": True,
-                "average_compute_time": sum(self.compute_times) / len(self.compute_times) if self.compute_times else 0,
+                "average_compute_time": (
+                    sum(self.compute_times) / len(self.compute_times)
+                    if self.compute_times else 0
+                ),
                 "max_compute_time": max(self.compute_times) if self.compute_times else 0,
                 "min_compute_time": min(self.compute_times) if self.compute_times else 0,
                 "compute_operations": len(self.compute_times),
@@ -507,12 +518,12 @@ class GPUAcceleratorService(IGPUAccelerator):
             try:
                 # Note: Actual GPU utilization requires additional libraries like pynvml
                 metrics["estimated_utilization"] = len(self.pending_tasks) * 0.1  # Rough estimate
-            except:
+            except (ImportError, RuntimeError):
                 pass
 
             return metrics
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error getting GPU performance metrics: {e}")
             return {"gpu_available": False, "error": str(e)}
 
@@ -534,7 +545,6 @@ class GPUAcceleratorService(IGPUAccelerator):
             torch.cuda.empty_cache()
 
             # Force garbage collection
-            import gc
             gc.collect()
 
             # Synchronize to ensure all operations complete
@@ -558,7 +568,7 @@ class GPUAcceleratorService(IGPUAccelerator):
 
             return result
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error optimizing GPU memory: {e}")
             return {"success": False, "error": str(e)}
 
@@ -575,7 +585,7 @@ class GPUAcceleratorService(IGPUAccelerator):
         try:
             torch.cuda.synchronize()
             return True
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error synchronizing GPU operations: {e}")
             return False
 
@@ -589,7 +599,7 @@ class GPUAcceleratorService(IGPUAccelerator):
             self.neural_dynamics_model.eval()
             self.learning_model.eval()
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error initializing GPU models: {e}")
             self.neural_dynamics_model = None
             self.learning_model = None
@@ -600,7 +610,7 @@ class GPUAcceleratorService(IGPUAccelerator):
             self.streams['neural'] = torch.cuda.Stream()
             self.streams['learning'] = torch.cuda.Stream()
             self.streams['energy'] = torch.cuda.Stream()
-        except Exception as e:
+        except RuntimeError as e:  # CUDA stream setup errors are typically runtime errors
             print(f"Error setting up GPU streams: {e}")
             self.streams = {}
 
@@ -630,7 +640,7 @@ class GPUAcceleratorService(IGPUAccelerator):
 
             return available_memory >= task.memory_required
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error checking memory requirements: {e}")
             return False
 
@@ -642,15 +652,8 @@ class GPUAcceleratorService(IGPUAccelerator):
                 self.neural_dynamics_model = None
                 self.learning_model = None
                 self.streams.clear()
-            except Exception as e:
+            except RuntimeError as e:
                 print(f"Error during GPU cleanup: {e}")
-
-        self.pending_tasks.clear()
-        self.completed_tasks.clear()
-        self.task_queue.clear()
-
-
-
-
-
-
+            self.pending_tasks.clear()
+            self.completed_tasks.clear()
+            self.task_queue.clear()

@@ -1,5 +1,6 @@
 """
-DistributedCoordinatorService implementation - Distributed coordination for multi-node neural simulation.
+DistributedCoordinatorService implementation - Distributed coordination
+for multi-node neural simulation.
 
 This module provides the concrete implementation of IDistributedCoordinator,
 handling coordination of neural simulation across multiple nodes with load balancing,
@@ -8,8 +9,8 @@ fault tolerance, and distributed processing capabilities.
 
 import time
 import threading
-from typing import Dict, Any, List, Optional, Tuple
-from collections import defaultdict, deque
+from typing import Dict, Any, List, Optional
+from collections import deque
 from torch_geometric.data import Data
 
 from ..interfaces.distributed_coordinator import (
@@ -95,15 +96,18 @@ class DistributedCoordinatorService(IDistributedCoordinator):
                     self._coordination_thread.start()
 
                 # Publish initialization event
-                self.event_coordinator.publish("distributed_system_initialized", {
-                    "node_count": len(self._nodes),
-                    "config": config,
-                    "timestamp": time.time()
-                })
+                self.event_coordinator.publish(
+                    "distributed_system_initialized",
+                    {
+                        "node_count": len(self._nodes),
+                        "config": config,
+                        "timestamp": time.time()
+                    }
+                )
 
                 return True
 
-        except Exception as e:
+        except (ValueError, RuntimeError, OSError) as e:
             print(f"Error initializing distributed system: {e}")
             return False
 
@@ -128,16 +132,19 @@ class DistributedCoordinatorService(IDistributedCoordinator):
                 self._nodes[node_info.node_id] = node_info
 
                 # Publish node registration event
-                self.event_coordinator.publish("node_registered", {
-                    "node_id": node_info.node_id,
-                    "address": node_info.address,
-                    "capabilities": node_info.capabilities,
-                    "timestamp": time.time()
-                })
+                self.event_coordinator.publish(
+                    "node_registered",
+                    {
+                        "node_id": node_info.node_id,
+                        "address": node_info.address,
+                        "capabilities": node_info.capabilities,
+                        "timestamp": time.time()
+                    }
+                )
 
                 return True
 
-        except Exception as e:
+        except (ValueError, RuntimeError, OSError) as e:
             print(f"Error registering node: {e}")
             return False
 
@@ -163,14 +170,17 @@ class DistributedCoordinatorService(IDistributedCoordinator):
                 del self._nodes[node_id]
 
                 # Publish node unregistration event
-                self.event_coordinator.publish("node_unregistered", {
-                    "node_id": node_id,
-                    "timestamp": time.time()
-                })
+                self.event_coordinator.publish(
+                    "node_unregistered",
+                    {
+                        "node_id": node_id,
+                        "timestamp": time.time()
+                    }
+                )
 
                 return True
 
-        except Exception as e:
+        except (ValueError, RuntimeError, OSError) as e:
             print(f"Error unregistering node: {e}")
             return False
 
@@ -197,16 +207,19 @@ class DistributedCoordinatorService(IDistributedCoordinator):
                 self._task_queue.append(task)
 
                 # Publish task submission event
-                self.event_coordinator.publish("task_submitted", {
-                    "task_id": task.task_id,
-                    "task_type": task.task_type,
-                    "priority": task.priority,
-                    "timestamp": task.created_time
-                })
+                self.event_coordinator.publish(
+                    "task_submitted",
+                    {
+                        "task_id": task.task_id,
+                        "task_type": task.task_type,
+                        "priority": task.priority,
+                        "timestamp": task.created_time
+                    }
+                )
 
                 return True
 
-        except Exception as e:
+        except (ValueError, RuntimeError, OSError) as e:
             print(f"Error submitting task: {e}")
             return False
 
@@ -250,8 +263,14 @@ class DistributedCoordinatorService(IDistributedCoordinator):
                 avg_workload = total_workload / len(active_nodes)
 
                 # Identify overloaded and underloaded nodes
-                overloaded = [node for node in active_nodes if node.workload > avg_workload * self._load_balance_threshold]
-                underloaded = [node for node in active_nodes if node.workload < avg_workload * (1 - self._load_balance_threshold)]
+                overloaded = [
+                    node for node in active_nodes
+                    if node.workload > avg_workload * self._load_balance_threshold
+                ]
+                underloaded = [
+                    node for node in active_nodes
+                    if node.workload < avg_workload * (1 - self._load_balance_threshold)
+                ]
 
                 # Perform load balancing
                 migrations = []
@@ -279,11 +298,14 @@ class DistributedCoordinatorService(IDistributedCoordinator):
                 }
 
                 # Publish workload balancing event
-                self.event_coordinator.publish("workload_balanced", result)
+                self.event_coordinator.publish(
+                    "workload_balanced",
+                    result
+                )
 
                 return result
 
-        except Exception as e:
+        except (ValueError, RuntimeError, OSError) as e:
             print(f"Error balancing workload: {e}")
             return {"success": False, "error": str(e)}
 
@@ -309,14 +331,17 @@ class DistributedCoordinatorService(IDistributedCoordinator):
                 self._handle_node_removal(node_id)
 
                 # Publish node failure event
-                self.event_coordinator.publish("node_failed", {
-                    "node_id": node_id,
-                    "timestamp": time.time()
-                })
+                self.event_coordinator.publish(
+                    "node_failed",
+                    {
+                        "node_id": node_id,
+                        "timestamp": time.time()
+                    }
+                )
 
                 return True
 
-        except Exception as e:
+        except (ValueError, RuntimeError, OSError) as e:
             print(f"Error handling node failure: {e}")
             return False
 
@@ -341,7 +366,9 @@ class DistributedCoordinatorService(IDistributedCoordinator):
                 sync_tasks = []
                 for node in active_nodes:
                     sync_task = DistributedTask(
-                        task_id=f"sync_{node.node_id}_{int(time.time())}",
+                        task_id=(
+                            f"sync_{node.node_id}_{int(time.time())}"
+                        ),
                         task_type="state_sync",
                         data={"graph": graph, "node_id": node.node_id},
                         priority=10  # High priority
@@ -355,15 +382,18 @@ class DistributedCoordinatorService(IDistributedCoordinator):
                         success_count += 1
 
                 # Publish synchronization event
-                self.event_coordinator.publish("state_synchronized", {
-                    "total_nodes": len(active_nodes),
-                    "successful_syncs": success_count,
-                    "timestamp": time.time()
-                })
+                self.event_coordinator.publish(
+                    "state_synchronized",
+                    {
+                        "total_nodes": len(active_nodes),
+                        "successful_syncs": success_count,
+                        "timestamp": time.time()
+                    }
+                )
 
                 return success_count == len(active_nodes)
 
-        except Exception as e:
+        except (ValueError, RuntimeError, OSError) as e:
             print(f"Error synchronizing state: {e}")
             return False
 
@@ -413,8 +443,14 @@ class DistributedCoordinatorService(IDistributedCoordinator):
                 avg_energy = total_energy / len(active_nodes)
 
                 # Identify energy imbalances
-                high_energy_nodes = [node for node in active_nodes if node.energy_level > avg_energy * 1.2]
-                low_energy_nodes = [node for node in active_nodes if node.energy_level < avg_energy * 0.8]
+                high_energy_nodes = [
+                    node for node in active_nodes
+                    if node.energy_level > avg_energy * 1.2
+                ]
+                low_energy_nodes = [
+                    node for node in active_nodes
+                    if node.energy_level < avg_energy * 0.8
+                ]
 
                 # Create energy balancing tasks
                 energy_tasks = []
@@ -427,7 +463,10 @@ class DistributedCoordinatorService(IDistributedCoordinator):
 
                         if energy_transfer > 0.01:  # Minimum transfer threshold
                             task = DistributedTask(
-                                task_id=f"energy_balance_{high_node.node_id}_{low_node.node_id}_{int(time.time())}",
+                                task_id=(
+                                    f"energy_balance_{high_node.node_id}_"
+                                    f"{low_node.node_id}_{int(time.time())}"
+                                ),
                                 task_type="energy_balance",
                                 data={
                                     "from_node": high_node.node_id,
@@ -454,11 +493,14 @@ class DistributedCoordinatorService(IDistributedCoordinator):
                 }
 
                 # Publish energy optimization event
-                self.event_coordinator.publish("energy_optimized", result)
+                self.event_coordinator.publish(
+                    "energy_optimized",
+                    result
+                )
 
                 return result
 
-        except Exception as e:
+        except (ValueError, RuntimeError, OSError) as e:
             print(f"Error optimizing energy distribution: {e}")
             return {"success": False, "error": str(e)}
 
@@ -495,16 +537,19 @@ class DistributedCoordinatorService(IDistributedCoordinator):
                     self._nodes[target_node_id].workload += 1
 
                 # Publish task migration event
-                self.event_coordinator.publish("task_migrated", {
-                    "task_id": task_id,
-                    "from_node": old_node,
-                    "to_node": target_node_id,
-                    "timestamp": time.time()
-                })
+                self.event_coordinator.publish(
+                    "task_migrated",
+                    {
+                        "task_id": task_id,
+                        "from_node": old_node,
+                        "to_node": target_node_id,
+                        "timestamp": time.time()
+                    }
+                )
 
                 return True
 
-        except Exception as e:
+        except (ValueError, RuntimeError, OSError) as e:
             print(f"Error migrating task: {e}")
             return False
 
@@ -528,7 +573,7 @@ class DistributedCoordinatorService(IDistributedCoordinator):
                 # Sleep for coordination interval
                 time.sleep(self._heartbeat_interval)
 
-            except Exception as e:
+            except (ValueError, RuntimeError, OSError) as e:
                 print(f"Error in coordination loop: {e}")
                 time.sleep(1.0)
 
@@ -550,12 +595,15 @@ class DistributedCoordinatorService(IDistributedCoordinator):
                     self._nodes[target_node.node_id].workload += 1
 
                     # Publish task assignment event
-                    self.event_coordinator.publish("task_assigned", {
-                        "task_id": task.task_id,
-                        "node_id": target_node.node_id,
-                        "task_type": task.task_type,
-                        "timestamp": time.time()
-                    })
+                    self.event_coordinator.publish(
+                        "task_assigned",
+                        {
+                            "task_id": task.task_id,
+                            "node_id": target_node.node_id,
+                            "task_type": task.task_type,
+                            "timestamp": time.time()
+                        }
+                    )
                 else:
                     # No suitable node found, requeue task
                     self._task_queue.append(task)
@@ -575,28 +623,36 @@ class DistributedCoordinatorService(IDistributedCoordinator):
         # Default routing: lowest workload
         return min(active_nodes, key=lambda node: node.workload)
 
-    def _route_neural_task(self, task: DistributedTask, nodes: List[NodeInfo]) -> Optional[NodeInfo]:
+    def _route_neural_task(
+        self, _task: DistributedTask, nodes: List[NodeInfo]
+    ) -> Optional[NodeInfo]:
         """Route neural processing tasks to nodes with neural capabilities."""
         neural_nodes = [node for node in nodes if "neural" in node.capabilities]
         if neural_nodes:
             return min(neural_nodes, key=lambda node: node.workload)
         return None
 
-    def _route_learning_task(self, task: DistributedTask, nodes: List[NodeInfo]) -> Optional[NodeInfo]:
+    def _route_learning_task(
+        self, _task: DistributedTask, nodes: List[NodeInfo]
+    ) -> Optional[NodeInfo]:
         """Route learning tasks to nodes with learning capabilities."""
         learning_nodes = [node for node in nodes if "learning" in node.capabilities]
         if learning_nodes:
             return min(learning_nodes, key=lambda node: node.workload)
         return None
 
-    def _route_sensory_task(self, task: DistributedTask, nodes: List[NodeInfo]) -> Optional[NodeInfo]:
+    def _route_sensory_task(
+        self, _task: DistributedTask, nodes: List[NodeInfo]
+    ) -> Optional[NodeInfo]:
         """Route sensory tasks to nodes with sensory capabilities."""
         sensory_nodes = [node for node in nodes if "sensory" in node.capabilities]
         if sensory_nodes:
             return min(sensory_nodes, key=lambda node: node.workload)
         return None
 
-    def _route_energy_task(self, task: DistributedTask, nodes: List[NodeInfo]) -> Optional[NodeInfo]:
+    def _route_energy_task(
+        self, _task: DistributedTask, nodes: List[NodeInfo]
+    ) -> Optional[NodeInfo]:
         """Route energy tasks to nodes with highest energy levels."""
         if nodes:
             return max(nodes, key=lambda node: node.energy_level)
@@ -616,15 +672,20 @@ class DistributedCoordinatorService(IDistributedCoordinator):
             for task in timed_out_tasks:
                 task.status = "failed"
                 if task.assigned_node and task.assigned_node in self._nodes:
-                    self._nodes[task.assigned_node].workload = max(0, self._nodes[task.assigned_node].workload - 1)
+                    self._nodes[task.assigned_node].workload = max(
+                        0, self._nodes[task.assigned_node].workload - 1
+                    )
 
                 # Publish task timeout event
-                self.event_coordinator.publish("task_timed_out", {
-                    "task_id": task.task_id,
-                    "assigned_node": task.assigned_node,
-                    "timeout_duration": self._task_timeout,
-                    "timestamp": current_time
-                })
+                self.event_coordinator.publish(
+                    "task_timed_out",
+                    {
+                        "task_id": task.task_id,
+                        "assigned_node": task.assigned_node,
+                        "timeout_duration": self._task_timeout,
+                        "timestamp": current_time
+                    }
+                )
 
     def _update_node_heartbeats(self) -> None:
         """Update node heartbeat status."""
@@ -639,11 +700,14 @@ class DistributedCoordinatorService(IDistributedCoordinator):
                     self._handle_node_removal(node.node_id)
 
                     # Publish node heartbeat timeout event
-                    self.event_coordinator.publish("node_heartbeat_timeout", {
-                        "node_id": node.node_id,
-                        "last_heartbeat": node.last_heartbeat,
-                        "timestamp": current_time
-                    })
+                    self.event_coordinator.publish(
+                        "node_heartbeat_timeout",
+                        {
+                            "node_id": node.node_id,
+                            "last_heartbeat": node.last_heartbeat,
+                            "timestamp": current_time
+                        }
+                    )
 
     def _handle_node_removal(self, node_id: str) -> None:
         """Handle removal of a node by reassigning its tasks."""
@@ -673,9 +737,3 @@ class DistributedCoordinatorService(IDistributedCoordinator):
             self._tasks.clear()
             self._task_queue.clear()
             self._completed_tasks.clear()
-
-
-
-
-
-

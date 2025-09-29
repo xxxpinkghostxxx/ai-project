@@ -1,7 +1,7 @@
 
 import time
 import numpy as np
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 
 from torch_geometric.data import Data
 from collections import defaultdict

@@ -1,7 +1,5 @@
 import torch
-import numpy as np
 from src.energy.energy_behavior import get_node_energy_cap
-import logging
 
 
 def add_dynamic_nodes(graph, num_dynamic=None, id_manager=None):

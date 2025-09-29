@@ -246,7 +246,7 @@ class TestRealWorldUsage:
         # Simulate social interactions
         for interaction in range(20):
             # Random agent teaches others
-            teacher = np.random.randint(num_agents)
+            teacher = int(np.random.randint(num_agents))
             learners = [i for i in range(num_agents) if i != teacher]
 
             # Teacher demonstrates pattern

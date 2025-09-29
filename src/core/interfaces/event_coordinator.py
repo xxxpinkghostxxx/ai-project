@@ -42,29 +42,19 @@ class IEventCoordinator(ABC):
     @abstractmethod
     def publish(self, event_type: str, data: Any, source: Optional[str] = None) -> None:
         """Publish an event to all subscribers."""
-        pass
 
     @abstractmethod
     def subscribe(self, event_type: str, handler: Callable[[Event], None]) -> str:
         """Subscribe to an event type."""
-        pass
 
     @abstractmethod
     def unsubscribe(self, subscription_id: str) -> bool:
         """Unsubscribe from an event."""
-        pass
 
-    @abstractmethod
     @abstractmethod
     def process_events(self) -> None:
         """Process any pending events in the event system."""
-        pass
     def get_event_history(self, event_type: Optional[str] = None, limit: int = 100) -> List[Event]:
         """Get historical events."""
-        pass
-
-
-
-
 
 

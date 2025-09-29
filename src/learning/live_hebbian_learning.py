@@ -1,11 +1,10 @@
 
 import numpy as np
 import torch
-from typing import Dict, Any, List, Optional, Tuple, Callable
+from typing import Dict, Any
 
 from torch_geometric.data import Data
 import time
-import sys
 
 from src.utils.logging_utils import log_step
 
@@ -121,8 +120,8 @@ class LiveHebbianLearning:
     def _get_node_energy(self, node_id: int) -> float:
         """Get energy level for a node from the simulation manager."""
         try:
-            if self.simulation_manager and hasattr(self.simulation_manager, 'graph'):
-                graph = self.simulation_manager.graph
+            if self.simulation_manager and hasattr(self.simulation_manager, 'get_neural_graph'):
+                graph = self.simulation_manager.get_neural_graph()
                 if hasattr(graph, 'node_labels'):
                     # Find node by ID
                     for idx, node in enumerate(graph.node_labels):

@@ -4,7 +4,6 @@ Provides spatial indexing, batch operations, and memory-efficient node managemen
 """
 
 import numpy as np
-import torch
 import threading
 from typing import Dict, List, Any, Optional, Tuple, Set
 from collections import defaultdict, deque
@@ -12,7 +11,6 @@ import logging
 import time
 
 from src.utils.logging_utils import log_step
-from src.utils.static_allocator import get_static_allocator
 
 class SpatialIndex:
     """Spatial indexing for efficient node queries in large graphs."""

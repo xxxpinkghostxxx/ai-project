@@ -6,7 +6,7 @@ optimizing resource utilization and maintaining performance in multi-node setups
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 
 
 class LoadMetrics:
@@ -51,7 +51,7 @@ class ILoadBalancer(ABC):
         Returns:
             LoadMetrics: Current load metrics for the node
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def calculate_optimal_distribution(self, tasks: List[Dict[str, Any]],
@@ -66,7 +66,7 @@ class ILoadBalancer(ABC):
         Returns:
             Dict[str, List[Dict[str, Any]]]: Task distribution mapping
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def rebalance_workload(self, threshold: float = 0.8) -> Dict[str, Any]:
@@ -79,7 +79,7 @@ class ILoadBalancer(ABC):
         Returns:
             Dict[str, Any]: Rebalancing results
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def predict_load_changes(self, time_window: int = 60) -> Dict[str, Any]:
@@ -92,7 +92,7 @@ class ILoadBalancer(ABC):
         Returns:
             Dict[str, Any]: Load prediction results
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def get_load_statistics(self) -> Dict[str, Any]:
@@ -102,7 +102,7 @@ class ILoadBalancer(ABC):
         Returns:
             Dict[str, Any]: Load balancing statistics
         """
-        pass
+        raise NotImplementedError
 
 
 

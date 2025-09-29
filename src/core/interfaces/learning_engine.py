@@ -6,8 +6,9 @@ handling STDP, Hebbian learning, memory consolidation, and synaptic
 plasticity while maintaining biological plausibility and energy modulation.
 """
 
+import time
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Tuple
 from torch_geometric.data import Data
 
 
@@ -23,18 +24,26 @@ class LearningState:
         self.stdp_events: int = 0
         self.hebbian_events: int = 0
         self.consolidation_events: int = 0
+        self.initialization_time: float = time.time()
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert learning state to dictionary for serialization."""
         return {
-            'synaptic_weights': {f"{src}_{tgt}": weight for (src, tgt), weight in self.synaptic_weights.items()},
-            'eligibility_traces': {f"{src}_{tgt}": trace for (src, tgt), trace in self.eligibility_traces.items()},
+            'synaptic_weights': {
+                f"{src}_{tgt}": weight
+                for (src, tgt), weight in self.synaptic_weights.items()
+            },
+            'eligibility_traces': {
+                f"{src}_{tgt}": trace
+                for (src, tgt), trace in self.eligibility_traces.items()
+            },
             'learning_rates': self.learning_rates.copy(),
             'plasticity_enabled': self.plasticity_enabled.copy(),
             'memory_traces': self.memory_traces.copy(),
             'stdp_events': self.stdp_events,
             'hebbian_events': self.hebbian_events,
-            'consolidation_events': self.consolidation_events
+            'consolidation_events': self.consolidation_events,
+            'initialization_time': self.initialization_time
         }
 
 
@@ -48,6 +57,7 @@ class PlasticityEvent:
         self.event_type = event_type  # "stdp", "hebbian", "consolidation"
         self.timestamp = 0.0
         self.energy_modulated = False
+        self.energy_factor = 0.0
         self.learning_rate_used = 0.0
 
     def to_dict(self) -> Dict[str, Any]:
@@ -59,6 +69,7 @@ class PlasticityEvent:
             'event_type': self.event_type,
             'timestamp': self.timestamp,
             'energy_modulated': self.energy_modulated,
+            'energy_factor': self.energy_factor,
             'learning_rate_used': self.learning_rate_used
         }
 
@@ -83,11 +94,14 @@ class ILearningEngine(ABC):
         Returns:
             bool: True if initialization successful, False otherwise
         """
-        pass
 
     @abstractmethod
-    def apply_stdp_learning(self, graph: Data, pre_spikes: List[Tuple[int, float]],
-                           post_spikes: List[Tuple[int, float]]) -> Tuple[Data, List[PlasticityEvent]]:
+    def apply_stdp_learning(
+        self,
+        graph: Data,
+        pre_spikes: List[Tuple[int, float]],
+        post_spikes: List[Tuple[int, float]]
+    ) -> Tuple[Data, List[PlasticityEvent]]:
         """
         Apply Spike-Timing Dependent Plasticity (STDP) learning.
 
@@ -102,10 +116,13 @@ class ILearningEngine(ABC):
         Returns:
             Tuple[Data, List[PlasticityEvent]]: Updated graph and plasticity events
         """
-        pass
 
     @abstractmethod
-    def apply_hebbian_learning(self, graph: Data, correlation_data: Dict[Tuple[int, int], float]) -> Tuple[Data, List[PlasticityEvent]]:
+    def apply_hebbian_learning(
+        self,
+        graph: Data,
+        correlation_data: Dict[Tuple[int, int], float]
+    ) -> Tuple[Data, List[PlasticityEvent]]:
         """
         Apply Hebbian learning based on neural activity correlations.
 
@@ -119,7 +136,6 @@ class ILearningEngine(ABC):
         Returns:
             Tuple[Data, List[PlasticityEvent]]: Updated graph and plasticity events
         """
-        pass
 
     @abstractmethod
     def consolidate_memories(self, graph: Data) -> Tuple[Data, List[PlasticityEvent]]:
@@ -135,7 +151,6 @@ class ILearningEngine(ABC):
         Returns:
             Tuple[Data, List[PlasticityEvent]]: Updated graph and consolidation events
         """
-        pass
 
     @abstractmethod
     def modulate_learning_by_energy(self, graph: Data, energy_levels: Dict[int, float]) -> Data:
@@ -152,7 +167,6 @@ class ILearningEngine(ABC):
         Returns:
             Data: Updated graph with energy-modulated learning rates
         """
-        pass
 
     @abstractmethod
     def update_eligibility_traces(self, graph: Data, time_step: float) -> Data:
@@ -169,7 +183,6 @@ class ILearningEngine(ABC):
         Returns:
             Data: Updated graph with new eligibility traces
         """
-        pass
 
     @abstractmethod
     def apply_homeostatic_scaling(self, graph: Data) -> Data:
@@ -185,7 +198,6 @@ class ILearningEngine(ABC):
         Returns:
             Data: Updated graph with homeostatic scaling applied
         """
-        pass
 
     @abstractmethod
     def get_learning_state(self) -> LearningState:
@@ -195,7 +207,6 @@ class ILearningEngine(ABC):
         Returns:
             LearningState: Current learning state information
         """
-        pass
 
     @abstractmethod
     def reset_learning_state(self) -> bool:
@@ -205,7 +216,6 @@ class ILearningEngine(ABC):
         Returns:
             bool: True if reset successful, False otherwise
         """
-        pass
 
     @abstractmethod
     def configure_learning_parameters(self, parameters: Dict[str, Any]) -> bool:
@@ -218,7 +228,6 @@ class ILearningEngine(ABC):
         Returns:
             bool: True if parameters updated successfully, False otherwise
         """
-        pass
 
     @abstractmethod
     def get_learning_metrics(self) -> Dict[str, float]:
@@ -228,7 +237,6 @@ class ILearningEngine(ABC):
         Returns:
             Dict[str, float]: Learning metrics including plasticity events, etc.
         """
-        pass
 
     @abstractmethod
     def validate_learning_integrity(self, graph: Data) -> Dict[str, Any]:
@@ -241,10 +249,13 @@ class ILearningEngine(ABC):
         Returns:
             Dict[str, Any]: Validation results with any issues found
         """
-        pass
 
     @abstractmethod
-    def apply_plasticity(self, graph: Data, spike_events: List) -> Tuple[Data, List[PlasticityEvent]]:
+    def apply_plasticity(
+        self,
+        graph: Data,
+        spike_events: List
+    ) -> Tuple[Data, List[PlasticityEvent]]:
         """
         Apply plasticity to the graph based on spike events.
 
@@ -255,7 +266,6 @@ class ILearningEngine(ABC):
         Returns:
             A tuple containing the updated graph and a list of plasticity events.
         """
-        pass
 
     @abstractmethod
     def apply_structural_plasticity(self, graph: Data) -> Tuple[Data, List[Dict[str, Any]]]:
@@ -267,14 +277,7 @@ class ILearningEngine(ABC):
 
         Args:
             graph: Current neural graph
-
-        Returns:
-            Tuple[Data, List[Dict[str, Any]]]: Updated graph and structural changes
-        """
-        pass
-
-
-
-
-
+Returns:
+    Tuple[Data, List[Dict[str, Any]]]: Updated graph and structural changes
+"""
 
