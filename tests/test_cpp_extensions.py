@@ -7,12 +7,14 @@ ensuring they integrate properly with the service-oriented architecture.
 
 import time
 from unittest.mock import Mock
-import pytest
+
 import numpy as np
+import pytest
 
 # Test the extension imports
 try:
-    from cpp_extensions import SynapticCalculator, create_synaptic_calculator
+    from src.utils.cpp_extensions import (SynapticCalculator,
+                                          create_synaptic_calculator)
     CPP_EXTENSIONS_AVAILABLE = True
 except ImportError:
     CPP_EXTENSIONS_AVAILABLE = False
@@ -351,7 +353,8 @@ class TestNeuralProcessingServiceIntegration:
                                                     mock_config_service, mock_event_coordinator):
         """Test that NeuralProcessingService initializes with extensions."""
         try:
-            from src.core.services.neural_processing_service import NeuralProcessingService
+            from src.core.services.neural_processing_service import \
+                NeuralProcessingService
         except ImportError:
             pytest.skip("NeuralProcessingService not available")
 
@@ -375,8 +378,10 @@ class TestNeuralProcessingServiceIntegration:
                                                     mock_config_service, mock_event_coordinator):
         """Test that synaptic input calculation works in the service."""
         try:
-            from src.core.services.neural_processing_service import NeuralProcessingService
             from torch_geometric.data import Data
+
+            from src.core.services.neural_processing_service import \
+                NeuralProcessingService
         except ImportError:
             pytest.skip("NeuralProcessingService or torch_geometric not available")
 
@@ -402,8 +407,10 @@ class TestNeuralProcessingServiceIntegration:
                                                    mock_config_service, mock_event_coordinator):
         """Test integration with more realistic graph structures."""
         try:
-            from src.core.services.neural_processing_service import NeuralProcessingService
             from torch_geometric.data import Data
+
+            from src.core.services.neural_processing_service import \
+                NeuralProcessingService
         except ImportError:
             pytest.skip("NeuralProcessingService or torch_geometric not available")
 

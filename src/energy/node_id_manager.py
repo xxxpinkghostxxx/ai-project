@@ -1,11 +1,11 @@
 
+import logging
 import threading
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Set, Any
+from typing import Any, Dict, List, Optional, Set
 
-import logging
 from src.utils.logging_utils import log_step
 
 
@@ -485,6 +485,7 @@ class NodeIDManager:
             # Calculate memory usage
             try:
                 import sys
+
                 # Rough memory estimation
                 memory_usage = (
                     sys.getsizeof(self._get_active_ids()) +

@@ -3,11 +3,12 @@ Integration tests for UI components
 Tests interactions between UI components, workflows, and real-world scenarios.
 """
 
-import sys
 import os
+import sys
 import time
 import unittest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Mock Dear PyGui and other dependencies
@@ -26,20 +27,21 @@ sys.modules['torch_geometric'] = Mock()
 sys.modules['torch_geometric.data'] = Mock()
 sys.modules['mss'] = Mock()
 
-import torch
 import dearpygui.dearpygui as dpg
 import numpy as np
+import torch
 from torch_geometric.data import Data
 
-from src.ui.ui_engine import (
-    create_main_window, start_simulation_callback, stop_simulation_callback,
-    reset_simulation_callback, update_ui_display, update_graph_visualization,
-    run_ui, get_coordinator, update_operation_status, clear_operation_status
-)
-from src.ui.ui_state_manager import get_ui_state_manager, cleanup_ui_state
-from src.ui.screen_graph import capture_screen, create_pixel_gray_graph
 from src.core.interfaces.service_registry import IServiceRegistry
 from src.core.interfaces.simulation_coordinator import ISimulationCoordinator
+from src.ui.screen_graph import capture_screen, create_pixel_gray_graph
+from src.ui.ui_engine import (clear_operation_status, create_main_window,
+                              get_coordinator, reset_simulation_callback,
+                              run_ui, start_simulation_callback,
+                              stop_simulation_callback,
+                              update_graph_visualization,
+                              update_operation_status, update_ui_display)
+from src.ui.ui_state_manager import cleanup_ui_state, get_ui_state_manager
 
 
 class TestUIIntegration(unittest.TestCase):
@@ -423,7 +425,7 @@ class TestUIIntegration(unittest.TestCase):
 
     def test_ui_event_driven_updates(self):
         """Test event-driven UI updates."""
-        from src.utils.event_bus import get_event_bus, EventBus
+        from src.utils.event_bus import EventBus, get_event_bus
 
         event_bus: EventBus = get_event_bus()
 

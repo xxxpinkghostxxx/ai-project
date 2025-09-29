@@ -6,8 +6,8 @@ providing publish-subscribe pattern for loose coupling between services.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Callable, Optional
 from datetime import datetime
+from typing import Any, Callable, Dict, List, Optional
 
 
 class Event:

@@ -6,7 +6,7 @@ energy flow, and system performance in the neural simulation system.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any
+from typing import Any, Dict
 
 
 class VisualizationData:

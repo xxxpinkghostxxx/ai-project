@@ -5,6 +5,7 @@ Module for node access layer interface.
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
 
+
 class IAccessLayer(ABC):
     """
     Interface for accessing nodes in the graph.

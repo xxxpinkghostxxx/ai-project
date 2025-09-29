@@ -6,16 +6,16 @@ enabling real-time visualization of neural activity, energy flow, and system per
 with interactive 3D rendering capabilities.
 """
 
-import time
 import json
-import base64
 import threading
-from typing import Dict, Any, List, Optional
-from collections import defaultdict, deque
+import time
+from collections import deque
+from typing import Any, Dict, List, Optional
 
-from ..interfaces.real_time_visualization import (
-    IRealTimeVisualization, VisualizationData, VisualizationLayer, CameraController
-)
+from ..interfaces.real_time_visualization import (CameraController,
+                                                  IRealTimeVisualization,
+                                                  VisualizationData,
+                                                  VisualizationLayer)
 
 
 class DataBuffer:
@@ -62,8 +62,6 @@ class DataBuffer:
             # Linear interpolation
             time_diff = after_data.timestamp - before_data.timestamp
             if time_diff > 0:
-                ratio = (target_time - before_data.timestamp) / time_diff
-
                 # Interpolate data (simplified)
                 interpolated_data = VisualizationData(before_data.data_type, target_time)
                 interpolated_data.data = before_data.data.copy()
@@ -530,10 +528,10 @@ class RealTimeVisualizationService(IRealTimeVisualization):
                 # Maintain frame rate
                 if current_time - last_frame_time >= frame_interval:
                     # Render frame
-                    frame_data = self.render_frame()
+                    self.render_frame()
 
                     # Update animations
-                    self._update_animations(current_time)
+                    self._update_animations()
 
                     last_frame_time = current_time
 
@@ -544,7 +542,7 @@ class RealTimeVisualizationService(IRealTimeVisualization):
                 print(f"Error in rendering loop: {e}")
                 time.sleep(0.1)  # Sleep longer on error
 
-    def _update_animations(self, current_time: float):
+    def _update_animations(self):
         """Update active animations."""
         try:
             for _, animation in list(self.rendering_engine.animations.items()):

@@ -6,8 +6,8 @@ and lifecycle management in the dependency injection framework.
 """
 
 from abc import ABC, abstractmethod
-from typing import Type, TypeVar, Optional, Dict, Any, List
 from enum import Enum
+from typing import Any, Dict, List, Optional, Type, TypeVar
 
 T = TypeVar('T')
 

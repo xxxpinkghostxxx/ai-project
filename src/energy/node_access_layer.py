@@ -1,10 +1,12 @@
 
 import logging
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
+
 import numpy as np
-from typing import Dict, List, Optional, Any, Callable, Iterator, Tuple
-from src.utils.logging_utils import log_step
-from src.energy.node_id_manager import get_id_manager
+
 from src.energy.energy_behavior import get_node_energy_cap
+from src.energy.node_id_manager import get_id_manager
+from src.utils.logging_utils import log_step
 
 
 class NodeAccessLayer:
@@ -234,8 +236,9 @@ def update_node_property(graph, node_id: int, property_name: str, new_value: Any
         new_value: New value for the property
         id_manager: Node ID manager (optional, will use global if not provided)
     """
-    from src.utils.logging_utils import log_step
     import logging
+
+    from src.utils.logging_utils import log_step
 
     if id_manager is None:
         id_manager = get_id_manager()

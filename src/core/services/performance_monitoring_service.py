@@ -6,16 +6,17 @@ collecting system performance metrics with minimal overhead while providing
 insights into neural simulation performance and resource usage.
 """
 
-import time
-import psutil
 import platform
-import sys
 import threading
-from typing import Dict, Any, List, Optional
+import time
 from collections import deque
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
-from ..interfaces.performance_monitor import IPerformanceMonitor, PerformanceMetrics
+import psutil
+
+from ..interfaces.performance_monitor import (IPerformanceMonitor,
+                                              PerformanceMetrics)
 
 
 class PerformanceMonitoringService(IPerformanceMonitor):
@@ -65,7 +66,7 @@ class PerformanceMonitoringService(IPerformanceMonitor):
 
             return True
 
-        except Exception as e:
+        except (RuntimeError, OSError) as e:
             print(f"Failed to start performance monitoring: {e}")
             self._monitoring_active = False
             return False
@@ -89,7 +90,7 @@ class PerformanceMonitoringService(IPerformanceMonitor):
 
             return True
 
-        except Exception as e:
+        except (RuntimeError, OSError) as e:
             print(f"Failed to stop performance monitoring: {e}")
             return False
 
@@ -121,6 +122,29 @@ class PerformanceMonitoringService(IPerformanceMonitor):
 
             # GPU usage (placeholder - would need GPU monitoring library)
             metrics.gpu_usage = None
+
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, OSError) as e:
+
+            print(f"Error collecting performance metrics: {e}")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
         except Exception as e:
             print(f"Error collecting performance metrics: {e}")
@@ -247,6 +271,30 @@ class PerformanceMonitoringService(IPerformanceMonitor):
 
                 # Sleep for a short interval
                 time.sleep(0.1)  # 10Hz monitoring
+            except (RuntimeError, OSError, psutil.Error) as e:
+
+
+                print(f"Error in monitoring loop: {e}")
+                time.sleep(1.0)  # Sleep longer on error
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
             except Exception as e:
                 print(f"Error in monitoring loop: {e}")
@@ -259,6 +307,8 @@ class PerformanceMonitoringService(IPerformanceMonitor):
         Returns:
             Dict with system information
         """
+        system_info = {}
+
         try:
             system_info = {
                 "cpu_count": psutil.cpu_count(),
@@ -268,9 +318,45 @@ class PerformanceMonitoringService(IPerformanceMonitor):
                 "platform": platform.system(),
                 "python_version": platform.python_version(),
                 "process_id": self._process.pid,
+
                 "process_name": self._process.name()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             }
             return system_info
+        except (psutil.Error, OSError, RuntimeError) as e:
+            return {"error": f"Failed to get system info: {e}"}
         except Exception as e:
             return {"error": f"Failed to get system info: {e}"}
 

@@ -3,26 +3,29 @@ Integration tests for Service-Oriented Architecture (SOA) components.
 Tests critical paths and service interactions.
 """
 
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest
 import time
-from unittest.mock import Mock, MagicMock
+from unittest.mock import MagicMock, Mock
 
-from src.core.services.service_registry import ServiceRegistry, ServiceNotFoundError
-from src.core.services.simulation_coordinator import SimulationCoordinator
-from src.core.interfaces.simulation_coordinator import ISimulationCoordinator
-from src.core.interfaces.service_registry import IServiceRegistry
-from src.core.interfaces.graph_manager import IGraphManager
-from src.core.interfaces.performance_monitor import IPerformanceMonitor
-from src.core.interfaces.event_coordinator import IEventCoordinator
-from src.core.interfaces.neural_processor import INeuralProcessor
-from src.core.interfaces.energy_manager import IEnergyManager
-from src.core.interfaces.learning_engine import ILearningEngine
-from src.core.interfaces.sensory_processor import ISensoryProcessor
+import pytest
+
 from src.core.interfaces.configuration_service import IConfigurationService
+from src.core.interfaces.energy_manager import IEnergyManager
+from src.core.interfaces.event_coordinator import IEventCoordinator
+from src.core.interfaces.graph_manager import IGraphManager
+from src.core.interfaces.learning_engine import ILearningEngine
+from src.core.interfaces.neural_processor import INeuralProcessor
+from src.core.interfaces.performance_monitor import IPerformanceMonitor
+from src.core.interfaces.sensory_processor import ISensoryProcessor
+from src.core.interfaces.service_registry import IServiceRegistry
+from src.core.interfaces.simulation_coordinator import ISimulationCoordinator
+from src.core.services.service_registry import (ServiceNotFoundError,
+                                                ServiceRegistry)
+from src.core.services.simulation_coordinator import SimulationCoordinator
 
 
 class TestSOAIntegration:

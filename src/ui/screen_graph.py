@@ -1,6 +1,16 @@
-import numpy as np
+"""
+Screen graph utilities for visual data processing.
+
+This module provides functionality for:
+- Screen capture and processing
+- Converting pixel data to neural network graphs
+- Performance profiling for graph creation
+"""
+
 import time
-from src.utils.logging_utils import log_runtime, log_step
+
+import numpy as np
+
 try:
     import mss
 
@@ -8,6 +18,7 @@ try:
 except ImportError:
     HAS_MSS = False
 from PIL import Image, ImageGrab  # pylint: disable=no-member
+
 try:
     import cv2  # pylint: disable=no-member
     HAS_CV2 = True
@@ -15,11 +26,22 @@ except ImportError:
     HAS_CV2 = False
 import torch
 from torch_geometric.data import Data
+
+from utils.logging_utils import log_runtime, log_step
+
 RESOLUTION_SCALE = 0.25
 
 
 def rgb_to_gray(arr):
+    """
+    Convert RGB array to grayscale.
 
+    Args:
+        arr: RGB image array
+
+    Returns:
+        Grayscale version of the input array
+    """
     gray = np.dot(arr[..., :3], [0.2125, 0.7154, 0.0721]).astype(np.float32)
     assert gray.shape == arr.shape[:2], "Grayscale conversion shape mismatch"
     return gray
@@ -27,7 +49,15 @@ def rgb_to_gray(arr):
 
 
 def capture_screen(scale=1.0):
+    """
+    Capture screen and convert to grayscale array.
 
+    Args:
+        scale: Scaling factor for the captured image (0-2.0)
+
+    Returns:
+        Grayscale image as numpy array
+    """
     if not isinstance(scale, (int, float)):
         raise ValueError("Scale must be a number")
     if scale <= 0 or scale > 2.0:
@@ -47,7 +77,7 @@ def capture_screen(scale=1.0):
             img = img.convert("RGB")
             img = np.array(img)
             log_step("capture_screen: used PIL.ImageGrab", shape=img.shape)
-    except Exception as e:
+    except (OSError, RuntimeError, ImportError) as e:
         log_step("capture_screen: fallback synthetic frame due to error", error=str(e))
         img = np.zeros((360, 640, 3), dtype=np.uint8)
     t1 = time.perf_counter()
@@ -63,7 +93,7 @@ def capture_screen(scale=1.0):
                 pil_img = pil_img.resize((new_w, new_h), Image.Resampling.LANCZOS)  # pylint: disable=no-member
                 img = np.array(pil_img)
                 log_step("capture_screen: resized with PIL", new_shape=img.shape)
-        except Exception as e:
+        except (OSError, ValueError, MemoryError) as e:
             log_step("capture_screen: resize failed, keeping original size", error=str(e))
     t2 = time.perf_counter()
     gray_img = rgb_to_gray(img)
@@ -79,13 +109,21 @@ def capture_screen(scale=1.0):
 @log_runtime
 
 
-def create_pixel_gray_graph(arr):
-    log_step("create_pixel_gray_graph: start", arr_shape=arr.shape)
-    h, w = arr.shape
+def create_pixel_gray_graph(image_array):
+    """
+    Create a PyTorch Geometric graph from grayscale pixel data.
+
+    Args:
+        image_array: 2D grayscale image array
+
+    Returns:
+        PyTorch Geometric Data object with pixel nodes
+    """
+    log_step("create_pixel_gray_graph: start", arr_shape=image_array.shape)
+    h, w = image_array.shape
     num_nodes = h * w
 
     # Limit nodes for performance during UI initialization
-    max_nodes = 1000  # Reduced from 57,600 to prevent hanging
     if h > 31 or w > 31:
         # Sample a smaller grid for UI initialization
         sample_h = min(h, 31)
@@ -93,23 +131,23 @@ def create_pixel_gray_graph(arr):
         step_h = max(1, h // sample_h)
         step_w = max(1, w // sample_w)
 
-        sampled_arr = arr[::step_h, ::step_w]
+        sampled_arr = image_array[::step_h, ::step_w]
         h, w = sampled_arr.shape
         h = min(h, 31)
         w = min(w, 31)
         num_nodes = h * w
-        log_step("Reduced graph size for performance", original=(arr.shape), sampled=(h, w), nodes=num_nodes)
+        log_step("Reduced graph size for performance", original=(image_array.shape), sampled=(h, w), nodes=num_nodes)
 
-        arr = sampled_arr
+        image_array = sampled_arr
 
-    node_features = arr.flatten().reshape(-1, 1)
+    node_features = image_array.flatten().reshape(-1, 1)
     node_labels = []
 
     # Use simple sequential IDs for screen capture graphs to avoid expensive ID manager operations
     for y in range(h):
         for x in range(w):
             idx = y * w + x
-            energy = arr[y, x]
+            energy = image_array[y, x]
             # Use simple sequential ID instead of expensive ID manager
             node_id = idx + 1000000  # Offset to avoid conflicts with regular nodes
             membrane_potential = min(energy / 255.0, 1.0)
@@ -151,11 +189,11 @@ if __name__ == "__main__":
     import pstats
     print("Press Ctrl+C to stop.")
     try:
-        arr = capture_screen(scale=RESOLUTION_SCALE)
+        screen_array = capture_screen(scale=RESOLUTION_SCALE)
         print("Profiling create_pixel_gray_graph...")
         profiler = cProfile.Profile()
         profiler.enable()
-        graph = create_pixel_gray_graph(arr)
+        graph = create_pixel_gray_graph(screen_array)
         profiler.disable()
         stats = pstats.Stats(profiler).strip_dirs().sort_stats("cumulative")
         stats.print_stats(20)
@@ -168,10 +206,4 @@ if __name__ == "__main__":
         time.sleep(0.5)
     except KeyboardInterrupt:
         print("Stopped.")
-
-
-
-
-
-
 

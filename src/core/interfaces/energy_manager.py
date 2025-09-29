@@ -7,7 +7,8 @@ neural modulation while maintaining biological plausibility.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Tuple
+from typing import Any, Dict, List, Tuple
+
 from torch_geometric.data import Data
 
 

@@ -2,16 +2,20 @@
 Comprehensive tests for EnhancedConnectionSystem fixes.
 Tests validation, synchronization, and memory management.
 """
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-import pytest
 import threading
 import time
-from src.neural.enhanced_connection_system import EnhancedConnectionSystem, EnhancedConnection
+
+import pytest
+
 from src.energy.energy_constants import ConnectionConstants
+from src.neural.enhanced_connection_system import (EnhancedConnection,
+                                                   EnhancedConnectionSystem)
 
 
 class TestEnhancedConnectionSystem:
@@ -300,8 +304,8 @@ class TestEnhancedConnectionSystem:
 
     def test_update_connections_validation(self):
         """Test update_connections with validation."""
-        from torch_geometric.data import Data
         import torch
+        from torch_geometric.data import Data
 
         # Create mock graph
         graph = Data()

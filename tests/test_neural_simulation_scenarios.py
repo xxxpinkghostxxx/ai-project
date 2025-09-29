@@ -2,24 +2,27 @@
 Comprehensive simulation scenario tests for neural components.
 Tests realistic neural simulation scenarios including learning, oscillations, pattern formation, and emergent behaviors.
 """
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest
-import numpy as np
-from unittest.mock import MagicMock, patch
-from torch_geometric.data import Data
-import torch
 import logging
+from unittest.mock import MagicMock, patch
 
+import numpy as np
+import pytest
+import torch
+from torch_geometric.data import Data
+
+from src.energy.node_id_manager import get_id_manager
 from src.neural.behavior_engine import BehaviorEngine
-from src.neural.connection_logic import intelligent_connection_formation, create_weighted_connection
+from src.neural.connection_logic import (create_weighted_connection,
+                                         intelligent_connection_formation)
 from src.neural.enhanced_neural_dynamics import EnhancedNeuralDynamics
 from src.neural.network_metrics import NetworkMetrics
 from src.neural.spike_queue_system import SpikeQueueSystem, SpikeType
 from src.neural.workspace_engine import WorkspaceEngine
-from src.energy.node_id_manager import get_id_manager
 
 
 class TestNeuralSimulationScenarios:

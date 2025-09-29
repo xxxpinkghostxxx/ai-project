@@ -3,29 +3,33 @@ Energy System Validator
 Validates that energy is the central integrator of all neural simulation modules.
 """
 
-import sys
 import os
+import sys
 import time
+from datetime import datetime
+from typing import Any, Dict
+
 import numpy as np
 import torch
-from typing import Dict, Any
-from datetime import datetime
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.core.services.simulation_coordinator import SimulationCoordinator
-from src.neural.optimized_node_manager import get_optimized_node_manager
-from src.energy.energy_behavior import (
-    apply_energy_behavior, update_membrane_potentials,
-    apply_oscillator_energy_dynamics, apply_integrator_energy_dynamics,
-    apply_relay_energy_dynamics, apply_highway_energy_dynamics
-)
-from src.neural.connection_logic import intelligent_connection_formation, create_weighted_connection
-from src.learning.live_hebbian_learning import create_live_hebbian_learning
-from src.sensory.visual_energy_bridge import create_visual_energy_bridge
+from src.energy.energy_behavior import (apply_energy_behavior,
+                                        apply_highway_energy_dynamics,
+                                        apply_integrator_energy_dynamics,
+                                        apply_oscillator_energy_dynamics,
+                                        apply_relay_energy_dynamics,
+                                        get_node_energy_cap,
+                                        update_membrane_potentials)
 from src.energy.node_access_layer import NodeAccessLayer
-from src.energy.energy_behavior import get_node_energy_cap
+from src.learning.live_hebbian_learning import create_live_hebbian_learning
+from src.neural.connection_logic import (create_weighted_connection,
+                                         intelligent_connection_formation)
+from src.neural.optimized_node_manager import get_optimized_node_manager
+from src.sensory.visual_energy_bridge import create_visual_energy_bridge
+
 
 class EnergySystemValidator:
     """Validates energy as the central system integrator."""
@@ -47,7 +51,8 @@ class EnergySystemValidator:
         self.node_manager = get_optimized_node_manager()
         # Create our own performance monitor to avoid import issues
         try:
-            from src.utils.unified_performance_system import get_performance_monitor
+            from src.utils.unified_performance_system import \
+                get_performance_monitor
             self.performance_monitor = get_performance_monitor()
         except Exception as e:
             print(f"Warning: Could not create performance monitor: {e}")
@@ -67,9 +72,9 @@ class EnergySystemValidator:
 
             # Create a smaller test graph for validation
             print("    Creating smaller test graph for validation...")
-            from torch_geometric.data import Data
-            import torch
             import numpy as np
+            import torch
+            from torch_geometric.data import Data
 
             # Create a small test graph with known node types
             test_node_labels = []
@@ -191,10 +196,12 @@ class EnergySystemValidator:
     def _initialize_services(self):
         """Initialize services for validation testing."""
         try:
-            from src.core.services.service_registry import ServiceRegistry
-            from src.core.services.energy_management_service import EnergyManagementService
-            from src.core.services.neural_processing_service import NeuralProcessingService
+            from src.core.services.energy_management_service import \
+                EnergyManagementService
             from src.core.services.learning_service import LearningService
+            from src.core.services.neural_processing_service import \
+                NeuralProcessingService
+            from src.core.services.service_registry import ServiceRegistry
 
             # Create service registry
             self.services['registry'] = ServiceRegistry()

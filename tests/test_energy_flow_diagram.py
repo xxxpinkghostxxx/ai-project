@@ -5,15 +5,18 @@ This module contains unit tests, integration tests, edge cases, and performance 
 for the EnergyFlowDiagram class, covering diagram creation, visualization, and analysis.
 """
 
-import unittest
 import os
 import tempfile
-from unittest.mock import Mock, patch, MagicMock
+import unittest
+from unittest.mock import MagicMock, Mock, patch
+
 import matplotlib
+
 matplotlib.use('Agg')  # Use non-interactive backend for testing
 import matplotlib.pyplot as plt
 
-from src.energy.energy_flow_diagram import EnergyFlowDiagram, create_energy_flow_visualizations
+from src.energy.energy_flow_diagram import (EnergyFlowDiagram,
+                                            create_energy_flow_visualizations)
 
 
 class TestEnergyFlowDiagramInitialization(unittest.TestCase):

@@ -2,17 +2,20 @@
 Comprehensive tests for WorkspaceEngine.
 Tests workspace node updates, concept synthesis, and statistics tracking.
 """
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest
-import numpy as np
 from unittest.mock import MagicMock, patch
-from torch_geometric.data import Data
-import torch
 
-from src.neural.workspace_engine import WorkspaceEngine, create_workspace_engine
+import numpy as np
+import pytest
+import torch
+from torch_geometric.data import Data
+
+from src.neural.workspace_engine import (WorkspaceEngine,
+                                         create_workspace_engine)
 
 
 class TestWorkspaceEngine:

@@ -5,16 +5,18 @@ This module contains unit tests, integration tests, edge cases, and performance 
 for the NodeAccessLayer class, covering all access methods, caching, and graph operations.
 """
 
-import unittest
 import time
-import numpy as np
+import unittest
 from unittest.mock import Mock, patch
-from torch_geometric.data import Data
-import torch
 
-from src.energy.node_access_layer import NodeAccessLayer, create_node_access_layer
-from src.energy.node_id_manager import NodeIDManager, get_id_manager
+import numpy as np
+import torch
+from torch_geometric.data import Data
+
 from src.energy.energy_behavior import get_node_energy_cap
+from src.energy.node_access_layer import (NodeAccessLayer,
+                                          create_node_access_layer)
+from src.energy.node_id_manager import NodeIDManager, get_id_manager
 
 
 class TestNodeAccessLayerInitialization(unittest.TestCase):

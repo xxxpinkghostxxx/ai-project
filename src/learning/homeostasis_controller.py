@@ -2,14 +2,15 @@
 """Homeostasis controller module for network energy and criticality balance."""
 
 import time
+
 import numpy as np
 import torch
 
+from config.unified_config_manager import config, get_config
 from src.energy.energy_behavior import get_node_energy_cap
-
-from config.unified_config_manager import get_config, config
+from src.neural.death_and_birth_logic import (get_node_birth_threshold,
+                                              get_node_death_threshold)
 from src.utils.logging_utils import log_step
-from src.neural.death_and_birth_logic import get_node_birth_threshold, get_node_death_threshold
 
 
 class HistoryManager:

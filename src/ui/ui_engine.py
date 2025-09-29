@@ -1,32 +1,48 @@
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+"""
+Neural simulation UI engine with Dear PyGui interface.
 
-from src.utils.event_bus import get_event_bus
+This module provides a comprehensive graphical user interface for the neural
+simulation system, including real-time visualization, controls, and monitoring.
+"""
+
+import json
+import logging
+import math
+import os
+import sys
+import time
+import traceback
+from datetime import datetime
 from typing import Optional
 
 from dearpygui import dearpygui as dpg  # pylint: disable=no-member
-import time
-import math
-import logging
-import json
-from datetime import datetime
-from src.ui.ui_state_manager import get_ui_state_manager, cleanup_ui_state
-from src.utils.logging_utils import log_step
 
-ui_state = get_ui_state_manager()
-event_bus = get_event_bus()
-
+from src.core.interfaces.real_time_visualization import (
+    IRealTimeVisualization, VisualizationData)
 from src.core.interfaces.service_registry import IServiceRegistry
 from src.core.interfaces.simulation_coordinator import ISimulationCoordinator
-from src.core.interfaces.real_time_visualization import IRealTimeVisualization
+from src.ui.ui_state_manager import cleanup_ui_state, get_ui_state_manager
+from src.utils.event_bus import get_event_bus
+from src.utils.logging_utils import log_step
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Initialize core services
+ui_state = get_ui_state_manager()
+event_bus = get_event_bus()
 
 _service_registry: IServiceRegistry = None
 _visualization_service: IRealTimeVisualization = None
 
+def handle_graph_update(_event_type, data):
+    """Handle graph update events."""
+    ui_state.update_graph(data.get('graph'))
+    update_graph_visualization()
+
 def setup_event_subscriptions():
     """Setup event bus subscriptions for UI updates."""
-    event_bus.subscribe('GRAPH_UPDATE', lambda event_type, data: (ui_state.update_graph(data.get('graph')), update_graph_visualization()))
+    event_bus.subscribe('GRAPH_UPDATE', handle_graph_update)
     event_bus.subscribe('UI_REFRESH', lambda event_type, data: update_ui_display())
 
 # Define constants inline
@@ -45,27 +61,64 @@ CONSTANTS = {
 }
 
 def get_simulation_running():
+    """Get the current simulation running state.
+
+    Returns:
+        bool: True if simulation is running, False otherwise.
+    """
     return ui_state.get_simulation_state()['simulation_running']
 
 def set_simulation_running(running: bool):
+    """Set the simulation running state.
+
+    Args:
+        running (bool): True to start simulation, False to stop it.
+    """
     ui_state.set_simulation_running(running)
 
 def get_latest_graph():
+    """Get the latest neural graph from UI state.
+
+    Returns:
+        The latest neural graph object.
+    """
     return ui_state.get_latest_graph()
 
 def get_latest_graph_for_ui():
+    """Get the latest neural graph formatted for UI display.
+
+    Returns:
+        The latest neural graph object formatted for UI rendering.
+    """
     return ui_state.get_latest_graph_for_ui()
 
 def update_graph(graph):
+    """Update the neural graph in UI state.
+
+    Args:
+        graph: The neural graph object to update in UI state.
+    """
     ui_state.update_graph(graph)
 
 def add_live_feed_data(data_type: str, value: float):
+    """Add data point to live feed for real-time monitoring.
+
+    Args:
+        data_type (str): Type of data being added (e.g., 'energy', 'activity').
+        value (float): Numeric value of the data point.
+    """
     ui_state.add_live_feed_data(data_type, value)
 
 def get_live_feed_data():
+    """Get current live feed data for display.
+
+    Returns:
+        dict: Dictionary containing live feed data points organized by type.
+    """
     return ui_state.get_live_feed_data()
 
 def clear_live_feed_data():
+    """Clear all live feed data from UI state."""
     ui_state.clear_live_feed_data()
 
 
@@ -79,7 +132,7 @@ def update_operation_status(operation: str, progress: float = 0.0):
     try:
         dpg.set_value("operation_status_text", f"Operation: {operation}")
         dpg.set_value("operation_progress", progress)
-    except Exception as e:
+    except (RuntimeError, AttributeError, ValueError) as e:
         log_step(f"Failed to update operation status: {e}")
 
 
@@ -93,7 +146,7 @@ def clear_operation_status():
     try:
         dpg.set_value("operation_status_text", "Operation: Idle")
         dpg.set_value("operation_progress", 0.0)
-    except Exception as e:
+    except (RuntimeError, AttributeError, ValueError) as e:
         log_step(f"Failed to clear operation status: {e}")
 
 def create_main_window():
@@ -110,9 +163,9 @@ def create_main_window():
             with dpg.tab(label="Dashboard"):
                 dpg.add_text(default_value="Neural Simulation Dashboard", tag="dashboard_title")
                 dpg.add_separator()
-                
+
                 with dpg.child_window(height=-1, width=-1, tag="dashboard_scroll", no_scrollbar=False, border=False):
-                    
+
                     # Control panel with improved spacing
                     with dpg.group(horizontal=True):
                         start_btn = dpg.add_button(label="Start", callback=start_simulation_callback, width=100)
@@ -120,13 +173,13 @@ def create_main_window():
                         reset_btn = dpg.add_button(label="Reset", callback=reset_simulation_callback, width=100)
                         view_logs_btn = dpg.add_button(label="View Logs", callback=view_logs_callback, width=100)
                         force_close_btn = dpg.add_button(label="Force Close", callback=force_close_application, width=100)
-                        
+
                         # Neural map slot selector
                         dpg.add_text("Map Slot:")
                         slot_input = dpg.add_input_int(tag="map_slot", default_value=0, width=50)
                         save_btn = dpg.add_button(label="Save Neural Map", callback=lambda: save_neural_map_callback(dpg.get_value("map_slot")), width=150)
                         load_btn = dpg.add_button(label="Load Neural Map", callback=lambda: load_neural_map_callback(dpg.get_value("map_slot")), width=150)
-                    
+
                     # Tooltips for control panel (moved outside group for container balance)
                     with dpg.tooltip(parent=start_btn):
                         dpg.add_text("Begin the neural simulation (Ctrl+S)")
@@ -144,9 +197,9 @@ def create_main_window():
                         dpg.add_text("Save current graph to selected slot")
                     with dpg.tooltip(parent=load_btn):
                         dpg.add_text("Load graph from selected slot")
-                    
+
                     dpg.add_separator()
-                    
+
                     # Status panel - responsive height
                     with dpg.child_window(height=-1, width=-1, tag="status_panel", border=True):
                         dpg.add_text(default_value="Status: ", tag=CONSTANTS['STATUS_TEXT_TAG'])
@@ -158,9 +211,9 @@ def create_main_window():
                         operation_progress = dpg.add_progress_bar(default_value=0.0, tag="operation_progress", width=-1)
                         with dpg.tooltip(parent=operation_progress):
                             dpg.add_text("Progress of current operation")
-                    
+
                     dpg.add_separator()
-                    
+
                     # Live metrics - responsive
                     with dpg.child_window(height=-1, width=-1, tag="metrics_panel", border=True):
                         dpg.add_text(default_value="Live Metrics:")
@@ -177,41 +230,41 @@ def create_main_window():
             with dpg.tab(label="Graph Visualization"):
                 dpg.add_text(default_value="Neural Graph Visualization")
                 dpg.add_separator()
-                
+
                 with dpg.child_window(height=-1, width=-1, tag="graph_scroll", no_scrollbar=False, horizontal_scrollbar=True, border=False):
-                    
+
                     # Graph controls with tooltips
                     with dpg.group(horizontal=True):
-                        show_nodes_cb = dpg.add_checkbox(label="Show Nodes", tag="show_nodes", default_value=True, callback=lambda: update_graph_visualization())
+                        show_nodes_cb = dpg.add_checkbox(label="Show Nodes", tag="show_nodes", default_value=True, callback=update_graph_visualization)
                         with dpg.tooltip(parent=show_nodes_cb):
                             dpg.add_text("Toggle visibility of neural nodes")
-                        show_edges_cb = dpg.add_checkbox(label="Show Edges", tag="show_edges", default_value=True, callback=lambda: update_graph_visualization())
+                        show_edges_cb = dpg.add_checkbox(label="Show Edges", tag="show_edges", default_value=True, callback=update_graph_visualization)
                         with dpg.tooltip(parent=show_edges_cb):
                             dpg.add_text("Toggle visibility of connections")
-                        color_energy_cb = dpg.add_checkbox(label="Color by Energy", tag="color_energy", default_value=True, callback=lambda: update_graph_visualization())
+                        color_energy_cb = dpg.add_checkbox(label="Color by Energy", tag="color_energy", default_value=True, callback=update_graph_visualization)
                         with dpg.tooltip(parent=color_energy_cb):
                             dpg.add_text("Color nodes based on energy levels")
-                        node_size_slider = dpg.add_slider_float(label="Node Size", tag="node_size", default_value=2.0, min_value=0.5, max_value=10.0, callback=lambda: update_graph_visualization())
+                        node_size_slider = dpg.add_slider_float(label="Node Size", tag="node_size", default_value=2.0, min_value=0.5, max_value=10.0, callback=update_graph_visualization)
                         with dpg.tooltip(parent=node_size_slider):
                             dpg.add_text("Adjust size of node circles")
-                        edge_thickness_slider = dpg.add_slider_float(label="Edge Thickness", tag="edge_thickness", default_value=1.0, min_value=0.1, max_value=5.0, callback=lambda: update_graph_visualization())
+                        edge_thickness_slider = dpg.add_slider_float(label="Edge Thickness", tag="edge_thickness", default_value=1.0, min_value=0.1, max_value=5.0, callback=update_graph_visualization)
                         with dpg.tooltip(parent=edge_thickness_slider):
                             dpg.add_text("Adjust thickness of connection lines")
-                    
+
                     dpg.add_separator()
-                    
+
                     # Visualization area - responsive height
                     with dpg.child_window(height=-1, width=-1, no_scrollbar=False, horizontal_scrollbar=True, border=True, tag="graph_container"):
                         dpg.add_drawlist(width=-1, height=-1, tag="graph_view")
-                    
+
                     dpg.add_text(default_value="Zoom: Use mouse wheel | Pan: Drag with right mouse button | Controls update live", color=[150, 150, 150, 255])
 
             with dpg.tab(label="Metrics & Plots"):
                 dpg.add_text(default_value="Real-time Metrics and Historical Plots")
                 dpg.add_separator()
-                
+
                 with dpg.child_window(height=-1, width=-1, tag="metrics_scroll", no_scrollbar=False, horizontal_scrollbar=True, border=False):
-                    
+
                     # Plots - responsive heights
                     with dpg.group(horizontal=False):
                         dpg.add_text("Energy History Plot - Hover for values")
@@ -219,13 +272,13 @@ def create_main_window():
                         dpg.add_plot_legend(parent=energy_plot)
                         dpg.add_plot_axis(dpg.mvXAxis, label="Time Steps", tag="energy_axis", parent=energy_plot)
                         dpg.add_line_series([], [], label="Average Energy", tag="energy_series", parent="energy_axis")
-                        
+
                         dpg.add_text("Node Activity Plot - Hover for values")
                         activity_plot = dpg.add_plot(label="Node Activity", height=200, width=-1, tag="activity_plot")
                         dpg.add_plot_legend(parent=activity_plot)
                         dpg.add_plot_axis(dpg.mvXAxis, label="Time Steps", tag="activity_axis", parent=activity_plot)
                         dpg.add_line_series([], [], label="Active Nodes", tag="activity_series", parent="activity_axis")
-                        
+
                         dpg.add_text("Performance Plot - Hover for values")
                         perf_plot = dpg.add_plot(label="Performance", height=200, width=-1, tag="performance_plot")
                         dpg.add_plot_legend(parent=perf_plot)
@@ -235,9 +288,9 @@ def create_main_window():
             with dpg.tab(label="Controls & Configuration"):
                 dpg.add_text(default_value="Simulation Controls and Parameters")
                 dpg.add_separator()
-                
+
                 with dpg.child_window(height=-1, width=-1, tag="controls_scroll", no_scrollbar=False, horizontal_scrollbar=True, border=False):
-                    
+
                     # Parameter sliders with tooltips
                     learning_header = dpg.add_collapsing_header(label="Learning Parameters")
                     with dpg.tooltip(parent=learning_header):
@@ -252,7 +305,7 @@ def create_main_window():
                         stdp_slider = dpg.add_slider_float(label="STDP Window (ms)", tag="stdp_window", default_value=20.0, min_value=5.0, max_value=50.0)
                         with dpg.tooltip(parent=stdp_slider):
                             dpg.add_text("Spike-timing dependent plasticity temporal window")
-                    
+
                     energy_header = dpg.add_collapsing_header(label="Energy Parameters")
                     with dpg.tooltip(parent=energy_header):
                         dpg.add_text("Configure node birth and death thresholds")
@@ -266,7 +319,7 @@ def create_main_window():
                         update_slider = dpg.add_slider_int(label="Update Interval", tag="update_interval", default_value=50, min_value=10, max_value=200)
                         with dpg.tooltip(parent=update_slider):
                             dpg.add_text("Simulation update frequency in ms")
-                    
+
                     viz_header = dpg.add_collapsing_header(label="Visualization")
                     with dpg.tooltip(parent=viz_header):
                         dpg.add_text("Customize visual appearance of graph elements")
@@ -280,7 +333,7 @@ def create_main_window():
                         edge_color_edit = dpg.add_color_edit(label="Edge Color", tag="edge_color", default_value=[255, 255, 255, 255])
                         with dpg.tooltip(parent=edge_color_edit):
                             dpg.add_text("Color for connection edges")
-                    
+
                     dpg.add_separator()
                     apply_btn = dpg.add_button(label="Apply Changes", callback=apply_config_changes)
                     with dpg.tooltip(parent=apply_btn):
@@ -292,9 +345,9 @@ def create_main_window():
             with dpg.tab(label="Help & Legend"):
                 dpg.add_text(default_value="Neural Simulation Legend")
                 dpg.add_separator()
-                
+
                 with dpg.child_window(height=-1, width=-1, tag="help_scroll", no_scrollbar=False, horizontal_scrollbar=True, border=False):
-                    
+
                     with dpg.group(horizontal=True):
                         with dpg.child_window(width=200, height=300):
                             dpg.add_text(default_value="Node Types:")
@@ -303,33 +356,33 @@ def create_main_window():
                             dpg.add_text(default_value="• Oscillator: Pulsing yellow")
                             dpg.add_text(default_value="• Integrator: Purple diamonds")
                             dpg.add_text(default_value="• Relay: Orange squares")
-                            
+
                             dpg.add_separator()
                             dpg.add_text(default_value="Node States:")
                             dpg.add_text(default_value="• Active: Bright color")
                             dpg.add_text(default_value="• Inactive: Dimmed color")
                             dpg.add_text(default_value="• Dying: Red tint")
                             dpg.add_text(default_value="• Newborn: Flashing")
-                            
+
                             dpg.add_separator()
                             dpg.add_text(default_value="Edge Types:")
                             dpg.add_text(default_value="• Excitatory: Solid green")
                             dpg.add_text(default_value="• Inhibitory: Dashed red")
                             dpg.add_text(default_value="• Modulatory: Dotted blue")
-                        
+
                         with dpg.child_window(width=200, height=300):
                             dpg.add_text(default_value="Energy Levels:")
                             dpg.add_text(default_value="• Low (<0.3): Dark")
                             dpg.add_text(default_value="• Medium (0.3-0.7): Medium brightness")
                             dpg.add_text(default_value="• High (>0.7): Bright/glowing")
-                            
+
                             dpg.add_separator()
                             dpg.add_text(default_value="Learning Indicators:")
                             dpg.add_text(default_value="• LTP Active: Green glow on edges")
                             dpg.add_text(default_value="• LTD Active: Red glow on edges")
                             dpg.add_text(default_value="• Memory Trace: Blue outline on nodes")
                             dpg.add_text(default_value="• IEG Tagged: Yellow star")
-                            
+
                             dpg.add_separator()
                             dpg.add_text(default_value="Controls:")
                             dpg.add_text(default_value="• Mouse wheel: Zoom")
@@ -338,11 +391,22 @@ def create_main_window():
                             dpg.add_text(default_value="• Sliders: Adjust visuals")
 
 def get_coordinator() -> Optional[ISimulationCoordinator]:
+    """Get the simulation coordinator from the service registry.
+
+    Returns:
+        Optional[ISimulationCoordinator]: The simulation coordinator instance if available,
+            None if service registry is not initialized or coordinator not found.
+    """
     if _service_registry:
         return _service_registry.resolve(ISimulationCoordinator)
     return None
 
 def start_simulation_callback():
+    """Callback function to start the neural simulation.
+
+    This function handles the UI callback when user clicks start button
+    or uses keyboard shortcut. Includes error handling and user feedback.
+    """
     # Skip DPG calls in test environments to avoid crashes
     skip = 'pytest' in sys.modules
     if skip:
@@ -354,10 +418,15 @@ def start_simulation_callback():
             coordinator.start()
             set_simulation_running(True)
             dpg.set_value("events_log", "Simulation started")
-    except Exception as e:
+    except (RuntimeError, AttributeError, ValueError, TypeError) as e:
         dpg.set_value("events_log", f"Start failed: {str(e)}")
 
 def stop_simulation_callback():
+    """Callback function to stop the neural simulation.
+
+    This function handles the UI callback when user clicks stop button
+    or uses keyboard shortcut. Includes error handling and user feedback.
+    """
     # Skip DPG calls in test environments to avoid crashes
     skip = 'pytest' in sys.modules
     if skip:
@@ -369,10 +438,16 @@ def stop_simulation_callback():
             coordinator.stop()
             set_simulation_running(False)
             dpg.set_value("events_log", "Simulation stopped")
-    except Exception as e:
+    except (RuntimeError, AttributeError, ValueError, TypeError) as e:
         dpg.set_value("events_log", f"Stop failed: {str(e)}")
 
 def reset_simulation_callback():
+    """Callback function to reset the neural simulation.
+
+    This function handles the UI callback when user clicks reset button
+    or uses keyboard shortcut. Resets simulation state and clears data.
+    Includes error handling and user feedback.
+    """
     # Skip DPG calls in test environments to avoid crashes
     skip = 'pytest' in sys.modules
     if skip:
@@ -385,10 +460,15 @@ def reset_simulation_callback():
             set_simulation_running(False)
             clear_live_feed_data()
             dpg.set_value("events_log", "Simulation reset")
-    except Exception as e:
+    except (RuntimeError, AttributeError, ValueError, TypeError) as e:
         dpg.set_value("events_log", f"Reset failed: {str(e)}")
 
 def reset_simulation():
+    """Reset the neural simulation by calling the reset callback.
+
+    This is a wrapper function that calls the reset_simulation_callback
+    for external access to simulation reset functionality.
+    """
     reset_simulation_callback()
 
 def update_ui_display():
@@ -423,9 +503,6 @@ def update_ui_display():
         # Send data to visualization service for real-time rendering
         if _visualization_service and graph:
             try:
-                from src.core.interfaces.real_time_visualization import VisualizationData
-                import time
-
                 # Create visualization data for neural activity
                 neural_data = VisualizationData("neural_activity", time.time())
                 neural_data.data = {
@@ -445,7 +522,7 @@ def update_ui_display():
                 }
                 _visualization_service.update_visualization_data("energy_flow", energy_data)
 
-            except Exception as e:
+            except (RuntimeError, AttributeError, ValueError, TypeError) as e:
                 log_step(f"Error updating visualization service: {e}")
     else:
         dpg.set_value("step_count_text", "Step Count: 0")
@@ -474,6 +551,91 @@ def update_ui_display():
         dpg.set_value("perf_series", [[0], [0.0]])
 
 
+def _get_graph_visualization_settings():
+    """Get visualization settings from UI controls."""
+    return {
+        'show_nodes': dpg.get_value("show_nodes"),
+        'show_edges': dpg.get_value("show_edges"),
+        'color_energy': dpg.get_value("color_energy"),
+        'node_size': dpg.get_value("node_size"),
+        'edge_thickness': dpg.get_value("edge_thickness"),
+        'node_active_color': dpg.get_value("node_active_color"),
+        'node_inactive_color': dpg.get_value("node_inactive_color"),
+        'edge_color': dpg.get_value("edge_color")
+    }
+
+def _get_viewport_dimensions():
+    """Get the current viewport dimensions."""
+    width = dpg.get_item_rect_size("graph_view")[0]
+    height = dpg.get_item_rect_size("graph_view")[1]
+    return width, height
+
+def _get_node_position(node, index, total_nodes, width, height, zoom, pan_x, pan_y):
+    """Calculate position for a node."""
+    if 'pos' in node and node['pos']:
+        return node['pos']
+
+    # Improved grid layout
+    cols = max(1, int(math.sqrt(total_nodes)))
+    rows = math.ceil(total_nodes / cols)
+    x = (index % cols) / cols * width * zoom + pan_x
+    y = (index // cols) / rows * height * zoom + pan_y
+    return x, y
+
+def _calculate_node_color(node, settings):
+    """Calculate color for a node based on energy and state."""
+    energy = node.get('energy', 0.0)
+    state = node.get('state', 'inactive')
+
+    if settings['color_energy']:
+        r = int(255 * min(energy / 255.0, 1.0))
+        g = 255 - r
+        b = 128
+        return [r, g, b, 255]
+    else:
+        return settings['node_active_color'] if state == 'active' else settings['node_inactive_color']
+
+def _draw_graph_nodes(graph, settings, viewport_dims, zoom_pan):
+    """Draw nodes on the graph visualization."""
+    width, height = viewport_dims
+    zoom, pan_x, pan_y = zoom_pan
+
+    if not (settings['show_nodes'] and hasattr(graph, 'node_labels') and graph.node_labels):
+        return
+
+    num_nodes = len(graph.node_labels)
+    for i, node in enumerate(graph.node_labels[:500]):  # Increased limit
+        x, y = _get_node_position(node, i, num_nodes, width, height, zoom, pan_x, pan_y)
+        color = _calculate_node_color(node, settings)
+        dpg.draw_circle([x, y], settings['node_size'] * zoom, color=color, thickness=2)
+
+def _draw_graph_edges(graph, settings, viewport_dims, zoom_pan):
+    """Draw edges on the graph visualization."""
+    width, height = viewport_dims
+    zoom, pan_x, pan_y = zoom_pan
+
+    if not (settings['show_edges'] and hasattr(graph, 'edge_index') and graph.edge_index.numel() > 0):
+        return
+
+    num_nodes = len(graph.node_labels)
+    for j in range(min(graph.edge_index.shape[1], 200)):  # Increased limit
+        src_idx = graph.edge_index[0, j].item()
+        tgt_idx = graph.edge_index[1, j].item()
+
+        # Get source position
+        if src_idx < len(graph.node_labels) and 'pos' in graph.node_labels[src_idx]:
+            src_x, src_y = graph.node_labels[src_idx]['pos']
+        else:
+            src_x, src_y = _get_node_position(graph.node_labels[src_idx] if src_idx < len(graph.node_labels) else {}, src_idx, num_nodes, width, height, zoom, pan_x, pan_y)
+
+        # Get target position
+        if tgt_idx < len(graph.node_labels) and 'pos' in graph.node_labels[tgt_idx]:
+            tgt_x, tgt_y = graph.node_labels[tgt_idx]['pos']
+        else:
+            tgt_x, tgt_y = _get_node_position(graph.node_labels[tgt_idx] if tgt_idx < len(graph.node_labels) else {}, tgt_idx, num_nodes, width, height, zoom, pan_x, pan_y)
+
+        dpg.draw_line([src_x, src_y], [tgt_x, tgt_y], color=settings['edge_color'], thickness=settings['edge_thickness'] * zoom)
+
 def update_graph_visualization():
     """Update the graph visualization drawlist."""
     # Skip DPG calls in test environments to avoid crashes
@@ -485,75 +647,23 @@ def update_graph_visualization():
     if not graph:
         return
 
-    show_nodes = dpg.get_value("show_nodes")
-    show_edges = dpg.get_value("show_edges")
-    color_energy = dpg.get_value("color_energy")
-    node_size = dpg.get_value("node_size")
-    edge_thickness = dpg.get_value("edge_thickness")
-
-    node_active_color = dpg.get_value("node_active_color")
-    node_inactive_color = dpg.get_value("node_inactive_color")
-    edge_color = dpg.get_value("edge_color")
-
-    # Get drawlist size
-    width = dpg.get_item_rect_size("graph_view")[0]
-    height = dpg.get_item_rect_size("graph_view")[1]
-    center_x, center_y = width / 2, height / 2
+    # Get settings and viewport info
+    settings = _get_graph_visualization_settings()
+    width, height = _get_viewport_dimensions()
 
     # Basic zoom and pan (stored in state)
     zoom = ui_state.get_simulation_state().get('viz_zoom', 1.0)
     pan_x = ui_state.get_simulation_state().get('viz_pan_x', 0.0)
     pan_y = ui_state.get_simulation_state().get('viz_pan_y', 0.0)
 
+    zoom_pan = (zoom, pan_x, pan_y)
+    viewport_dims = (width, height)
+
     dpg.clear_draw_list()  # pylint: disable=no-member
 
-    if show_nodes and hasattr(graph, 'node_labels') and graph.node_labels:
-        # Use node positions if available, else simple layout
-        num_nodes = len(graph.node_labels)
-        cols = max(1, int(math.sqrt(num_nodes)))
-        rows = math.ceil(num_nodes / cols)
-        for i, node in enumerate(graph.node_labels[:500]):  # Increased limit
-            if 'pos' in node and node['pos']:
-                x, y = node['pos']
-            else:
-                # Improved grid layout
-                x = (i % cols) / cols * width * zoom + pan_x
-                y = (i // cols) / rows * height * zoom + pan_y
-            energy = node.get('energy', 0.0)
-            state = node.get('state', 'inactive')
-
-            if color_energy:
-                r = int(255 * min(energy / 255.0, 1.0))
-                g = 255 - r
-                b = 128
-                color = [r, g, b, 255]
-            else:
-                color = node_active_color if state == 'active' else node_inactive_color
-
-            dpg.draw_circle([x, y], node_size * zoom, color=color, thickness=2)
-
-    if show_edges and hasattr(graph, 'edge_index') and graph.edge_index.numel() > 0:
-        num_nodes = len(graph.node_labels)
-        cols = max(1, int(math.sqrt(num_nodes)))
-        rows = math.ceil(num_nodes / cols)
-        for j in range(min(graph.edge_index.shape[1], 200)):  # Increased limit
-            src_idx = graph.edge_index[0, j].item()
-            tgt_idx = graph.edge_index[1, j].item()
-
-            # Get positions similarly
-            if src_idx < len(graph.node_labels) and 'pos' in graph.node_labels[src_idx]:
-                src_x, src_y = graph.node_labels[src_idx]['pos']
-            else:
-                src_x = (src_idx % cols) / cols * width * zoom + pan_x
-                src_y = (src_idx // cols) / rows * height * zoom + pan_y
-
-            if tgt_idx < len(graph.node_labels) and 'pos' in graph.node_labels[tgt_idx]:
-                tgt_x, tgt_y = graph.node_labels[tgt_idx]['pos']
-            else:
-                tgt_x = (tgt_idx % cols) / cols * width * zoom + pan_x
-                tgt_y = (tgt_idx // cols) / rows * height * zoom + pan_y
-
-            dpg.draw_line([src_x, src_y], [tgt_x, tgt_y], color=edge_color, thickness=edge_thickness * zoom)
+    # Draw nodes and edges separately for better organization
+    _draw_graph_nodes(graph, settings, viewport_dims, zoom_pan)
+    _draw_graph_edges(graph, settings, viewport_dims, zoom_pan)
 
     # Note: Full zoom/pan requires mouse handlers; basic scaling here
 
@@ -577,7 +687,7 @@ def save_neural_map_callback(slot):
         #      Refer to `core/interfaces/simulation_coordinator.py` for `save_neural_map`.
         success = coordinator.save_neural_map(slot)
         dpg.set_value("events_log", f"Saved neural map to slot {slot}: {'Success' if success else 'Failed'}")
-    except Exception as e:
+    except (RuntimeError, AttributeError, ValueError, TypeError, OSError, IOError) as e:
         dpg.set_value("events_log", f"Save failed: {str(e)}")
 
 def load_neural_map_callback(slot):
@@ -599,7 +709,7 @@ def load_neural_map_callback(slot):
             update_graph(coordinator.get_neural_graph())
             update_graph_visualization()
         dpg.set_value("events_log", f"Loaded neural map from slot {slot}: {'Success' if success else 'Failed'}")
-    except Exception as e:
+    except (RuntimeError, AttributeError, ValueError, TypeError, OSError, IOError) as e:
         dpg.set_value("events_log", f"Load failed: {str(e)}")
 
 def apply_config_changes():
@@ -628,7 +738,7 @@ def apply_config_changes():
 
         dpg.set_value("events_log", "Configuration changes applied and propagated")
         update_graph_visualization()
-    except Exception as e:
+    except (RuntimeError, AttributeError, ValueError, TypeError) as e:
         dpg.set_value("events_log", f"Apply failed: {str(e)}")
 
 def reset_to_defaults():
@@ -647,16 +757,30 @@ def reset_to_defaults():
     dpg.set_value("node_inactive_color", [128, 128, 128, 255])
     dpg.set_value("edge_color", [255, 255, 255, 255])
     dpg.set_value("events_log", "Reset to default parameters")
- 
+
 def update_frame():
     """Update UI and graph every frame."""
     update_ui_display()
     update_graph_visualization()
- 
- 
+
+
 
 def handle_keyboard_shortcut(action):
-    """Handle keyboard shortcuts."""
+    """Handle keyboard shortcuts for UI operations.
+
+    Args:
+        action (str): The keyboard shortcut action to perform. Supported actions:
+            - 'start': Start simulation
+            - 'stop': Stop simulation
+            - 'reset': Reset simulation
+            - 'logs': View logs
+            - 'force_close': Force close application
+            - 'exit': Exit application
+            - 'apply': Apply configuration changes
+            - 'defaults': Reset to default parameters
+            - 'fullscreen': Toggle fullscreen mode
+            - 'help': Show keyboard shortcuts dialog
+    """
     try:
         if action == 'start':
             start_simulation_callback()
@@ -680,11 +804,23 @@ def handle_keyboard_shortcut(action):
             show_keyboard_shortcuts()
         else:
             log_step(f"Unknown keyboard shortcut action: {action}")
-    except Exception as e:
+    except (RuntimeError, AttributeError, ValueError, TypeError) as e:
         log_step(f"Keyboard shortcut error: {e}")
 
 
 def create_ui():
+    """Create and initialize the main UI with Dear PyGui.
+
+    This function sets up the complete user interface including:
+    - Dear PyGui context and viewport
+    - Modern neural-themed styling
+    - Main window with tabs (Dashboard, Graph Visualization, Metrics, Controls, Help)
+    - Event subscriptions and menu bar
+    - Auto-start simulation functionality
+
+    Raises:
+        Exception: If UI initialization fails, attempts fallback UI creation.
+    """
     try:
         log_step("Creating Dear PyGui context...")
         dpg.create_context()
@@ -697,7 +833,7 @@ def create_ui():
     except Exception as e:
         log_step(f"Failed to initialize Dear PyGui: {e}")
         raise
-    
+
     # Setup enhanced modern theme
     with dpg.theme(tag="modern_neural_theme"):
         with dpg.theme_component(dpg.mvAll):
@@ -705,60 +841,60 @@ def create_ui():
             dpg.add_theme_color(dpg.mvThemeCol_WindowBg, [15, 20, 35, 255])  # Deep navy
             dpg.add_theme_color(dpg.mvThemeCol_ChildBg, [25, 30, 45, 255])
             dpg.add_theme_color(dpg.mvThemeCol_PopupBg, [25, 30, 45, 255])
-            
+
             # Title bars
             dpg.add_theme_color(dpg.mvThemeCol_TitleBg, [40, 50, 70, 255])
             dpg.add_theme_color(dpg.mvThemeCol_TitleBgActive, [60, 70, 90, 255])
-            
+
             # Buttons - Neural green accents
             dpg.add_theme_color(dpg.mvThemeCol_Button, [40, 70, 50, 255])
             dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, [50, 90, 70, 255])
             dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, [60, 110, 90, 255])
-            
+
             # Frames and inputs
             dpg.add_theme_color(dpg.mvThemeCol_FrameBg, [30, 40, 55, 255])
             dpg.add_theme_color(dpg.mvThemeCol_FrameBgHovered, [40, 50, 65, 255])
             dpg.add_theme_color(dpg.mvThemeCol_FrameBgActive, [50, 60, 75, 255])
-            
+
             # Sliders and plots
             dpg.add_theme_color(dpg.mvThemeCol_SliderGrab, [100, 200, 150, 255])
             dpg.add_theme_color(dpg.mvThemeCol_SliderGrabActive, [120, 220, 170, 255])
             dpg.add_theme_color(dpg.mvThemeCol_PlotLines, [100, 200, 150, 255])
             dpg.add_theme_color(dpg.mvThemeCol_PlotHistogram, [60, 150, 100, 255])
-            
+
             # Text and selections
             dpg.add_theme_color(dpg.mvThemeCol_Text, [220, 220, 230, 255])
             dpg.add_theme_color(dpg.mvThemeCol_Header, [50, 70, 90, 255])
             dpg.add_theme_color(dpg.mvThemeCol_HeaderHovered, [60, 80, 100, 255])
             dpg.add_theme_color(dpg.mvThemeCol_HeaderActive, [70, 90, 110, 255])
-            
+
             # Tab bar
             dpg.add_theme_color(dpg.mvThemeCol_Tab, [30, 40, 55, 255])
             dpg.add_theme_color(dpg.mvThemeCol_TabHovered, [40, 50, 65, 255])
             dpg.add_theme_color(dpg.mvThemeCol_TabActive, [50, 60, 75, 255])
             dpg.add_theme_color(dpg.mvThemeCol_TabUnfocused, [25, 30, 45, 255])
             dpg.add_theme_color(dpg.mvThemeCol_TabUnfocusedActive, [35, 40, 55, 255])
-            
+
             # Rounding for modern look
             dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 4)
             dpg.add_theme_style(dpg.mvStyleVar_WindowRounding, 6)
             dpg.add_theme_style(dpg.mvStyleVar_PopupRounding, 4)
             dpg.add_theme_style(dpg.mvStyleVar_TabRounding, 4)
-            
+
             # Spacing and padding
             dpg.add_theme_style(dpg.mvStyleVar_ItemSpacing, 8, 4)
             dpg.add_theme_style(dpg.mvStyleVar_ItemInnerSpacing, 6, 4)
             dpg.add_theme_style(dpg.mvStyleVar_WindowPadding, 10, 10)
             dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 6, 4)
             dpg.add_theme_style(dpg.mvStyleVar_CellPadding, 4, 2)
-            
+
     dpg.bind_theme("modern_neural_theme")
     dpg.set_global_font_scale(1.2)
-    
+
     create_main_window()
     setup_event_subscriptions()
     dpg.set_primary_window(CONSTANTS['MAIN_WINDOW_TAG'], True)
-    
+
     # Create about dialog window
     with dpg.window(label="About Neural Simulation", modal=True, show=False, tag="about_dialog", no_move=True):
         dpg.add_text(default_value="Neural Simulation System v2.0")
@@ -774,7 +910,7 @@ def create_ui():
         close_about = dpg.add_button(label="Close", callback=lambda: dpg.configure_item("about_dialog", show=False))
         with dpg.tooltip(parent=close_about):
             dpg.add_text("Close this dialog")
-    
+
     # Create logs modal
     with dpg.window(label="Event Logs", modal=True, show=False, tag=CONSTANTS['LOGS_MODAL_TAG'], no_move=True):
         dpg.add_text("Detailed Simulation Logs:")
@@ -784,7 +920,7 @@ def create_ui():
             dpg.add_text("Scrollable log of recent events")
         dpg.add_separator()
         dpg.add_button(label="Close", callback=lambda: dpg.configure_item(CONSTANTS['LOGS_MODAL_TAG'], show=False))
-    
+
     # Add menu bar
     main_menu = dpg.add_menu_bar(parent=CONSTANTS['MAIN_WINDOW_TAG'], tag="main_menu")
     file_menu = dpg.add_menu(parent=main_menu, label="File", tag="file_menu")
@@ -792,15 +928,15 @@ def create_ui():
     dpg.add_menu_item(parent=file_menu, label="Load Neural Map", callback=lambda: load_neural_map_callback(dpg.get_value("map_slot")))
     dpg.add_menu_item(parent=file_menu, label="Export Metrics", callback=export_metrics)
     dpg.add_menu_item(parent=file_menu, label="Force Close", callback=force_close_application)
-    dpg.add_menu_item(parent=file_menu, label="Exit", callback=lambda: dpg.stop_dearpygui())
+    dpg.add_menu_item(parent=file_menu, label="Exit", callback=dpg.stop_dearpygui)
 
     view_menu = dpg.add_menu(parent=main_menu, label="View", tag="view_menu")
-    dpg.add_menu_item(parent=view_menu, label="Toggle Fullscreen", callback=lambda: dpg.toggle_viewport_fullscreen())
+    dpg.add_menu_item(parent=view_menu, label="Toggle Fullscreen", callback=dpg.toggle_viewport_fullscreen)
 
     help_menu = dpg.add_menu(parent=main_menu, label="Help", tag="help_menu")
     dpg.add_menu_item(parent=help_menu, label="About", callback=lambda: dpg.configure_item("about_dialog", show=True))
     dpg.add_menu_item(parent=help_menu, label="Keyboard Shortcuts", callback=show_keyboard_shortcuts)
-    
+
     # Keyboard shortcuts disabled for DearPyGui 2.1.0 compatibility
     # The API for keyboard handlers has changed and needs investigation
     log_step("Keyboard shortcuts disabled - requires API compatibility update")
@@ -837,9 +973,9 @@ def create_ui():
                 if frame_count % 300 == 0:  # Log every 5 seconds at 60 FPS
                     log_step(f"UI running - frame {frame_count}")
                 time.sleep(1/60.0)  # 60 FPS
-            except Exception as e:
+            except (RuntimeError, AttributeError, ValueError, TypeError, KeyboardInterrupt) as e:
                 log_step(f"Error in UI loop: {e}")
-                import traceback
+
                 log_step(f"Traceback: {traceback.format_exc()}")
                 break
 
@@ -851,7 +987,7 @@ def create_ui():
         try:
             dpg.destroy_context()
             log_step("DearPyGui context destroyed")
-        except Exception as e:
+        except (RuntimeError, AttributeError, OSError) as e:  # Specific exceptions for context cleanup
             log_step(f"Error destroying context: {e}")
 
         log_step("UI shutdown complete")
@@ -860,8 +996,8 @@ def create_ui():
         log_step(f"Critical UI error: {e}")
         try:
             dpg.destroy_context()
-        except:
-            pass
+        except (RuntimeError, AttributeError) as cleanup_error:
+            log_step(f"Error during context cleanup: {cleanup_error}")
         raise
 
 
@@ -876,7 +1012,7 @@ def view_logs_callback():
         current_logs = dpg.get_value("events_log")
         dpg.set_value(CONSTANTS['LOGS_TEXT_TAG'], current_logs + "\n--- Additional system logs ---\n" + logging.getLogger().getEffectiveLevel())
         dpg.configure_item(CONSTANTS['LOGS_MODAL_TAG'], show=True)
-    except Exception as e:
+    except (RuntimeError, AttributeError, ValueError, TypeError) as e:
         dpg.set_value("events_log", f"Log view error: {str(e)}")
 
 def auto_start_simulation():
@@ -910,15 +1046,15 @@ def auto_start_simulation():
         time.sleep(0.5)
         clear_operation_status()
 
-    except Exception as e:
+    except (RuntimeError, AttributeError, ValueError, TypeError, ImportError) as e:
         dpg.set_value("events_log", f"Auto-start failed: {str(e)}")
-        logging.error(f"Auto-start simulation failed: {e}")
+        logging.error("Auto-start simulation failed: %s", e)
         clear_operation_status()
 
 
 def run_ui(service_registry: IServiceRegistry):
     """Entry point for launcher to run the UI."""
-    global _service_registry, _visualization_service
+    global _service_registry, _visualization_service  # pylint: disable=global-statement
     _service_registry = service_registry
 
     # Initialize visualization service
@@ -932,7 +1068,7 @@ def run_ui(service_registry: IServiceRegistry):
         }
         if not _visualization_service.initialize_visualization(viz_config):
             log_step("Warning: Real-time visualization service initialization failed")
-    except Exception as e:
+    except (RuntimeError, AttributeError, ValueError, TypeError, ImportError) as e:
         log_step(f"Visualization service initialization failed: {e}")
         _visualization_service = None
 
@@ -941,17 +1077,17 @@ def run_ui(service_registry: IServiceRegistry):
         create_ui()
         log_step("UI initialization completed successfully")
 
-    except Exception as e:
+    except (RuntimeError, AttributeError, ValueError, TypeError, ImportError) as e:
         log_step(f"UI initialization failed: {e}")
         log_step("Attempting fallback mode...")
 
         # Try fallback simple UI
         try:
             create_fallback_ui()
-        except Exception as e2:
+        except (RuntimeError, AttributeError, ValueError, TypeError, ImportError) as e2:
             log_step(f"Fallback UI also failed: {e2}")
             log_step("UI completely failed to initialize")
-            raise e
+            raise e from e2
 
 
 def create_fallback_ui():
@@ -969,7 +1105,7 @@ def create_fallback_ui():
 
             with dpg.group(horizontal=True):
                 dpg.add_button(label="Force Close", callback=force_close_application)
-                dpg.add_button(label="Exit", callback=lambda: dpg.stop_dearpygui())
+                dpg.add_button(label="Exit", callback=dpg.stop_dearpygui)
 
             dpg.add_separator()
             dpg.add_text("Available features in fallback mode:")
@@ -988,7 +1124,7 @@ def create_fallback_ui():
 
         dpg.destroy_context()
 
-    except Exception as e:
+    except Exception as e:  # Broad exception catch needed for UI fallback creation
         log_step(f"Fallback UI creation failed: {e}")
         raise
 
@@ -1004,12 +1140,12 @@ def export_metrics():
         if coordinator:
             metrics = coordinator.get_performance_metrics()
             filename = f"simulation_metrics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-            with open(filename, 'w') as f:
+            with open(filename, 'w', encoding='utf-8') as f:
                 json.dump(metrics, f, indent=2)
             dpg.set_value("events_log", f"Metrics exported to {filename}")
         else:
             dpg.set_value("events_log", "Coordinator not available for metrics export")
-    except Exception as e:
+    except (RuntimeError, AttributeError, ValueError, TypeError, OSError, IOError) as e:
         dpg.set_value("events_log", f"Export failed: {str(e)}")
 
 
@@ -1036,7 +1172,7 @@ def force_close_application():
         dpg.destroy_context()
 
         log_step("Application force closed successfully")
-    except Exception as e:
+    except (RuntimeError, AttributeError, ValueError, TypeError) as e:
         log_step(f"Error during force close: {e}")
         # Emergency exit
         sys.exit(1)
@@ -1101,20 +1237,23 @@ Graph Controls:
             dpg.add_button(label="Close", callback=lambda: dpg.configure_item("shortcuts_modal", show=False))
 
     dpg.configure_item("shortcuts_modal", show=True)
-
 def main():
+    """Main entry point for running the UI as a standalone application.
+
+    This function serves as the primary entry point when the module
+    is executed directly. It initializes and starts the UI, handling
+    any initialization errors that may occur.
+
+    Raises:
+        Exception: Re-raises any unhandled exceptions from UI creation.
+    """
     try:
         create_ui()
-    except Exception as e:
-        logging.error(f"Error in UI: {e}")
+    except (RuntimeError, AttributeError, ImportError, OSError) as e:
+        logging.error("Error in UI: %s", e)
         logging.error("UI initialization failed")
+
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
 

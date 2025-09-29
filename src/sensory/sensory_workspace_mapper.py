@@ -1,20 +1,63 @@
+"""
+Sensory Workspace Mapper Module
 
-import numpy as np
-from typing import Dict, Any, List, Tuple
+This module provides functionality for mapping sensory input (visual and audio) to workspace regions
+in a neural network graph. It extracts patterns from sensory data and creates spatial mappings
+to organize sensory information in workspace regions for further processing.
+
+Key Features:
+- Visual pattern extraction (contrast, edges, motion, texture)
+- Audio pattern extraction (frequency band analysis)
+- Spatial mapping to predefined workspace regions
+- Sensory-to-workspace connection creation
+- Pattern-based energy propagation
+- Temporal pattern persistence
+
+Classes:
+    SensoryWorkspaceMapper: Main class for sensory-to-workspace mapping
+
+Functions:
+    create_sensory_workspace_mapper: Factory function to create mapper instances
+"""
 
 import time
+from typing import Any, Dict, List, Tuple
 
+import numpy as np
 from torch_geometric.data import Data
 
-from src.utils.logging_utils import log_step
 from src.energy.node_access_layer import NodeAccessLayer
-
 from src.neural.connection_logic import create_weighted_connection
-
 from src.utils.event_bus import get_event_bus
+from src.utils.logging_utils import log_step
 
 
 class SensoryWorkspaceMapper:
+    """
+    Maps sensory input data to workspace regions in a neural network graph.
+
+    This class processes visual and audio sensory data, extracts meaningful patterns,
+    and maps them to specific regions in a workspace for organized neural processing.
+    It supports various pattern types including contrast, edges, motion, texture for
+    visual data, and frequency bands for audio data.
+
+    The mapper creates connections between sensory nodes and workspace regions,
+    enabling pattern-based energy propagation and temporal pattern persistence.
+
+    Args:
+        workspace_size: Tuple specifying the dimensions of the workspace (width, height)
+
+    Attributes:
+        workspace_size: Dimensions of the workspace
+        visual_patterns: Dictionary storing visual pattern data
+        audio_patterns: Dictionary storing audio pattern data
+        sensory_mappings: Dictionary storing sensory mapping configurations
+        workspace_regions: Predefined regions for different pattern types
+        visual_sensitivity: Sensitivity threshold for visual pattern detection
+        audio_sensitivity: Sensitivity threshold for audio pattern detection
+        pattern_threshold: Base threshold for pattern detection
+        temporal_window: Time window for temporal pattern analysis
+    """
 
     def __init__(self, workspace_size: Tuple[int, int] = (10, 10)):
 
@@ -41,8 +84,24 @@ class SensoryWorkspaceMapper:
         self.bus.subscribe('SENSORY_INPUT_VISUAL', self._on_visual_input)
         self.previous_visual_data = None
         log_step("SensoryWorkspaceMapper initialized", workspace_size=workspace_size)
+
     def map_visual_to_workspace(self, graph: Data, visual_data: np.ndarray,
                                step: int) -> Data:
+        """
+        Map visual sensory data to workspace regions in the neural graph.
+
+        Extracts visual patterns from input data including contrast, edges, motion,
+        and texture information, then maps these patterns to appropriate workspace
+        regions and creates sensory-to-workspace connections.
+
+        Args:
+            graph: The neural network graph to modify
+            visual_data: 2D numpy array containing visual input data
+            step: Current processing step (for temporal analysis)
+
+        Returns:
+            Modified graph with visual patterns mapped to workspace regions
+        """
 
         try:
             access_layer = NodeAccessLayer(graph)
@@ -54,11 +113,27 @@ class SensoryWorkspaceMapper:
                     patterns_detected=len(visual_patterns),
                     workspace_updates=len(workspace_updates))
             return graph
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             log_step("Error mapping visual to workspace", error=str(e))
             return graph
+
     def map_audio_to_workspace(self, graph: Data, audio_data: np.ndarray,
-                              step: int) -> Data:
+                               step: int) -> Data:
+        """
+        Map audio sensory data to workspace regions in the neural graph.
+
+        Extracts audio patterns from input data using frequency analysis across
+        low, mid, and high frequency bands, then maps these patterns to appropriate
+        workspace regions and creates audio-to-workspace connections.
+
+        Args:
+            graph: The neural network graph to modify
+            audio_data: 1D numpy array containing audio input data
+            step: Current processing step (for temporal analysis)
+
+        Returns:
+            Modified graph with audio patterns mapped to workspace regions
+        """
 
         try:
             access_layer = NodeAccessLayer(graph)
@@ -70,10 +145,10 @@ class SensoryWorkspaceMapper:
                     patterns_detected=len(audio_patterns),
                     workspace_updates=len(workspace_updates))
             return graph
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             log_step("Error mapping audio to workspace", error=str(e))
             return graph
-    def _extract_visual_patterns(self, visual_data: np.ndarray, step: int) -> List[Dict[str, Any]]:
+    def _extract_visual_patterns(self, visual_data: np.ndarray, _step: int) -> List[Dict[str, Any]]:
 
         try:
             patterns = []
@@ -125,10 +200,10 @@ class SensoryWorkspaceMapper:
                     })
             self.previous_visual_data = visual_data.copy()
             return patterns
-        except Exception as e:
+        except (ValueError, TypeError, IndexError) as e:
             log_step("Error extracting visual patterns", error=str(e))
             return []
-    def _extract_audio_patterns(self, audio_data: np.ndarray, step: int) -> List[Dict[str, Any]]:
+    def _extract_audio_patterns(self, audio_data: np.ndarray, _step: int) -> List[Dict[str, Any]]:
 
         try:
             patterns = []
@@ -165,7 +240,7 @@ class SensoryWorkspaceMapper:
                     'frequency_range': 'high'
                 })
             return patterns
-        except Exception as e:
+        except (ValueError, TypeError, IndexError) as e:
             log_step("Error extracting audio patterns", error=str(e))
             return []
     def _map_patterns_to_workspace(self, patterns: List[Dict[str, Any]],
@@ -192,7 +267,7 @@ class SensoryWorkspaceMapper:
                         'temporal_persistence': pattern['temporal_persistence']
                     })
             return workspace_updates
-        except Exception as e:
+        except (ValueError, TypeError, KeyError) as e:
             log_step("Error mapping patterns to workspace", error=str(e))
             return []
     def _update_workspace_nodes(self, graph: Data, workspace_updates: List[Dict[str, Any]],
@@ -223,7 +298,7 @@ class SensoryWorkspaceMapper:
                         access_layer.update_node_property(node_id, 'membrane_potential',
                                                        min(new_energy, 1.0))
             return graph
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             log_step("Error updating workspace nodes", error=str(e))
             return graph
     def _find_workspace_nodes_in_region(self, workspace_nodes: List[int],
@@ -245,7 +320,7 @@ class SensoryWorkspaceMapper:
                 if (x <= node_x < x + w and y <= node_y < y + h):
                     region_nodes.append(node_id)
             return region_nodes
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             log_step("Error finding workspace nodes in region", error=str(e))
             return []
     def _create_sensory_workspace_connections(self, graph: Data, visual_patterns: List[Dict[str, Any]],
@@ -256,59 +331,124 @@ class SensoryWorkspaceMapper:
             workspace_nodes = access_layer.select_nodes_by_type('workspace')
             if not sensory_nodes or not workspace_nodes:
                 return graph
-            for pattern in visual_patterns:
-                if 'spatial_center' in pattern:
-                    spatial_center = pattern['spatial_center']
-                    nearby_sensory = self._find_sensory_nodes_near_position(
-                        sensory_nodes, spatial_center, access_layer
-                    )
-                    region = pattern.get('region', 'visual_center')
-                    if region in self.workspace_regions:
-                        region_coords = self._get_region_workspace_coords(region)
-                        region_workspace = self._find_workspace_nodes_in_region(
-                            workspace_nodes, region_coords, access_layer
-                        )
-                        for sensory_id in nearby_sensory[:3]:
-                            for workspace_id in region_workspace[:2]:
-                                if sensory_id != workspace_id:
-                                    self._create_enhanced_connection(
-                                        graph, sensory_id, workspace_id, 'excitatory',
-                                        weight=pattern['strength'] * 0.5,
-                                        delay=0.1,
-                                        plasticity_enabled=True
-                                    )
+
+            self._process_visual_patterns_for_connections(
+                graph, visual_patterns,
+                {
+                    'sensory_nodes': sensory_nodes,
+                    'workspace_nodes': workspace_nodes,
+                    'access_layer': access_layer
+                }
+            )
             return graph
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             log_step("Error creating sensory-workspace connections", error=str(e))
             return graph
+
+    def _process_visual_patterns_for_connections(self, graph: Data, visual_patterns: List[Dict[str, Any]],
+                                               config: Dict[str, Any]) -> None:
+        """Process visual patterns and create sensory-workspace connections."""
+
+        # Extract configuration parameters
+        sensory_nodes = config['sensory_nodes']
+        workspace_nodes = config['workspace_nodes']
+        access_layer = config['access_layer']
+
+        for pattern in visual_patterns:
+            if 'spatial_center' not in pattern:
+                continue
+
+            spatial_center = pattern['spatial_center']
+            nearby_sensory = self._find_sensory_nodes_near_position(
+                sensory_nodes, spatial_center, access_layer
+            )
+
+            region = pattern.get('region', 'visual_center')
+            if region not in self.workspace_regions:
+                continue
+
+            region_coords = self._get_region_workspace_coords(region)
+            region_workspace = self._find_workspace_nodes_in_region(
+                workspace_nodes, region_coords, access_layer
+            )
+
+            self._create_pattern_connections(
+                graph, nearby_sensory[:3], region_workspace[:2],
+                {
+                    'weight': pattern['strength'] * 0.5,
+                    'connection_type': 'excitatory',
+                    'delay': 0.1,
+                    'plasticity_enabled': True
+                }
+            )
+
+    def _create_pattern_connections(self, graph: Data, sensory_nodes: List[int],
+                                   workspace_nodes: List[int], config: Dict[str, Any]) -> None:
+        """Create connections between sensory and workspace nodes for a pattern."""
+
+        # Extract configuration parameters
+        weight = config.get('weight', 0.5)
+        connection_type = config.get('connection_type', 'excitatory')
+        _delay = config.get('delay', 0.1)
+        _plasticity_enabled = config.get('plasticity_enabled', True)
+
+        for sensory_id in sensory_nodes:
+            for workspace_id in workspace_nodes:
+                if sensory_id != workspace_id:
+                    self._create_enhanced_connection(
+                        graph, sensory_id, workspace_id,
+                        connection_type, weight
+                    )
     def _create_audio_workspace_connections(self, graph: Data, audio_patterns: List[Dict[str, Any]],
-                                          access_layer: NodeAccessLayer) -> Data:
+                                         access_layer: NodeAccessLayer) -> Data:
 
         try:
             audio_sensory = access_layer.select_nodes_by_property('audio_stimulation', True)
             workspace_nodes = access_layer.select_nodes_by_type('workspace')
             if not audio_sensory or not workspace_nodes:
                 return graph
-            for pattern in audio_patterns:
-                region = pattern.get('region', 'audio_low')
-                if region in self.workspace_regions:
-                    region_coords = self._get_region_workspace_coords(region)
-                    region_workspace = self._find_workspace_nodes_in_region(
-                        workspace_nodes, region_coords, access_layer
-                    )
-                    for audio_id in audio_sensory[:2]:
-                        for workspace_id in region_workspace[:2]:
-                            if audio_id != workspace_id:
-                                self._create_enhanced_connection(
-                                    graph, audio_id, workspace_id, 'excitatory',
-                                    weight=pattern['strength'] * 0.3,
-                                    delay=0.05,
-                                    plasticity_enabled=True
-                                )
+
+            self._process_audio_patterns_for_connections(
+                graph, audio_patterns,
+                {
+                    'audio_sensory': audio_sensory,
+                    'workspace_nodes': workspace_nodes,
+                    'access_layer': access_layer
+                }
+            )
             return graph
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             log_step("Error creating audio-workspace connections", error=str(e))
             return graph
+
+    def _process_audio_patterns_for_connections(self, graph: Data, audio_patterns: List[Dict[str, Any]],
+                                              config: Dict[str, Any]) -> None:
+        """Process audio patterns and create audio-workspace connections."""
+
+        # Extract configuration parameters
+        audio_sensory = config['audio_sensory']
+        workspace_nodes = config['workspace_nodes']
+        access_layer = config['access_layer']
+
+        for pattern in audio_patterns:
+            region = pattern.get('region', 'audio_low')
+            if region not in self.workspace_regions:
+                continue
+
+            region_coords = self._get_region_workspace_coords(region)
+            region_workspace = self._find_workspace_nodes_in_region(
+                workspace_nodes, region_coords, access_layer
+            )
+
+            self._create_pattern_connections(
+                graph, audio_sensory[:2], region_workspace[:2],
+                {
+                    'weight': pattern['strength'] * 0.3,
+                    'connection_type': 'excitatory',
+                    'delay': 0.05,
+                    'plasticity_enabled': True
+                }
+            )
     def _find_sensory_nodes_near_position(self, sensory_nodes: List[int],
                                         position: Tuple[int, int],
                                         access_layer: NodeAccessLayer) -> List[int]:
@@ -326,7 +466,7 @@ class SensoryWorkspaceMapper:
                 if distance < 10:
                     nearby_nodes.append(node_id)
             return nearby_nodes
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             log_step("Error finding sensory nodes near position", error=str(e))
             return []
     def _get_region_workspace_coords(self, region_name: str) -> Tuple[int, int, int, int]:
@@ -341,8 +481,7 @@ class SensoryWorkspaceMapper:
             return (workspace_x, workspace_y, workspace_w, workspace_h)
         return (0, 0, self.workspace_size[0], self.workspace_size[1])
     def _create_enhanced_connection(self, graph: Data, source_id: int, target_id: int,
-                                  connection_type: str, weight: float, delay: float,
-                                  plasticity_enabled: bool):
+                                   connection_type: str, weight: float):
 
         try:
             access_layer = NodeAccessLayer(graph)
@@ -354,7 +493,7 @@ class SensoryWorkspaceMapper:
                 return
             create_weighted_connection(graph, source_id, target_id, weight, connection_type)
             log_step("Enhanced connection created", source_id=source_id, target_id=target_id, weight=weight)
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             log_step("Error creating enhanced connection", error=str(e))
     def _find_edge_center(self, edge_magnitude: np.ndarray) -> Tuple[int, int]:
         try:
@@ -362,7 +501,7 @@ class SensoryWorkspaceMapper:
             if len(y_indices) > 0:
                 return (int(np.mean(x_indices)), int(np.mean(y_indices)))
             return (edge_magnitude.shape[1]//2, edge_magnitude.shape[0]//2)
-        except Exception as e:
+        except (ValueError, TypeError, IndexError) as e:
             log_step("Error finding edge center", error=str(e))
             return (0, 0)
     def _find_motion_center(self, motion: np.ndarray) -> Tuple[int, int]:
@@ -371,7 +510,7 @@ class SensoryWorkspaceMapper:
             if len(y_indices) > 0:
                 return (int(np.mean(x_indices)), int(np.mean(y_indices)))
             return (motion.shape[1]//2, motion.shape[0]//2)
-        except Exception as e:
+        except (ValueError, TypeError, IndexError) as e:
             log_step("Error finding motion center", error=str(e))
             return (0, 0)
     def _calculate_texture_variance(self, visual_data: np.ndarray) -> float:
@@ -389,10 +528,29 @@ class SensoryWorkspaceMapper:
                             local_var[i, j] = np.var(window)
                 return np.mean(local_var)
             return 0.0
-        except Exception as e:
+        except (ValueError, TypeError, IndexError) as e:
             log_step("Error calculating texture variance", error=str(e))
             return 0.0
+
     def get_mapping_statistics(self) -> Dict[str, Any]:
+        """
+        Get comprehensive statistics about the current mapping configuration.
+
+        Returns a dictionary containing information about workspace size, pattern counts,
+        sensitivity settings, and other mapping parameters useful for monitoring
+        and debugging.
+
+        Returns:
+            Dictionary containing mapping statistics including:
+            - workspace_size: Current workspace dimensions
+            - visual_patterns: Number of stored visual patterns
+            - audio_patterns: Number of stored audio patterns
+            - sensory_mappings: Number of active sensory mappings
+            - workspace_regions: Number of defined workspace regions
+            - visual_sensitivity: Current visual sensitivity threshold
+            - audio_sensitivity: Current audio sensitivity threshold
+            - pattern_threshold: Current pattern detection threshold
+        """
         return {
             'workspace_size': self.workspace_size,
             'visual_patterns': len(self.visual_patterns),
@@ -405,16 +563,27 @@ class SensoryWorkspaceMapper:
         }
 
     def set_manager(self, manager):
+        """
+        Set the manager instance for accessing the neural graph and event bus.
+
+        This method establishes a reference to the manager that owns the neural
+        graph and event bus, enabling the mapper to access and modify the graph
+        during sensory input processing.
+
+        Args:
+            manager: Manager instance that provides access to the neural graph
+                    and event bus for graph updates and event emission
+        """
         self.manager = manager
 
-    def _on_audio_input(self, event_type, data):
+    def _on_audio_input(self, _event_type, data):
         if self.manager and self.manager.graph is not None:
             features = data.get('features', np.zeros(1024))
             if isinstance(features, np.ndarray):
                 self.map_audio_to_workspace(self.manager.graph, features, self.manager.step_counter)
                 self.manager.event_bus.emit('GRAPH_UPDATE', {'graph': self.manager.graph})
 
-    def _on_visual_input(self, event_type, data):
+    def _on_visual_input(self, _event_type, data):
         if self.manager and self.manager.graph is not None:
             energy = data.get('energy', 0.5)
             # Create mock frame from energy
@@ -424,6 +593,25 @@ class SensoryWorkspaceMapper:
 
 
 def create_sensory_workspace_mapper(workspace_size: Tuple[int, int] = (10, 10)) -> SensoryWorkspaceMapper:
+    """
+    Create a new SensoryWorkspaceMapper instance with specified workspace dimensions.
+
+    Factory function that creates and initializes a SensoryWorkspaceMapper with
+    the given workspace size. This function provides a convenient way to create
+    mapper instances with proper initialization.
+
+    Args:
+        workspace_size: Tuple specifying the workspace dimensions as (width, height).
+                       Defaults to (10, 10) if not specified.
+
+    Returns:
+        Configured SensoryWorkspaceMapper instance ready for sensory pattern mapping
+
+    Example:
+        >>> mapper = create_sensory_workspace_mapper((8, 8))
+        >>> visual_data = np.random.rand(64, 64)
+        >>> graph = mapper.map_visual_to_workspace(graph, visual_data, step=1)
+    """
 
     return SensoryWorkspaceMapper(workspace_size)
 if __name__ == "__main__":
@@ -443,13 +631,6 @@ if __name__ == "__main__":
         print(f"Testing audio mapping with {len(dummy_audio)} samples")
         stats = mapper.get_mapping_statistics()
         print(f"Mapper statistics: {stats}")
-    except Exception as e:
+    except (ImportError, AttributeError, ValueError, TypeError) as e:
         print(f"SensoryWorkspaceMapper test failed: {e}")
     print("SensoryWorkspaceMapper test completed!")
-
-
-
-
-
-
-

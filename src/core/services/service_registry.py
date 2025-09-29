@@ -7,12 +7,11 @@ neural simulation system.
 """
 
 import inspect
-from typing import Type, TypeVar, Optional, Dict, Any, List
 from threading import RLock
+from typing import Any, Dict, List, Optional, Type, TypeVar
 
-from ..interfaces.service_registry import (
-    IServiceRegistry, ServiceDescriptor, ServiceLifetime, ServiceHealth
-)
+from ..interfaces.service_registry import (IServiceRegistry, ServiceDescriptor,
+                                           ServiceHealth, ServiceLifetime)
 
 ServiceType = TypeVar('ServiceType')
 

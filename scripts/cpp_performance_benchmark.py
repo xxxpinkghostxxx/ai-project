@@ -8,7 +8,7 @@ C++ extensions into the neural simulation system.
 import os
 import sys
 import time
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
 import numpy as np
 import psutil

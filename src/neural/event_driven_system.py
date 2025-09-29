@@ -1,11 +1,10 @@
 
-import time
 import heapq
 import threading
-from typing import Dict, Any, List, Optional, Callable
-
+import time
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
 
 from src.utils.logging_utils import log_step
 

@@ -3,19 +3,21 @@ Comprehensive tests for connection_validator.py
 Covers unit tests, integration tests, edge cases, error handling, performance, and real-world usage.
 """
 
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-import pytest
 import time
 from unittest.mock import Mock, patch
-from torch_geometric.data import Data
-import torch
 
-from src.utils.connection_validator import (
-    ConnectionValidator, ConnectionValidationError, get_connection_validator
-)
+import pytest
+import torch
+from torch_geometric.data import Data
+
+from src.utils.connection_validator import (ConnectionValidationError,
+                                            ConnectionValidator,
+                                            get_connection_validator)
 
 
 class TestConnectionValidatorInitialization:

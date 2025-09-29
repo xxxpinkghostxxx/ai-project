@@ -2,20 +2,23 @@
 Comprehensive tests for EnhancedNeuralDynamics fixes.
 Tests error handling, bounds checking, and thread safety.
 """
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-import pytest
 import threading
 import time
-import numpy as np
 from unittest.mock import MagicMock, patch
-from torch_geometric.data import Data
-import torch
 
-from src.neural.enhanced_neural_dynamics import EnhancedNeuralDynamics, create_enhanced_neural_dynamics
+import numpy as np
+import pytest
+import torch
+from torch_geometric.data import Data
+
+from src.neural.enhanced_neural_dynamics import (
+    EnhancedNeuralDynamics, create_enhanced_neural_dynamics)
 
 
 class TestEnhancedNeuralDynamics:

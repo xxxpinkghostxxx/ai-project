@@ -3,11 +3,12 @@ Lazy loading system for optimized startup performance.
 Provides deferred initialization of heavy components.
 """
 
+import logging
 import threading
 import time
-from typing import Any, Callable, Optional, Dict
 from functools import wraps
-import logging
+from typing import Any, Callable, Dict, Optional
+
 
 class LazyLoader:
     """Thread-safe lazy loading system for expensive components."""
@@ -179,9 +180,9 @@ class LazyLoader:
 
                 try:
                     # Load the component using stored factory function
-                    component = self.lazy_load(name, self.get_factory_functions_internal()[name],
-                                             self.get_priorities_internal().get(name, 0),
-                                             self.get_dependencies_internal().get(name, []))
+                    self.lazy_load(name, self.get_factory_functions_internal()[name],
+                                   self.get_priorities_internal().get(name, 0),
+                                   self.get_dependencies_internal().get(name, []))
                     return name, True
                 except Exception as e:
                     logging.error(f"Failed to preload component {name}: {e}")
@@ -280,7 +281,8 @@ def create_lazy_ui_engine():
 
 def create_lazy_neural_dynamics():
     """Lazy factory for neural dynamics."""
-    from src.neural.enhanced_neural_dynamics import create_enhanced_neural_dynamics
+    from src.neural.enhanced_neural_dynamics import \
+        create_enhanced_neural_dynamics
     return create_enhanced_neural_dynamics()
 
 def create_lazy_performance_monitor():

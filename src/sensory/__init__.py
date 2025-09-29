@@ -7,6 +7,5 @@ This package contains sensory processing components including:
 """
 
 from .audio_to_neural_bridge import *
-from .visual_energy_bridge import *
 from .sensory_workspace_mapper import *
-
+from .visual_energy_bridge import *

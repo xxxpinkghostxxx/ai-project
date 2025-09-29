@@ -6,7 +6,8 @@ including node and edge operations, persistence, and graph integrity.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
 from torch_geometric.data import Data
 
 

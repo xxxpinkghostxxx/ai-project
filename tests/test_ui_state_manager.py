@@ -3,20 +3,22 @@ Comprehensive unit tests for ui_state_manager.py
 Tests all UIStateManager methods, thread safety, edge cases, error handling, performance, and real-world usage.
 """
 
-import sys
 import os
-import time
+import sys
 import threading
+import time
 import unittest
 from unittest.mock import Mock, patch
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.ui.ui_state_manager import (
-    UIStateManager, get_ui_state_manager, cleanup_ui_state,
-    get_simulation_running, set_simulation_running, get_latest_graph,
-    get_latest_graph_for_ui, update_graph, add_live_feed_data,
-    get_live_feed_data, clear_live_feed_data
-)
+from src.ui.ui_state_manager import (UIStateManager, add_live_feed_data,
+                                     cleanup_ui_state, clear_live_feed_data,
+                                     get_latest_graph, get_latest_graph_for_ui,
+                                     get_live_feed_data,
+                                     get_simulation_running,
+                                     get_ui_state_manager,
+                                     set_simulation_running, update_graph)
 
 
 class TestUIStateManager(unittest.TestCase):

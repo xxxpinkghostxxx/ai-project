@@ -3,24 +3,26 @@ Performance tests for learning system components.
 Tests speed, memory usage, scalability, and resource efficiency.
 """
 
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest
+import gc
 import time
-import torch
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import psutil
-import gc
-from unittest.mock import MagicMock, patch
+import pytest
+import torch
 from torch_geometric.data import Data
 
 from src.learning.homeostasis_controller import HomeostasisController
 from src.learning.learning_engine import LearningEngine
 from src.learning.live_hebbian_learning import LiveHebbianLearning
-from src.learning.memory_system import MemorySystem
 from src.learning.memory_pool_manager import MemoryPoolManager
+from src.learning.memory_system import MemorySystem
 
 
 class TestPerformance:

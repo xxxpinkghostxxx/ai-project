@@ -3,17 +3,20 @@
 Test script to verify energy-modulated learning implementation.
 """
 
-import sys
 import os
-from unittest.mock import Mock, MagicMock
+import sys
+from unittest.mock import MagicMock, Mock
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.learning.live_hebbian_learning import create_live_hebbian_learning
-from src.learning.learning_engine import LearningEngine
-from src.core.services.simulation_coordinator import SimulationCoordinator
-from src.core.interfaces.node_access_layer import IAccessLayer
-from torch_geometric.data import Data
 import torch
+from torch_geometric.data import Data
+
+from src.core.interfaces.node_access_layer import IAccessLayer
+from src.core.services.simulation_coordinator import SimulationCoordinator
+from src.learning.learning_engine import LearningEngine
+from src.learning.live_hebbian_learning import create_live_hebbian_learning
+
 
 def setup_mocked_services():
     """Set up mocked services for testing."""

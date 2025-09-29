@@ -7,7 +7,8 @@ while maintaining energy-based coordination and biological plausibility.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
 from torch_geometric.data import Data
 
 

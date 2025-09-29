@@ -4,18 +4,24 @@ Tests network homeostasis regulation, criticality optimization, health monitorin
 statistics tracking, error handling, and integration scenarios.
 """
 
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest
-import numpy as np
-import torch
 import time
 from unittest.mock import MagicMock, patch
+
+import numpy as np
+import pytest
+import torch
 from torch_geometric.data import Data
 
-from src.learning.homeostasis_controller import HomeostasisController, HistoryManager, StatsManager, calculate_network_stability, detect_network_anomalies
+from src.learning.homeostasis_controller import (HistoryManager,
+                                                 HomeostasisController,
+                                                 StatsManager,
+                                                 calculate_network_stability,
+                                                 detect_network_anomalies)
 
 
 class TestHomeostasisController:

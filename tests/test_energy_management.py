@@ -5,17 +5,19 @@ This module contains unit tests, integration tests, edge cases, and performance 
 for the EnergyManagementService class, covering all aspects of energy management functionality.
 """
 
-import unittest
 import time
-import numpy as np
+import unittest
 from unittest.mock import Mock, patch
-from torch_geometric.data import Data
-import torch
 
-from src.core.services.energy_management_service import EnergyManagementService
-from src.core.interfaces.energy_manager import IEnergyManager, EnergyState, EnergyFlow
+import numpy as np
+import torch
+from torch_geometric.data import Data
+
 from src.core.interfaces.configuration_service import IConfigurationService
+from src.core.interfaces.energy_manager import (EnergyFlow, EnergyState,
+                                                IEnergyManager)
 from src.core.interfaces.event_coordinator import IEventCoordinator
+from src.core.services.energy_management_service import EnergyManagementService
 
 
 class TestEnergyManagementService(unittest.TestCase):
@@ -541,8 +543,9 @@ class TestEnergyManagementServicePerformance(unittest.TestCase):
 
     def test_memory_usage_during_operations(self):
         """Test memory usage during energy operations."""
-        import psutil
         import os
+
+        import psutil
 
         process = psutil.Process(os.getpid())
         initial_memory = process.memory_info().rss / 1024 / 1024  # MB

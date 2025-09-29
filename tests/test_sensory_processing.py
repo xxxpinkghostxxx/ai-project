@@ -6,25 +6,30 @@ components including unit tests, integration tests, edge cases, simulation
 scenarios, error handling, performance benchmarks, and real-world usage patterns.
 """
 
+import os
+import sys
+import threading
+import time
 import unittest
+from unittest.mock import MagicMock, Mock, patch
+
 import numpy as np
 import torch
 from torch_geometric.data import Data
-import time
-import threading
-from unittest.mock import Mock, patch, MagicMock
-import sys
-import os
 
 # Add project root to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from src.sensory.audio_to_neural_bridge import AudioToNeuralBridge, create_audio_to_neural_bridge
-from src.sensory.visual_energy_bridge import VisualEnergyBridge, create_visual_energy_bridge
-from src.sensory.sensory_workspace_mapper import SensoryWorkspaceMapper, create_sensory_workspace_mapper
-from src.core.services.sensory_processing_service import SensoryProcessingService
 from src.core.interfaces.sensory_processor import SensoryInput
+from src.core.services.sensory_processing_service import \
+    SensoryProcessingService
 from src.energy.node_access_layer import NodeAccessLayer
+from src.sensory.audio_to_neural_bridge import (AudioToNeuralBridge,
+                                                create_audio_to_neural_bridge)
+from src.sensory.sensory_workspace_mapper import (
+    SensoryWorkspaceMapper, create_sensory_workspace_mapper)
+from src.sensory.visual_energy_bridge import (VisualEnergyBridge,
+                                              create_visual_energy_bridge)
 from src.utils.event_bus import get_event_bus
 
 
@@ -685,8 +690,9 @@ class TestSensoryPerformance(unittest.TestCase):
 
     def test_memory_usage(self):
         """Test memory usage during processing."""
-        import psutil
         import os
+
+        import psutil
 
         process = psutil.Process(os.getpid())
         initial_memory = process.memory_info().rss / 1024 / 1024  # MB

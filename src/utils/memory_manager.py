@@ -4,10 +4,12 @@ Provides comprehensive memory management for neural simulation systems.
 """
 
 import gc
-import psutil
 import threading
 import time
-from typing import Dict, List, Any, Callable
+from typing import Any, Callable, Dict, List
+
+import psutil
+
 from src.utils.logging_utils import log_step
 from src.utils.reader_writer_lock import get_graph_lock
 

@@ -5,8 +5,9 @@ Provides LRU caching, batch operations, and memory-efficient data structures.
 
 import threading
 import time
-from typing import Dict, List, Any, Optional, Callable
 from collections import OrderedDict
+from typing import Any, Callable, Dict, List, Optional
+
 
 class LRUCache:
     """Thread-safe LRU cache with size limits."""

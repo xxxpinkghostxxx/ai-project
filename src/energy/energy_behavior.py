@@ -1,23 +1,23 @@
 
 import time
+
 import torch
 
-
-
-from config.unified_config_manager import get_learning_config, get_system_constants
-
+from config.unified_config_manager import (get_learning_config,
+                                           get_system_constants)
 
 
 def safe_divide(numerator: float, denominator: float, fallback: float = 0.0) -> float:
     if denominator == 0 or denominator <= 0:
         return fallback
     return numerator / denominator
-from .energy_constants import (
-    EnergyConstants, OscillatorConstants, IntegratorConstants,
-    RelayConstants, HighwayConstants
-)
-from src.utils.logging_utils import log_step
 from src.utils.common_utils import safe_hasattr
+from src.utils.logging_utils import log_step
+
+from .energy_constants import (EnergyConstants, HighwayConstants,
+                               IntegratorConstants, OscillatorConstants,
+                               RelayConstants)
+
 _energy_cap_cache = None
 _energy_cap_cache_time = 0
 _energy_cap_cache_ttl = 300

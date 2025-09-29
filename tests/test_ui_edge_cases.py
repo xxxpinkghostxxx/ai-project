@@ -3,12 +3,13 @@ Edge cases, error handling, and performance tests for UI components
 Tests extreme conditions, error scenarios, and performance limits.
 """
 
-import sys
 import os
-import time
+import sys
 import threading
+import time
 import unittest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Mock all dependencies
@@ -45,9 +46,9 @@ import dearpygui.dearpygui as dpg
 import numpy as np
 from torch_geometric.data import Data
 
+from src.ui.screen_graph import *
 from src.ui.ui_engine import *
 from src.ui.ui_state_manager import *
-from src.ui.screen_graph import *
 
 
 class TestUIEdgeCases(unittest.TestCase):

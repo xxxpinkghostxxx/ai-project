@@ -2,7 +2,9 @@
 
 
 
-from config.unified_config_manager import get_learning_config, get_enhanced_nodes_config
+from config.unified_config_manager import (get_enhanced_nodes_config,
+                                           get_learning_config)
+
 
 class EnergyConstants:
     TIME_STEP = 0.01

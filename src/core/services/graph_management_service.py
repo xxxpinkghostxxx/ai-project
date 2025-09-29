@@ -6,17 +6,19 @@ handling neural graph operations including persistence, validation,
 and structural integrity management.
 """
 
-import os
 import json
+import os
 import pickle
-import torch
 import time
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
+import torch
+import torch_geometric
 from torch_geometric.data import Data
 
-from ..interfaces.graph_manager import IGraphManager
 from ..interfaces.configuration_service import IConfigurationService
 from ..interfaces.event_coordinator import IEventCoordinator
+from ..interfaces.graph_manager import IGraphManager
 
 
 class GraphManagementService(IGraphManager):
@@ -136,7 +138,7 @@ class GraphManagementService(IGraphManager):
                     node_id += 1
 
             # Create connections
-            for i in range(len(node_labels)):
+            for i, node_label in enumerate(node_labels):
                 # Connect to nearby nodes
                 for j in range(max(0, i-5), min(len(node_labels), i+6)):
                     if i != j:
@@ -146,7 +148,7 @@ class GraphManagementService(IGraphManager):
                         # Create edge attributes
                         weight = 0.5 + 0.3 * torch.rand(1).item()
                         edge_attr = {
-                            'source': node_labels[i]['id'],
+                            'source': node_label['id'],
                             'target': node_labels[j]['id'],
                             'weight': weight,
                             'type': 'excitatory' if weight > 0.5 else 'inhibitory'
@@ -174,7 +176,7 @@ class GraphManagementService(IGraphManager):
 
             return graph
 
-        except Exception as e:
+        except (ValueError, RuntimeError, AttributeError, TypeError) as e:
             print(f"Error initializing graph: {e}")
             # Return minimal graph on error
             return Data(
@@ -205,14 +207,13 @@ class GraphManagementService(IGraphManager):
                 try:
                     # First try with weights_only=False for PyTorch Geometric compatibility
                     graph = torch.load(filepath, weights_only=False)
-                except Exception as e:
+                except (RuntimeError, FileNotFoundError, pickle.UnpicklingError) as e:
                     print(f"Failed to load with weights_only=False: {e}")
                     # Fallback to safe loading
                     try:
-                        import torch_geometric
                         torch.serialization.add_safe_globals([torch_geometric.data.data.Data])
                         graph = torch.load(filepath, weights_only=True)
-                    except Exception as e2:
+                    except (RuntimeError, AttributeError) as e2:
                         print(f"Failed to load with safe globals: {e2}")
                         return None
             elif filepath.endswith('.pkl'):
@@ -221,7 +222,7 @@ class GraphManagementService(IGraphManager):
                     graph = pickle.load(f)
             elif filepath.endswith('.json'):
                 # JSON format (limited support)
-                with open(filepath, 'r') as f:
+                with open(filepath, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                 # Convert back to Data object (simplified)
                 graph = self.convert_json_to_graph(data)
@@ -245,7 +246,7 @@ class GraphManagementService(IGraphManager):
 
             return graph
 
-        except Exception as e:
+        except (FileNotFoundError, IOError, json.JSONDecodeError, pickle.UnpicklingError) as e:
             print(f"Error loading graph: {e}")
             return None
 
@@ -275,7 +276,7 @@ class GraphManagementService(IGraphManager):
             elif filepath.endswith('.json'):
                 # JSON format (limited support)
                 data = self.convert_graph_to_json(graph)
-                with open(filepath, 'w') as f:
+                with open(filepath, 'w', encoding='utf-8') as f:
                     json.dump(data, f, indent=2)
             else:
                 # Default to PyTorch format
@@ -291,7 +292,7 @@ class GraphManagementService(IGraphManager):
 
             return True
 
-        except Exception as e:
+        except (OSError, IOError, TypeError) as e:
             print(f"Error saving graph: {e}")
             return False
 
@@ -332,7 +333,10 @@ class GraphManagementService(IGraphManager):
                 if not graph.node_labels:
                     issues.append("Empty node labels")
                 elif len(graph.node_labels) != graph.x.shape[0]:
-                    issues.append(f"Node labels count ({len(graph.node_labels)}) doesn't match node features ({graph.x.shape[0]})")
+                    issues.append(
+                        f"Node labels count ({len(graph.node_labels)}) doesn't match "
+                        f"node features ({graph.x.shape[0]})"
+                    )
 
                 # Check node label structure
                 for i, node in enumerate(graph.node_labels):
@@ -343,8 +347,12 @@ class GraphManagementService(IGraphManager):
 
             # Check edge attributes
             if hasattr(graph, 'edge_attributes'):
-                if graph.edge_attributes and len(graph.edge_attributes) != graph.edge_index.shape[1]:
-                    issues.append(f"Edge attributes count ({len(graph.edge_attributes)}) doesn't match edges ({graph.edge_index.shape[1]})")
+                if (graph.edge_attributes and
+                        len(graph.edge_attributes) != graph.edge_index.shape[1]):
+                    issues.append(
+                        f"Edge attributes count ({len(graph.edge_attributes)}) doesn't "
+                        f"match edges ({graph.edge_index.shape[1]})"
+                    )
 
             # Check for NaN or infinite values
             if hasattr(graph, 'x') and graph.x is not None:
@@ -353,7 +361,7 @@ class GraphManagementService(IGraphManager):
                 if torch.isinf(graph.x).any():
                     issues.append("Node features contain infinite values")
 
-        except Exception as e:
+        except (AttributeError, TypeError, ValueError) as e:
             issues.append(f"Validation error: {e}")
 
         return {
@@ -400,7 +408,9 @@ class GraphManagementService(IGraphManager):
                     # Energy distribution
                     energy = node.get('energy', 0.0)
                     energy_bin = int(energy * 10) / 10.0  # Round to nearest 0.1
-                    stats["energy_distribution"][energy_bin] = stats["energy_distribution"].get(energy_bin, 0) + 1
+                    stats["energy_distribution"][energy_bin] = (
+                        stats["energy_distribution"].get(energy_bin, 0) + 1
+                    )
 
             if hasattr(graph, 'edge_index') and graph.edge_index is not None:
                 stats["edges"] = graph.edge_index.shape[1]
@@ -428,7 +438,7 @@ class GraphManagementService(IGraphManager):
 
             return stats
 
-        except Exception as e:
+        except (AttributeError, TypeError, RuntimeError, ZeroDivisionError) as e:
             print(f"Error getting graph statistics: {e}")
             return {"error": str(e)}
 
@@ -446,7 +456,11 @@ class GraphManagementService(IGraphManager):
             "node_labels": graph.node_labels if hasattr(graph, 'node_labels') else [],
             "edge_attributes": graph.edge_attributes if hasattr(graph, 'edge_attributes') else [],
             "x": graph.x.tolist() if hasattr(graph, 'x') and graph.x is not None else [],
-            "edge_index": graph.edge_index.tolist() if hasattr(graph, 'edge_index') and graph.edge_index is not None else []
+            "edge_index": (
+                graph.edge_index.tolist()
+                if hasattr(graph, 'edge_index') and graph.edge_index is not None
+                else []
+            )
         }
         return data
 
@@ -484,9 +498,4 @@ class GraphManagementService(IGraphManager):
     def cleanup(self) -> None:
         """Clean up resources."""
         self.set_graph_stats_cache(None)
-
-
-
-
-
 

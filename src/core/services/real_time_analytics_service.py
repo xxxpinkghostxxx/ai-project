@@ -6,18 +6,18 @@ offering comprehensive performance monitoring, predictive analytics,
 and optimization recommendations for neural simulation systems.
 """
 
-import time
 import statistics
 import threading
-from typing import Dict, Any, List, Optional
+import time
 from collections import defaultdict, deque
+from typing import Any, Dict, List, Optional
 
-from ..interfaces.real_time_analytics import (
-    IRealTimeAnalytics, AnalyticsMetric, PredictionModel
-)
 from ..interfaces.configuration_service import IConfigurationService
 from ..interfaces.event_coordinator import IEventCoordinator
 from ..interfaces.performance_monitor import IPerformanceMonitor
+from ..interfaces.real_time_analytics import (AnalyticsMetric,
+                                              IRealTimeAnalytics,
+                                              PredictionModel)
 
 
 class RealTimeAnalyticsService(IRealTimeAnalytics):

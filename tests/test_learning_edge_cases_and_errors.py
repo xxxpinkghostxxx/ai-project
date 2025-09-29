@@ -3,22 +3,24 @@ Edge cases and error handling tests for learning system components.
 Tests boundary conditions, invalid inputs, error recovery, and robustness.
 """
 
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest
 import time
-import torch
-import numpy as np
 from unittest.mock import MagicMock, patch
+
+import numpy as np
+import pytest
+import torch
 from torch_geometric.data import Data
 
 from src.learning.homeostasis_controller import HomeostasisController
 from src.learning.learning_engine import LearningEngine
 from src.learning.live_hebbian_learning import LiveHebbianLearning
-from src.learning.memory_system import MemorySystem
 from src.learning.memory_pool_manager import MemoryPoolManager, ObjectPool
+from src.learning.memory_system import MemorySystem
 
 
 class TestEdgeCases:
@@ -351,7 +353,8 @@ class TestBoundaryConditions:
 
     def test_zero_division_prevention(self):
         """Test prevention of division by zero."""
-        from src.learning.homeostasis_controller import calculate_network_stability
+        from src.learning.homeostasis_controller import \
+            calculate_network_stability
 
         # Empty graph
         empty_graph = Data()

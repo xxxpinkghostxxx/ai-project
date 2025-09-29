@@ -6,7 +6,7 @@ optimizing resource utilization and maintaining performance in multi-node setups
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List
+from typing import Any, Dict, List
 
 
 class LoadMetrics:

@@ -3,10 +3,10 @@ Static memory allocator for NASA compliance.
 Provides pre-allocated buffers to avoid dynamic memory allocation during runtime.
 """
 
-import numpy as np
-from typing import List, Dict, Any
-
 from collections import deque
+from typing import Any, Dict, List
+
+import numpy as np
 
 
 class StaticAllocator:

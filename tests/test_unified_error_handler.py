@@ -2,20 +2,25 @@
 Comprehensive tests for UnifiedErrorHandler fixes.
 Tests thread safety, memory management, and validation.
 """
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-import pytest
 import threading
 import time
 from unittest.mock import MagicMock, patch
-from src.utils.unified_error_handler import (
-    UnifiedErrorHandler, get_error_handler, safe_execute,
-    safe_initialize_component, safe_process_step, safe_callback_execution,
-    ErrorSeverity, ErrorCategory
-)
+
+import pytest
+
+from src.utils.unified_error_handler import (ErrorCategory, ErrorSeverity,
+                                             UnifiedErrorHandler,
+                                             get_error_handler,
+                                             safe_callback_execution,
+                                             safe_execute,
+                                             safe_initialize_component,
+                                             safe_process_step)
 
 
 class TestUnifiedErrorHandler:

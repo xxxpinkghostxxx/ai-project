@@ -7,9 +7,10 @@ learning, and energy computations.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
-from torch_geometric.data import Data
+from typing import Any, Dict, Optional
+
 import torch
+from torch_geometric.data import Data
 
 
 class GPUComputeTask:

@@ -7,10 +7,11 @@ which is a major performance bottleneck in neural dynamics simulation.
 """
 
 import numpy as np
+
 cimport numpy as cnp
 from libc.math cimport exp, fabs
-from cython.parallel import prange
 
+from cython.parallel import prange
 
 # Type definitions for better performance
 ctypedef cnp.float64_t DTYPE_FLOAT

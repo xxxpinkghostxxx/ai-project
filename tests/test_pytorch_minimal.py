@@ -1,5 +1,6 @@
-import torch
 import faulthandler
+
+import torch
 
 faulthandler.enable()
 

@@ -4,18 +4,19 @@ Tests STDP learning, memory consolidation, energy modulation, event handling,
 statistics tracking, error handling, and integration scenarios.
 """
 
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest
 import time
-import numpy as np
-import torch
 from unittest.mock import MagicMock, patch
-from torch_geometric.data import Data
 
-from src.learning.learning_engine import LearningEngine, calculate_learning_efficiency, detect_learning_patterns
+import pytest
+
+from src.learning.learning_engine import (LearningEngine,
+                                          calculate_learning_efficiency,
+                                          detect_learning_patterns)
 
 
 class TestLearningEngine:

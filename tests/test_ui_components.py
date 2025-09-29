@@ -3,12 +3,13 @@ Comprehensive UI Component Test Suite
 Tests all UI buttons, controls, and functionality for the Neural Simulation System.
 """
 
-import sys
 import os
-import time
+import sys
 import threading
+import time
 import unittest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Mock Dear PyGui to avoid GUI dependencies during testing
@@ -16,14 +17,18 @@ sys.modules['dearpygui'] = Mock()
 sys.modules['dearpygui.dearpygui'] = Mock()
 
 import dearpygui.dearpygui as dpg
-from src.ui.ui_engine import (
-    create_main_window, start_simulation_callback, stop_simulation_callback,
-    reset_simulation_callback, view_logs_callback,
-    save_neural_map_callback, load_neural_map_callback,
-    apply_config_changes, reset_to_defaults, update_ui_display,
-    update_graph_visualization, export_metrics, create_ui
-)
-from src.ui.ui_state_manager import UIStateManager, get_ui_state_manager, cleanup_ui_state
+
+from src.ui.ui_engine import (apply_config_changes, create_main_window,
+                              create_ui, export_metrics,
+                              load_neural_map_callback,
+                              reset_simulation_callback, reset_to_defaults,
+                              save_neural_map_callback,
+                              start_simulation_callback,
+                              stop_simulation_callback,
+                              update_graph_visualization, update_ui_display,
+                              view_logs_callback)
+from src.ui.ui_state_manager import (UIStateManager, cleanup_ui_state,
+                                     get_ui_state_manager)
 
 
 class TestUIComponents(unittest.TestCase):

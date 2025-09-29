@@ -3,15 +3,17 @@ Simulation scenario tests for learning system components.
 Tests realistic simulation scenarios, pattern learning, adaptation, and long-term behavior.
 """
 
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest
 import time
-import torch
-import numpy as np
 from unittest.mock import MagicMock, patch
+
+import numpy as np
+import pytest
+import torch
 from torch_geometric.data import Data
 
 from src.learning.homeostasis_controller import HomeostasisController

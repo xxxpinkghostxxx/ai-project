@@ -3,19 +3,21 @@ Comprehensive tests for continuous_graph_validator.py
 Covers unit tests, integration tests, edge cases, error handling, performance, and real-world usage.
 """
 
-import pytest
-import time
-import threading
-import sys
 import os
+import sys
+import threading
+import time
+
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from unittest.mock import Mock, patch
-from torch_geometric.data import Data
+from unittest.mock import Mock
+
 import torch
+from torch_geometric.data import Data
 
 from src.utils.continuous_graph_validator import (
-    ContinuousGraphValidator, ValidationRule, get_continuous_graph_validator
-)
+    ContinuousGraphValidator, ValidationRule, get_continuous_graph_validator)
 
 
 class TestValidationRule:

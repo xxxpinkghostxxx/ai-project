@@ -7,14 +7,15 @@ patterns while maintaining biological plausibility and energy integration.
 """
 
 import time
+from typing import Any, Dict, List
+
 import numpy as np
-from typing import Dict, Any, List
 from torch_geometric.data import Data
 
-from ..interfaces.sensory_processor import ISensoryProcessor, SensoryInput
-from ..interfaces.energy_manager import IEnergyManager
 from ..interfaces.configuration_service import IConfigurationService
+from ..interfaces.energy_manager import IEnergyManager
 from ..interfaces.event_coordinator import IEventCoordinator
+from ..interfaces.sensory_processor import ISensoryProcessor, SensoryInput
 
 
 class SensoryProcessingService(ISensoryProcessor):
@@ -237,7 +238,7 @@ class SensoryProcessingService(ISensoryProcessor):
             activations = self._generate_auditory_pattern(sensory_input, adapted_intensity, sensory_nodes)
         else:
             # Generic pattern for other modalities
-            activations = self._generate_generic_pattern(sensory_input, adapted_intensity, sensory_nodes)
+            activations = self._generate_generic_pattern(adapted_intensity, sensory_nodes)
 
         return {
             "modality": modality,
@@ -304,7 +305,6 @@ class SensoryProcessingService(ISensoryProcessor):
             for i, node_id in enumerate(sensory_nodes):
                 # Map frequency to node preference
                 preferred_freq = 200 * (2 ** (i / 3.0))  # Logarithmic frequency mapping
-                tuning_width = preferred_freq * 0.5
 
                 # Gaussian tuning curve
                 frequency_distance = abs(np.log2(frequency) - np.log2(preferred_freq))
@@ -319,7 +319,7 @@ class SensoryProcessingService(ISensoryProcessor):
 
         return activations
 
-    def _generate_generic_pattern(self, sensory_input: SensoryInput, intensity: float,
+    def _generate_generic_pattern(self, intensity: float,
                                 sensory_nodes: List[int]) -> List[Dict[str, Any]]:
         """
         Generate generic activation pattern for other modalities.

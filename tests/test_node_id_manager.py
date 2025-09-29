@@ -5,22 +5,25 @@ This module contains unit tests, integration tests, edge cases, and performance 
 for the NodeIDManager class, covering ID generation, indexing, transactions, and integrity checks.
 """
 
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-import unittest
-import time
 import threading
+import time
+import unittest
 from unittest.mock import Mock, patch
-from torch_geometric.data import Data
-import torch
 
-from src.energy.node_id_manager import (
-    NodeIDManager, get_id_manager, reset_id_manager, force_reset_id_manager,
-    generate_node_id, get_node_index_by_id, get_node_id_by_index,
-    is_valid_node_id, recycle_node_id, IDTransaction
-)
+import torch
+from torch_geometric.data import Data
+
+from src.energy.node_id_manager import (IDTransaction, NodeIDManager,
+                                        force_reset_id_manager,
+                                        generate_node_id, get_id_manager,
+                                        get_node_id_by_index,
+                                        get_node_index_by_id, is_valid_node_id,
+                                        recycle_node_id, reset_id_manager)
 
 
 class TestIDTransaction(unittest.TestCase):

@@ -1,16 +1,16 @@
 
-import torch
-import random
-
 import logging
+import random
 import threading
 
-from src.utils.logging_utils import log_step
-from src.energy.energy_constants import ConnectionConstants, EnergyConstants
-from src.utils.common_utils import safe_hasattr
+import torch
+
 from src.energy.energy_behavior import get_node_energy_cap
-from src.utils.connection_validator import get_connection_validator
+from src.energy.energy_constants import ConnectionConstants, EnergyConstants
 from src.energy.node_id_manager import get_id_manager
+from src.utils.common_utils import safe_hasattr
+from src.utils.connection_validator import get_connection_validator
+from src.utils.logging_utils import log_step
 
 
 def get_max_dynamic_energy():
@@ -238,6 +238,7 @@ def create_basic_connections(graph, id_manager=None):
     if not hasattr(graph, "node_labels") or not hasattr(graph, "x"):
         return graph
     import random
+
     import torch
     if id_manager is None:
         id_manager = get_id_manager()

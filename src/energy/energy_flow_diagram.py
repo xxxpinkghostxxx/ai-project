@@ -5,6 +5,7 @@ Creates visual representations of energy flow through the neural simulation syst
 
 import re
 
+
 class EnergyFlowDiagram:
     """Generates visual diagrams of energy flow in the neural system."""
 

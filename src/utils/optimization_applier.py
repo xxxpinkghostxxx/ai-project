@@ -5,8 +5,9 @@ Applies all optimizations to critical paths and provides configuration managemen
 
 import logging
 import time
-from typing import Dict, List, Any
 from dataclasses import dataclass
+from typing import Any, Dict, List
+
 
 @dataclass
 class OptimizationConfig:
@@ -115,7 +116,8 @@ class OptimizationApplier:
     def _apply_caching_optimizations(self) -> Dict[str, float]:
         """Apply caching optimizations."""
         try:
-            from src.utils.performance_cache import get_performance_cache_manager
+            from src.utils.performance_cache import \
+                get_performance_cache_manager
 
             cache_manager = get_performance_cache_manager()
 
@@ -155,8 +157,9 @@ class OptimizationApplier:
     def _apply_memory_optimizations(self) -> float:
         """Apply memory optimizations."""
         try:
+            from src.learning.memory_pool_manager import \
+                get_memory_pool_manager
             from src.utils.static_allocator import get_static_allocator
-            from src.learning.memory_pool_manager import get_memory_pool_manager
 
             # Initialize memory systems
             static_allocator = get_static_allocator()
@@ -179,7 +182,8 @@ class OptimizationApplier:
     def _apply_spatial_optimizations(self) -> float:
         """Apply spatial indexing optimizations for high node counts."""
         try:
-            from src.neural.optimized_node_manager import get_optimized_node_manager
+            from src.neural.optimized_node_manager import \
+                get_optimized_node_manager
 
             node_manager = get_optimized_node_manager()
 
@@ -197,7 +201,8 @@ class OptimizationApplier:
     def _setup_performance_monitoring(self):
         """Setup comprehensive performance monitoring."""
         try:
-            from .unified_performance_system import initialize_performance_monitoring
+            from .unified_performance_system import \
+                initialize_performance_monitoring
 
             monitor = initialize_performance_monitoring(update_interval=1.0)
             self.applied_optimizations.append('performance_monitoring')
@@ -250,7 +255,8 @@ class OptimizationApplier:
     def run_performance_test(self) -> Dict[str, Any]:
         """Run a quick performance test to validate optimizations."""
         try:
-            from src.utils.performance_benchmark import run_comprehensive_benchmark
+            from src.utils.performance_benchmark import \
+                run_comprehensive_benchmark
 
             benchmark = run_comprehensive_benchmark()
 

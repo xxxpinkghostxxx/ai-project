@@ -7,21 +7,22 @@ separation of concerns and energy-based processing as the central integrator.
 """
 
 import time
-from typing import Dict, Any, Optional, List
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 from torch_geometric.data import Data
 
-from ..interfaces.simulation_coordinator import ISimulationCoordinator, SimulationState
-from ..interfaces.neural_processor import INeuralProcessor, SpikeEvent
-from ..interfaces.energy_manager import IEnergyManager, EnergyFlow
-from ..interfaces.learning_engine import ILearningEngine, PlasticityEvent
-from ..interfaces.sensory_processor import ISensoryProcessor
-from ..interfaces.performance_monitor import IPerformanceMonitor
-from ..interfaces.graph_manager import IGraphManager
-from ..interfaces.event_coordinator import IEventCoordinator
 from ..interfaces.configuration_service import IConfigurationService
+from ..interfaces.energy_manager import EnergyFlow, IEnergyManager
+from ..interfaces.event_coordinator import IEventCoordinator
+from ..interfaces.graph_manager import IGraphManager
+from ..interfaces.learning_engine import ILearningEngine, PlasticityEvent
+from ..interfaces.neural_processor import INeuralProcessor, SpikeEvent
+from ..interfaces.performance_monitor import IPerformanceMonitor
+from ..interfaces.sensory_processor import ISensoryProcessor
 from ..interfaces.service_registry import IServiceRegistry
+from ..interfaces.simulation_coordinator import (ISimulationCoordinator,
+                                                 SimulationState)
 
 
 class SimulationCoordinator(ISimulationCoordinator):

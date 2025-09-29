@@ -4,16 +4,23 @@ Tests object pooling, memory management, cleanup, statistics tracking,
 error handling, and integration scenarios.
 """
 
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest
-import time
 import threading
+import time
 from unittest.mock import MagicMock, patch
 
-from src.learning.memory_pool_manager import MemoryPoolManager, ObjectPool, get_memory_pool_manager, create_node_pool, create_edge_pool, create_event_pool, cleanup_memory_pools
+import pytest
+
+from src.learning.memory_pool_manager import (MemoryPoolManager, ObjectPool,
+                                              cleanup_memory_pools,
+                                              create_edge_pool,
+                                              create_event_pool,
+                                              create_node_pool,
+                                              get_memory_pool_manager)
 
 
 class TestObjectPool:

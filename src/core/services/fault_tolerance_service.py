@@ -5,15 +5,15 @@ This module provides the concrete implementation of IFaultTolerance,
 handling failure detection, recovery, and system reliability in distributed environments.
 """
 
-import time
 import threading
-from typing import Dict, Any, List, Optional
+import time
 from collections import defaultdict, deque
+from typing import Any, Dict, List, Optional
 
-from ..interfaces.fault_tolerance import IFaultTolerance, FailureEvent
 from ..interfaces.configuration_service import IConfigurationService
-from ..interfaces.event_coordinator import IEventCoordinator
 from ..interfaces.distributed_coordinator import IDistributedCoordinator
+from ..interfaces.event_coordinator import IEventCoordinator
+from ..interfaces.fault_tolerance import FailureEvent, IFaultTolerance
 
 
 class FaultToleranceService(IFaultTolerance):

@@ -4,18 +4,20 @@ Consolidates performance_monitor.py and performance_optimizer.py
 into a comprehensive performance monitoring and optimization system.
 """
 
-import time
-import threading
-import logging
 import gc
-import psutil
-from typing import Dict, List, Any, Callable
+import logging
+import threading
+import time
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from collections import deque, defaultdict
 from enum import Enum
+from typing import Any, Callable, Dict, List
+
 import numpy as np
-from src.utils.print_utils import print_error
+import psutil
+
 from src.utils.logging_utils import log_step
+from src.utils.print_utils import print_error
 
 
 class OptimizationLevel(Enum):

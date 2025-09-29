@@ -3,19 +3,20 @@ Enhanced Error Handling Utilities
 Provides comprehensive error handling, performance monitoring, and memory management.
 """
 
-import logging
-import time
-import psutil
 import gc
+import logging
+import socket
 import threading
-from typing import Any, Callable, Optional, Type
-from functools import wraps
+import time
+import urllib.error
 from contextlib import contextmanager
+from functools import wraps
+from typing import Any, Callable, Optional
 
-from config.consolidated_constants import ERROR_MESSAGES
-from src.utils.print_utils import print_error, print_warning, print_info
-from src.utils.logging_utils import log_step
-from src.utils.unified_error_handler import safe_execute, safe_initialize_component, safe_process_step, safe_callback_execution
+import psutil
+
+from src.utils.print_utils import print_error, print_info, print_warning
+from src.utils.unified_error_handler import safe_callback_execution
 
 
 def safe_graph_access(graph, attribute: str, default_value: Any = None) -> Any:
@@ -24,7 +25,7 @@ def safe_graph_access(graph, attribute: str, default_value: Any = None) -> Any:
     """
     try:
         return getattr(graph, attribute, default_value)
-    except Exception as e:
+    except Exception:
         message = "Failed to access graph attribute %s: %s"
         logging.warning(message)
         print_warning(message)
@@ -37,14 +38,14 @@ def safe_hasattr(obj, *attributes) -> bool:
     """
     try:
         return all(hasattr(obj, attr) for attr in attributes)
-    except Exception as e:
+    except Exception:
         message = "Failed to check attributes %s: %s"
         logging.warning(message)
         print_warning(message)
         return False
 
 
-def create_safe_callback(callback: Callable, context: str = "callback") -> Callable:
+def create_safe_callback(callback: Callable, _context: str = "callback") -> Callable:
     """
     Creates a safe wrapper for a callback function.
     """
@@ -105,7 +106,7 @@ class ErrorContext:
                 try:
                     self.cleanup_func()
                 except Exception as cleanup_error:
-                    logging.error(f"Cleanup failed in {self.context}: {cleanup_error}")
+                    logging.error("Cleanup failed in %s: %s", self.context, cleanup_error)
 
         return False  # Don't suppress the exception
 
@@ -126,16 +127,14 @@ def handle_errors(context: str = "operation",
         re_raise: Whether to re-raise the exception after handling
     """
     def decorator(func: Callable) -> Callable:
+        start_time = time.time()  # Capture start time in closure
+
         @wraps(func)
         def wrapper(*args, **kwargs):
             try:
                 return func(*args, **kwargs)
-            except exceptions as e:
-                duration = getattr(wrapper, '_start_time', None)
-                if duration:
-                    duration = time.time() - duration
-                else:
-                    duration = 0
+            except exceptions:
+                duration = time.time() - start_time
 
                 error_msg = "Error in %s: %s"
                 if duration > 0.1:
@@ -162,7 +161,7 @@ def handle_errors(context: str = "operation",
                     try:
                         cleanup_func()
                     except Exception as cleanup_error:
-                        logging.error(f"Cleanup failed in {context}: {cleanup_error}")
+                        logging.error("Cleanup failed in %s: %s", context, cleanup_error)
 
                 # Re-raise if requested
                 if re_raise:
@@ -170,8 +169,6 @@ def handle_errors(context: str = "operation",
 
                 return None
 
-        # Store start time for performance tracking
-        wrapper._start_time = time.time()
         return wrapper
     return decorator
 
@@ -214,7 +211,6 @@ def memory_guard(memory_limit_mb: int = 1000, cleanup_func: Optional[Callable] =
     """Context manager to monitor and limit memory usage."""
     process = psutil.Process()
     start_memory = process.memory_info().rss
-    max_memory = start_memory
 
     try:
         yield
@@ -230,14 +226,14 @@ def memory_guard(memory_limit_mb: int = 1000, cleanup_func: Optional[Callable] =
 
             # Force garbage collection
             collected = gc.collect()
-            logging.info(f"Garbage collection freed {collected} objects")
+            logging.info("Garbage collection freed %s objects", collected)
 
             # Execute cleanup if provided
             if cleanup_func:
                 try:
                     cleanup_func()
                 except Exception as e:
-                    logging.error(f"Memory cleanup failed: {e}")
+                    logging.error("Memory cleanup failed: %s", e)
 
 
 def thread_safe_operation(lock: threading.Lock, timeout: float = 5.0):
@@ -278,7 +274,7 @@ class ResourceManager:
                 try:
                     cleanup_func(resource)
                 except Exception as e:
-                    logging.error(f"Failed to cleanup resource: {e}")
+                    logging.error("Failed to cleanup resource: %s", e)
             self.resources.clear()
 
     def __enter__(self):
@@ -290,45 +286,43 @@ class ResourceManager:
 
 # Utility functions for common error patterns
 
-def safe_tensor_operation(operation: Callable, context: str = "tensor operation",
-                         fallback_value: Any = None) -> Any:
+def safe_tensor_operation(operation: Callable, _context: str = "tensor operation",
+                          fallback_value: Any = None) -> Any:
     """Safely execute tensor operations with proper error handling."""
     try:
         return operation()
-    except (RuntimeError, ValueError, TypeError) as e:
+    except (RuntimeError, ValueError, TypeError):
         error_msg = "Tensor operation failed in %s: %s"
         logging.warning(error_msg)
         print_warning(error_msg)
         return fallback_value
-    except Exception as e:
+    except Exception:
         error_msg = "Unexpected error in tensor operation %s: %s"
         logging.error(error_msg)
         print_error(error_msg)
         return fallback_value
 
 
-def safe_file_operation(file_path: str, operation: Callable,
-                       context: str = "file operation") -> Any:
+def safe_file_operation(_file_path: str, operation: Callable,
+                        _context: str = "file operation") -> Any:
     """Safely execute file operations with proper error handling."""
     try:
         return operation()
-    except (FileNotFoundError, PermissionError, OSError) as e:
+    except (FileNotFoundError, PermissionError, OSError):
         error_msg = "File operation failed in %s for %s: %s"
         logging.error(error_msg)
         print_error(error_msg)
         return None
-    except Exception as e:
+    except Exception:
         error_msg = "Unexpected error in file operation %s: %s"
         logging.error(error_msg)
         print_error(error_msg)
         return None
 
 
-def safe_network_operation(operation: Callable, context: str = "network operation",
-                          timeout: float = 10.0, retries: int = 3) -> Any:
+def safe_network_operation(operation: Callable, _context: str = "network operation",
+                           _timeout: float = 10.0, retries: int = 3) -> Any:
     """Safely execute network operations with retry logic."""
-    import socket
-    import urllib.error
 
     for attempt in range(retries):
         try:
@@ -337,18 +331,21 @@ def safe_network_operation(operation: Callable, context: str = "network operatio
                 ConnectionError, TimeoutError) as e:
             if attempt < retries - 1:
                 wait_time = 2 ** attempt  # Exponential backoff
-                logging.warning("Network operation failed in %s, retrying in %ss: %s", context, wait_time, e)
+                logging.warning("Network operation failed in %s, retrying in %ss: %s",
+                               _context, wait_time, e)
                 time.sleep(wait_time)
             else:
                 error_msg = "Network operation failed in %s after %s attempts: %s"
                 logging.error(error_msg)
                 print_error(error_msg)
                 return None
-        except Exception as e:
+        except Exception:
             error_msg = "Unexpected error in network operation %s: %s"
             logging.error(error_msg)
             print_error(error_msg)
             return None
+
+    return None  # Ensure consistent return type
 
 
 # Global resource manager instance
@@ -361,8 +358,8 @@ def get_resource_manager() -> ResourceManager:
 
 # Additional utility functions from exception_utils.py
 
-def safe_graph_operation(operation: Callable, graph_context: str = "graph",
-                        error_msg: str = "Graph operation failed") -> Any:
+def safe_graph_operation(operation: Callable, _graph_context: str = "graph",
+                         error_msg: str = "Graph operation failed") -> Any:
     """
     Safely perform graph operations with consistent error handling.
     Replaces repeated graph operation error patterns.
@@ -389,7 +386,7 @@ def handle_critical_error(error: Exception, context: str = "",
         try:
             fallback_action()
         except Exception as fallback_e:
-            logging.error(f"Fallback action also failed: {fallback_e}")
+            logging.error("Fallback action also failed: %s", fallback_e)
             print_error(f"Fallback action also failed: {fallback_e}")
 
 
@@ -403,9 +400,4 @@ def log_and_continue(error: Exception, context: str = "",
     print_warning(f"Error in {context}: {error}")
     logging.info(continue_msg)
     print_info(continue_msg)
-
-
-
-
-
 

@@ -3,22 +3,24 @@ Real-world usage tests for learning system components.
 Tests practical applications, user scenarios, and real-world integration patterns.
 """
 
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest
 import time
-import torch
-import numpy as np
 from unittest.mock import MagicMock, patch
+
+import numpy as np
+import pytest
+import torch
 from torch_geometric.data import Data
 
+from src.core.services.simulation_coordinator import SimulationCoordinator
 from src.learning.homeostasis_controller import HomeostasisController
 from src.learning.learning_engine import LearningEngine
 from src.learning.live_hebbian_learning import LiveHebbianLearning
 from src.learning.memory_system import MemorySystem
-from src.core.services.simulation_coordinator import SimulationCoordinator
 
 
 class TestRealWorldUsage:

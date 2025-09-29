@@ -1,0 +1,9 @@
+[MASTER]
+disable=
+    C0301,  # line-too-long
+    R0902,  # too-many-instance-attributes
+    R0914,  # too-many-locals
+    W0212   # protected-access
+
+[DESIGN]
+max-public-methods=35

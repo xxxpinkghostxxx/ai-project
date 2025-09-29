@@ -1,16 +1,9 @@
 
 import time
+
 import numpy as np
+
 from src.utils.logging_utils import log_step
-"""
-
-Memory System Module
-
-This module provides a comprehensive memory system for neural networks, including memory trace formation, consolidation, decay, and pattern recall.
-
-"""
-
-
 
 DEFAULT_MEMORY_STRENGTH = 1.0
 DEFAULT_MEMORY_DECAY_RATE = 0.99
@@ -42,13 +35,9 @@ class MemorySystem:
             log_step("Memory trace formation skipped: no node_labels")
             return graph
         memory_traces_formed = 0
-        checked_nodes = 0
-        stable_nodes = 0
         for node_idx, node in enumerate(graph.node_labels):
             if node.get('behavior') in ['integrator', 'relay']:
-                checked_nodes += 1
                 if self._has_stable_pattern(node, graph):
-                    stable_nodes += 1
                     if len(self.memory_traces) < self.max_memory_traces:
                         self._create_memory_trace(node_idx, graph)
                         memory_traces_formed += 1
@@ -197,7 +186,6 @@ class MemorySystem:
 
         if target_node_idx >= len(graph.node_labels):
             return 0.0
-        target_node = graph.node_labels[target_node_idx]
         base_relevance = memory_trace['strength'] / 2.0
         current_time = time.time()
         last_accessed = memory_trace['last_accessed']

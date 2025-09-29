@@ -6,29 +6,33 @@ including energy behavior, constants, node access layer, ID manager, flow diagra
 and system validation to ensure they work together as a cohesive system.
 """
 
-import unittest
-import sys
 import os
+import sys
+import unittest
 
 # Add the project root to the Python path
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import time
-import numpy as np
 from unittest.mock import Mock, patch
-from torch_geometric.data import Data
-import torch
 
-from src.energy.energy_behavior import (
-    EnergyCalculator, get_node_energy_cap, update_node_energy_with_learning,
-    apply_energy_behavior, apply_oscillator_energy_dynamics,
-    apply_integrator_energy_dynamics, apply_relay_energy_dynamics,
-    apply_highway_energy_dynamics, apply_dynamic_energy_dynamics, emit_energy_pulse
-)
-from src.energy.energy_constants import EnergyConstants, ConnectionConstants
-from src.energy.node_access_layer import NodeAccessLayer
-from src.energy.node_id_manager import NodeIDManager, get_id_manager
+import numpy as np
+import torch
+from torch_geometric.data import Data
+
+from src.energy.energy_behavior import (EnergyCalculator,
+                                        apply_dynamic_energy_dynamics,
+                                        apply_energy_behavior,
+                                        apply_highway_energy_dynamics,
+                                        apply_integrator_energy_dynamics,
+                                        apply_oscillator_energy_dynamics,
+                                        apply_relay_energy_dynamics,
+                                        emit_energy_pulse, get_node_energy_cap,
+                                        update_node_energy_with_learning)
+from src.energy.energy_constants import ConnectionConstants, EnergyConstants
 from src.energy.energy_flow_diagram import EnergyFlowDiagram
 from src.energy.energy_system_validator import EnergySystemValidator
+from src.energy.node_access_layer import NodeAccessLayer
+from src.energy.node_id_manager import NodeIDManager, get_id_manager
 
 
 class TestEnergySystemIntegration(unittest.TestCase):

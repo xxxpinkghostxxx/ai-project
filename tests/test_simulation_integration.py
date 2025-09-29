@@ -6,25 +6,28 @@ multiple services in the neural simulation system, including full simulation
 scenarios, cross-service communication, and end-to-end functionality.
 """
 
-import unittest
 import time
-from unittest.mock import Mock, patch, MagicMock
-from torch_geometric.data import Data
-import torch
+import unittest
+from unittest.mock import MagicMock, Mock, patch
 
-from src.core.services.simulation_coordinator import SimulationCoordinator
-from src.core.services.energy_management_service import EnergyManagementService
-from src.core.services.neural_processing_service import NeuralProcessingService
-from src.core.services.learning_service import LearningService
-from src.core.services.event_coordination_service import EventCoordinationService
-from src.core.services.service_registry import ServiceRegistry
-from src.core.interfaces.simulation_coordinator import ISimulationCoordinator
-from src.core.interfaces.neural_processor import INeuralProcessor, SpikeEvent
-from src.core.interfaces.energy_manager import IEnergyManager, EnergyFlow
-from src.core.interfaces.learning_engine import ILearningEngine, PlasticityEvent
-from src.core.interfaces.event_coordinator import IEventCoordinator
+import torch
+from torch_geometric.data import Data
+
 from src.core.interfaces.configuration_service import IConfigurationService
+from src.core.interfaces.energy_manager import EnergyFlow, IEnergyManager
+from src.core.interfaces.event_coordinator import IEventCoordinator
+from src.core.interfaces.learning_engine import (ILearningEngine,
+                                                 PlasticityEvent)
+from src.core.interfaces.neural_processor import INeuralProcessor, SpikeEvent
 from src.core.interfaces.service_registry import IServiceRegistry
+from src.core.interfaces.simulation_coordinator import ISimulationCoordinator
+from src.core.services.energy_management_service import EnergyManagementService
+from src.core.services.event_coordination_service import \
+    EventCoordinationService
+from src.core.services.learning_service import LearningService
+from src.core.services.neural_processing_service import NeuralProcessingService
+from src.core.services.service_registry import ServiceRegistry
+from src.core.services.simulation_coordinator import SimulationCoordinator
 
 
 class TestFullSystemIntegration(unittest.TestCase):
@@ -385,8 +388,9 @@ class TestPerformanceIntegration(unittest.TestCase):
 
     def test_memory_usage_integration(self):
         """Test memory usage across integrated services."""
-        import psutil
         import os
+
+        import psutil
 
         process = psutil.Process(os.getpid())
         initial_memory = process.memory_info().rss / 1024 / 1024  # MB

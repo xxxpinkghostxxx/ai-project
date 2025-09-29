@@ -4,17 +4,18 @@ Consolidates error_handler.py, enhanced_error_handling.py, and exception_utils.p
 into a comprehensive, efficient error handling system.
 """
 
-import logging
-import traceback
-import time
-import threading
 import functools
-from typing import Dict, List, Any, Optional, Callable
+import logging
+import threading
+import time
+import traceback
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from enum import Enum
-from collections import defaultdict, deque
-from src.utils.print_utils import print_error, print_warning, print_info
+from typing import Any, Callable, Dict, List, Optional
+
 from src.utils.logging_utils import log_step
+from src.utils.print_utils import print_error, print_info, print_warning
 
 
 class ErrorSeverity(Enum):

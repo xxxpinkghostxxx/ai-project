@@ -1,13 +1,13 @@
 
 import time
-import numpy as np
-from typing import Dict, Any, Optional
-
-from torch_geometric.data import Data
 from collections import defaultdict
+from typing import Any, Dict, Optional
 
-from src.utils.logging_utils import log_step
+import numpy as np
+from torch_geometric.data import Data
+
 from src.energy.node_access_layer import NodeAccessLayer
+from src.utils.logging_utils import log_step
 
 
 class EnhancedNodeBehavior:

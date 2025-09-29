@@ -1,4 +1,5 @@
 import torch
+
 from src.energy.energy_behavior import get_node_energy_cap
 from src.utils.logging_utils import log_step
 

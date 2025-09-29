@@ -6,15 +6,14 @@ handling configuration loading, validation, and dynamic parameter management
 for all neural simulation services.
 """
 
-import os
-import json
 import configparser
-from typing import Dict, Any, Optional
+import json
+import os
 from threading import RLock
+from typing import Any, Dict, Optional
 
-from ..interfaces.configuration_service import (
-    IConfigurationService, ConfigurationScope
-)
+from ..interfaces.configuration_service import (ConfigurationScope,
+                                                IConfigurationService)
 
 
 class ConfigurationService(IConfigurationService):

@@ -6,18 +6,15 @@ using machine learning algorithms to optimize neural simulation performance,
 predict optimal configurations, and automate parameter tuning.
 """
 
-import time
 import random
-import statistics
-from typing import Dict, Any, List, Optional, Tuple
-from collections import defaultdict, deque
-from datetime import datetime
+import time
+from collections import deque
+from typing import Any, Dict, List, Optional, Tuple
 
-from ..interfaces.ml_optimizer import (
-    IMLOptimizer, OptimizationModel, OptimizationExperiment
-)
 from ..interfaces.configuration_service import IConfigurationService
 from ..interfaces.event_coordinator import IEventCoordinator
+from ..interfaces.ml_optimizer import (IMLOptimizer, OptimizationExperiment,
+                                       OptimizationModel)
 from ..interfaces.real_time_analytics import IRealTimeAnalytics
 
 
@@ -273,7 +270,7 @@ class MLOptimizerService(IMLOptimizer):
 
                     predictions[target_metric] = {
                         "predicted_value": predicted_value,
-                        "confidence": self._estimate_prediction_confidence(model, features),
+                        "confidence": self._estimate_prediction_confidence(features),
                         "model_accuracy": self.optimization_models.get(model_key, OptimizationModel("", "")).accuracy
                     }
 
@@ -759,8 +756,7 @@ class MLOptimizerService(IMLOptimizer):
         except (ValueError, TypeError, KeyError):
             return 50.0  # Default score
 
-    def _estimate_prediction_confidence(self, model: SimpleRegressionModel,
-                                      features: Dict[str, float]) -> float:
+    def _estimate_prediction_confidence(self, features: Dict[str, float]) -> float:
         """Estimate confidence in model prediction."""
         try:
             # Simple confidence estimation based on feature values

@@ -1,6 +1,6 @@
 import threading
-from typing import Dict, Callable, Any
 from collections import defaultdict
+from typing import Any, Callable, Dict
 
 
 class EventBus:

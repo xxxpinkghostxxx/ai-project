@@ -6,17 +6,18 @@ leveraging GPU computing resources to accelerate neural dynamics, learning,
 and energy computations for high-performance neural simulation.
 """
 
+import gc
 import time
 from collections import defaultdict, deque
-import gc
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
 import torch
 import torch.nn as nn
 from torch_geometric.data import Data
 
-from ..interfaces.gpu_accelerator import IGPUAccelerator, GPUComputeTask
 from ..interfaces.configuration_service import IConfigurationService
 from ..interfaces.event_coordinator import IEventCoordinator
+from ..interfaces.gpu_accelerator import GPUComputeTask, IGPUAccelerator
 
 
 class GPUNeuralDynamics(nn.Module):

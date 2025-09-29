@@ -1,10 +1,10 @@
 
+import time
+from typing import Any, Dict
+
 import numpy as np
 import torch
-from typing import Dict, Any
-
 from torch_geometric.data import Data
-import time
 
 from src.utils.logging_utils import log_step
 

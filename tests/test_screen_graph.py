@@ -3,16 +3,18 @@ Comprehensive unit tests for screen_graph.py
 Tests all functions, edge cases, error handling, performance, and real-world usage.
 """
 
-import sys
 import os
+import sys
 import time
 import unittest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Mock dependencies
 sys.modules['numpy'] = Mock()
 import numpy as np
+
 np.__version__ = "1.24.0"
 sys.modules['PIL'] = Mock()
 sys.modules['PIL.ImageGrab'] = Mock()
@@ -23,16 +25,17 @@ sys.modules['torch_geometric'] = Mock()
 sys.modules['torch_geometric.data'] = Mock()
 sys.modules['mss'] = Mock()
 sys.modules['numba'] = Mock()
+import cv2
 import mss
-
 import numpy as np
 import PIL.ImageGrab
-import cv2
 import torch
+
 torch.nn = Mock()
 from torch_geometric.data import Data
 
-from src.ui.screen_graph import rgb_to_gray, capture_screen, create_pixel_gray_graph
+from src.ui.screen_graph import (capture_screen, create_pixel_gray_graph,
+                                 rgb_to_gray)
 
 
 class TestScreenGraph(unittest.TestCase):

@@ -4,10 +4,11 @@ Provides versioning and integrity checking for neural simulation graphs.
 """
 
 import hashlib
-import time
 import threading
-from typing import Dict, List, Any, Optional
+import time
 from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
+
 from src.utils.logging_utils import log_step
 
 

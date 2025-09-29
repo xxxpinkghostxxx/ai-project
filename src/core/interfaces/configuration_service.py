@@ -6,8 +6,8 @@ providing validation, migration, and dynamic updates for all system parameters.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
 from enum import Enum
+from typing import Any, Dict, Optional
 
 
 class ConfigurationScope(Enum):

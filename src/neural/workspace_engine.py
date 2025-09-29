@@ -1,11 +1,11 @@
 
+from typing import Any, Dict
+
 import numpy as np
-from typing import Dict, Any
-
-
 from torch_geometric.data import Data
 
 from src.utils.logging_utils import log_step
+
 
 class WorkspaceEngine:
     def __init__(self):

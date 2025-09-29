@@ -2,18 +2,22 @@
 Comprehensive tests for SpikeQueueSystem.
 Tests spike scheduling, processing, propagation, and queue management.
 """
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest
-import time
 import threading
+import time
 from unittest.mock import MagicMock, patch
-from torch_geometric.data import Data
-import torch
 
-from src.neural.spike_queue_system import SpikeQueueSystem, SpikeQueue, Spike, SpikeType, create_spike_queue_system
+import pytest
+import torch
+from torch_geometric.data import Data
+
+from src.neural.spike_queue_system import (Spike, SpikeQueue, SpikeQueueSystem,
+                                           SpikeType,
+                                           create_spike_queue_system)
 
 
 class TestSpikeQueueSystem:

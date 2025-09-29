@@ -6,14 +6,13 @@ for EnergyConstants class and all related constant classes including configurati
 method testing and validation.
 """
 
-import unittest
-from unittest.mock import patch, Mock
 import time
+import unittest
+from unittest.mock import Mock, patch
 
-from src.energy.energy_constants import (
-    EnergyConstants, ConnectionConstants, OscillatorConstants,
-    IntegratorConstants, RelayConstants, HighwayConstants
-)
+from src.energy.energy_constants import (ConnectionConstants, EnergyConstants,
+                                         HighwayConstants, IntegratorConstants,
+                                         OscillatorConstants, RelayConstants)
 
 
 class TestEnergyConstants(unittest.TestCase):

@@ -4,22 +4,24 @@ Consolidates config_manager.py and dynamic_config_manager.py
 into a comprehensive configuration management system.
 """
 
-import json
-import yaml
 import configparser
+import json
 import threading
 import time
-from typing import Dict, List, Any, Optional, Callable, Union
+from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from collections import defaultdict
+from typing import Any, Callable, Dict, List, Optional, Union
+
+import yaml
+
 from src.utils.logging_utils import log_step
 
 
 def _get_print_utils():
     """Lazy import of print utilities to avoid circular imports."""
-    from src.utils.print_utils import print_info, print_warning, print_error
+    from src.utils.print_utils import print_error, print_info, print_warning
     return print_info, print_warning, print_error
 
 

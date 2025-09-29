@@ -4,28 +4,32 @@ Comprehensive tests for SimulationCoordinator.
 This module contains unit tests, integration tests, edge cases, and performance tests
 for the SimulationCoordinator class, covering all aspects of simulation orchestration.
 """
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 
-import unittest
 import time
-from unittest.mock import Mock, patch, MagicMock
-from torch_geometric.data import Data
-import torch
+import unittest
+from unittest.mock import MagicMock, Mock, patch
 
-from src.core.services.simulation_coordinator import SimulationCoordinator
-from src.core.interfaces.simulation_coordinator import ISimulationCoordinator, SimulationState
-from src.core.interfaces.neural_processor import INeuralProcessor, SpikeEvent
-from src.core.interfaces.energy_manager import IEnergyManager, EnergyFlow
-from src.core.interfaces.learning_engine import ILearningEngine, PlasticityEvent
-from src.core.interfaces.sensory_processor import ISensoryProcessor
-from src.core.interfaces.performance_monitor import IPerformanceMonitor
-from src.core.interfaces.graph_manager import IGraphManager
-from src.core.interfaces.event_coordinator import IEventCoordinator
+import torch
+from torch_geometric.data import Data
+
 from src.core.interfaces.configuration_service import IConfigurationService
+from src.core.interfaces.energy_manager import EnergyFlow, IEnergyManager
+from src.core.interfaces.event_coordinator import IEventCoordinator
+from src.core.interfaces.graph_manager import IGraphManager
+from src.core.interfaces.learning_engine import (ILearningEngine,
+                                                 PlasticityEvent)
+from src.core.interfaces.neural_processor import INeuralProcessor, SpikeEvent
+from src.core.interfaces.performance_monitor import IPerformanceMonitor
+from src.core.interfaces.sensory_processor import ISensoryProcessor
 from src.core.interfaces.service_registry import IServiceRegistry
+from src.core.interfaces.simulation_coordinator import (ISimulationCoordinator,
+                                                        SimulationState)
+from src.core.services.simulation_coordinator import SimulationCoordinator
 
 
 class TestSimulationCoordinator(unittest.TestCase):
@@ -614,8 +618,9 @@ class TestSimulationCoordinatorPerformance(unittest.TestCase):
 
     def test_memory_usage_during_simulation(self):
         """Test memory usage patterns during simulation."""
-        import psutil
         import os
+
+        import psutil
 
         process = psutil.Process(os.getpid())
         initial_memory = process.memory_info().rss / 1024 / 1024  # MB

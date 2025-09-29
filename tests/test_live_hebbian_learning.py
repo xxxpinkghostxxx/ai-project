@@ -4,18 +4,21 @@ Tests continuous Hebbian learning, STDP, energy modulation, activity tracking,
 statistics, error handling, and integration scenarios.
 """
 
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest
 import time
-import numpy as np
-import torch
 from unittest.mock import MagicMock, patch
+
+import numpy as np
+import pytest
+import torch
 from torch_geometric.data import Data
 
-from src.learning.live_hebbian_learning import LiveHebbianLearning, create_live_hebbian_learning
+from src.learning.live_hebbian_learning import (LiveHebbianLearning,
+                                                create_live_hebbian_learning)
 
 
 class TestLiveHebbianLearning:

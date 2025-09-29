@@ -6,21 +6,25 @@ for all energy behavior functions including EnergyCalculator, energy dynamics,
 membrane potential updates, and refractory period handling.
 """
 
-import unittest
 import time
-import numpy as np
-import torch
+import unittest
 from unittest.mock import Mock, patch
+
+import torch
 from torch_geometric.data import Data
 
-from src.energy.energy_behavior import (
-    EnergyCalculator, get_node_energy_cap, update_node_energy_with_learning,
-    apply_energy_behavior, apply_oscillator_energy_dynamics,
-    apply_integrator_energy_dynamics, apply_relay_energy_dynamics,
-    apply_highway_energy_dynamics, apply_dynamic_energy_dynamics,
-    emit_energy_pulse, update_membrane_potentials, apply_refractory_periods,
-    safe_divide
-)
+from src.energy.energy_behavior import (EnergyCalculator,
+                                        apply_dynamic_energy_dynamics,
+                                        apply_energy_behavior,
+                                        apply_highway_energy_dynamics,
+                                        apply_integrator_energy_dynamics,
+                                        apply_oscillator_energy_dynamics,
+                                        apply_refractory_periods,
+                                        apply_relay_energy_dynamics,
+                                        emit_energy_pulse, get_node_energy_cap,
+                                        safe_divide,
+                                        update_membrane_potentials,
+                                        update_node_energy_with_learning)
 from src.energy.energy_constants import EnergyConstants
 from src.energy.node_access_layer import NodeAccessLayer
 from src.energy.node_id_manager import get_id_manager

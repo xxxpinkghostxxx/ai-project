@@ -1,44 +1,114 @@
-import torch
-from typing import Dict, Any, Optional, Union
-from torch_geometric.data import Data
-from config.unified_config_manager import get_system_constants
+"""
+Neural network lifecycle management module for handling node death and birth processes.
+
+This module provides comprehensive functionality for managing the dynamic lifecycle of neural nodes,
+including energy-based death decisions, memory-aware birth processes, and various node behavior types.
+The system supports multiple death strategies (conservative, aggressive, memory_aware) and creates
+nodes with different behavioral characteristics (oscillator, integrator, relay, highway).
+
+Key Features:
+- Energy-based node death with configurable thresholds
+- Memory-influenced birth parameters and node behavior selection
+- Multi-strategy death handling with isolation detection
+- Thread-safe edge attribute management during node lifecycle events
+- Comprehensive logging for debugging and monitoring
+
+Classes and Functions:
+- Energy management: get_max_dynamic_energy, get_dynamic_birth_threshold, etc.
+- Death logic: handle_node_death, remove_node_from_graph, remove_dead_dynamic_nodes
+- Birth logic: handle_node_birth, create_new_node, birth_new_dynamic_nodes
+- Memory analysis: analyze_memory_patterns_for_birth
+"""
+
 import logging
+import random
+import threading
+from typing import Any, Dict, Optional, Union
+
+import torch
+from torch_geometric.data import Data
+
+from config.unified_config_manager import get_config, get_system_constants
 from src.energy.energy_behavior import get_node_energy_cap
 from src.energy.node_id_manager import get_id_manager
+from src.neural.connection_logic import create_weighted_connection
 
 
 def get_max_dynamic_energy() -> float:
+    """Get the maximum energy capacity for dynamic nodes.
+
+    Returns:
+        float: Maximum energy value for dynamic nodes
+    """
     return get_node_energy_cap()
 
 
 def get_dynamic_birth_threshold() -> float:
+    """Get the energy threshold for node birth decisions.
+
+    Returns:
+        float: Energy threshold (90% of maximum dynamic energy)
+    """
     return 0.9 * get_max_dynamic_energy()
 
 
 def get_new_node_energy_fraction() -> float:
+    """Get the energy fraction allocated to newly created nodes.
+
+    Returns:
+        float: Energy fraction (0.4 = 40% of parent node energy)
+    """
     return 0.4
 
 
 def get_node_birth_threshold() -> float:
-    from config.unified_config_manager import get_config
+    """Get the energy threshold for node birth from configuration.
+
+    Returns:
+        float: Birth threshold value from config (default: 0.8)
+    """
     return get_config('NodeLifecycle', 'birth_threshold', 0.8, float)
 
 
 def get_node_birth_cost() -> float:
+    """Get the energy cost for creating a new node.
+
+    Returns:
+        float: Energy cost for node birth (0.3)
+    """
     return 0.3
 
 
 def get_node_death_threshold() -> float:
-    from config.unified_config_manager import get_config
+    """Get the energy threshold for node death from configuration.
+
+    Returns:
+        float: Death threshold value from config (default: 5.0)
+    """
     return get_config('NodeLifecycle', 'death_threshold', 5.0, float)
 
 
 def get_energy_cap_255() -> float:
+    """Get the 255-based energy capacity from system constants.
+
+    Returns:
+        float: Energy capacity value (default: 255.0)
+    """
     constants = get_system_constants()
     return constants.get('energy_cap_255', 255.0)
 
 
 def handle_node_death(graph: Data, node_id: int, strategy: Optional[Union[str, callable]] = None) -> Data:
+    """Handle node death with configurable strategies and memory awareness.
+
+    Args:
+        graph: PyTorch Geometric Data object containing the neural graph
+        node_id: ID of the node to evaluate for death
+        strategy: Death strategy ('conservative', 'aggressive', 'memory_aware', or callable)
+
+    Returns:
+        Data: Updated graph with node potentially removed
+    """
 
     try:
         if not hasattr(graph, 'node_labels') or node_id >= len(graph.node_labels):
@@ -83,12 +153,21 @@ def handle_node_death(graph: Data, node_id: int, strategy: Optional[Union[str, c
     except (ValueError, TypeError, AttributeError, IndexError) as e:
         logging.error("Error handling node death for node %s: %s", node_id, e)
         return graph
-    except Exception as e:
+    except (RuntimeError, OSError, KeyError) as e:
         logging.error("Unexpected error handling node death for node %s: %s", node_id, e)
         return graph
 
 
 def handle_node_birth(graph: Data, birth_params: Optional[Dict[str, Any]] = None) -> Data:
+    """Handle node birth with memory-influenced parameters.
+
+    Args:
+        graph: PyTorch Geometric Data object containing the neural graph
+        birth_params: Optional parameters for node creation, if None uses memory analysis
+
+    Returns:
+        Data: Updated graph with new node potentially added
+    """
 
     try:
         if birth_params is None:
@@ -106,18 +185,27 @@ def handle_node_birth(graph: Data, birth_params: Optional[Dict[str, Any]] = None
             logging.warning("Failed to create new node")
         return graph
     except (ValueError, TypeError, AttributeError, IndexError) as e:
-        logging.error(f"Error handling node birth: {e}")
+        logging.error("Error handling node birth: %s", e)
         return graph
-    except Exception as e:
-        logging.error(f"Unexpected error handling node birth: {e}")
+    except (RuntimeError, OSError, KeyError) as e:
+        logging.error("Unexpected error handling node birth: %s", e)
         return graph
 
 
 def remove_node_from_graph(graph: Data, node_id: int) -> bool:
+    """Remove a single node from the graph and update all indices and connections.
+
+    Args:
+        graph: PyTorch Geometric Data object containing the neural graph
+        node_id: ID of the node to remove
+
+    Returns:
+        bool: True if node was successfully removed, False otherwise
+    """
     try:
         if not hasattr(graph, 'node_labels') or node_id >= len(graph.node_labels):
             return False
-        removed_node = graph.node_labels.pop(node_id)
+        graph.node_labels.pop(node_id)
         if hasattr(graph, 'x') and graph.x is not None:
             try:
                 if node_id < 0 or node_id >= graph.x.shape[0]:
@@ -143,7 +231,6 @@ def remove_node_from_graph(graph: Data, node_id: int) -> bool:
 
         # Handle edge_attributes remapping and cleanup
         if hasattr(graph, 'edge_attributes') and graph.edge_attributes:
-            import threading
             if not hasattr(graph, '_edge_attributes_lock'):
                 graph._edge_attributes_lock = threading.Lock()
             with graph._edge_attributes_lock:
@@ -170,23 +257,29 @@ def remove_node_from_graph(graph: Data, node_id: int) -> bool:
         if logging.getLogger().isEnabledFor(logging.DEBUG):
             logging.debug("[DEATH] Node %s removed and IDs remapped (total nodes: %s)", node_id, len(graph.node_labels))
         return True
-    except (ValueError, TypeError, AttributeError, IndexError, RuntimeError) as e:
+    except (ValueError, TypeError, AttributeError, IndexError, RuntimeError, OSError, KeyError) as e:
         logging.error("Error removing node %s from graph: %s", node_id, e)
-        return False
-    except Exception as e:
-        logging.error("Unexpected error removing node %s from graph: %s", node_id, e)
         return False
 
 
 def create_new_node(graph: Data, birth_params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Create a new node with specified parameters and behavioral characteristics.
+
+    Args:
+        graph: PyTorch Geometric Data object containing the neural graph
+        birth_params: Dictionary containing node creation parameters
+
+    Returns:
+        Optional[Dict[str, Any]]: New node label dictionary or None if creation failed
+    """
     try:
         id_manager = get_id_manager()
-        
+
         # Check if we can expand the graph
         if not id_manager.can_expand_graph(1):
-            logging.warning(f"Cannot create new node: graph expansion limit reached. Capacity: {id_manager.get_expansion_capacity()}")
+            logging.warning("Cannot create new node: graph expansion limit reached. Capacity: %s", id_manager.get_expansion_capacity())
             return None
-            
+
         new_node_id = id_manager.generate_unique_id(birth_params.get('type', 'dynamic'))
         new_node_index = len(graph.node_labels)
         id_manager.register_node_index(new_node_id, new_node_index)
@@ -211,15 +304,21 @@ def create_new_node(graph: Data, birth_params: Dict[str, Any]) -> Optional[Dict[
         elif birth_params.get('type') == 'relay':
             node_label['relay_amplification'] = birth_params.get('relay_amplification', 1.5)
         return node_label
-    except (ValueError, TypeError, AttributeError, KeyError) as e:
+    except (ValueError, TypeError, AttributeError, KeyError, RuntimeError, OSError) as e:
         logging.error("Error creating new node: %s", e)
-        return None
-    except Exception as e:
-        logging.error("Unexpected error creating new node: %s", e)
         return None
 
 
 def add_node_to_graph(graph: Data, new_node: Dict[str, Any]) -> bool:
+    """Add a new node to the graph structure.
+
+    Args:
+        graph: PyTorch Geometric Data object containing the neural graph
+        new_node: Dictionary containing the new node's label and properties
+
+    Returns:
+        bool: True if node was successfully added, False otherwise
+    """
     try:
         graph.node_labels.append(new_node)
         if hasattr(graph, 'x') and graph.x is not None:
@@ -230,16 +329,21 @@ def add_node_to_graph(graph: Data, new_node: Dict[str, Any]) -> bool:
         if logging.getLogger().isEnabledFor(logging.DEBUG):
             logging.debug("Node %s added to graph", new_node['id'])
         return True
-    except (ValueError, TypeError, AttributeError, RuntimeError) as e:
+    except (ValueError, TypeError, AttributeError, RuntimeError, OSError, KeyError) as e:
         logging.error("Error adding node to graph: %s", e)
-        return False
-    except Exception as e:
-        logging.error("Unexpected error adding node to graph: %s", e)
         return False
 
 
 def remove_dead_dynamic_nodes(graph: Data) -> Data:
- 
+    """Remove multiple dead dynamic nodes based on energy and connectivity criteria.
+
+    Args:
+        graph: PyTorch Geometric Data object containing the neural graph
+
+    Returns:
+        Data: Updated graph with dead nodes removed
+    """
+
     if (
         not hasattr(graph, "node_labels")
         or not hasattr(graph, "x")
@@ -247,7 +351,7 @@ def remove_dead_dynamic_nodes(graph: Data) -> Data:
     ):
         logging.debug("[DEATH] Graph missing required attributes, skipping removal")
         return graph
-    
+
     threshold = get_node_death_threshold()
     edge_index = graph.edge_index if hasattr(graph, 'edge_index') else torch.empty((2, 0), dtype=torch.long)
     dynamic_nodes = []
@@ -258,7 +362,7 @@ def remove_dead_dynamic_nodes(graph: Data) -> Data:
             degree = torch.sum((edge_index[0] == idx) | (edge_index[1] == idx)).item()
             label['degree'] = degree  # Cache for future
             dynamic_nodes.append((idx, energy, degree))
-    
+
     num_dynamic = len(dynamic_nodes)
     if num_dynamic > 0:
         energies = [e for _, e, _ in dynamic_nodes]
@@ -272,7 +376,7 @@ def remove_dead_dynamic_nodes(graph: Data) -> Data:
     else:
         if logging.getLogger().isEnabledFor(logging.DEBUG):
             logging.debug("[DEATH] No dynamic nodes to check")
-    
+
     min_connections = 3  # Isolation threshold
     to_remove = [
         idx for idx, energy, degree in dynamic_nodes
@@ -282,16 +386,16 @@ def remove_dead_dynamic_nodes(graph: Data) -> Data:
     num_isolated = sum(1 for _, _, d in dynamic_nodes if d < min_connections)
     if logging.getLogger().isEnabledFor(logging.DEBUG):
         logging.debug("[DEATH] Found %s candidates for removal (low_energy=%s, isolated=%s, threshold=%s, min_conn=%s)", len(to_remove), num_low_energy, num_isolated, threshold, min_connections)
-    
+
     if not to_remove:
         logging.debug("[DEATH] No nodes meet removal criteria")
         return graph
-    
+
     for idx, energy, degree in [(idx, graph.x[idx].item(), graph.node_labels[idx].get('degree', 0)) for idx in to_remove]:
         reason = 'low_energy' if energy < threshold else 'isolation'
         if logging.getLogger().isEnabledFor(logging.DEBUG):
             logging.debug("[DEATH] Node %s removed (%s: energy=%.2f, degree=%s)", idx, reason, energy, degree)
-    
+
     to_remove_set = set(to_remove)
     keep_indices = [i for i in range(len(graph.node_labels)) if i not in to_remove_set]
     if hasattr(graph, 'x') and graph.x is not None:
@@ -322,7 +426,6 @@ def remove_dead_dynamic_nodes(graph: Data) -> Data:
             logging.debug("[DEATH] Batch removal: remapped %s edges from %s surviving", graph.edge_index.shape[1], filtered_edge_index.shape[1])
 
     if hasattr(graph, 'edge_attributes') and graph.edge_attributes:
-        import threading
         if not hasattr(graph, '_edge_attributes_lock'):
             graph._edge_attributes_lock = threading.Lock()
         with graph._edge_attributes_lock:
@@ -342,7 +445,7 @@ def remove_dead_dynamic_nodes(graph: Data) -> Data:
     else:
         if logging.getLogger().isEnabledFor(logging.DEBUG):
             logging.debug("[DEATH] No edge_attributes for batch cleanup")
-    
+
     id_manager = get_id_manager()
     # Full remap after death
     id_manager._id_to_index.clear()
@@ -351,7 +454,7 @@ def remove_dead_dynamic_nodes(graph: Data) -> Data:
         node_id = label.get("id")
         if node_id is not None:
             id_manager.register_node_index(node_id, new_idx)
-    
+
     # Additional diagnostic: Log final edge count and any potential orphans
     final_edge_count = graph.edge_index.shape[1] if hasattr(graph, 'edge_index') and graph.edge_index is not None else 0
     attr_count = len(graph.edge_attributes) if hasattr(graph, 'edge_attributes') else 0
@@ -363,7 +466,7 @@ def remove_dead_dynamic_nodes(graph: Data) -> Data:
     final_nodes = len(graph.node_labels)
     if logging.getLogger().isEnabledFor(logging.DEBUG):
         logging.debug("[DEATH] Removal complete: %s nodes remaining (removed %s)", final_nodes, len(to_remove))
-    
+
     if hasattr(graph, 'x') and graph.x is not None:
         assert len(graph.node_labels) == graph.x.shape[0], "Node label and feature count mismatch after node death"
     if hasattr(graph, 'edge_index') and graph.edge_index is not None and graph.edge_index.numel() > 0:
@@ -372,11 +475,19 @@ def remove_dead_dynamic_nodes(graph: Data) -> Data:
 
 
 def birth_new_dynamic_nodes(graph: Data) -> Data:
+    """Create new dynamic nodes based on energy thresholds and density requirements.
+
+    Args:
+        graph: PyTorch Geometric Data object containing the neural graph
+
+    Returns:
+        Data: Updated graph with new nodes potentially added
+    """
 
     if not hasattr(graph, "node_labels") or not hasattr(graph, "x"):
         return graph
     id_manager = get_id_manager()
-    
+
     # Check if we can expand the graph
     if not id_manager.can_expand_graph(1):
         logging.warning("[BIRTH] Graph expansion limit reached. Cannot create new nodes. Capacity: %s", id_manager.get_expansion_capacity())
@@ -446,7 +557,7 @@ def birth_new_dynamic_nodes(graph: Data) -> Data:
                 "[BIRTH] Node %s spawned new node %s with energy %.2f (parent energy now %.2f)", idx, new_node_id, new_energy, x[idx].item()
             )
             spawned_from_energy = True
-            
+
             # Diagnostic: Log new node ID for connection formation tracking
             logging.info("[BIRTH] New node ID registered: %s at index %s", new_node_id, new_node_index)
     # Density-based spawn if low node count and no energy-based spawns
@@ -496,8 +607,6 @@ def birth_new_dynamic_nodes(graph: Data) -> Data:
         num_existing = len(graph.node_labels)
         graph.node_labels.extend(new_labels)
         # Connect new nodes to 5 random existing nodes
-        from src.neural.connection_logic import create_weighted_connection
-        import random
         for new_label in new_labels:
             new_id = new_label['id']
             connections = min(5, num_existing)
@@ -522,8 +631,15 @@ def birth_new_dynamic_nodes(graph: Data) -> Data:
 
 
 def analyze_memory_patterns_for_birth(graph: Data) -> Dict[str, Any]:
+    """Analyze memory system patterns to determine optimal birth parameters.
 
-    import random
+    Args:
+        graph: PyTorch Geometric Data object containing the neural graph
+
+    Returns:
+        Dict[str, Any]: Dictionary containing recommended birth parameters based on memory analysis
+    """
+
     birth_params = {
         'type': 'dynamic',
         'behavior': 'dynamic',
@@ -557,10 +673,3 @@ def analyze_memory_patterns_for_birth(graph: Data) -> Dict[str, Any]:
         elif birth_params['behavior'] == 'highway':
             birth_params['highway_energy_boost'] = random.uniform(1.8, 3.0)
     return birth_params
-
-
-
-
-
-
-

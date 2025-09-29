@@ -2,16 +2,19 @@
 Pattern consolidation utilities to reduce code duplication.
 """
 
-from typing import Dict, Any, Callable
+from typing import Any, Callable, Dict
 
 
 def _get_constants():
     """Lazy import of consolidated constants to avoid circular imports."""
-    from config.consolidated_constants import (
-        UI_CONSTANTS, ERROR_MESSAGES, LOG_MESSAGES, NODE_PROPERTIES,
-        CONNECTION_PROPERTIES, SYSTEM_STATES, NODE_STATES, NODE_TYPES,
-        CONNECTION_TYPES, PERFORMANCE_METRICS, THRESHOLDS, DEFAULT_VALUES
-    )
+    from config.consolidated_constants import (CONNECTION_PROPERTIES,
+                                               CONNECTION_TYPES,
+                                               DEFAULT_VALUES, ERROR_MESSAGES,
+                                               LOG_MESSAGES, NODE_PROPERTIES,
+                                               NODE_STATES, NODE_TYPES,
+                                               PERFORMANCE_METRICS,
+                                               SYSTEM_STATES, THRESHOLDS,
+                                               UI_CONSTANTS)
     return {
         'UI_CONSTANTS': UI_CONSTANTS,
         'ERROR_MESSAGES': ERROR_MESSAGES,

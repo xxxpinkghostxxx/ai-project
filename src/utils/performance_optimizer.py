@@ -4,13 +4,17 @@ Provides real-time performance monitoring, optimization suggestions, and adaptiv
 """
 
 import time
-from typing import Dict, List, Any, Callable
-from dataclasses import dataclass, field
 from collections import defaultdict
+from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any, Callable, Dict, List
+
 import numpy as np
+
 from src.utils.unified_error_handler import ErrorSeverity
-from src.utils.unified_performance_system import get_performance_monitor, PerformanceMonitor
+from src.utils.unified_performance_system import (PerformanceMonitor,
+                                                  get_performance_monitor)
+
 
 class OptimizationLevel(Enum):
     """Performance optimization levels."""
@@ -277,7 +281,8 @@ class AdaptiveProcessor:
                     remaining_time -= actual_time
                 except Exception as e:
                     results[name] = None
-                    from src.utils.unified_error_handler import get_error_handler
+                    from src.utils.unified_error_handler import \
+                        get_error_handler
                     error_handler = get_error_handler()
                     error_handler.handle_error(e, f"adaptive_processing_{name}", severity=ErrorSeverity.MEDIUM)
             else:

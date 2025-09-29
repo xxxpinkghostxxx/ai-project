@@ -6,6 +6,5 @@ This package contains configuration components including:
 - Unified configuration system
 """
 
-from .unified_config_manager import *
 from .consolidated_constants import *
-
+from .unified_config_manager import *

@@ -5,15 +5,15 @@ This module provides the concrete implementation of ILoadBalancer,
 handling workload distribution and optimization across distributed nodes.
 """
 
-import time
 import statistics
-from typing import Dict, Any, List
+import time
 from collections import defaultdict, deque
+from typing import Any, Dict, List
 
-from ..interfaces.load_balancer import ILoadBalancer, LoadMetrics
 from ..interfaces.configuration_service import IConfigurationService
-from ..interfaces.event_coordinator import IEventCoordinator
 from ..interfaces.distributed_coordinator import IDistributedCoordinator
+from ..interfaces.event_coordinator import IEventCoordinator
+from ..interfaces.load_balancer import ILoadBalancer, LoadMetrics
 
 
 class LoadBalancingService(ILoadBalancer):
@@ -94,7 +94,7 @@ class LoadBalancingService(ILoadBalancer):
 
             return metrics
 
-        except Exception as e:
+        except (AttributeError, KeyError, TypeError, ZeroDivisionError) as e:
             print(f"Error assessing node load: {e}")
             return metrics
 
@@ -143,7 +143,7 @@ class LoadBalancingService(ILoadBalancer):
 
             return distribution
 
-        except Exception as e:
+        except (AttributeError, KeyError, TypeError, ValueError) as e:
             print(f"Error calculating optimal distribution: {e}")
             # Fallback: distribute evenly
             return self._distribute_evenly(tasks, nodes)
@@ -226,7 +226,7 @@ class LoadBalancingService(ILoadBalancer):
                 "timestamp": current_time
             }
 
-        except Exception as e:
+        except (AttributeError, KeyError, TypeError, ValueError, statistics.StatisticsError) as e:
             print(f"Error rebalancing workload: {e}")
             return {"success": False, "error": str(e)}
 
@@ -266,7 +266,6 @@ class LoadBalancingService(ILoadBalancer):
                     continue
 
                 # Calculate trend
-                x = list(range(n))
                 y = recent_loads
 
                 # Simple slope calculation
@@ -301,7 +300,7 @@ class LoadBalancingService(ILoadBalancer):
                 "timestamp": time.time()
             }
 
-        except Exception as e:
+        except (AttributeError, KeyError, TypeError, statistics.StatisticsError, ZeroDivisionError) as e:
             print(f"Error predicting load changes: {e}")
             return {"error": str(e)}
 
@@ -352,7 +351,7 @@ class LoadBalancingService(ILoadBalancer):
                 "timestamp": time.time()
             }
 
-        except Exception as e:
+        except (AttributeError, KeyError, TypeError, statistics.StatisticsError) as e:
             print(f"Error getting load statistics: {e}")
             return {"error": str(e)}
 

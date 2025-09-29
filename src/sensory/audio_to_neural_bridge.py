@@ -1,32 +1,64 @@
 
-import numpy as np
-import torch
+"""
+Audio to Neural Bridge Module
 
-from torch_geometric.data import Data
+This module provides functionality for converting audio data into neural network sensory nodes.
+It includes audio feature extraction, sensory node creation, and integration with neural simulation systems.
+
+Features:
+- Audio feature extraction (MFCC, mel spectrogram, spectral features, temporal features)
+- Real-time audio processing capabilities
+- Integration with neural simulation systems
+- Fallback support for missing audio processing libraries
+- Enhanced neural dynamics integration
+
+Classes:
+    AudioToNeuralBridge: Main class for audio to neural conversion
+
+Functions:
+    create_audio_to_neural_bridge: Factory function for creating bridge instances
+"""
 
 import logging
-from typing import Dict, Any, List
-from src.utils.logging_utils import log_step
+import threading
+import time
+from typing import Any, Dict, List
+
+import numpy as np
+import sounddevice as sd
+import torch
+from torch_geometric.data import Data
+
 from src.energy.node_access_layer import NodeAccessLayer
+from src.utils.event_bus import get_event_bus
+from src.utils.logging_utils import log_step
 
-import importlib
-
+# Check if librosa is available for audio feature extraction
 try:
-    librosa = importlib.import_module('librosa')
+    import librosa
     LIBROSA_AVAILABLE = True
 except ImportError:
     librosa = None
     LIBROSA_AVAILABLE = False
     logging.warning("librosa not available. Audio feature extraction will use fallbacks.")
 
-import sounddevice as sd
-import threading
-from src.utils.event_bus import get_event_bus
-import time
-
 
 class AudioToNeuralBridge:
+    """Audio to Neural Bridge for converting audio data into neural network sensory nodes.
+
+    This class provides functionality to:
+    - Extract audio features (MFCC, mel spectrogram, spectral features, temporal features)
+    - Convert audio features into sensory nodes for neural network integration
+    - Provide real-time audio processing capabilities
+    - Integrate with neural simulation systems
+    - Handle fallback scenarios when audio libraries are unavailable
+    """
     def __init__(self, neural_simulation=None):
+        """Initialize the AudioToNeuralBridge.
+
+        Args:
+            neural_simulation: Optional neural simulation instance to integrate with
+        """
         self.neural_simulation = neural_simulation
         self.audio_features_cache = {}
         self.sensory_node_mapping = {}
@@ -38,17 +70,26 @@ class AudioToNeuralBridge:
         self.running = False
         self.sample_rate = 22050
         self.blocksize = 1024
+        self.enhanced_integration = None
         log_step("AudioToNeuralBridge initialized")
 
     def process_audio_to_sensory_nodes(self, audio_data: np.ndarray) -> List[Dict[str, Any]]:
+        """Process audio data and convert it to sensory nodes.
+
+        Args:
+            audio_data: Raw audio data as numpy array
+
+        Returns:
+            List of sensory node dictionaries containing audio features
+        """
         try:
             features = self._extract_audio_features(audio_data)
-            sensory_nodes = self._create_audio_sensory_nodes(features)
+            audio_sensory_nodes = self._create_audio_sensory_nodes(features)
             log_step("Audio converted to sensory nodes",
                     audio_samples=len(audio_data),
-                    sensory_nodes_created=len(sensory_nodes))
-            return sensory_nodes
-        except Exception as e:
+                    sensory_nodes_created=len(audio_sensory_nodes))
+            return audio_sensory_nodes
+        except (ValueError, TypeError, RuntimeError) as e:
             log_step("Error converting audio to sensory nodes", error=str(e))
             return []
     def _extract_audio_features(self, audio_data: np.ndarray) -> Dict[str, np.ndarray]:
@@ -66,7 +107,7 @@ class AudioToNeuralBridge:
                 'temporal_features': self._extract_temporal_features(normalized_audio)
             }
             return features
-        except Exception as e:
+        except (OSError, IOError, ValueError, TypeError, RuntimeError) as e:
             log_step("Error extracting audio features", error=str(e))
             return {}
 
@@ -87,7 +128,7 @@ class AudioToNeuralBridge:
                 hop_length=self.hop_length
             )
             return mfcc.astype(np.float32)
-        except Exception as e:
+        except (OSError, IOError, ValueError, TypeError, RuntimeError) as e:
             log_step("Error extracting MFCC", error=str(e))
             return np.zeros((self.n_mfcc, 10), dtype=np.float32)
 
@@ -105,7 +146,7 @@ class AudioToNeuralBridge:
             )
             log_mel_spec = np.log(mel_spec + 1e-8)
             return log_mel_spec.astype(np.float32)
-        except Exception as e:
+        except (OSError, IOError, ValueError, TypeError, RuntimeError) as e:
             log_step("Error extracting mel spectrogram", error=str(e))
             return np.zeros((self.n_mels, 10), dtype=np.float32)
     def _extract_spectral_features(self, audio_data: np.ndarray) -> np.ndarray:
@@ -149,12 +190,12 @@ class AudioToNeuralBridge:
             except ValueError as e:
                 log_step("Feature stacking failed, using fallback", error=str(e))
                 features = np.zeros((3, 10), dtype=np.float32)
-            except Exception as e:
+            except (OSError, IOError, TypeError, RuntimeError) as e:
                 log_step("Unexpected error in spectral feature extraction", error=str(e))
                 features = np.zeros((3, 10), dtype=np.float32)
 
             return features.astype(np.float32)
-        except Exception as e:
+        except (OSError, IOError, ValueError, TypeError, RuntimeError) as e:
             log_step("Error extracting spectral features", error=str(e))
             return np.zeros((3, 10), dtype=np.float32)
     def _extract_temporal_features(self, audio_data: np.ndarray) -> np.ndarray:
@@ -184,17 +225,24 @@ class AudioToNeuralBridge:
             except ValueError as e:
                 log_step("Temporal feature stacking failed, using fallback", error=str(e))
                 features = np.zeros((2, 10), dtype=np.float32)
-            except Exception as e:
+            except (OSError, IOError, TypeError, RuntimeError) as e:
                 log_step("Unexpected error in temporal feature extraction", error=str(e))
                 features = np.zeros((2, 10), dtype=np.float32)
 
             return features.astype(np.float32)
-        except Exception as e:
+        except (OSError, IOError, ValueError, TypeError, RuntimeError) as e:
             log_step("Error extracting temporal features", error=str(e))
             return np.zeros((2, 10), dtype=np.float32)
     def _create_audio_sensory_nodes(self, features: Dict[str, np.ndarray]) -> List[Dict[str, Any]]:
+        """Create sensory nodes from audio features.
 
-        sensory_nodes = []
+        Args:
+            features: Dictionary containing different types of audio features
+
+        Returns:
+            List of sensory node dictionaries
+        """
+        audio_sensory_nodes = []
         node_id_counter = 0
         try:
             for feature_type, feature_data in features.items():
@@ -220,16 +268,25 @@ class AudioToNeuralBridge:
                         'plasticity_enabled': True,
                         'eligibility_trace': 0.0
                     }
-                    sensory_nodes.append(sensory_node)
+                    audio_sensory_nodes.append(sensory_node)
                     node_id_counter += 1
             log_step("Created audio sensory nodes",
                     feature_types=len(features),
-                    total_nodes=len(sensory_nodes))
-            return sensory_nodes
-        except Exception as e:
+                    total_nodes=len(audio_sensory_nodes))
+            return audio_sensory_nodes
+        except (OSError, IOError, ValueError, TypeError, RuntimeError) as e:
             log_step("Error creating audio sensory nodes", error=str(e))
-            return []
+            return audio_sensory_nodes
     def integrate_audio_nodes_into_graph(self, graph: Data, audio_data: np.ndarray) -> Data:
+        """Integrate audio sensory nodes into an existing neural graph.
+
+        Args:
+            graph: The neural graph to integrate audio nodes into
+            audio_data: Raw audio data to process into sensory nodes
+
+        Returns:
+            Updated graph with integrated audio sensory nodes
+        """
 
         try:
             audio_sensory_nodes = self.process_audio_to_sensory_nodes(audio_data)
@@ -241,16 +298,25 @@ class AudioToNeuralBridge:
                     updated_graph = self._process_audio_with_enhanced_dynamics(
                         updated_graph, audio_data, audio_sensory_nodes
                     )
-                except Exception as e:
+                except (OSError, IOError, ValueError, TypeError, RuntimeError) as e:
                     log_step("Enhanced audio processing failed, using basic integration", error=str(e))
             log_step("Audio nodes integrated into graph",
                     audio_nodes_added=len(audio_sensory_nodes),
                     total_nodes=len(updated_graph.node_labels))
             return updated_graph
-        except Exception as e:
+        except (OSError, IOError, ValueError, TypeError, RuntimeError) as e:
             log_step("Error integrating audio nodes into graph", error=str(e))
             return graph
     def _add_audio_nodes_to_graph(self, graph: Data, audio_nodes: List[Dict[str, Any]]) -> Data:
+        """Add audio sensory nodes to an existing neural graph.
+
+        Args:
+            graph: The neural graph to add audio nodes to
+            audio_nodes: List of audio sensory node dictionaries
+
+        Returns:
+            Updated graph with added audio nodes
+        """
 
         try:
             if not hasattr(graph, 'node_labels'):
@@ -281,10 +347,16 @@ class AudioToNeuralBridge:
                 else:
                     graph.x = audio_tensor
             return graph
-        except Exception as e:
+        except (OSError, IOError, ValueError, TypeError, RuntimeError) as e:
             log_step("Error adding audio nodes to graph", error=str(e))
             return graph
     def get_audio_feature_statistics(self) -> Dict[str, Any]:
+        """Get statistics about audio feature processing and caching.
+
+        Returns:
+            Dictionary containing statistics about cached features,
+            sensory node mappings, and audio processing parameters
+        """
         return {
             'cached_features': len(self.audio_features_cache),
             'sensory_node_mappings': len(self.sensory_node_mapping),
@@ -294,6 +366,12 @@ class AudioToNeuralBridge:
         }
 
     def start_stream(self):
+        """Start the real-time audio stream processing.
+
+        This method initializes the audio input stream and begins processing
+        audio data in real-time, emitting sensory events to the event bus.
+        Falls back to simulated audio if real audio input is unavailable.
+        """
         if self.running:
             return
         try:
@@ -306,11 +384,15 @@ class AudioToNeuralBridge:
             self.stream.start()
             self.running = True
             log_step("Audio stream started")
-        except Exception as e:
+        except (OSError, IOError, ValueError, TypeError, RuntimeError) as e:
             log_step("Failed to start audio stream, using simulation", error=str(e))
             self._start_simulated_audio()
 
     def stop_stream(self):
+        """Stop the real-time audio stream processing.
+
+        This method stops and closes the audio input stream if it's running.
+        """
         if self.running:
             if self.stream:
                 self.stream.stop()
@@ -318,7 +400,8 @@ class AudioToNeuralBridge:
             self.running = False
             log_step("Audio stream stopped")
 
-    def _audio_callback(self, indata, frames, time_info, status):
+    def _audio_callback(self, indata, _frames, time_info, status):
+        # frames parameter is required by sounddevice but not used in our implementation
         if status:
             log_step("Audio stream status error", status=status)
         audio_data = indata[:, 0]
@@ -329,6 +412,14 @@ class AudioToNeuralBridge:
             bus.emit('SENSORY_INPUT_AUDIO', {'features': features, 'timestamp': timestamp})
 
     def _extract_mel_features_for_stream(self, audio_data):
+        """Extract mel spectrogram features for real-time audio stream processing.
+
+        Args:
+            audio_data: Raw audio data from the stream
+
+        Returns:
+            Flattened mel spectrogram features or None if extraction fails
+        """
         try:
             if not LIBROSA_AVAILABLE:
                 return np.random.rand(128 * 10).astype(np.float32)  # fallback random
@@ -341,7 +432,7 @@ class AudioToNeuralBridge:
             mel_max = np.max(mel)
             log_mel = librosa.power_to_db(mel, ref=mel_max if mel_max > 0 else 1.0)
             return log_mel.flatten().astype(np.float32)
-        except Exception as e:
+        except (OSError, IOError, ValueError, TypeError, RuntimeError) as e:
             log_step("Error in audio feature extraction for stream", error=str(e))
             return None
 
@@ -357,7 +448,7 @@ class AudioToNeuralBridge:
                 time.sleep(self.blocksize / self.sample_rate)
         thread = threading.Thread(target=simulated_loop, daemon=True)
         thread.start()
-    def _process_audio_with_enhanced_dynamics(self, graph: Data, audio_data: np.ndarray,
+    def _process_audio_with_enhanced_dynamics(self, graph: Data, _audio_data: np.ndarray,
                                             audio_sensory_nodes: List[Dict[str, Any]]) -> Data:
 
         try:
@@ -377,7 +468,7 @@ class AudioToNeuralBridge:
             if self.enhanced_integration is not None:
                 graph = self.enhanced_integration.integrate_with_existing_system(graph, 0)
             return graph
-        except Exception as e:
+        except (OSError, IOError, ValueError, TypeError, RuntimeError) as e:
             log_step("Error in enhanced audio processing", error=str(e))
             return graph
     def _create_audio_enhanced_connections(self, graph: Data, audio_node_id: int,
@@ -395,17 +486,38 @@ class AudioToNeuralBridge:
                         delay=0.05,
                         plasticity_enabled=True
                     )
-        except Exception as e:
+        except (OSError, IOError, ValueError, TypeError, RuntimeError) as e:
             log_step("Error creating audio enhanced connections", error=str(e))
     def set_enhanced_integration(self, enhanced_integration):
+        """Set the enhanced integration system for advanced neural dynamics.
+
+        Args:
+            enhanced_integration: The enhanced integration system instance
+        """
         self.enhanced_integration = enhanced_integration
     def clear_cache(self):
+        """Clear the audio features cache and sensory node mappings.
+
+        This method removes all cached audio features and sensory node mappings
+        to free up memory and ensure fresh processing.
+        """
         self.audio_features_cache.clear()
         self.sensory_node_mapping.clear()
         log_step("Audio features cache cleared")
 
 
 def create_audio_to_neural_bridge(neural_simulation=None) -> AudioToNeuralBridge:
+    """Create a new AudioToNeuralBridge instance.
+
+    Factory function for creating AudioToNeuralBridge instances with optional
+    neural simulation integration.
+
+    Args:
+        neural_simulation: Optional neural simulation instance to integrate with
+
+    Returns:
+        Configured AudioToNeuralBridge instance
+    """
 
     return AudioToNeuralBridge(neural_simulation)
 if __name__ == "__main__":
@@ -423,13 +535,6 @@ if __name__ == "__main__":
         print(f"Created {len(sensory_nodes)} sensory nodes from audio")
         stats = bridge.get_audio_feature_statistics()
         print(f"Bridge statistics: {stats}")
-    except Exception as e:
+    except (OSError, IOError, ValueError, TypeError, RuntimeError) as e:
         print(f"AudioToNeuralBridge test failed: {e}")
     print("AudioToNeuralBridge test completed!")
-
-
-
-
-
-
-

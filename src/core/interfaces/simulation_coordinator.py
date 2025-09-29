@@ -7,7 +7,8 @@ separation of concerns and enabling dependency injection.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
 from torch_geometric.data import Data
 
 

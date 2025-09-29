@@ -7,7 +7,8 @@ while maintaining biological plausibility and performance requirements.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Tuple
+from typing import Any, Dict, List, Tuple
+
 from torch_geometric.data import Data
 
 

@@ -1,6 +1,7 @@
-import subprocess
 import os
+import subprocess
 import sys
+
 
 def run_all_tests():
     """Run all test files and collect results."""

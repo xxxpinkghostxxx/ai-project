@@ -2,18 +2,21 @@
 Comprehensive tests for NetworkMetrics.
 Tests criticality calculation, connectivity analysis, energy balance, and health scoring.
 """
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest
-import numpy as np
-from unittest.mock import MagicMock, patch
-from torch_geometric.data import Data
-import torch
 from collections import deque
+from unittest.mock import MagicMock, patch
 
-from src.neural.network_metrics import NetworkMetrics, create_network_metrics, quick_network_analysis
+import numpy as np
+import pytest
+import torch
+from torch_geometric.data import Data
+
+from src.neural.network_metrics import (NetworkMetrics, create_network_metrics,
+                                        quick_network_analysis)
 
 
 class TestNetworkMetrics:

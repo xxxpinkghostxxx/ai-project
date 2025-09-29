@@ -2,7 +2,7 @@
 Consolidated statistics utilities to reduce code duplication.
 """
 
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 
 class StatisticsManager:

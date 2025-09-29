@@ -5,14 +5,15 @@ This module provides the main entry point for launching the neural simulation sy
 with different profiles and configurations. It handles service registration, dependency
 injection, and system initialization.
 """
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-# Standard library imports
-from typing import Dict, Any
 import logging
 import traceback
+# Standard library imports
+from typing import Any, Dict
 
 # Third-party imports
 try:
@@ -25,35 +26,10 @@ try:
 except ImportError:
     psutil = None
 
-# Local imports
-from src.utils.print_utils import print_info, print_success, print_error, print_warning
-from src.core.services.service_registry import ServiceRegistry
-from src.core.interfaces.service_registry import IServiceRegistry
-from src.core.services.configuration_service import ConfigurationService
-from src.core.interfaces.configuration_service import IConfigurationService
-from src.core.services.performance_monitoring_service import PerformanceMonitoringService
-
-# Service imports
-from src.core.services.adaptive_configuration_service import AdaptiveConfigurationService
-from src.core.services.cloud_deployment_service import CloudDeploymentService
-from src.core.services.distributed_coordinator_service import DistributedCoordinatorService
-from src.core.services.energy_management_service import EnergyManagementService
-from src.core.services.event_coordination_service import EventCoordinationService
-from src.core.services.fault_tolerance_service import FaultToleranceService
-from src.core.services.gpu_accelerator_service import GPUAcceleratorService
-from src.core.services.graph_management_service import GraphManagementService
-from src.core.services.learning_service import LearningService
-from src.core.services.load_balancing_service import LoadBalancingService
-from src.core.services.ml_optimizer_service import MLOptimizerService
-from src.core.services.neural_processing_service import NeuralProcessingService
-from src.core.services.real_time_analytics_service import RealTimeAnalyticsService
-from src.core.services.real_time_visualization_service import RealTimeVisualizationService
-from src.core.services.sensory_processing_service import SensoryProcessingService
-from src.core.services.simulation_coordinator import SimulationCoordinator
-
 # Interface imports
 from src.core.interfaces.adaptive_configuration import IAdaptiveConfiguration
 from src.core.interfaces.cloud_deployment import ICloudDeployment
+from src.core.interfaces.configuration_service import IConfigurationService
 from src.core.interfaces.distributed_coordinator import IDistributedCoordinator
 from src.core.interfaces.energy_manager import IEnergyManager
 from src.core.interfaces.event_coordinator import IEventCoordinator
@@ -68,13 +44,38 @@ from src.core.interfaces.performance_monitor import IPerformanceMonitor
 from src.core.interfaces.real_time_analytics import IRealTimeAnalytics
 from src.core.interfaces.real_time_visualization import IRealTimeVisualization
 from src.core.interfaces.sensory_processor import ISensoryProcessor
+from src.core.interfaces.service_registry import IServiceRegistry
 from src.core.interfaces.simulation_coordinator import ISimulationCoordinator
-
-
-from src.core.interfaces.real_time_analytics import IRealTimeAnalytics
-from src.core.interfaces.real_time_visualization import IRealTimeVisualization
-from src.core.interfaces.sensory_processor import ISensoryProcessor
-from src.core.interfaces.simulation_coordinator import ISimulationCoordinator
+# Service imports
+from src.core.services.adaptive_configuration_service import \
+    AdaptiveConfigurationService
+from src.core.services.cloud_deployment_service import CloudDeploymentService
+from src.core.services.configuration_service import ConfigurationService
+from src.core.services.distributed_coordinator_service import \
+    DistributedCoordinatorService
+from src.core.services.energy_management_service import EnergyManagementService
+from src.core.services.event_coordination_service import \
+    EventCoordinationService
+from src.core.services.fault_tolerance_service import FaultToleranceService
+from src.core.services.gpu_accelerator_service import GPUAcceleratorService
+from src.core.services.graph_management_service import GraphManagementService
+from src.core.services.learning_service import LearningService
+from src.core.services.load_balancing_service import LoadBalancingService
+from src.core.services.ml_optimizer_service import MLOptimizerService
+from src.core.services.neural_processing_service import NeuralProcessingService
+from src.core.services.performance_monitoring_service import \
+    PerformanceMonitoringService
+from src.core.services.real_time_analytics_service import \
+    RealTimeAnalyticsService
+from src.core.services.real_time_visualization_service import \
+    RealTimeVisualizationService
+from src.core.services.sensory_processing_service import \
+    SensoryProcessingService
+from src.core.services.service_registry import ServiceRegistry
+from src.core.services.simulation_coordinator import SimulationCoordinator
+# Local imports
+from src.utils.print_utils import (print_error, print_info, print_success,
+                                   print_warning)
 
 # Optional imports
 try:

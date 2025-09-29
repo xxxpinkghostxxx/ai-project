@@ -5,19 +5,19 @@ This module contains unit tests, integration tests, edge cases, and performance 
 for the UnifiedLauncher class, covering all aspects of launcher functionality.
 """
 
-import unittest
-import time
-import tempfile
 import os
-from unittest.mock import Mock, patch, MagicMock
 import sys
+import tempfile
+import time
+import unittest
 from io import StringIO
+from unittest.mock import Mock, patch
 
-from unified_launcher import UnifiedLauncher
-from src.core.services.service_registry import ServiceRegistry
-from src.core.interfaces.service_registry import IServiceRegistry
 from src.core.interfaces.configuration_service import IConfigurationService
 from src.core.interfaces.performance_monitor import IPerformanceMonitor
+from src.core.interfaces.service_registry import IServiceRegistry
+from src.core.services.service_registry import ServiceRegistry
+from src.core.unified_launcher import UnifiedLauncher
 
 
 class TestUnifiedLauncher(unittest.TestCase):

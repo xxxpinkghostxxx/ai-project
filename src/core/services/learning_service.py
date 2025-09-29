@@ -7,18 +7,20 @@ with energy-based modulation for biologically plausible learning dynamics.
 """
 
 import time
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
-from typing import Dict, Any, List, Optional, Tuple
 from torch_geometric.data import Data
 
-from ..interfaces.learning_engine import ILearningEngine, LearningState, PlasticityEvent
-from ..interfaces.energy_manager import IEnergyManager
 from ..interfaces.configuration_service import IConfigurationService
+from ..interfaces.energy_manager import IEnergyManager
 from ..interfaces.event_coordinator import IEventCoordinator
+from ..interfaces.learning_engine import (ILearningEngine, LearningState,
+                                          PlasticityEvent)
 from ..interfaces.neural_processor import SpikeEvent
 
 
-class LearningService(ILearningEngine):
+class LearningService(ILearningEngine):  # pylint: disable=too-many-instance-attributes
     """
     Concrete implementation of ILearningEngine.
 
@@ -130,7 +132,8 @@ class LearningService(ILearningEngine):
             return graph
 
     def apply_stdp_learning(self, graph: Data, pre_spikes: List[Tuple[int, float]],
-                           post_spikes: List[Tuple[int, float]]) -> Tuple[Data, List[PlasticityEvent]]:
+                           post_spikes: List[Tuple[int, float]]
+                            ) -> Tuple[Data, List[PlasticityEvent]]:  # pylint: disable=too-many-locals  # pylint: disable=too-many-locals
         """
         Apply Spike-Timing Dependent Plasticity (STDP) learning.
 
@@ -148,10 +151,6 @@ class LearningService(ILearningEngine):
             return graph, plasticity_events
 
         try:
-            # Get current energy state
-            energy_state = self.energy_manager.get_energy_state()
-            node_energies = energy_state.node_energies if hasattr(energy_state, 'node_energies') else {}
-
             # Process STDP for each edge
             for _, edge in enumerate(graph.edge_attributes):
                 if edge is None:
@@ -169,11 +168,16 @@ class LearningService(ILearningEngine):
 
                 # Calculate STDP weight change
                 weight_change = self._calculate_stdp_change(
-                    pre_spike_times, post_spike_times,
-                    source_id, target_id, node_energies
+                    pre_spike_times, post_spike_times
                 )
 
                 if abs(weight_change) > 0.001:
+                    # Get current energy state
+                    energy_state = self.energy_manager.get_energy_state()
+                    node_energies = (energy_state.node_energies if hasattr(energy_state,
+                                                                   'node_energies')
+                           else {})
+
                     # Apply energy-modulated weight change
                     energy_factor = self._calculate_energy_modulation_factor(
                         source_id, target_id, node_energies
@@ -222,7 +226,7 @@ class LearningService(ILearningEngine):
             print(f"Error applying STDP learning: {e}")
             return graph, plasticity_events
 
-    def consolidate_memories(self, graph: Data) -> Tuple[Data, List[PlasticityEvent]]:
+    def consolidate_memories(self, graph: Data) -> Tuple[Data, List[PlasticityEvent]]:  # pylint: disable=too-many-locals  # pylint: disable=too-many-locals  # pylint: disable=too-many-locals
         """
         Consolidate memory traces based on eligibility traces.
 
@@ -240,7 +244,9 @@ class LearningService(ILearningEngine):
         try:
             # Get current energy state
             energy_state = self.energy_manager.get_energy_state()
-            node_energies = energy_state.node_energies if hasattr(energy_state, 'node_energies') else {}
+            node_energies = (energy_state.node_energies if hasattr(energy_state,
+                                                                   'node_energies')
+                           else {})
 
             for _, edge in enumerate(graph.edge_attributes):
                 if edge is None:
@@ -316,8 +322,7 @@ class LearningService(ILearningEngine):
             "learning_efficiency": self._calculate_learning_efficiency()
         }
 
-    def _calculate_stdp_change(self, pre_spikes: List[float], post_spikes: List[float],
-                              source_id: int, target_id: int, node_energies: Dict[int, float]) -> float:
+    def _calculate_stdp_change(self, pre_spikes: List[float], post_spikes: List[float]) -> float:
         """
         Calculate STDP weight change for a synapse.
 
@@ -338,7 +343,8 @@ class LearningService(ILearningEngine):
                 time_diff = post_time - pre_time
 
                 if 0 < time_diff < self._stdp_window / 1000.0:  # LTP
-                    weight_change += self._ltp_rate * np.exp(-time_diff * 1000.0 / self._stdp_window)
+                    weight_change += (self._ltp_rate *
+                                      np.exp(-time_diff * 1000.0 / self._stdp_window))
                 elif -self._stdp_window / 1000.0 < time_diff < 0:  # LTD
                     weight_change -= self._ltd_rate * np.exp(time_diff * 1000.0 / self._stdp_window)
 
@@ -376,7 +382,8 @@ class LearningService(ILearningEngine):
             return 1.0
 
         recent_events = self._plasticity_events[-100:]  # Last 100 events
-        energy_factors = [event.energy_factor for event in recent_events if hasattr(event, 'energy_factor')]
+        energy_factors = [event.energy_factor for event in recent_events
+                          if hasattr(event, 'energy_factor')]
 
         if energy_factors:
             return np.mean(energy_factors)
@@ -388,12 +395,15 @@ class LearningService(ILearningEngine):
             return 0.0
 
         # Efficiency based on plasticity event frequency and energy modulation
-        event_rate = len(self._plasticity_events) / max(1, time.time() - self._learning_state.initialization_time)
+        event_rate = (len(self._plasticity_events) /
+                      max(1, time.time() - self._learning_state.initialization_time))
         avg_modulation = self._calculate_average_energy_modulation()
 
         return min(1.0, event_rate * avg_modulation * 0.1)
 
-    def apply_hebbian_learning(self, graph: Data, correlation_data: Dict[Tuple[int, int], float]) -> Tuple[Data, List[PlasticityEvent]]:
+    def apply_hebbian_learning(self, graph: Data,
+                               correlation_data: Dict[Tuple[int, int], float]
+                               ) -> Tuple[Data, List[PlasticityEvent]]:  # pylint: disable=too-many-locals  # pylint: disable=too-many-locals
         """
         Apply Hebbian learning based on neural activity correlations.
 
@@ -415,7 +425,9 @@ class LearningService(ILearningEngine):
         try:
             # Get current energy state
             energy_state = self.energy_manager.get_energy_state()
-            node_energies = energy_state.node_energies if hasattr(energy_state, 'node_energies') else {}
+            node_energies = (energy_state.node_energies if hasattr(energy_state,
+                                                                   'node_energies')
+                           else {})
 
             # Apply Hebbian learning based on correlations
             for _, edge in enumerate(graph.edge_attributes):
@@ -649,7 +661,8 @@ class LearningService(ILearningEngine):
         if graph and hasattr(graph, 'edge_attributes'):
             for edge in graph.edge_attributes:
                 if edge and (edge.weight < 0.1 or edge.weight > 5.0):
-                    issues.append(f"Invalid weight {edge.weight} for edge {edge.source}->{edge.target}")
+                    issues.append(f"Invalid weight {edge.weight} for edge "
+                                  f"{edge.source}->{edge.target}")
 
         return {
             "valid": len(issues) == 0,
@@ -658,7 +671,9 @@ class LearningService(ILearningEngine):
             "eligibility_traces": len(self._eligibility_traces)
         }
 
-    def apply_plasticity(self, graph: Data, spike_events: List[SpikeEvent]) -> Tuple[Data, List[PlasticityEvent]]:
+    def apply_plasticity(self, graph: Data,
+                         spike_events: List[SpikeEvent]
+                         ) -> Tuple[Data, List[PlasticityEvent]]:  # pylint: disable=too-many-locals  # pylint: disable=too-many-locals
         """
         Apply plasticity rules to the neural graph.
 
@@ -672,15 +687,8 @@ class LearningService(ILearningEngine):
         # This is a placeholder for a more sophisticated implementation
         # that would likely delegate to STDP, Hebbian, etc.
         return graph, []
-
-    def cleanup(self) -> None:
-        """Clean up resources."""
-        self._plasticity_events.clear()
-        self._memory_traces.clear()
-        self._eligibility_traces.clear()
-
-
-
-
-
-
+def cleanup(self) -> None:  # pylint: disable=protected-access
+    """Clean up resources."""
+    self._plasticity_events.clear()
+    self._memory_traces.clear()
+    self._eligibility_traces.clear()

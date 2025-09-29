@@ -5,13 +5,18 @@ This module contains unit tests, integration tests, edge cases, and performance 
 for the ServiceRegistry class, covering all aspects of dependency injection functionality.
 """
 
-import unittest
-import time
-from unittest.mock import Mock, patch
 import threading
+import time
+import unittest
+from unittest.mock import Mock, patch
 
-from src.core.services.service_registry import ServiceRegistry, ServiceNotFoundError, ServiceResolutionError
-from src.core.interfaces.service_registry import IServiceRegistry, ServiceLifetime, ServiceHealth, ServiceDescriptor
+from src.core.interfaces.service_registry import (IServiceRegistry,
+                                                  ServiceDescriptor,
+                                                  ServiceHealth,
+                                                  ServiceLifetime)
+from src.core.services.service_registry import (ServiceNotFoundError,
+                                                ServiceRegistry,
+                                                ServiceResolutionError)
 
 
 class TestServiceRegistry(unittest.TestCase):

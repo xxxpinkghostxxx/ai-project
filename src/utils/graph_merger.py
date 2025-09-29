@@ -3,16 +3,29 @@ Graph Merger
 Handles merging of neural simulation graphs with proper ID conflict resolution.
 """
 
-import time
 import threading
-from typing import Dict, List, Any, Optional
+import time
+from typing import Any, Dict, List, Optional
+
+import torch
+
 from src.utils.logging_utils import log_step
 from src.utils.reader_writer_lock import get_graph_lock
 
 
 class GraphMergeConflictError(Exception):
     """Exception raised when graph merging encounters unresolvable conflicts."""
-    pass
+
+    def __init__(self, message: str, conflicts: List[Dict[str, Any]] = None):
+        """
+        Initialize graph merge conflict error.
+
+        Args:
+            message: Error message
+            conflicts: List of conflicts found during merge analysis
+        """
+        super().__init__(message)
+        self.conflicts = conflicts or []
 
 
 class GraphMerger:
@@ -236,7 +249,6 @@ class GraphMerger:
 
     def _perform_merge(self, graph1, graph2, id_mapping: Dict[int, int]):
         """Perform the actual graph merge."""
-        import torch
 
         # Start with a copy of the primary graph
         merged_graph = self._copy_graph_structure(graph1)
@@ -293,7 +305,6 @@ class GraphMerger:
 
     def _copy_graph_structure(self, graph):
         """Create a copy of the graph structure."""
-        import torch
 
         # Create a basic copy
         copied_graph = type(graph)()

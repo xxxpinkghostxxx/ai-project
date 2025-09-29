@@ -2,19 +2,22 @@
 Comprehensive tests for NeuralMapPersistence.
 Tests saving, loading, and managing neural maps with metadata.
 """
-import sys
 import os
-import tempfile
 import shutil
+import sys
+import tempfile
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest
 import json
 from unittest.mock import MagicMock, patch
-from torch_geometric.data import Data
-import torch
 
-from src.neural.neural_map_persistence import NeuralMapPersistence, create_neural_map_persistence
+import pytest
+import torch
+from torch_geometric.data import Data
+
+from src.neural.neural_map_persistence import (NeuralMapPersistence,
+                                               create_neural_map_persistence)
 
 
 class TestNeuralMapPersistence:

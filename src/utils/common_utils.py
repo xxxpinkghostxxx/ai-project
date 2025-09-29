@@ -4,11 +4,6 @@ Common utility functions to reduce code duplication and improve maintainability.
 
 from typing import Any, List, Tuple
 
-try:
-    from torch_geometric.data import Data
-except ImportError:
-    Data = Any
-
 
 def safe_hasattr(obj: Any, *attrs: str) -> bool:
     """

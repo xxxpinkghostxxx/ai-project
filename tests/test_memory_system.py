@@ -4,18 +4,22 @@ Tests memory trace formation, consolidation, decay, pattern recall,
 statistics tracking, error handling, and integration scenarios.
 """
 
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest
 import time
-import numpy as np
-import torch
 from unittest.mock import MagicMock, patch
+
+import numpy as np
+import pytest
+import torch
 from torch_geometric.data import Data
 
-from src.learning.memory_system import MemorySystem, analyze_memory_distribution, calculate_memory_efficiency
+from src.learning.memory_system import (MemorySystem,
+                                        analyze_memory_distribution,
+                                        calculate_memory_efficiency)
 
 
 class TestMemorySystem:

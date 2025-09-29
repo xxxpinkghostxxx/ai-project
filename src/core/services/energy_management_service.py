@@ -7,12 +7,13 @@ while serving as the central integrator for all neural simulation modules.
 """
 
 import logging
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
 from torch_geometric.data import Data
 
-from ..interfaces.energy_manager import IEnergyManager, EnergyState, EnergyFlow
 from ..interfaces.configuration_service import IConfigurationService
+from ..interfaces.energy_manager import EnergyFlow, EnergyState, IEnergyManager
 from ..interfaces.event_coordinator import IEventCoordinator
 
 

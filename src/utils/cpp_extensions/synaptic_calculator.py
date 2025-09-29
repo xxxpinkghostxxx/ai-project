@@ -6,11 +6,12 @@ compilation and optimized algorithms. This serves as both a fallback implementat
 and a stepping stone toward full Cython/C++ acceleration.
 """
 
-import numpy as np
-import numba as nb
-from numba import jit, prange
-from typing import List, Dict, Any, Optional
 import time
+from typing import Any, Dict, List, Optional
+
+import numba as nb
+import numpy as np
+from numba import jit, prange
 
 
 @jit(nopython=True, fastmath=True)

@@ -6,15 +6,15 @@ enabling self-tuning of system parameters based on performance metrics and workl
 """
 
 import time
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
 
-from ..interfaces.adaptive_configuration import (
-    IAdaptiveConfiguration, ConfigurationParameter, AdaptationRule
-)
-from ..interfaces.configuration_service import IConfigurationService
+from ..interfaces.adaptive_configuration import (AdaptationRule,
+                                                 ConfigurationParameter,
+                                                 IAdaptiveConfiguration)
+from ..interfaces.configuration_service import (ConfigurationScope,
+                                                IConfigurationService)
 from ..interfaces.event_coordinator import IEventCoordinator
 from ..interfaces.real_time_analytics import IRealTimeAnalytics
-from ..interfaces.configuration_service import ConfigurationScope
 
 
 class AdaptiveConfigurationService(IAdaptiveConfiguration):

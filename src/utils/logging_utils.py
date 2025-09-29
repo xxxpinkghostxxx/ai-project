@@ -1,7 +1,8 @@
-import logging
-from threading import Lock
-import time
 import functools
+import logging
+import time
+from threading import Lock
+
 log_lines = []
 MAX_LOG_LINES = 100
 log_lock = Lock()

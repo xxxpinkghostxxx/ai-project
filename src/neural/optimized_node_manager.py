@@ -3,14 +3,16 @@ Optimized Node Manager for high-performance neural simulations.
 Provides spatial indexing, batch operations, and memory-efficient node management.
 """
 
-import numpy as np
-import threading
-from typing import Dict, List, Any, Optional, Tuple, Set
-from collections import defaultdict, deque
 import logging
+import threading
 import time
+from collections import defaultdict, deque
+from typing import Any, Dict, List, Optional, Set, Tuple
+
+import numpy as np
 
 from src.utils.logging_utils import log_step
+
 
 class SpatialIndex:
     """Spatial indexing for efficient node queries in large graphs."""

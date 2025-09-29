@@ -8,7 +8,8 @@ plasticity while maintaining biological plausibility and energy modulation.
 
 import time
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Tuple
+from typing import Any, Dict, List, Tuple
+
 from torch_geometric.data import Data
 
 

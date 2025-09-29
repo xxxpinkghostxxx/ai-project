@@ -3,12 +3,13 @@ Real-world usage and simulation scenarios for UI components
 Tests realistic user workflows, scientific scenarios, and practical usage patterns.
 """
 
-import sys
-import os
-import time
 import math
+import os
+import sys
+import time
 import unittest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Mock all dependencies
@@ -27,12 +28,13 @@ sys.modules['mss'] = Mock()
 
 import dearpygui.dearpygui as dpg
 import numpy as np
+
 np.__version__ = '1.24.0'
 from torch_geometric.data import Data
 
+from src.ui.screen_graph import *
 from src.ui.ui_engine import *
 from src.ui.ui_state_manager import *
-from src.ui.screen_graph import *
 
 
 class TestUIRealWorldScenarios(unittest.TestCase):

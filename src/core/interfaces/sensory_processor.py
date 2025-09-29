@@ -7,7 +7,8 @@ maintaining biological plausibility and energy-based processing.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
 from torch_geometric.data import Data
 
 

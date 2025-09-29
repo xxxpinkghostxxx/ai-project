@@ -2,19 +2,22 @@
 Comprehensive tests for BehaviorEngine.
 Tests node behavior updates, error handling, thread safety, and integration.
 """
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest
 import threading
 import time
-import numpy as np
 from unittest.mock import MagicMock, patch
-from torch_geometric.data import Data
-import torch
 
-from src.neural.behavior_engine import BehaviorEngine, get_energy_cap_255, get_enhanced_nodes_config_cached
+import numpy as np
+import pytest
+import torch
+from torch_geometric.data import Data
+
+from src.neural.behavior_engine import (BehaviorEngine, get_energy_cap_255,
+                                        get_enhanced_nodes_config_cached)
 
 
 class TestBehaviorEngine:
@@ -269,7 +272,8 @@ class TestBehaviorEngine:
     def test_energy_thresholds(self):
         """Test energy threshold handling."""
         # Test helper functions
-        from src.neural.behavior_engine import should_transition_to_learning, energy_above_threshold
+        from src.neural.behavior_engine import (energy_above_threshold,
+                                                should_transition_to_learning)
 
         node_learning = {
             'last_activation': time.time() - 4.0,  # Recent

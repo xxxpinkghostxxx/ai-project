@@ -4,12 +4,24 @@ Centralized validation system for neural graph connections.
 """
 
 import threading
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List, Optional
 
 
 class ConnectionValidationError(Exception):
     """Exception raised for connection validation errors."""
-    pass
+
+    def __init__(self, message: str, errors: List[str] = None, warnings: List[str] = None):
+        """
+        Initialize connection validation error.
+
+        Args:
+            message: Error message
+            errors: List of specific errors found
+            warnings: List of warnings found
+        """
+        super().__init__(message)
+        self.errors = errors or []
+        self.warnings = warnings or []
 
 
 class ConnectionValidator:

@@ -7,12 +7,8 @@ This package contains the main simulation components including:
 - UnifiedLauncher: Main application launcher
 """
 
-from .main_graph import (
-    create_workspace_grid,
-    create_test_graph,
-    initialize_main_graph,
-    merge_graphs
-)
+from .main_graph import (create_test_graph, create_workspace_grid,
+                         initialize_main_graph, merge_graphs)
 from .unified_launcher import main
 
 __all__ = [

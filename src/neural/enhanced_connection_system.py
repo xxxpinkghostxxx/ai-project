@@ -1,14 +1,14 @@
 
-import time
 import threading
-from typing import Dict, Any, List, Optional, Tuple
+import time
+from collections import defaultdict
+from typing import Any, Dict, List, Optional, Tuple
 
 from torch_geometric.data import Data
-from collections import defaultdict
 
-from src.utils.logging_utils import log_step
 from src.energy.energy_constants import ConnectionConstants
 from src.energy.node_access_layer import NodeAccessLayer
+from src.utils.logging_utils import log_step
 
 
 class EnhancedConnection:

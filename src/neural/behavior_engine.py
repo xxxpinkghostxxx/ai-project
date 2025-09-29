@@ -1,12 +1,13 @@
 import time
+from typing import Any, Dict
+
 import numpy as np
 import torch
-from typing import Dict, Any
-from src.utils.logging_utils import log_step
-
 from torch_geometric.data import Data
 
-from config.unified_config_manager import get_enhanced_nodes_config, get_system_constants
+from config.unified_config_manager import (get_enhanced_nodes_config,
+                                           get_system_constants)
+from src.utils.logging_utils import log_step
 
 try:
     from src.utils.unified_error_handler import get_error_handler
@@ -16,7 +17,8 @@ except ImportError:
     log_step("Error handler not available, using basic error handling")
 
 try:
-    from src.neural.enhanced_neural_integration import create_enhanced_neural_integration
+    from src.neural.enhanced_neural_integration import \
+        create_enhanced_neural_integration
     ENHANCED_SYSTEMS_AVAILABLE = True
 except ImportError:
     ENHANCED_SYSTEMS_AVAILABLE = False

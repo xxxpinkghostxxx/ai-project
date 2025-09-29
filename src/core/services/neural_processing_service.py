@@ -7,21 +7,22 @@ while maintaining clean separation from energy management and learning.
 """
 
 import time
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
-from typing import Dict, Any, List, Optional, Tuple
 from torch_geometric.data import Data
 
-from ..interfaces.neural_processor import INeuralProcessor, NeuralState, SpikeEvent
-from ..interfaces.energy_manager import IEnergyManager
 from ..interfaces.configuration_service import IConfigurationService
+from ..interfaces.energy_manager import IEnergyManager
 from ..interfaces.event_coordinator import IEventCoordinator
+from ..interfaces.neural_processor import (INeuralProcessor, NeuralState,
+                                           SpikeEvent)
 
-# Import optimized extensions
+# Import optimized synaptic calculator
 try:
-    from src.utils.cpp_extensions import SynapticCalculator, create_synaptic_calculator
+    from ...utils.cpp_extensions import create_synaptic_calculator
     _USE_OPTIMIZED_SYNAPTIC_CALCULATOR = True
 except ImportError:
-    print("Warning: Optimized synaptic calculator not available, using fallback implementation")
     _USE_OPTIMIZED_SYNAPTIC_CALCULATOR = False
 
 
@@ -70,7 +71,7 @@ class NeuralProcessingService(INeuralProcessor):
             try:
                 self._synaptic_calculator = create_synaptic_calculator(time_window=0.1)
                 print("Using optimized synaptic calculator")
-            except Exception as e:
+            except (ImportError, AttributeError, RuntimeError) as e:
                 print(f"Failed to initialize optimized synaptic calculator: {e}")
                 self._synaptic_calculator = None
 
@@ -114,17 +115,17 @@ class NeuralProcessingService(INeuralProcessor):
         """Get the last spike times dictionary."""
         return self._last_spike_times
 
-    def set_last_spike_time(self, node_id: int, time: float) -> None:
+    def set_last_spike_time(self, node_id: int, timestamp: float) -> None:
         """Set the last spike time for a node."""
-        self._last_spike_times[node_id] = time
+        self._last_spike_times[node_id] = timestamp
 
     def get_refractory_nodes(self) -> Dict[int, float]:
         """Get the refractory nodes dictionary."""
         return self._refractory_nodes
 
-    def set_refractory_node(self, node_id: int, time: float) -> None:
+    def set_refractory_node(self, node_id: int, timestamp: float) -> None:
         """Set a node as refractory for a given time."""
-        self._refractory_nodes[node_id] = time
+        self._refractory_nodes[node_id] = timestamp
 
     def remove_refractory_node(self, node_id: int) -> None:
         """Remove a node from refractory state."""
@@ -142,7 +143,8 @@ class NeuralProcessingService(INeuralProcessor):
         """Get the synaptic calculator."""
         return self._synaptic_calculator
 
-    def calculate_synaptic_inputs_internal(self, graph: Data, node_energies: Dict[int, float]) -> np.ndarray:
+    def calculate_synaptic_inputs_internal(self, graph: Data,
+                                           node_energies: Dict[int, float]) -> np.ndarray:
         """Calculate synaptic inputs for all neurons (internal method)."""
         return self._calculate_all_synaptic_inputs(graph, node_energies)
 
@@ -185,7 +187,7 @@ class NeuralProcessingService(INeuralProcessor):
 
             return True
 
-        except Exception as e:
+        except (AttributeError, TypeError, ValueError) as e:
             print(f"Failed to initialize neural state: {e}")
             return False
 
@@ -206,7 +208,8 @@ class NeuralProcessingService(INeuralProcessor):
         try:
             # Get current energy state for modulation
             energy_state = self.energy_manager.get_energy_state()
-            node_energies = energy_state.node_energies if hasattr(energy_state, 'node_energies') else {}
+            node_energies = (energy_state.node_energies if
+                           hasattr(energy_state, 'node_energies') else {})
 
             # Calculate synaptic inputs for all nodes at once (optimized)
             synaptic_inputs = self.calculate_synaptic_inputs_internal(graph, node_energies)
@@ -229,10 +232,12 @@ class NeuralProcessingService(INeuralProcessor):
 
                 # Energy-modulated membrane dynamics
                 energy_level = node_energies.get(node_id, 1.0)
-                effective_time_constant = self.get_membrane_time_constant() * (0.5 + 0.5 * energy_level)
+                effective_time_constant = (self.get_membrane_time_constant() *
+                                         (0.5 + 0.5 * energy_level))
 
                 # Update membrane potential
-                delta_v = (synaptic_input - current_potential + self._resting_potential) * (time_step / effective_time_constant)
+                delta_v = ((synaptic_input - current_potential + self._resting_potential) *
+                          (time_step / effective_time_constant))
                 new_potential = current_potential + delta_v
 
                 # Clamp to reasonable range
@@ -244,11 +249,12 @@ class NeuralProcessingService(INeuralProcessor):
 
             return graph
 
-        except Exception as e:
+        except (AttributeError, KeyError, TypeError, ValueError, IndexError) as e:
             print(f"Error updating membrane potentials: {e}")
             return graph
 
-    def process_spike_generation(self, graph: Data, current_time: float) -> Tuple[Data, List[SpikeEvent]]:
+    def process_spike_generation(self, graph: Data,
+                                 current_time: float) -> Tuple[Data, List[SpikeEvent]]:
         """
         Process spike generation based on membrane potentials.
 
@@ -312,7 +318,7 @@ class NeuralProcessingService(INeuralProcessor):
 
             return graph, spike_events
 
-        except Exception as e:
+        except (AttributeError, KeyError, TypeError, ValueError, IndexError) as e:
             print(f"Error processing spike generation: {e}")
             return graph, spike_events
 
@@ -335,7 +341,7 @@ class NeuralProcessingService(INeuralProcessor):
             # This method is here for interface compliance
             return graph
 
-        except Exception as e:
+        except (AttributeError, TypeError) as e:
             print(f"Error updating refractory periods: {e}")
             return graph
 
@@ -352,7 +358,7 @@ class NeuralProcessingService(INeuralProcessor):
             self._refractory_nodes.clear()
             self.set_neural_state_internal(NeuralState())
             return True
-        except Exception as e:
+        except (AttributeError, TypeError) as e:
             print(f"Error resetting neural state: {e}")
             return False
 
@@ -406,7 +412,8 @@ class NeuralProcessingService(INeuralProcessor):
             "total_neurons": len(graph.node_labels) if hasattr(graph, 'node_labels') else 0
         }
 
-    def _calculate_all_synaptic_inputs(self, graph: Data, node_energies: Dict[int, float]) -> np.ndarray:
+    def _calculate_all_synaptic_inputs(self, graph: Data,
+                                       node_energies: Dict[int, float]) -> np.ndarray:
         """
         Calculate synaptic inputs for all neurons using optimized calculator.
 
@@ -430,23 +437,23 @@ class NeuralProcessingService(INeuralProcessor):
                     node_energies,
                     num_nodes=num_nodes
                 )
-            except Exception as e:
+            except (AttributeError, TypeError, ValueError) as e:
                 print(f"Optimized synaptic calculation failed, using fallback: {e}")
 
         # Fallback: calculate inputs individually
         synaptic_inputs = np.zeros(num_nodes, dtype=np.float64)
         for i in range(num_nodes):
-            node_id = graph.node_labels[i].get('id', i)
-            synaptic_inputs[i] = self.calculate_synaptic_input_internal(graph, node_id)
+            synaptic_inputs[i] = self._calculate_synaptic_input(graph, i)
 
         return synaptic_inputs
 
-    def _calculate_synaptic_input(self, graph: Data, node_id: int) -> float:
+    def _calculate_synaptic_input(self, graph: Data, node_id: int) -> float:  # pylint: disable=unused-argument
         """
         Calculate synaptic input for a neuron (fallback implementation).
 
         Args:
-            node_id: Target neuron ID
+            graph: Neural graph containing connectivity information
+            node_id: ID of the neuron to calculate inputs for
 
         Returns:
             float: Total synaptic input
@@ -526,7 +533,7 @@ class NeuralProcessingService(INeuralProcessor):
                     self._resting_potential = float(value)
 
             return True
-        except Exception as e:
+        except (ValueError, TypeError) as e:
             print(f"Error configuring neural parameters: {e}")
             return False
 
@@ -558,14 +565,7 @@ class NeuralProcessingService(INeuralProcessor):
             Tuple of (updated_graph, spike_events)
         """
         return self.apply_neural_dynamics(graph, 0.001) # Assuming 1ms timestep for now
-
-    def cleanup(self) -> None:
-        """Clean up resources."""
-        self.get_last_spike_times().clear()
-        self.get_refractory_nodes().clear()
-
-
-
-
-
-
+def cleanup(self) -> None:
+    """Clean up resources."""
+    self.get_last_spike_times().clear()
+    self.get_refractory_nodes().clear()

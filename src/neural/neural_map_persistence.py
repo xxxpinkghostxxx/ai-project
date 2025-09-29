@@ -1,15 +1,15 @@
 
-import os
 import json
+import logging
+import os
+import time
+from typing import Any, Dict, Optional
+
 import torch
 from torch_geometric.data import Data
-import time
-import logging
-from typing import Optional, Dict, Any
 
 from src.utils.logging_utils import log_step
 from src.utils.print_utils import print_invalid_slot
-
 
 
 class NeuralMapPersistence:

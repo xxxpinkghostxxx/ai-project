@@ -2,7 +2,7 @@
 Consolidated print utilities to reduce code duplication.
 """
 
-from config.consolidated_constants import PRINT_PATTERNS, ERROR_MESSAGES
+from config.consolidated_constants import ERROR_MESSAGES, PRINT_PATTERNS
 
 
 def print_error(message: str, **kwargs):

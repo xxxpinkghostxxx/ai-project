@@ -1,18 +1,18 @@
 
 
 
-import torch
-from typing import Dict, Any
+from typing import Any, Dict
 
+import torch
 from torch_geometric.data import Data
 
-from src.utils.logging_utils import log_step
 from src.energy.node_access_layer import NodeAccessLayer
-
+from src.neural.enhanced_connection_system import \
+    create_enhanced_connection_system
 from src.neural.enhanced_neural_dynamics import create_enhanced_neural_dynamics
-from src.neural.enhanced_connection_system import create_enhanced_connection_system
-from src.neural.enhanced_node_behaviors import create_enhanced_node_behavior_system
-
+from src.neural.enhanced_node_behaviors import \
+    create_enhanced_node_behavior_system
+from src.utils.logging_utils import log_step
 
 
 class EnhancedNeuralIntegration:

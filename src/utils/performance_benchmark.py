@@ -3,14 +3,16 @@ Performance benchmarking system for neural simulation optimization.
 Provides comprehensive testing and profiling capabilities.
 """
 
-import time
-import threading
+import gc
 import logging
-from typing import Dict, List, Any, Callable
+import threading
+import time
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any, Callable, Dict, List
+
 import psutil
-import gc
+
 
 @dataclass
 class BenchmarkResult:
@@ -299,8 +301,10 @@ def run_comprehensive_benchmark() -> PerformanceBenchmark:
 
     try:
         # Import required modules
-        from src.core.services.simulation_coordinator import SimulationCoordinator
-        from src.neural.optimized_node_manager import get_optimized_node_manager
+        from src.core.services.simulation_coordinator import \
+            SimulationCoordinator
+        from src.neural.optimized_node_manager import \
+            get_optimized_node_manager
         from src.utils.performance_cache import get_performance_cache_manager
 
         # Benchmark simulation startup

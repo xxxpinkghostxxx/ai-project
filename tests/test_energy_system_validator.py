@@ -5,13 +5,15 @@ This module contains unit tests, integration tests, edge cases, and performance 
 for the EnergySystemValidator class, covering validation of energy as central integrator.
 """
 
-import unittest
 import time
-from unittest.mock import Mock, patch, MagicMock
-from torch_geometric.data import Data
-import torch
+import unittest
+from unittest.mock import MagicMock, Mock, patch
 
-from src.energy.energy_system_validator import EnergySystemValidator, run_energy_validation
+import torch
+from torch_geometric.data import Data
+
+from src.energy.energy_system_validator import (EnergySystemValidator,
+                                                run_energy_validation)
 
 
 class TestEnergySystemValidatorInitialization(unittest.TestCase):

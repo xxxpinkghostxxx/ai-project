@@ -2,16 +2,20 @@
 Comprehensive tests for PerformanceMonitor fixes.
 Tests thread safety, memory management, and validation.
 """
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-import pytest
 import threading
 import time
-from unittest.mock import patch, MagicMock
-from src.utils.unified_performance_system import PerformanceMonitor, get_performance_monitor
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from src.utils.unified_performance_system import (PerformanceMonitor,
+                                                  get_performance_monitor)
 
 
 class TestPerformanceMonitor:

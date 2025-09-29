@@ -7,8 +7,9 @@ This module provides a thread-safe state manager for UI components in the neural
 """
 
 import time
-from typing import Dict, Any, Optional, List
 from threading import RLock
+from typing import Any, Dict, List, Optional
+
 from src.utils.logging_utils import log_step
 
 
@@ -121,7 +122,7 @@ class UIStateManager:
     def clear_live_feed_data(self):
         """Clear all live feed data."""
         with self._lock:
-            for key, value in self.live_feed_data.items():
+            for _, value in self.live_feed_data.items():
                 value.clear()
     def set_training_interface(self, interface):
         """Set the live training interface."""
@@ -272,9 +273,5 @@ def get_live_feed_data():
 def clear_live_feed_data():
     """Clear live feed data."""
     get_ui_state_manager().clear_live_feed_data()
-
-
-
-
 
 

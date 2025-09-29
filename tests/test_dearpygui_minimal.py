@@ -1,5 +1,6 @@
-import dearpygui.dearpygui as dpg
 import faulthandler
+
+import dearpygui.dearpygui as dpg
 
 faulthandler.enable()
 
@@ -20,7 +21,7 @@ def test_dearpygui():
             dpg.add_slider_float(label="float", default_value=0.273, max_value=1)
 
         dpg.show_viewport()
-        
+
         # Run one frame to ensure it initializes without crashing.
         dpg.render_dearpygui_frame()
 

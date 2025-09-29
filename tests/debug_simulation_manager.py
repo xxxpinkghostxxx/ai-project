@@ -3,23 +3,25 @@
 Debug script for SimulationCoordinator to identify and fix issues.
 """
 
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import logging
 import traceback
 from unittest.mock import Mock
-from src.core.services.simulation_coordinator import SimulationCoordinator
-from src.core.interfaces.service_registry import IServiceRegistry
-from src.core.interfaces.neural_processor import INeuralProcessor
-from src.core.interfaces.energy_manager import IEnergyManager
-from src.core.interfaces.learning_engine import ILearningEngine
-from src.core.interfaces.sensory_processor import ISensoryProcessor
-from src.core.interfaces.performance_monitor import IPerformanceMonitor
-from src.core.interfaces.graph_manager import IGraphManager
-from src.core.interfaces.event_coordinator import IEventCoordinator
+
 from src.core.interfaces.configuration_service import IConfigurationService
+from src.core.interfaces.energy_manager import IEnergyManager
+from src.core.interfaces.event_coordinator import IEventCoordinator
+from src.core.interfaces.graph_manager import IGraphManager
+from src.core.interfaces.learning_engine import ILearningEngine
+from src.core.interfaces.neural_processor import INeuralProcessor
+from src.core.interfaces.performance_monitor import IPerformanceMonitor
+from src.core.interfaces.sensory_processor import ISensoryProcessor
+from src.core.interfaces.service_registry import IServiceRegistry
+from src.core.services.simulation_coordinator import SimulationCoordinator
 
 # Set up logging
 logging.basicConfig(

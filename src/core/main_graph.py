@@ -9,15 +9,16 @@ including workspace grids, test graphs, and main simulation graphs.
 import logging
 import threading
 
-import torch
 import numpy as np
+import torch
 from torch_geometric.data import Data
 
+from src.energy.node_id_manager import get_id_manager
 from src.neural.connection_logic import EnhancedEdge
 from src.neural.dynamic_nodes import add_dynamic_nodes
-from src.ui.screen_graph import capture_screen, create_pixel_gray_graph, RESOLUTION_SCALE
+from src.ui.screen_graph import (RESOLUTION_SCALE, capture_screen,
+                                 create_pixel_gray_graph)
 from src.utils.pattern_consolidation_utils import create_workspace_node
-from src.energy.node_id_manager import get_id_manager
 
 
 def create_workspace_grid():

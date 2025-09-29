@@ -8,25 +8,29 @@ while maintaining performance requirements.
 
 # pylint: disable=protected-access
 
-import sys
 import os
-
+import sys
 import unittest
 from unittest.mock import Mock
+
 from torch_geometric.data import Data
 
-from src.core.services.service_registry import ServiceRegistry, ServiceNotFoundError
-from src.core.services.simulation_coordinator import SimulationCoordinator
-from src.core.interfaces.simulation_coordinator import ISimulationCoordinator, SimulationState
-from src.core.interfaces.neural_processor import INeuralProcessor
-from src.core.interfaces.energy_manager import IEnergyManager
-from src.core.interfaces.learning_engine import ILearningEngine
-from src.core.interfaces.sensory_processor import ISensoryProcessor
-from src.core.interfaces.performance_monitor import IPerformanceMonitor
-from src.core.interfaces.graph_manager import IGraphManager
-from src.core.interfaces.event_coordinator import IEventCoordinator
 from src.core.interfaces.configuration_service import IConfigurationService
-from src.core.interfaces.service_registry import IServiceRegistry, ServiceLifetime, ServiceHealth
+from src.core.interfaces.energy_manager import IEnergyManager
+from src.core.interfaces.event_coordinator import IEventCoordinator
+from src.core.interfaces.graph_manager import IGraphManager
+from src.core.interfaces.learning_engine import ILearningEngine
+from src.core.interfaces.neural_processor import INeuralProcessor
+from src.core.interfaces.performance_monitor import IPerformanceMonitor
+from src.core.interfaces.sensory_processor import ISensoryProcessor
+from src.core.interfaces.service_registry import (IServiceRegistry,
+                                                  ServiceHealth,
+                                                  ServiceLifetime)
+from src.core.interfaces.simulation_coordinator import (ISimulationCoordinator,
+                                                        SimulationState)
+from src.core.services.service_registry import (ServiceNotFoundError,
+                                                ServiceRegistry)
+from src.core.services.simulation_coordinator import SimulationCoordinator
 
 # Add the project root to the Python path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

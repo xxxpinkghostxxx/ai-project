@@ -7,10 +7,10 @@ neural simulation services.
 """
 
 import threading
-from typing import Dict, Any, List, Callable, Optional
 from collections import defaultdict, deque
+from typing import Any, Callable, Dict, List, Optional
 
-from ..interfaces.event_coordinator import IEventCoordinator, Event
+from ..interfaces.event_coordinator import Event, IEventCoordinator
 
 
 class EventCoordinationService(IEventCoordinator):

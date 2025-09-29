@@ -6,7 +6,7 @@ based on system performance, workload characteristics, and environmental factors
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 
 class ConfigurationParameter:

@@ -14,11 +14,13 @@ __version__ = "0.1.0"
 # Import the available implementation
 try:
     # Try Cython version first
-    from .synaptic_calculator import SynapticCalculator, create_synaptic_calculator
+    from .synaptic_calculator import (SynapticCalculator,
+                                      create_synaptic_calculator)
 except ImportError:
     try:
         # Fall back to Numba-optimized Python version
-        from .synaptic_calculator import SynapticCalculator, create_synaptic_calculator
+        from .synaptic_calculator import (SynapticCalculator,
+                                          create_synaptic_calculator)
     except ImportError as e:
         raise ImportError(
             "No synaptic_calculator implementation available. "

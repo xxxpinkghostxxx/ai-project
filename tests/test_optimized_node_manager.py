@@ -2,17 +2,21 @@
 Comprehensive tests for OptimizedNodeManager fixes.
 Tests memory validation, thread safety, and error handling.
 """
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-import pytest
 import threading
 import time
+from unittest.mock import MagicMock, patch
+
 import numpy as np
-from unittest.mock import patch, MagicMock
-from src.neural.optimized_node_manager import OptimizedNodeManager, get_optimized_node_manager
+import pytest
+
+from src.neural.optimized_node_manager import (OptimizedNodeManager,
+                                               get_optimized_node_manager)
 
 
 class TestOptimizedNodeManager:

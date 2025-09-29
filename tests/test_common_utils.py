@@ -5,19 +5,21 @@ Covers unit tests, integration tests, edge cases, error handling, performance, a
 
 import os
 import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest
 import time
 from unittest.mock import Mock
-from torch_geometric.data import Data
-import torch
 
-from src.utils.common_utils import (
-    safe_hasattr, safe_get_attr, validate_graph_structure,
-    safe_graph_access, create_safe_callback, extract_common_constants,
-    get_common_error_messages
-)
+import pytest
+import torch
+from torch_geometric.data import Data
+
+from src.utils.common_utils import (create_safe_callback,
+                                    extract_common_constants,
+                                    get_common_error_messages, safe_get_attr,
+                                    safe_graph_access, safe_hasattr,
+                                    validate_graph_structure)
 
 
 class TestSafeHasattr:

@@ -6,8 +6,8 @@ predictive analytics, and adaptive optimization of neural simulation systems.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 
 class AnalyticsMetric:

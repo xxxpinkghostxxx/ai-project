@@ -2,21 +2,24 @@
 Comprehensive tests for ConnectionLogic.
 Tests connection creation, validation, weight changes, and intelligent formation.
 """
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest
 import threading
-import numpy as np
-from unittest.mock import MagicMock, patch, MagicMock
-from torch_geometric.data import Data
-import torch
+from unittest.mock import MagicMock, patch
 
-from src.neural.connection_logic import (
-    create_weighted_connection, get_edge_attributes, apply_weight_change,
-    intelligent_connection_formation, EnhancedEdge, create_basic_connections
-)
+import numpy as np
+import pytest
+import torch
+from torch_geometric.data import Data
+
+from src.neural.connection_logic import (EnhancedEdge, apply_weight_change,
+                                         create_basic_connections,
+                                         create_weighted_connection,
+                                         get_edge_attributes,
+                                         intelligent_connection_formation)
 
 
 class TestConnectionLogic:

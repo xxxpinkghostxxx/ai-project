@@ -2,25 +2,27 @@
 Comprehensive Tests for Graph-to-ID Flow
 Tests all aspects of the graph to ID to connected modules flow.
 """
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-import unittest
 import time
-import torch
-import numpy as np
-from typing import Dict, List, Any
-
-# Import the components we're testing
-from src.energy.node_id_manager import get_id_manager, NodeIDManager
-from src.utils.graph_integrity_manager import get_graph_integrity_manager
-from src.utils.connection_validator import get_connection_validator
-from src.utils.reader_writer_lock import get_id_manager_lock
-from src.utils.graph_merger import get_graph_merger
-from src.core.services.simulation_coordinator import SimulationCoordinator
+import unittest
+from typing import Any, Dict, List
 from unittest.mock import MagicMock
+
+import numpy as np
+import torch
+
+from src.core.services.simulation_coordinator import SimulationCoordinator
+# Import the components we're testing
+from src.energy.node_id_manager import NodeIDManager, get_id_manager
+from src.utils.connection_validator import get_connection_validator
+from src.utils.graph_integrity_manager import get_graph_integrity_manager
+from src.utils.graph_merger import get_graph_merger
+from src.utils.reader_writer_lock import get_id_manager_lock
 
 
 class MockGraph:
