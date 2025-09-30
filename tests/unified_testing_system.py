@@ -5,14 +5,16 @@ into a comprehensive testing framework.
 """
 
 import gc
-import io
 import logging
 import os
 import sys
 import threading
 import time
 import timeit
-import unittest
+from collections import defaultdict
+from dataclasses import dataclass, field
+from enum import Enum
+from io import StringIO
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from unittest import mock
 from unittest.mock import MagicMock, Mock
@@ -39,11 +41,11 @@ from src.core.main_graph import initialize_main_graph
 # Local imports - Core services
 from src.core.services.simulation_coordinator import SimulationCoordinator
 # Local imports - Energy modules
-from src.energy.energy_behavior import EnergyCalculator, get_node_energy_cap
+from src.energy.energy_behavior import EnergyCalculator, apply_energy_behavior, get_node_energy_cap
 # Local imports - Learning modules
 from src.learning.learning_engine import LearningEngine
 # Local imports - Neural modules
-from src.neural.connection_logic import ConnectionConstants, EnhancedEdge
+from src.neural.connection_logic import ConnectionConstants, EnhancedEdge, create_basic_connections
 from src.neural.death_and_birth_logic import (
     analyze_memory_patterns_for_birth, birth_new_dynamic_nodes,
     get_node_birth_threshold, get_node_death_threshold, handle_node_death,
@@ -408,7 +410,6 @@ class UnifiedTestFramework:
 
     def _run_tests_sequential(self, test_cases: List[TestCase]) -> List[TestExecutionResult]:
         """Run tests sequentially."""
-        results_local = []
         results = []
         for test_case in test_cases:
             result = self._execute_test(test_case)
@@ -502,7 +503,7 @@ class UnifiedTestFramework:
 
         # Log result
         status_symbol = "[PASS]" if result_status == TestResult.PASSED else "[FAIL]"
-        print_info(f"{status_symbol} {test_case.name}: {result_status.value} ({duration:.3f}s)")
+        print_info(f"{status_symbol} {test_case.name}: {result_status.value if hasattr(result_status, 'value') else str(result_status)} ({duration:.3f}s)")
 
         if error:
             print_error(f"  Error: {error}")
@@ -1425,7 +1426,7 @@ class UnifiedTestFramework:
             bus = get_event_bus()
             event_calls = {'SPIKE': 0, 'GRAPH_UPDATE': 0}
 
-            def mock_callback(event_type, data):
+            def mock_callback(event_type, _data):
                 if event_type in event_calls:
                     event_calls[event_type] += 1
 
@@ -1472,8 +1473,8 @@ class UnifiedTestFramework:
                     total += float(i) * 0.1
                 return total
 
-            jit_time = timeit('jitted_update(1000)', globals=globals(), number=1000)
-            non_jit_time = timeit('sum(i*0.1 for i in range(1000))', number=1000)
+            jit_time = timeit.timeit('jitted_update(1000)', globals=globals(), number=1000)
+            non_jit_time = timeit.timeit('sum(i*0.1 for i in range(1000))', number=1000)
             numba_speedup = non_jit_time / jit_time > 1.5
 
             # Create mocked services for SimulationCoordinator
@@ -1574,16 +1575,16 @@ def get_test_framework() -> UnifiedTestFramework:
 def run_all_tests() -> Dict[str, Any]:
     """Run all tests and return summary."""
     framework = get_test_framework()
-    results = framework.run_tests()
-    framework.results = results  # Store results for statistics
+    test_results = framework.run_tests()
+    framework.results = test_results  # Store results for statistics
     return framework.get_test_statistics()
 
 
 def run_tests_by_category(category: TestCategory) -> Dict[str, Any]:
     """Run tests by category and return summary."""
     framework = get_test_framework()
-    results = framework.run_tests(category=category)
-    framework.results = results  # Store results for statistics
+    test_results = framework.run_tests(category=category)
+    framework.results = test_results  # Store results for statistics
     return framework.get_test_statistics()
 
 
@@ -1669,12 +1670,12 @@ def run_unified_tests() -> Dict[str, Any]:
     print("=" * 60)
 
     framework = get_test_framework()
-    results = framework.run_tests()
-    framework.results = results
+    test_results = framework.run_tests()
+    framework.results = test_results
 
     summary = framework.get_test_statistics()
 
-    print(f"\n[STATS] TEST SUMMARY")
+    print("\n[STATS] TEST SUMMARY")
     print("=" * 50)
     print(f"Total Tests: {summary['total_tests']}")
     print(f"Passed: {summary['passed_tests']}")
