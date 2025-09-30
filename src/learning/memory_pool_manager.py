@@ -9,7 +9,7 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Any, Dict, Generic, Optional, TypeVar
 
-from src.utils.unified_error_handler import ErrorSeverity
+from src.utils.unified_error_handler import ErrorSeverity, get_error_handler
 
 T = TypeVar('T')
 
@@ -25,7 +25,7 @@ class PoolStats:
 
 class ObjectPool(Generic[T]):
     """Generic object pool for efficient object reuse."""
-    
+
     def __init__(self, factory_func, max_size: int = 1000, cleanup_interval: float = 60.0):
         self.factory_func = factory_func
         self.max_size = max_size
@@ -35,7 +35,7 @@ class ObjectPool(Generic[T]):
         self.stats = PoolStats()
         self._lock = threading.RLock()
         self.last_cleanup = time.time()
-    
+
     def get_object(self) -> T:
         """Get an object from the pool or create a new one."""
         with self._lock:
@@ -45,46 +45,46 @@ class ObjectPool(Generic[T]):
             else:
                 obj = self.factory_func()
                 self.stats.creation_count += 1
-            
+
             self.in_use_objects.add(id(obj))
             self.stats.in_use_objects = len(self.in_use_objects)
             self.stats.available_objects = len(self.available_objects)
             return obj
-    
+
     def return_object(self, obj: T) -> None:
         """Return an object to the pool for reuse."""
         with self._lock:
             obj_id = id(obj)
             if obj_id in self.in_use_objects:
                 self.in_use_objects.remove(obj_id)
-                
+
                 if len(self.available_objects) < self.max_size:
                     # Reset object state if it has a reset method
                     if hasattr(obj, 'reset'):
                         obj.reset()
                     self.available_objects.append(obj)
-                
+
                 self.stats.in_use_objects = len(self.in_use_objects)
                 self.stats.available_objects = len(self.available_objects)
-    
+
     def cleanup_expired_objects(self) -> int:
         """Clean up objects that have been in the pool too long."""
         current_time = time.time()
         if current_time - self.last_cleanup < self.cleanup_interval:
             return 0
-        
+
         cleaned_count = 0
         with self._lock:
             # Remove excess objects beyond max_size
             while len(self.available_objects) > self.max_size // 2:
                 self.available_objects.popleft()
                 cleaned_count += 1
-            
+
             self.last_cleanup = current_time
             self.stats.last_cleanup = current_time
-        
+
         return cleaned_count
-    
+
     def get_stats(self) -> PoolStats:
         """Get current pool statistics."""
         with self._lock:
@@ -99,35 +99,35 @@ class ObjectPool(Generic[T]):
 
 class MemoryPoolManager:
     """Centralized memory pool manager for the simulation system."""
-    
+
     def __init__(self):
         self.pools: Dict[str, ObjectPool] = {}
         self._lock = threading.RLock()
         self.cleanup_thread = None
         self.running = False
-    
+
     def create_pool(self, name: str, factory_func, max_size: int = 1000) -> ObjectPool:
         """Create a new object pool."""
         with self._lock:
             if name in self.pools:
                 raise ValueError(f"Pool '{name}' already exists")
-            
+
             pool = ObjectPool(factory_func, max_size)
             self.pools[name] = pool
             return pool
-    
+
     def get_pool(self, name: str) -> Optional[ObjectPool]:
         """Get an existing pool by name."""
         with self._lock:
             return self.pools.get(name)
-    
+
     def get_object(self, pool_name: str) -> Any:
         """Get an object from a specific pool."""
         pool = self.get_pool(pool_name)
         if pool is None:
             raise ValueError(f"Pool '{pool_name}' not found")
         return pool.get_object()
-    
+
     def return_object(self, pool_name: str, obj: Any) -> None:
         """Return an object to a specific pool."""
         pool = self.get_pool(pool_name)
@@ -146,25 +146,24 @@ class MemoryPoolManager:
             self.running = True
             self.cleanup_thread = threading.Thread(target=self._cleanup_loop, daemon=True)
             self.cleanup_thread.start()
-    
+
     def stop_cleanup_thread(self) -> None:
         """Stop background cleanup thread."""
         self.running = False
         if self.cleanup_thread and self.cleanup_thread.is_alive():
             self.cleanup_thread.join(timeout=10.0)  # Increased timeout for safety
-    
+
     def _cleanup_loop(self) -> None:
         """Background cleanup loop."""
         while self.running:
             try:
                 self.cleanup_all_pools()
                 time.sleep(30)  # Cleanup every 30 seconds
-            except Exception as e:
-                from src.utils.unified_error_handler import get_error_handler
+            except (RuntimeError, ValueError) as e:
                 error_handler = get_error_handler()
                 error_handler.handle_error(e, "memory_pool_cleanup_loop", severity=ErrorSeverity.MEDIUM)
                 time.sleep(5)
-    
+
     def cleanup_all_pools(self) -> int:
         """Clean up all pools and return total objects cleaned."""
         total_cleaned = 0
@@ -172,12 +171,12 @@ class MemoryPoolManager:
             for pool in self.pools.values():
                 total_cleaned += pool.cleanup_expired_objects()
         return total_cleaned
-    
+
     def get_all_stats(self) -> Dict[str, PoolStats]:
         """Get statistics for all pools."""
         with self._lock:
             return {name: pool.get_stats() for name, pool in self.pools.items()}
-    
+
     def cleanup(self) -> None:
         """Clean up all pools and stop background threads."""
         self.stop_cleanup_thread()
@@ -187,23 +186,59 @@ class MemoryPoolManager:
                 pool.in_use_objects.clear()
             self.pools.clear()
 
-# Global memory pool manager instance
-_memory_pool_manager = None
+class _MemoryPoolManagerSingleton:
+    """Singleton wrapper for MemoryPoolManager to avoid global statements."""
+
+    def __init__(self):
+        self._instance = None
+        self._lock = threading.Lock()
+
+    def get_instance(self) -> MemoryPoolManager:
+        """Get the singleton MemoryPoolManager instance using thread-safe double-checked locking.
+
+        This method implements the singleton pattern with thread safety using a two-tier
+        locking mechanism. First, it checks if the instance exists without acquiring the lock
+        (optimistic check). Only if the instance doesn't exist does it acquire the lock and
+        perform the secondary null check before instantiation.
+
+        The method ensures that:
+        - Only one MemoryPoolManager instance is created across all threads
+        - The instance is automatically initialized with a background cleanup thread
+        - Multiple threads can safely call this method concurrently
+
+        Returns:
+            MemoryPoolManager: The singleton MemoryPoolManager instance, fully initialized
+                and ready for use with automatic background cleanup enabled.
+
+        Thread Safety:
+            This method is thread-safe and can be called concurrently from multiple threads.
+            The double-checked locking pattern minimizes lock contention while ensuring
+            proper synchronization during instance creation.
+        """
+        if self._instance is None:
+            with self._lock:
+                if self._instance is None:
+                    self._instance = MemoryPoolManager()
+                    self._instance.start_cleanup_thread()
+        return self._instance
+
+    def cleanup_instance(self) -> None:
+        """Clean up all memory pools."""
+        if self._instance is not None:
+            self._instance.cleanup()
+            self._instance = None
+
+# Global singleton instance
+_memory_pool_singleton = _MemoryPoolManagerSingleton()
+
 
 def get_memory_pool_manager() -> MemoryPoolManager:
     """Get the global memory pool manager instance."""
-    global _memory_pool_manager
-    if _memory_pool_manager is None:
-        _memory_pool_manager = MemoryPoolManager()
-        _memory_pool_manager.start_cleanup_thread()
-    return _memory_pool_manager
+    return _memory_pool_singleton.get_instance()
 
 def cleanup_memory_pools() -> None:
     """Clean up all memory pools."""
-    global _memory_pool_manager
-    if _memory_pool_manager is not None:
-        _memory_pool_manager.cleanup()
-        _memory_pool_manager = None
+    _memory_pool_singleton.cleanup_instance()
 
 # Convenience functions for common object types
 def create_node_pool(max_size: int = 10000) -> ObjectPool:
@@ -222,7 +257,7 @@ def create_node_pool(max_size: int = 10000) -> ObjectPool:
             'eligibility_trace': 0.0,
             'last_update': 0
         }
-    
+
     manager = get_memory_pool_manager()
     return manager.create_pool('neural_nodes', create_node, max_size)
 
@@ -240,7 +275,7 @@ def create_edge_pool(max_size: int = 50000) -> ObjectPool:
             'last_activity': 0.0,
             'activation_count': 0
         }
-    
+
     manager = get_memory_pool_manager()
     return manager.create_pool('neural_edges', create_edge, max_size)
 
@@ -255,34 +290,26 @@ def create_event_pool(max_size: int = 1000) -> ObjectPool:
             'data': {},
             'priority': 0
         }
-    
+
     manager = get_memory_pool_manager()
     return manager.create_pool('neural_events', create_event, max_size)
 
 # Context manager for automatic object return
 class PooledObject:
     """Context manager for automatic object return to pool."""
-    
+
     def __init__(self, pool_name: str, obj: Any):
         self.pool_name = pool_name
         self.obj = obj
         self.manager = get_memory_pool_manager()
-    
+
     def __enter__(self):
         return self.obj
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.manager.return_object(self.pool_name, self.obj)
-
 def get_pooled_object(pool_name: str) -> PooledObject:
     """Get a pooled object with automatic return."""
     manager = get_memory_pool_manager()
     obj = manager.get_object(pool_name)
     return PooledObject(pool_name, obj)
-
-
-
-
-
-
-

@@ -252,9 +252,6 @@ class EnergyFlowDiagram:
 def create_energy_flow_visualizations():
     """Create all energy flow visualizations."""
 
-    import matplotlib.pyplot as plt
-    import networkx as nx
-
     print("Creating Energy Flow Visualizations...")
     print("=" * 50)
 
@@ -296,7 +293,7 @@ if __name__ == "__main__":
     except ImportError as e:
         print(f"Visualization requires matplotlib and networkx: {e}")
         print("Install with: pip install matplotlib networkx")
-    except Exception as e:
+    except (AttributeError, ValueError, RuntimeError) as e:
         print(f"Error creating visualizations: {e}")
 
 

@@ -199,7 +199,7 @@ class ServiceRegistry(IServiceRegistry):
         warnings = []
 
         with self._lock:
-            for service_type, descriptor in self._services.items():
+            for service_type in self._services.keys():
                 try:
                     # Try to resolve the service to check dependencies
                     self.resolve(service_type)

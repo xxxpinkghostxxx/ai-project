@@ -34,6 +34,7 @@ def get_refractory_period() -> float:
     constants = get_system_constants()
     return constants.get('refractory_period', 0.1)
 from src.energy.energy_behavior import get_node_energy_cap
+from src.energy.node_access_layer import NodeAccessLayer
 from src.utils.statistics_utils import create_standard_stats
 
 
@@ -46,19 +47,18 @@ class BehaviorCache:
         self._enhanced_nodes_cache = None
         self._enhanced_nodes_cache_time = 0
         self._enhanced_nodes_cache_ttl = 60
-    
+
     def get_energy_cap_255(self) -> float:
         constants = get_system_constants()
         return constants.get('energy_cap_255', 255.0)
-    
+
     def get_enhanced_nodes_config_cached(self) -> Dict[str, float]:
-        import time
-        current_time = time.time()
+        current_time_val = time.time()
         if (self._enhanced_nodes_cache is not None and
-            current_time - self._enhanced_nodes_cache_time < self._enhanced_nodes_cache_ttl):
+            current_time_val - self._enhanced_nodes_cache_time < self._enhanced_nodes_cache_ttl):
             return self._enhanced_nodes_cache
         self._enhanced_nodes_cache = get_enhanced_nodes_config()
-        self._enhanced_nodes_cache_time = current_time
+        self._enhanced_nodes_cache_time = current_time_val
         return self._enhanced_nodes_cache
 
 
@@ -90,7 +90,7 @@ class BehaviorEngine:
             try:
                 self.error_handler = get_error_handler()
                 log_step("Error handler initialized in behavior engine")
-            except Exception as e:
+            except (ImportError, AttributeError, RuntimeError) as e:
                 log_step("Failed to initialize error handler", error=str(e))
                 self.error_handler = None
         self.enhanced_integration = None
@@ -98,7 +98,7 @@ class BehaviorEngine:
             try:
                 self.enhanced_integration = create_enhanced_neural_integration()
                 log_step("Enhanced neural integration initialized in behavior engine")
-            except Exception as e:
+            except (ImportError, AttributeError, RuntimeError) as e:
                 log_step("Failed to initialize enhanced neural integration", error=str(e))
                 self.enhanced_integration = None
         self.behavior_stats = create_standard_stats('behavior_engine')
@@ -115,19 +115,18 @@ class BehaviorEngine:
     def update_node_behavior(self, node_id: int, graph: Data, step: int, access_layer=None) -> bool:
         """Update behavior for a specific node with assertions for safety."""
         self._validate_node_behavior_inputs(node_id, graph, step)
-        
+
         if access_layer is None:
-            from src.energy.node_access_layer import NodeAccessLayer
             access_layer = NodeAccessLayer(graph)
-        
+
         node = access_layer.get_node_by_id(node_id)
         if node is None:
             return False
-        
+
         # Try enhanced behavior first
         if self._try_enhanced_behavior(node, graph, step, access_layer, node_id):
             return True
-        
+
         # Fall back to basic behavior
         return self._update_basic_behavior(node, graph, step, access_layer, node_id)
     
@@ -144,17 +143,17 @@ class BehaviorEngine:
         has_enhanced_behavior = node.get('enhanced_behavior', False)
         if not has_enhanced_behavior or self.enhanced_integration is None:
             return False
-        
+
         try:
             if not hasattr(self.enhanced_integration, 'node_behavior_system') or self.enhanced_integration.node_behavior_system is None:
                 log_step("Enhanced behavior system not available", node_id=node_id, step=step)
                 return False
-            
+
             enhanced_behavior = self.enhanced_integration.node_behavior_system.get_node_behavior(node_id)
             if enhanced_behavior is None:
                 log_step("Enhanced behavior not found for node", node_id=node_id, step=step)
                 return False
-            
+
             success = enhanced_behavior.update_behavior(graph, step, access_layer)
             if success:
                 self.behavior_stats['enhanced_updates'] += 1
@@ -162,14 +161,14 @@ class BehaviorEngine:
             else:
                 log_step("Enhanced behavior update failed", node_id=node_id, step=step)
                 return False
-                
+
         except AttributeError as e:
             log_step("Enhanced integration missing required attributes", error=str(e), node_id=node_id, step=step)
-        except Exception as e:
+        except (KeyError, ValueError, RuntimeError) as e:
             log_step("Error in enhanced behavior update", error=str(e), node_id=node_id, step=step)
-        
+
         return False
-    
+
     def _update_basic_behavior(self, node: Dict, graph: Data, step: int, access_layer, node_id: int) -> bool:
         """Update node using basic behavior system."""
         behavior = node.get('behavior', 'dynamic')
@@ -185,11 +184,11 @@ class BehaviorEngine:
             return self._handle_behavior_error(e, behavior, node_id, access_layer, step, "Error updating")
         except (RuntimeError, MemoryError, OSError) as e:
             return self._handle_behavior_error(e, behavior, node_id, access_layer, step, "Unexpected error updating")
-    
+
     def _handle_behavior_error(self, error: Exception, behavior: str, node_id: int, access_layer, step: int, error_type: str) -> bool:
         """Handle errors during behavior update."""
         log_step(f"{error_type} {behavior} node", error=str(error), node_id=node_id)
-        
+
         if self.error_handler is not None:
             try:
                 recovery_success = self.error_handler.handle_error(
@@ -201,9 +200,9 @@ class BehaviorEngine:
                     log_step(f"Recovered from {behavior} node error", node_id=node_id)
                     access_layer.update_node_property(node_id, 'last_update', step)
                     return True
-            except Exception as recovery_error:
+            except (AttributeError, KeyError, RuntimeError) as recovery_error:
                 log_step(f"Recovery failed for {behavior} node", error=str(recovery_error), node_id=node_id)
-        
+
         try:
             access_layer.update_node_property(node_id, 'last_update', step)
         except (AttributeError, KeyError, TypeError):
@@ -222,13 +221,12 @@ class BehaviorEngine:
                 access_layer.set_node_energy(node_id, safe_energy)
             log_step(f"Node {node_id} recovered to safe state")
             return True
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError) as e:
             log_step(f"Recovery failed for node {node_id}", error=str(e))
             return False
-    def update_sensory_node(self, node_id: int, graph: Data, step: int, access_layer=None) -> None:
+    def update_sensory_node(self, node_id: int, graph: Data, _step: int, access_layer=None) -> None:
         """Optimized sensory node update with reduced logging overhead."""
         if access_layer is None:
-            from src.energy.node_access_layer import NodeAccessLayer
             access_layer = NodeAccessLayer(graph)
 
         # Cache time step to avoid repeated function calls
@@ -248,10 +246,9 @@ class BehaviorEngine:
             access_layer.update_node_property(node_id, 'membrane_potential', membrane)
             access_layer.update_node_property(node_id, 'state', 'active')
         # Removed excessive debug logging for performance
-    def update_dynamic_node(self, node_id: int, graph: Data, step: int, access_layer=None) -> None:
+    def update_dynamic_node(self, node_id: int, graph: Data, _step: int, access_layer=None) -> None:
         """Optimized dynamic node update with cached values and reduced overhead."""
         if access_layer is None:
-            from src.energy.node_access_layer import NodeAccessLayer
             access_layer = NodeAccessLayer(graph)
 
         # Cache frequently used values
@@ -275,7 +272,6 @@ class BehaviorEngine:
     def update_oscillator_node(self, node_id: int, graph: Data, step: int, access_layer=None) -> None:
         """Optimized oscillator node update with cached values and reduced logging."""
         if access_layer is None:
-            from src.energy.node_access_layer import NodeAccessLayer
             access_layer = NodeAccessLayer(graph)
 
         # Cache frequently used values
@@ -312,7 +308,6 @@ class BehaviorEngine:
     def update_integrator_node(self, node_id: int, graph: Data, step: int, access_layer=None) -> None:
 
         if access_layer is None:
-            from src.energy.node_access_layer import NodeAccessLayer
             access_layer = NodeAccessLayer(graph)
         config = get_enhanced_nodes_config_cached()
         integration_rate = access_layer.get_node_property(node_id, 'integration_rate', 0.5)
@@ -341,7 +336,6 @@ class BehaviorEngine:
     def update_relay_node(self, node_id: int, graph: Data, step: int, access_layer=None) -> None:
 
         if access_layer is None:
-            from src.energy.node_access_layer import NodeAccessLayer
             access_layer = NodeAccessLayer(graph)
         config = get_enhanced_nodes_config_cached()
         relay_amplification = access_layer.get_node_property(node_id, 'relay_amplification', config['relay_amplification'])
@@ -367,10 +361,9 @@ class BehaviorEngine:
             state = 'pending' if membrane_potential > threshold * 0.3 else 'inactive'
             access_layer.update_node_property(node_id, 'state', state)
         access_layer.update_node_property(node_id, 'membrane_potential', min(membrane_potential, 1.0))
-    def update_highway_node(self, node_id: int, graph: Data, step: int, access_layer=None) -> None:
+    def update_highway_node(self, node_id: int, graph: Data, _step: int, access_layer=None) -> None:
 
         if access_layer is None:
-            from src.energy.node_access_layer import NodeAccessLayer
             access_layer = NodeAccessLayer(graph)
         config = get_enhanced_nodes_config_cached()
         highway_energy_boost = access_layer.get_node_property(node_id, 'highway_energy_boost', config['highway_energy_boost'])
@@ -392,10 +385,9 @@ class BehaviorEngine:
                 self.behavior_stats['highway_regulations'] += 1
             else:
                 access_layer.update_node_property(node_id, 'state', 'active')
-    def update_workspace_node(self, node_id: int, graph: Data, step: int, access_layer=None) -> None:
+    def update_workspace_node(self, node_id: int, graph: Data, _step: int, access_layer=None) -> None:
 
         if access_layer is None:
-            from src.energy.node_access_layer import NodeAccessLayer
             access_layer = NodeAccessLayer(graph)
         workspace_capacity = access_layer.get_node_property(node_id, 'workspace_capacity', 5.0)
         workspace_creativity = access_layer.get_node_property(node_id, 'workspace_creativity', 1.5)
@@ -434,7 +426,7 @@ class BehaviorEngine:
                     self.enhanced_integration.set_neuromodulator_level(neuromodulator, level)
                 else:
                     log_step("Enhanced integration missing set_neuromodulator_level method")
-            except Exception as e:
+            except (AttributeError, KeyError, ValueError) as e:
                 log_step("Error setting neuromodulator level", error=str(e))
     def get_enhanced_statistics(self) -> Dict[str, Any]:
         if self.enhanced_integration is not None:
@@ -443,7 +435,7 @@ class BehaviorEngine:
                     return self.enhanced_integration.get_integration_statistics()
                 else:
                     log_step("Enhanced integration missing get_integration_statistics method")
-            except Exception as e:
+            except (AttributeError, KeyError, RuntimeError) as e:
                 log_step("Error getting enhanced statistics", error=str(e))
         return {}
     def get_behavior_statistics(self) -> Dict[str, int]:
@@ -466,7 +458,7 @@ class BehaviorEngine:
                     self.enhanced_integration.reset_integration_statistics()
                 else:
                     log_step("Enhanced integration missing reset_integration_statistics method")
-            except Exception as e:
+            except (AttributeError, KeyError, RuntimeError) as e:
                 log_step("Error resetting enhanced statistics", error=str(e))
 
 

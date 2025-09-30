@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from torch_geometric.data import Data
 
+from src.energy.energy_behavior import get_node_energy_cap
 from src.utils.logging_utils import log_step
 
 
@@ -48,10 +49,10 @@ class LiveHebbianLearning:
             graph = self._consolidate_weights(graph, step)
             self._update_learning_statistics()
             return graph
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError, IndexError, RuntimeError) as e:
             log_step("Error applying continuous learning", error=str(e))
             return graph
-    def _update_activity_history(self, graph: Data, step: int):
+    def _update_activity_history(self, graph: Data, _step: int):
 
         try:
             current_time = time.time()
@@ -85,9 +86,9 @@ class LiveHebbianLearning:
                     activity_list = self.node_activity_history[node_id]
                     while activity_list and activity_list[0] <= cutoff_time:
                         activity_list.pop(0)
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError, IndexError) as e:
             log_step("Error updating activity history", error=str(e))
-    def _apply_stdp_learning(self, graph: Data, step: int) -> Data:
+    def _apply_stdp_learning(self, graph: Data, _step: int) -> Data:
 
         try:
             if not hasattr(graph, 'edge_index') or graph.edge_index.numel() == 0:
@@ -114,7 +115,7 @@ class LiveHebbianLearning:
                         self.learning_stats['stdp_events'] += 1
                         self.learning_stats['total_weight_changes'] += 1
             return graph
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError, IndexError) as e:
             log_step("Error applying STDP learning", error=str(e))
             return graph
     def _get_node_energy(self, node_id: int) -> float:
@@ -137,7 +138,7 @@ class LiveHebbianLearning:
                 energy_value = 0.5 + 0.4 * ((node_id * 7) % 10) / 10.0  # Range: 0.5 to 0.9
                 return min(energy_value, 4.5)  # Cap at 4.5 for energy cap of 5.0
             return 2.0  # Default fallback energy
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError, IndexError) as e:
             log_step("Error getting node energy", error=str(e))
             return 2.0  # Safe fallback
 
@@ -157,7 +158,6 @@ class LiveHebbianLearning:
             # Get energy cap for normalization
             energy_cap = 5.0  # Updated default to match new config
             try:
-                from src.energy.energy_behavior import get_node_energy_cap
                 energy_cap = get_node_energy_cap()
                 if energy_cap <= 0:
                     energy_cap = 5.0  # Fallback to new default
@@ -171,11 +171,11 @@ class LiveHebbianLearning:
 
             return modulated_rate
 
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError, ImportError) as e:
             log_step("Error calculating energy-modulated learning rate", error=str(e))
             return self.base_learning_rate
 
-    def _calculate_stdp_change(self, source_id: int, target_id: int, current_time: float) -> float:
+    def _calculate_stdp_change(self, source_id: int, target_id: int, _current_time: float) -> float:
 
         try:
             source_activity = self.node_activity_history.get(source_id, [])
@@ -202,10 +202,10 @@ class LiveHebbianLearning:
                 self.learning_stats['energy_modulated_events'] += 1
 
             return stdp_change
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError, IndexError) as e:
             log_step("Error calculating STDP change", error=str(e))
             return 0.0
-    def _update_eligibility_traces(self, graph: Data, step: int) -> Data:
+    def _update_eligibility_traces(self, graph: Data, _step: int) -> Data:
 
         try:
             if not hasattr(graph, 'edge_index') or graph.edge_index.numel() == 0:
@@ -215,14 +215,14 @@ class LiveHebbianLearning:
             if edge_attr is None:
                 return graph
             for edge_idx in range(edge_index.shape[1]):
-                source_idx = edge_index[0, edge_idx].item()
-                target_idx = edge_index[1, edge_idx].item()
+                _source_idx = edge_index[0, edge_idx].item()
+                _target_idx = edge_index[1, edge_idx].item()
                 if edge_attr.shape[1] > 1:
                     current_trace = edge_attr[edge_idx, 1].item()
                     new_trace = current_trace * self.eligibility_decay
                     edge_attr[edge_idx, 1] = new_trace
             return graph
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError, IndexError) as e:
             log_step("Error updating eligibility traces", error=str(e))
             return graph
     def _consolidate_weights(self, graph: Data, step: int) -> Data:
@@ -242,7 +242,7 @@ class LiveHebbianLearning:
                     new_weight = max(self.weight_min, min(self.weight_cap, new_weight))
                     edge_attr[edge_idx, 0] = new_weight
             return graph
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError, IndexError) as e:
             log_step("Error consolidating weights", error=str(e))
             return graph
     def _update_learning_statistics(self):
@@ -258,7 +258,7 @@ class LiveHebbianLearning:
                 elif efficiency > 70:
                     self.learning_rate = max(0.001, self.learning_rate * 0.9)
                     self.learning_stats['learning_rate_updates'] += 1
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError, ZeroDivisionError) as e:
             log_step("Error updating learning statistics", error=str(e))
     def get_learning_statistics(self) -> Dict[str, Any]:
         return self.learning_stats.copy()
@@ -313,7 +313,7 @@ if __name__ == "__main__":
         print(f"Learning parameters: {params}")
         stats = learning_system.get_learning_statistics()
         print(f"Learning statistics: {stats}")
-    except Exception as e:
+    except (AttributeError, KeyError, ValueError) as e:
         print(f"LiveHebbianLearning test failed: {e}")
     print("LiveHebbianLearning test completed!")
 

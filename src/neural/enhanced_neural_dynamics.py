@@ -92,7 +92,7 @@ class EnhancedNeuralDynamics:
         try:
             self.event_bus = get_event_bus()
         except (ImportError, AttributeError, RuntimeError) as e:
-            logging.warning(f"Failed to get event bus: {e}")
+            logging.warning("Failed to get event bus: %s", e)
             self.event_bus = None
 
         log_step("EnhancedNeuralDynamics initialized with bounds checking and thread safety")
@@ -147,7 +147,7 @@ class EnhancedNeuralDynamics:
                 logging.error("Error in neural dynamics update at step %s: %s", step, e)
                 log_step("Error in neural dynamics update", error=str(e), step=step)
                 return graph
-    def _update_membrane_dynamics(self, graph: Data, step: int) -> Data:
+    def _update_membrane_dynamics(self, graph: Data, _step: int) -> Data:
 
         access_layer = NodeAccessLayer(graph)
         current_time = time.time()
@@ -295,7 +295,7 @@ class EnhancedNeuralDynamics:
             logging.warning("Error in synaptic input calculation for node %s: %s", node_id, e)
 
         return total_input
-    def _process_spikes(self, graph: Data, step: int) -> Data:
+    def _process_spikes(self, graph: Data, _step: int) -> Data:
 
         current_time = time.time()
         for node_id, spike_times in self.spike_times.items():
@@ -326,7 +326,7 @@ class EnhancedNeuralDynamics:
         return weight_change
     
     
-    def _apply_stdp_learning(self, graph: Data, step: int) -> Data:
+    def _apply_stdp_learning(self, graph: Data, _step: int) -> Data:
 
         if not hasattr(graph, 'edge_attributes'):
             return graph
@@ -376,7 +376,7 @@ class EnhancedNeuralDynamics:
                 self.stats['stdp_events'] += 1
                 logging.info("[DYNAMICS] STDP weight update: source=%s, target=%s, change=%.4f, new_weight=%.4f", source_id, target_id, weight_change, new_weight)
         return graph
-    def _update_ieg_tagging(self, graph: Data, step: int) -> Data:
+    def _update_ieg_tagging(self, graph: Data, _step: int) -> Data:
 
         access_layer = NodeAccessLayer(graph)
         current_time = time.time()
@@ -413,7 +413,7 @@ class EnhancedNeuralDynamics:
                     self.ieg_flags[node_id] = False
                     access_layer.update_node_property(node_id, 'ieg_flag', False)
         return graph
-    def _process_theta_bursts(self, graph: Data, step: int) -> Data:
+    def _process_theta_bursts(self, graph: Data, _step: int) -> Data:
 
         if not hasattr(graph, 'edge_attributes'):
             return graph
@@ -433,7 +433,7 @@ class EnhancedNeuralDynamics:
                 log_step("Connection tagged for LTP",
                         source_id=node_id,
                         target_id=edge.target)
-    def _update_eligibility_traces(self, graph: Data, step: int) -> Data:
+    def _update_eligibility_traces(self, graph: Data, _step: int) -> Data:
 
         if not hasattr(graph, 'edge_attributes'):
             return graph
@@ -441,7 +441,7 @@ class EnhancedNeuralDynamics:
             edge.eligibility_trace *= self.eligibility_tau / (self.eligibility_tau + 1.0)
             edge.eligibility_trace = max(0.0, edge.eligibility_trace)
         return graph
-    def _apply_memory_consolidation(self, graph: Data, step: int) -> Data:
+    def _apply_memory_consolidation(self, graph: Data, _step: int) -> Data:
 
         if not hasattr(graph, 'edge_attributes'):
             return graph
@@ -606,7 +606,7 @@ class EnhancedNeuralDynamics:
 
             self.neuromodulators[neuromodulator] = level
             log_step(f"Neuromodulator {neuromodulator} set to {level}")
-    def _update_neuromodulation(self, step: int):
+    def _update_neuromodulation(self, _step: int):
         self.dopamine_level *= self.neuromodulator_decay
         self.acetylcholine_level *= self.neuromodulator_decay
         self.norepinephrine_level *= self.neuromodulator_decay

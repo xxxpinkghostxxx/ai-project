@@ -8,12 +8,11 @@ for the EnergyFlowDiagram class, covering diagram creation, visualization, and a
 import os
 import tempfile
 import unittest
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import matplotlib
 
 matplotlib.use('Agg')  # Use non-interactive backend for testing
-import matplotlib.pyplot as plt
 
 from src.energy.energy_flow_diagram import (EnergyFlowDiagram,
                                             create_energy_flow_visualizations)

@@ -12,7 +12,6 @@ import gc
 import time
 from unittest.mock import MagicMock, patch
 
-import numpy as np
 import psutil
 import pytest
 import torch

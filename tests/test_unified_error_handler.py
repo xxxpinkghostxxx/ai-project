@@ -10,17 +10,16 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import threading
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-from src.utils.unified_error_handler import (ErrorCategory, ErrorSeverity,
-                                             UnifiedErrorHandler,
-                                             get_error_handler,
-                                             safe_callback_execution,
-                                             safe_execute,
-                                             safe_initialize_component,
-                                             safe_process_step)
+from src.utils.unified_error_handler import (UnifiedErrorHandler,
+                                              get_error_handler,
+                                              safe_callback_execution,
+                                              safe_execute,
+                                              safe_initialize_component,
+                                              safe_process_step)
 
 
 class TestUnifiedErrorHandler:

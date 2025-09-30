@@ -6,6 +6,7 @@ orchestrating all neural simulation services while maintaining clean
 separation of concerns and energy-based processing as the central integrator.
 """
 
+import json
 import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -13,16 +14,19 @@ from typing import Any, Dict, List, Optional
 from torch_geometric.data import Data
 
 from ..interfaces.configuration_service import IConfigurationService
-from ..interfaces.energy_manager import EnergyFlow, IEnergyManager
+from ..interfaces.energy_manager import IEnergyManager
 from ..interfaces.event_coordinator import IEventCoordinator
 from ..interfaces.graph_manager import IGraphManager
-from ..interfaces.learning_engine import ILearningEngine, PlasticityEvent
-from ..interfaces.neural_processor import INeuralProcessor, SpikeEvent
+from ..interfaces.learning_engine import ILearningEngine
+from ..interfaces.neural_processor import INeuralProcessor
 from ..interfaces.performance_monitor import IPerformanceMonitor
 from ..interfaces.sensory_processor import ISensoryProcessor
 from ..interfaces.service_registry import IServiceRegistry
 from ..interfaces.simulation_coordinator import (ISimulationCoordinator,
-                                                 SimulationState)
+                                                  SimulationState)
+
+# Import NodeAccessLayer for node access functionality
+from ...energy.node_access_layer import NodeAccessLayer
 
 
 class SimulationCoordinator(ISimulationCoordinator):
@@ -137,7 +141,7 @@ class SimulationCoordinator(ISimulationCoordinator):
 
             return True
 
-        except Exception as e:
+        except (AttributeError, ValueError, TypeError, RuntimeError) as e:
             print(f"Simulation initialization failed: {e}")
             self.event_coordinator.publish("simulation_initialization_failed", {
                 "error": str(e),
@@ -158,7 +162,7 @@ class SimulationCoordinator(ISimulationCoordinator):
                 "timestamp": datetime.now().isoformat()
             })
             return True
-        except Exception as e:
+        except (AttributeError, ValueError, TypeError, RuntimeError) as e:
             print(f"Failed to start simulation: {e}")
             return False
 
@@ -171,7 +175,7 @@ class SimulationCoordinator(ISimulationCoordinator):
                 "final_step_count": self._simulation_state.step_count
             })
             return True
-        except Exception as e:
+        except (AttributeError, ValueError, TypeError, RuntimeError) as e:
             print(f"Failed to stop simulation: {e}")
             return False
 
@@ -195,7 +199,7 @@ class SimulationCoordinator(ISimulationCoordinator):
                 "timestamp": datetime.now().isoformat()
             })
             return True
-        except Exception as e:
+        except (AttributeError, ValueError, TypeError, RuntimeError) as e:
             print(f"Failed to reset simulation: {e}")
             return False
 
@@ -221,7 +225,7 @@ class SimulationCoordinator(ISimulationCoordinator):
         try:
             # Core simulation logic
             graph = self._neural_graph
-            
+
             # 1. Process sensory input
             self.sensory_processor.process_sensory_input(graph)
 
@@ -231,9 +235,9 @@ class SimulationCoordinator(ISimulationCoordinator):
 
             # 3. Neural Dynamics (including energy)
             graph, spike_events = self.neural_processor.process_neural_dynamics(graph)
-            
+
             # 4. Energy Management
-            graph, energy_flows = self.energy_manager.update_energy_flows(graph, spike_events)
+            graph = self.energy_manager.update_energy_flows(graph, spike_events)
 
             # 5. Learning and Plasticity
             graph, plasticity_events = self.learning_engine.apply_plasticity(graph, spike_events)
@@ -251,13 +255,13 @@ class SimulationCoordinator(ISimulationCoordinator):
 
             # Finalize graph state
             self._neural_graph = graph
-            
+
             # Update state and metrics
             step_duration = time.time() - step_start_time
             self._step_times.append(step_duration)
             self._simulation_state.step_count = step
             self._simulation_state.last_step_time = step_duration
-            
+
             self.performance_monitor.record_step_end()
             self.performance_monitor.record_step_start() # for the next step
 
@@ -270,7 +274,7 @@ class SimulationCoordinator(ISimulationCoordinator):
 
             return True
 
-        except Exception as e:
+        except (AttributeError, ValueError, TypeError, RuntimeError) as e:
             print(f"Simulation step {step} failed: {e}")
             self.event_coordinator.publish("simulation_step_failed", {
                 "step": step,
@@ -304,7 +308,6 @@ class SimulationCoordinator(ISimulationCoordinator):
         """Get the node access layer instance for the current neural graph."""
         if self._neural_graph is None:
             return None
-        from src.energy.node_access_layer import NodeAccessLayer
         return NodeAccessLayer(self._neural_graph)
 
     def update_configuration(self, config_updates: Dict[str, Any]) -> bool:
@@ -313,7 +316,7 @@ class SimulationCoordinator(ISimulationCoordinator):
             for key, value in config_updates.items():
                 self.configuration_service.set_parameter(key, value)
             return True
-        except Exception as e:
+        except (AttributeError, ValueError, TypeError, RuntimeError) as e:
             print(f"Configuration update failed: {e}")
             return False
 
@@ -383,12 +386,11 @@ class SimulationCoordinator(ISimulationCoordinator):
                 self.graph_manager.save_graph(self._neural_graph, filepath + ".graph")
 
             # Save state data
-            import json
-            with open(filepath + ".state", 'w') as f:
+            with open(filepath + ".state", 'w', encoding='utf-8') as f:
                 json.dump(state_data, f, indent=2, default=str)
 
             return True
-        except Exception as e:
+        except (IOError, OSError, ValueError, TypeError, AttributeError) as e:
             print(f"Failed to save simulation state: {e}")
             return False
 
@@ -396,9 +398,8 @@ class SimulationCoordinator(ISimulationCoordinator):
         """Load simulation state from file."""
         try:
             # Load state data
-            import json
-            with open(filepath + ".state", 'r') as f:
-                state_data = json.load(f)
+            with open(filepath + ".state", 'r', encoding='utf-8') as f:
+                json.load(f)
 
             # Load graph
             self._neural_graph = self.graph_manager.load_graph(filepath + ".graph")
@@ -408,7 +409,7 @@ class SimulationCoordinator(ISimulationCoordinator):
             # Note: Full state restoration would require more complex implementation
 
             return True
-        except Exception as e:
+        except (IOError, OSError, ValueError, TypeError, AttributeError, json.JSONDecodeError) as e:
             print(f"Failed to load simulation state: {e}")
             return False
 
@@ -430,7 +431,7 @@ class SimulationCoordinator(ISimulationCoordinator):
         try:
             filepath = f"data/neural_maps/neural_map_slot_{slot}"
             return self.save_simulation_state(filepath)
-        except Exception as e:
+        except (AttributeError, ValueError, TypeError, RuntimeError) as e:
             print(f"Failed to save neural map to slot {slot}: {e}")
             return False
 
@@ -439,7 +440,7 @@ class SimulationCoordinator(ISimulationCoordinator):
         try:
             filepath = f"data/neural_maps/neural_map_slot_{slot}"
             return self.load_simulation_state(filepath)
-        except Exception as e:
+        except (AttributeError, ValueError, TypeError, RuntimeError) as e:
             print(f"Failed to load neural map from slot {slot}: {e}")
             return False
 
@@ -472,11 +473,7 @@ class SimulationCoordinator(ISimulationCoordinator):
             self._neural_graph = None
             self._step_times.clear()
             self._last_step_start_time = 0.0
-        except Exception as e:
+        except (AttributeError, ValueError, TypeError, RuntimeError) as e:
             print(f"Cleanup failed: {e}")
-
-
-
-
 
 

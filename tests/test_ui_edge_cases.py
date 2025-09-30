@@ -8,7 +8,7 @@ import sys
 import threading
 import time
 import unittest
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -44,7 +44,6 @@ sys.modules['numba'] = numba_mock
 
 import dearpygui.dearpygui as dpg
 import numpy as np
-from torch_geometric.data import Data
 
 from src.ui.screen_graph import *
 from src.ui.ui_engine import *

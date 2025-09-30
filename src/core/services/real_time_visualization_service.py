@@ -334,7 +334,7 @@ class RealTimeVisualizationService(IRealTimeVisualization):
 
             elif format_type == "image":
                 # Create a simple text-based representation (placeholder for actual image)
-                snapshot_text = f"Neural Simulation Visualization Snapshot\n"
+                snapshot_text = "Neural Simulation Visualization Snapshot\n"
                 snapshot_text += f"Timestamp: {frame_data.get('timestamp', 'N/A')}\n"
                 snapshot_text += f"Layers: {len(frame_data.get('layers', {}))}\n"
                 snapshot_text += f"Camera: {frame_data.get('camera', {}).get('position', 'N/A')}\n"
@@ -499,12 +499,12 @@ class RealTimeVisualizationService(IRealTimeVisualization):
                     }
 
             # Write to file
-            with open(export_path, 'w') as f:
+            with open(export_path, 'w', encoding='utf-8') as f:
                 if export_format == "json":
                     json.dump(export_data, f, indent=2, default=str)
                 else:
                     # Plain text format
-                    f.write(f"Visualization Data Export\n")
+                    f.write("Visualization Data Export\n")
                     f.write(f"Timestamp: {export_data['export_timestamp']}\n")
                     f.write(f"Layers: {len(export_data['layers'])}\n")
                     for layer_id, layer_data in export_data['layers'].items():

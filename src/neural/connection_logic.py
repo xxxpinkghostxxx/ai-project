@@ -162,7 +162,7 @@ def create_weighted_connection(graph, source_id, target_id, weight, edge_type='e
 
         return graph
 
-    except Exception as e:
+    except (AttributeError, ValueError, TypeError, RuntimeError) as e:
         logging.error("Error creating validated connection between %s and %s: %s", source_id, target_id, e)
         return graph
 
@@ -219,7 +219,7 @@ def apply_weight_change(graph, edge_idx, weight_change):
                     edge.activation_count += 1
                     if abs(weight_change) > 0.1:
                         logging.debug("Edge %s weight changed from %.3f to %.3f", edge_idx, old_weight, new_weight)
-    except Exception as e:
+    except (AttributeError, ValueError, TypeError, RuntimeError, IndexError) as e:
         log_step("Error applying weight change", error=str(e), edge_idx=edge_idx)
     return graph
 
@@ -237,9 +237,6 @@ def create_basic_connections(graph, id_manager=None):
     """
     if not hasattr(graph, "node_labels") or not hasattr(graph, "x"):
         return graph
-    import random
-
-    import torch
     if id_manager is None:
         id_manager = get_id_manager()
     num_nodes = len(graph.node_labels)
@@ -280,8 +277,6 @@ def intelligent_connection_formation(graph):
     max_connections = min(50, max(10, num_nodes // 100))
     sensory_sample_size = min(10, max(5, num_nodes // 100))
     dynamic_sample_size = min(20, max(10, num_nodes // 50))
-
-    import random
     all_indices = list(range(num_nodes))
     random.shuffle(all_indices)
     sensory_nodes = []
@@ -461,7 +456,6 @@ def intelligent_connection_formation(graph):
                         # Log validation failures
                         for error in validation_result['errors']:
                             logging.warning("Relay-highway connection validation failed: %s", error)
-    import random
     num_random_connections = min(10, num_nodes // 5)
     for _ in range(num_random_connections):
         source_idx = random.randint(0, num_nodes - 1)

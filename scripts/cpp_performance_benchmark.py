@@ -14,6 +14,8 @@ import numpy as np
 import psutil
 from torch_geometric.data import Data
 
+from src.neural.enhanced_neural_dynamics import EnhancedNeuralDynamics
+
 # Import components to benchmark
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
@@ -23,8 +25,6 @@ try:
 except ImportError:
     CPP_EXTENSIONS_AVAILABLE = False
     print("C++ extensions not available, using fallback")
-
-from src.neural.enhanced_neural_dynamics import EnhancedNeuralDynamics
 
 
 class PerformanceBenchmark:
@@ -181,13 +181,13 @@ class PerformanceBenchmark:
             "timestamp": time.time()
         }
 
-    def _generate_summary(self, results: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _generate_summary(self, benchmark_results: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Generate performance summary."""
         summary = {}
 
         # Group by test type
         test_groups = {}
-        for result in results:
+        for result in benchmark_results:
             test_type = result["test"]
             if test_type not in test_groups:
                 test_groups[test_type] = []
@@ -278,6 +278,30 @@ class MockEdge:
         """
         return self.weight
 
+    def get_source(self) -> int:
+        """Get the source node ID of the edge.
+
+        Returns:
+            int: The source node identifier.
+        """
+        return self.source
+
+    def get_target(self) -> int:
+        """Get the target node ID of the edge.
+
+        Returns:
+            int: The target node identifier.
+        """
+        return self.target
+
+    def get_edge_type(self) -> str:
+        """Get the type of the edge.
+
+        Returns:
+            str: The edge type ('excitatory' or 'inhibitory').
+        """
+        return self.type
+
 
 def run_benchmark():
     """Run the performance benchmark."""
@@ -287,4 +311,3 @@ def run_benchmark():
     return benchmark_results
 if __name__ == "__main__":
     results = run_benchmark()
-

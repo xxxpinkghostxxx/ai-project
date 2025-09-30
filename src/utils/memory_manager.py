@@ -45,7 +45,7 @@ class MemoryMonitor:
 
             return stats
 
-        except Exception as e:
+        except (psutil.Error, OSError, AttributeError) as e:
             log_step("Error getting memory usage", error=str(e))
             return {'error': str(e)}
 
@@ -184,14 +184,14 @@ class MemoryOptimizer:
                                     if attr.startswith('_cache') or attr.startswith('_temp'):
                                         try:
                                             delattr(value, attr)
-                                        except:
+                                        except (AttributeError, KeyError):
                                             pass
 
                         for key in keys_to_remove:
                             try:
                                 del node[key]
                                 memory_saved += 0.05  # Estimate memory saved
-                            except:
+                            except (AttributeError, KeyError):
                                 pass
 
             # Optimize tensor memory
@@ -270,7 +270,7 @@ class MemoryManager:
                 try:
                     result = callback()
                     cleanup_results.append(result)
-                except Exception as e:
+                except (TypeError, AttributeError, RuntimeError) as e:
                     log_step("Cleanup callback failed", error=str(e))
 
         if cleanup_results:
@@ -287,7 +287,7 @@ class MemoryManager:
                     try:
                         result = handler(memory_status)
                         pressure_results.append(result)
-                    except Exception as e:
+                    except (TypeError, AttributeError, RuntimeError) as e:
                         log_step("Memory pressure handler failed", error=str(e))
 
             if pressure_results:
@@ -349,19 +349,27 @@ class MemoryManager:
         }
 
 
-# Global instance
-_memory_manager_instance = None
-_memory_manager_lock = threading.Lock()
+class _MemoryManagerSingleton:
+    """Singleton wrapper for MemoryManager to avoid global statements."""
+
+    def __init__(self):
+        self._instance = None
+        self._lock = threading.Lock()
+
+    def get_instance(self) -> MemoryManager:
+        if self._instance is None:
+            with self._lock:
+                if self._instance is None:
+                    self._instance = MemoryManager()
+        return self._instance
+
+# Global singleton instance
+_memory_manager_singleton = _MemoryManagerSingleton()
 
 
 def get_memory_manager() -> MemoryManager:
     """Get the global memory manager instance."""
-    global _memory_manager_instance
-    if _memory_manager_instance is None:
-        with _memory_manager_lock:
-            if _memory_manager_instance is None:
-                _memory_manager_instance = MemoryManager()
-    return _memory_manager_instance
+    return _memory_manager_singleton.get_instance()
 
 
 def force_memory_cleanup():

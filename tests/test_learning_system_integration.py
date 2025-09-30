@@ -12,7 +12,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import time
 from unittest.mock import MagicMock, Mock, patch
 
-import numpy as np
 import pytest
 import torch
 from torch_geometric.data import Data

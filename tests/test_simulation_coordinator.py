@@ -5,16 +5,13 @@ This module contains unit tests, integration tests, edge cases, and performance 
 for the SimulationCoordinator class, covering all aspects of simulation orchestration.
 """
 import os
+import psutil
 import sys
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-
-
 import time
 import unittest
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
-import torch
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from torch_geometric.data import Data
 
 from src.core.interfaces.configuration_service import IConfigurationService
@@ -27,8 +24,7 @@ from src.core.interfaces.neural_processor import INeuralProcessor, SpikeEvent
 from src.core.interfaces.performance_monitor import IPerformanceMonitor
 from src.core.interfaces.sensory_processor import ISensoryProcessor
 from src.core.interfaces.service_registry import IServiceRegistry
-from src.core.interfaces.simulation_coordinator import (ISimulationCoordinator,
-                                                        SimulationState)
+from src.core.interfaces.simulation_coordinator import SimulationState
 from src.core.services.simulation_coordinator import SimulationCoordinator
 
 
@@ -618,9 +614,6 @@ class TestSimulationCoordinatorPerformance(unittest.TestCase):
 
     def test_memory_usage_during_simulation(self):
         """Test memory usage patterns during simulation."""
-        import os
-
-        import psutil
 
         process = psutil.Process(os.getpid())
         initial_memory = process.memory_info().rss / 1024 / 1024  # MB

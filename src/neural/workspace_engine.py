@@ -41,7 +41,7 @@ class WorkspaceEngine:
                 'workspace_nodes_updated': len(workspace_nodes),
                 'step': step
             }
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError, IndexError) as e:
             log_step("Error updating workspace nodes", error=str(e))
             return {'status': 'error', 'error': str(e)}
 
@@ -73,7 +73,7 @@ class WorkspaceEngine:
                 node['state'] = 'active'
             
             node['last_update'] = step
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError) as e:
             log_step("Error updating workspace node", error=str(e))
         return None
 
@@ -88,7 +88,7 @@ class WorkspaceEngine:
                 used_capacity = sum(node.get('workspace_capacity', 0) for node in workspace_nodes 
                                   if node.get('state') in ['synthesizing', 'planning', 'imagining'])
                 self.workspace_stats['workspace_utilization'] = used_capacity / total_capacity if total_capacity > 0 else 0.0
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError, ZeroDivisionError) as e:
             log_step("Error updating workspace statistics", error=str(e))
 
     def create_workspace_node(self, node_id: int, step: int) -> Dict[str, Any]:
@@ -111,7 +111,7 @@ class WorkspaceEngine:
             }
             log_step("Workspace node created", node_id=node_id)
             return workspace_node
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError) as e:
             log_step("Error creating workspace node", error=str(e))
             return {}
 
@@ -143,7 +143,7 @@ if __name__ == "__main__":
         engine = create_workspace_engine()
         metrics = engine.get_workspace_metrics()
         print(f"Workspace metrics: {metrics}")
-    except Exception as e:
+    except (AttributeError, KeyError, ValueError) as e:
         print(f"WorkspaceEngine test failed: {e}")
     print("WorkspaceEngine test completed!")
 

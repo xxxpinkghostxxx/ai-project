@@ -16,7 +16,6 @@ import pytest
 import torch
 from torch_geometric.data import Data
 
-from src.core.services.simulation_coordinator import SimulationCoordinator
 from src.learning.homeostasis_controller import HomeostasisController
 from src.learning.learning_engine import LearningEngine
 from src.learning.live_hebbian_learning import LiveHebbianLearning

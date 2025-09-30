@@ -5,6 +5,8 @@
 from config.unified_config_manager import (get_enhanced_nodes_config,
                                            get_learning_config)
 
+from src.energy.energy_behavior import get_node_energy_cap
+
 
 class EnergyConstants:
     TIME_STEP = 0.01
@@ -47,7 +49,7 @@ class EnergyConstants:
             if not isinstance(value, (int, float)) or value < 0 or value > 1:
                 return cls.ACTIVATION_THRESHOLD_DEFAULT
             return value
-        except Exception:
+        except (KeyError, TypeError, ValueError, AttributeError):
             return cls.ACTIVATION_THRESHOLD_DEFAULT
     @classmethod
     def get_refractory_period(cls) -> float:
@@ -59,7 +61,7 @@ class EnergyConstants:
             if not isinstance(value, (int, float)) or value <= 0:
                 return cls.REFRACTORY_PERIOD_LONG
             return value
-        except Exception:
+        except (KeyError, TypeError, ValueError, AttributeError):
             return cls.REFRACTORY_PERIOD_LONG
     @classmethod
     def get_integration_rate(cls) -> float:
@@ -71,7 +73,7 @@ class EnergyConstants:
             if not isinstance(value, (int, float)) or value < 0 or value > 1:
                 return cls.INTEGRATION_RATE_DEFAULT
             return value
-        except Exception:
+        except (KeyError, TypeError, ValueError, AttributeError):
             return cls.INTEGRATION_RATE_DEFAULT
     @classmethod
     def get_relay_amplification(cls) -> float:
@@ -83,7 +85,7 @@ class EnergyConstants:
             if not isinstance(value, (int, float)) or value < 1:
                 return cls.RELAY_AMPLIFICATION_DEFAULT
             return value
-        except Exception:
+        except (KeyError, TypeError, ValueError, AttributeError):
             return cls.RELAY_AMPLIFICATION_DEFAULT
     @classmethod
     def get_highway_energy_boost(cls) -> float:
@@ -95,7 +97,7 @@ class EnergyConstants:
             if not isinstance(value, (int, float)) or value < 1:
                 return cls.HIGHWAY_ENERGY_BOOST_DEFAULT
             return value
-        except Exception:
+        except (KeyError, TypeError, ValueError, AttributeError):
             return cls.HIGHWAY_ENERGY_BOOST_DEFAULT
     @classmethod
     def get_decay_rate(cls) -> float:
@@ -107,7 +109,7 @@ class EnergyConstants:
             if not isinstance(value, (int, float)) or value < 0 or value > 1:
                 return cls.DECAY_RATE_DEFAULT
             return value
-        except Exception:
+        except (KeyError, TypeError, ValueError, AttributeError):
             return cls.DECAY_RATE_DEFAULT
     @classmethod
     def get_plasticity_threshold(cls) -> float:
@@ -119,11 +121,10 @@ class EnergyConstants:
             if not isinstance(value, (int, float)) or value < 0 or value > 1:
                 return cls.PLASTICITY_THRESHOLD_DEFAULT
             return value
-        except Exception:
+        except (KeyError, TypeError, ValueError, AttributeError):
             return cls.PLASTICITY_THRESHOLD_DEFAULT
     @classmethod
     def get_dynamic_energy_threshold(cls) -> float:
-        from src.energy.energy_behavior import get_node_energy_cap
         return cls.DYNAMIC_ENERGY_THRESHOLD_FRACTION * get_node_energy_cap()
 
 
@@ -160,7 +161,7 @@ class OscillatorConstants:
             if not isinstance(value, (int, float)) or value <= 0:
                 return cls.OSCILLATION_FREQUENCY_DEFAULT
             return value
-        except Exception:
+        except (KeyError, TypeError, ValueError, AttributeError):
             return cls.OSCILLATION_FREQUENCY_DEFAULT
 
 
@@ -177,7 +178,7 @@ class IntegratorConstants:
             if not isinstance(value, (int, float)) or value < 0 or value > 1:
                 return cls.INTEGRATION_RATE_DEFAULT
             return value
-        except Exception:
+        except (KeyError, TypeError, ValueError, AttributeError):
             return cls.INTEGRATION_RATE_DEFAULT
     @classmethod
     def get_integrator_threshold(cls) -> float:
@@ -189,7 +190,7 @@ class IntegratorConstants:
             if not isinstance(value, (int, float)) or value < 0 or value > 1:
                 return cls.INTEGRATOR_THRESHOLD_DEFAULT
             return value
-        except Exception:
+        except (KeyError, TypeError, ValueError, AttributeError):
             return cls.INTEGRATOR_THRESHOLD_DEFAULT
 
 
@@ -206,7 +207,7 @@ class RelayConstants:
             if not isinstance(value, (int, float)) or value < 1:
                 return cls.RELAY_AMPLIFICATION_DEFAULT
             return value
-        except Exception:
+        except (KeyError, TypeError, ValueError, AttributeError):
             return cls.RELAY_AMPLIFICATION_DEFAULT
 
 
@@ -225,7 +226,7 @@ class HighwayConstants:
             if not isinstance(value, (int, float)) or value < 1:
                 return cls.HIGHWAY_ENERGY_BOOST_DEFAULT
             return value
-        except Exception:
+        except (KeyError, TypeError, ValueError, AttributeError):
             return cls.HIGHWAY_ENERGY_BOOST_DEFAULT
 
 

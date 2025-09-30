@@ -15,8 +15,6 @@ import pytest
 import torch
 from torch_geometric.data import Data
 
-from src.energy.energy_behavior import get_node_energy_cap
-from src.energy.node_access_layer import NodeAccessLayer
 from src.neural.behavior_engine import BehaviorEngine
 from src.neural.connection_logic import (create_weighted_connection,
                                          intelligent_connection_formation)

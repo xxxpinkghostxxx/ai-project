@@ -111,7 +111,7 @@ class EventProcessor:
             else:
                 log_step(f"No handler for event type: {event.event_type}")
                 return False
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError, RuntimeError) as e:
             log_step(f"Error processing event {event.event_type}: {e}")
             return False
     def _handle_spike_event(self, event: NeuralEvent) -> bool:
@@ -130,7 +130,7 @@ class EventProcessor:
             self._trigger_synaptic_transmission_events(event.source_node_id, event.timestamp)
             self._trigger_plasticity_events(event.source_node_id, event.timestamp)
             return True
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError) as e:
             log_step(f"Error handling spike event: {e}")
             return False
     def _handle_synaptic_transmission(self, event: NeuralEvent) -> bool:
@@ -157,7 +157,7 @@ class EventProcessor:
                     )
                     self.simulation_manager.event_queue.push(spike_event)
             return True
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError) as e:
             log_step(f"Error handling synaptic transmission: {e}")
             return False
     def _handle_plasticity_update(self, event: NeuralEvent) -> bool:
@@ -169,20 +169,20 @@ class EventProcessor:
                     event.source_node_id, event.target_node_id, None, event.data.get('delta_t', 0.0)
                 )
             return True
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError) as e:
             log_step(f"Error handling plasticity update: {e}")
             return False
-    def _handle_memory_formation(self, event: NeuralEvent) -> bool:
+    def _handle_memory_formation(self, _event: NeuralEvent) -> bool:
         try:
             if not self.simulation_manager:
                 return False
             if hasattr(self.simulation_manager, 'memory_system'):
                 self.simulation_manager.memory_system.form_memory_traces(self.simulation_manager.graph)
             return True
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError) as e:
             log_step(f"Error handling memory formation: {e}")
             return False
-    def _handle_homeostatic_regulation(self, event: NeuralEvent) -> bool:
+    def _handle_homeostatic_regulation(self, _event: NeuralEvent) -> bool:
         try:
             if not self.simulation_manager:
                 return False
@@ -191,22 +191,22 @@ class EventProcessor:
                     self.simulation_manager.graph
                 )
             return True
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError) as e:
             log_step(f"Error handling homeostatic regulation: {e}")
             return False
     def _handle_node_birth(self, event: NeuralEvent) -> bool:
         try:
             if not self.simulation_manager:
                 return False
-            birth_params = event.data or {}
+            _birth_params = event.data or {}
             self.simulation_manager.graph = self.simulation_manager.birth_new_dynamic_nodes(
                 self.simulation_manager.graph
             )
             return True
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError) as e:
             log_step(f"Error handling node birth: {e}")
             return False
-    def _handle_node_death(self, event: NeuralEvent) -> bool:
+    def _handle_node_death(self, _event: NeuralEvent) -> bool:
         try:
             if not self.simulation_manager:
                 return False
@@ -214,7 +214,7 @@ class EventProcessor:
                 self.simulation_manager.graph
             )
             return True
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError) as e:
             log_step(f"Error handling node death: {e}")
             return False
     def _handle_energy_transfer(self, event: NeuralEvent) -> bool:
@@ -232,17 +232,17 @@ class EventProcessor:
             access_layer.set_node_energy(event.source_node_id, new_source_energy)
             access_layer.set_node_energy(event.target_node_id, new_target_energy)
             return True
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError) as e:
             log_step(f"Error handling energy transfer: {e}")
             return False
-    def _handle_theta_burst(self, event: NeuralEvent) -> bool:
+    def _handle_theta_burst(self, _event: NeuralEvent) -> bool:
         try:
             if not self.simulation_manager:
                 return False
             if hasattr(self.simulation_manager, 'enhanced_integration'):
                 pass
             return True
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError) as e:
             log_step(f"Error handling theta burst: {e}")
             return False
     def _handle_ieg_tagging(self, event: NeuralEvent) -> bool:
@@ -254,7 +254,7 @@ class EventProcessor:
                 access_layer.update_node_property(event.source_node_id, 'IEG_flag', True)
                 access_layer.update_node_property(event.source_node_id, 'IEG_timestamp', event.timestamp)
             return True
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError) as e:
             log_step(f"Error handling IEG tagging: {e}")
             return False
     def _trigger_synaptic_transmission_events(self, source_node_id: int, timestamp: float):
@@ -270,7 +270,7 @@ class EventProcessor:
                 priority=2
             )
             self.simulation_manager.event_queue.push(transmission_event)
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError) as e:
             log_step(f"Error triggering synaptic transmission events: {e}")
     def _trigger_plasticity_events(self, source_node_id: int, timestamp: float):
         try:
@@ -284,7 +284,7 @@ class EventProcessor:
                 priority=3
             )
             self.simulation_manager.event_queue.push(plasticity_event)
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError) as e:
             log_step(f"Error triggering plasticity events: {e}")
     def get_statistics(self) -> Dict[str, Any]:
         return self.stats.copy()
@@ -322,25 +322,25 @@ class EventDrivenSystem:
     def process_events(self, max_events: int = None) -> int:
         if max_events is None:
             max_events = self.max_events_per_step
-        events_processed = 0
+        events_processed_count = 0
         start_time = time.time()
-        while events_processed < max_events and self.running:
+        while events_processed_count < max_events and self.running:
             event = self.event_queue.pop()
             if not event:
                 break
             if self.event_processor.process_event(event):
-                events_processed += 1
+                events_processed_count += 1
                 self.stats['total_events_processed'] += 1
             self.current_time = max(self.current_time, event.timestamp)
         processing_time = time.time() - start_time
         self.stats['simulation_time'] += processing_time
         if processing_time > 0:
-            self.stats['events_per_second'] = events_processed / processing_time
+            self.stats['events_per_second'] = events_processed_count / processing_time
         queue_size = self.event_queue.size()
         self.stats['queue_size_history'].append(queue_size)
         if len(self.stats['queue_size_history']) > 1000:
             self.stats['queue_size_history'] = self.stats['queue_size_history'][-1000:]
-        return events_processed
+        return events_processed_count
     def schedule_event(self, event: NeuralEvent):
         self.event_queue.push(event)
     def schedule_spike(self, node_id: int, timestamp: float = None, priority: int = 1):
@@ -366,10 +366,10 @@ class EventDrivenSystem:
         )
         self.schedule_event(transfer_event)
     def get_statistics(self) -> Dict[str, Any]:
-        stats = self.stats.copy()
-        stats['queue_size'] = self.event_queue.size()
-        stats['processor_stats'] = self.event_processor.get_statistics()
-        return stats
+        system_stats = self.stats.copy()
+        system_stats['queue_size'] = self.event_queue.size()
+        system_stats['processor_stats'] = self.event_processor.get_statistics()
+        return system_stats
     def reset_statistics(self):
         self.stats = {
             'total_events_processed': 0,
@@ -399,7 +399,7 @@ if __name__ == "__main__":
         print(f"Processed {events_processed} events")
         stats = system.get_statistics()
         print(f"System statistics: {stats}")
-    except Exception as e:
+    except (AttributeError, KeyError, ValueError) as e:
         print(f"Event-driven system test failed: {e}")
     print("Event-driven system test completed!")
 

@@ -3,6 +3,7 @@ Consolidated constants to reduce string duplication across the codebase.
 """
 
 import logging
+from config.unified_config_manager import get_config_manager
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -191,7 +192,6 @@ DEFAULT_VALUES = {
 def load_constants_from_config():
     """Load constants from configuration file."""
     try:
-        from config.unified_config_manager import get_config_manager
         config_manager = get_config_manager()
         logger.info("Loading constants from config...")
 

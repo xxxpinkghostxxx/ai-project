@@ -8,12 +8,10 @@ for the ServiceRegistry class, covering all aspects of dependency injection func
 import threading
 import time
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
-from src.core.interfaces.service_registry import (IServiceRegistry,
-                                                  ServiceDescriptor,
-                                                  ServiceHealth,
-                                                  ServiceLifetime)
+from src.core.interfaces.service_registry import (ServiceHealth,
+                                                   ServiceLifetime)
 from src.core.services.service_registry import (ServiceNotFoundError,
                                                 ServiceRegistry,
                                                 ServiceResolutionError)

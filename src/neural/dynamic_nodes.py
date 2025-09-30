@@ -1,6 +1,7 @@
 import torch
 
 from src.energy.energy_behavior import get_node_energy_cap
+from src.energy.node_id_manager import get_id_manager
 from src.utils.logging_utils import log_step
 
 
@@ -17,7 +18,6 @@ def add_dynamic_nodes(graph, num_dynamic=None, id_manager=None):
         Updated graph with dynamic nodes added
     """
     if id_manager is None:
-        from src.energy.node_id_manager import get_id_manager
         id_manager = get_id_manager()
     num_sensory = len(
         [lbl for lbl in graph.node_labels if lbl.get("type", "sensory") == "sensory"]
@@ -28,7 +28,7 @@ def add_dynamic_nodes(graph, num_dynamic=None, id_manager=None):
     initial_energy = min(100.0, energy_cap)
     dynamic_energies = torch.full((num_dynamic, 1), initial_energy, dtype=torch.float32)
     graph.x = torch.cat([graph.x, dynamic_energies], dim=0)
-    for i in range(num_dynamic):
+    for _i in range(num_dynamic):
         node_id = id_manager.generate_unique_id("dynamic")
         energy = float(initial_energy)
         membrane_potential = min(energy / energy_cap if energy_cap > 0 else 0.0, 1.0)

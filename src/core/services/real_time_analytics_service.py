@@ -622,9 +622,6 @@ class RealTimeAnalyticsService(IRealTimeAnalytics):
         """Main monitoring loop for real-time analytics."""
         while self.monitoring_active:
             try:
-                # Collect metrics
-                metrics = self.collect_system_metrics()
-
                 # Check for anomalies
                 anomalies = self.detect_anomalies()
                 if anomalies:

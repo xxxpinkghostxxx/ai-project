@@ -117,7 +117,7 @@ class EnhancedConnection:
                     if self.connection_type == 'modulatory':
                         base_weight *= (1.0 + acetylcholine * self.acetylcholine_sensitivity)
                     base_weight *= (1.0 + norepinephrine * self.norepinephrine_sensitivity)
-                except Exception as e:
+                except (ValueError, TypeError, AttributeError) as e:
                     log_step(f"Error processing neuromodulators: {e}")
 
             base_weight *= (1.0 - self.fatigue_level)
@@ -302,7 +302,7 @@ class EnhancedConnectionSystem:
                         target_id=target_id,
                         type=connection_type)
                 return True
-            except Exception as e:
+            except (ValueError, TypeError, AttributeError, RuntimeError) as e:
                 log_step("Error creating connection", error=str(e), source_id=source_id, target_id=target_id)
                 return False
     def remove_connection(self, source_id: int, target_id: int) -> bool:
@@ -340,7 +340,7 @@ class EnhancedConnectionSystem:
                 self.stats['connections_pruned'] += 1
                 log_step("Connection removed", source_id=source_id, target_id=target_id)
                 return True
-            except Exception as e:
+            except (ValueError, TypeError, AttributeError, RuntimeError, KeyError) as e:
                 log_step("Error removing connection", error=str(e), source_id=source_id, target_id=target_id)
                 return False
 
@@ -362,7 +362,7 @@ class EnhancedConnectionSystem:
                     log_step("Error: invalid connection index in get_connection", index=connection_idx)
                     return None
                 return self.connections[connection_idx]
-            except Exception as e:
+            except (ValueError, TypeError, AttributeError, RuntimeError, KeyError) as e:
                 log_step("Error getting connection", error=str(e), source_id=source_id, target_id=target_id)
                 return None
     def get_connections_for_node(self, node_id: int) -> List[EnhancedConnection]:
@@ -378,7 +378,7 @@ class EnhancedConnectionSystem:
                     if idx < len(self.connections) and self.connections[idx].active:
                         active_connections.append(self.connections[idx])
                 return active_connections
-            except Exception as e:
+            except (ValueError, TypeError, AttributeError, RuntimeError, KeyError) as e:
                 log_step("Error getting connections for node", error=str(e), node_id=node_id)
                 return []
 
@@ -405,7 +405,7 @@ class EnhancedConnectionSystem:
                 self._update_modulatory_connections(graph)
                 self._prune_weak_connections()
                 return graph
-            except Exception as e:
+            except (ValueError, TypeError, AttributeError, RuntimeError) as e:
                 log_step("Error updating connections", error=str(e), step=step)
                 return graph
     def _update_gated_connections(self, graph: Data):
@@ -441,7 +441,7 @@ class EnhancedConnectionSystem:
             if abs(weight_change) > 0.001:
                 if connection.update_weight(weight_change):
                     self.stats['weight_changes'] += 1
-    def _update_modulatory_connections(self, graph: Data):
+    def _update_modulatory_connections(self, _graph: Data):
         for connection in self.connections:
             if connection.connection_type != 'modulatory' or not connection.active:
                 continue
@@ -499,7 +499,7 @@ class EnhancedConnectionSystem:
                 if connection is None:
                     return 0.0
                 return connection.get_effective_weight(self.neuromodulators)
-            except Exception as e:
+            except (ValueError, TypeError, AttributeError, RuntimeError, KeyError) as e:
                 log_step("Error getting effective weight", error=str(e), source_id=source_id, target_id=target_id)
                 return 0.0
 
@@ -516,7 +516,7 @@ class EnhancedConnectionSystem:
                     len(self.node_connections) * 0.05  # Per node entry
                 )
                 return stats
-            except Exception as e:
+            except (ValueError, TypeError, AttributeError, RuntimeError) as e:
                 log_step("Error getting connection statistics", error=str(e))
                 return {}
 
@@ -564,7 +564,7 @@ class EnhancedConnectionSystem:
                 }
 
                 log_step("EnhancedConnectionSystem cleanup completed")
-            except Exception as e:
+            except (ValueError, TypeError, AttributeError, RuntimeError) as e:
                 log_step("Error during cleanup", error=str(e))
 
 
@@ -586,7 +586,7 @@ if __name__ == "__main__":
         print(f"Connection creation test: {'PASSED' if success else 'FAILED'}")
         stats = system.get_connection_statistics()
         print(f"Connection statistics: {stats}")
-    except Exception as e:
+    except (ValueError, TypeError, AttributeError, RuntimeError) as e:
         print(f"EnhancedConnectionSystem test failed: {e}")
     print("EnhancedConnectionSystem test completed!")
 

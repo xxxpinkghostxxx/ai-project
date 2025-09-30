@@ -17,11 +17,11 @@ from typing import Any, Callable, Dict, List, Optional, Union
 import yaml
 
 from src.utils.logging_utils import log_step
+from src.utils.print_utils import print_error, print_info, print_warning
 
 
 def _get_print_utils():
     """Lazy import of print utilities to avoid circular imports."""
-    from src.utils.print_utils import print_error, print_info, print_warning
     return print_info, print_warning, print_error
 
 
@@ -68,7 +68,7 @@ class ConfigChange:
 
 class ConfigValidator:
     """Configuration value validator."""
-    
+
     @staticmethod
     def validate_string(value: Any, schema: ConfigSchema) -> bool:
         """Validate string value."""
@@ -77,7 +77,7 @@ class ConfigValidator:
         if schema.allowed_values and value not in schema.allowed_values:
             return False
         return True
-    
+
     @staticmethod
     def validate_integer(value: Any, schema: ConfigSchema) -> bool:
         """Validate integer value."""
@@ -92,7 +92,7 @@ class ConfigValidator:
             return True
         except (ValueError, TypeError):
             return False
-    
+
     @staticmethod
     def validate_float(value: Any, schema: ConfigSchema) -> bool:
         """Validate float value."""
@@ -107,12 +107,12 @@ class ConfigValidator:
             return True
         except (ValueError, TypeError):
             return False
-    
+
     @staticmethod
     def validate_boolean(value: Any) -> bool:
         """Validate boolean value."""
         return isinstance(value, bool)
-    
+
     @staticmethod
     def validate_list(value: Any, schema: ConfigSchema) -> bool:
         """Validate list value."""
@@ -121,7 +121,7 @@ class ConfigValidator:
         if schema.allowed_values and not all(item in schema.allowed_values for item in value):
             return False
         return True
-    
+
     @staticmethod
     def validate_dict(value: Any, schema: ConfigSchema) -> bool:
         """Validate dict value."""
@@ -130,13 +130,13 @@ class ConfigValidator:
         if schema.allowed_values and not all(key in schema.allowed_values for key in value.keys()):
             return False
         return True
-    
+
     @classmethod
     def validate(cls, value: Any, schema: ConfigSchema) -> bool:
         """Validate value against schema."""
         if schema.validation_func:
             return schema.validation_func(value)
-        
+
         if schema.config_type == ConfigType.STRING:
             return cls.validate_string(value, schema)
         elif schema.config_type == ConfigType.INTEGER:
@@ -164,7 +164,7 @@ class UnifiedConfigManager:
         self.watchers: Dict[str, List[Callable]] = defaultdict(list)
         self._lock = threading.RLock()
         self.validator = ConfigValidator()
-        
+
         # INI parser for backward compatibility
         self.ini_config = configparser.ConfigParser()
         
@@ -173,12 +173,12 @@ class UnifiedConfigManager:
             self.load_from_file(config_file)
         else:
             self._create_default_config()
-        
+
         # Setup default schemas
         self._setup_default_schemas()
         
         log_step("UnifiedConfigManager initialized")
-    
+
     def _flatten_config(self, data: Dict[str, Any], parent_key: str = '', sep: str = '.') -> Dict[str, Any]:
         """Flatten nested configuration dictionary to dot notation."""
         items = []
@@ -204,7 +204,7 @@ class UnifiedConfigManager:
                 d = d[key]
             d[keys[-1]] = value
         return result
-    
+
     def _create_default_config(self):
         """Create default configuration."""
         default_config = {
@@ -235,7 +235,7 @@ class UnifiedConfigManager:
                 'memory_pooling': True
             }
         }
-        
+
         # Convert to flat structure, using schema defaults if available
         for section, values in default_config.items():
             for key, value in values.items():
@@ -244,7 +244,7 @@ class UnifiedConfigManager:
                     self.config[full_key] = self.schemas[full_key].default_value
                 else:
                     self.config[full_key] = value
-    
+
     def _setup_default_schemas(self):
         """Setup default configuration schemas."""
         default_schemas = [
@@ -281,20 +281,20 @@ class UnifiedConfigManager:
             ConfigSchema('Performance.memory_pooling', ConfigType.BOOLEAN, True,
                        'Enable memory pooling')
         ]
-        
+
         for schema in default_schemas:
             self.schemas[schema.key] = schema
-    
+
     def register_schema(self, schema: ConfigSchema):
         """Register a configuration schema."""
         with self._lock:
             self.schemas[schema.key] = schema
-    
+
     def get(self, key: str, default: Any = None) -> Any:
         """Get a configuration value."""
         with self._lock:
             return self.config.get(key, default)
-    
+
     def set(self, key: str, value: Any, source: str = "manual") -> bool:
         """Set a configuration value with validation."""
         with self._lock:
@@ -303,13 +303,13 @@ class UnifiedConfigManager:
             if schema:
                 if not self.validator.validate(value, schema):
                     raise ValueError(f"Invalid value for {key}: {value}")
-            
+
             # Store old value for change tracking
             old_value = self.config.get(key)
             
             # Set new value
             self.config[key] = value
-            
+
             # Record change
             change = ConfigChange(
                 key=key,
@@ -319,12 +319,12 @@ class UnifiedConfigManager:
                 source=source
             )
             self.change_history.append(change)
-            
+
             # Notify watchers
             self._notify_watchers(key, old_value, value)
-            
+
             return True
-    
+
     def get_section(self, section: str) -> Dict[str, Any]:
         """Get all configuration values for a section."""
         with self._lock:
@@ -334,37 +334,37 @@ class UnifiedConfigManager:
                     section_key = key[len(f"{section}."):]
                     section_config[section_key] = value
             return section_config
-    
+
     def set_section(self, section: str, values: Dict[str, Any], source: str = "manual"):
         """Set multiple configuration values for a section."""
         with self._lock:
             for key, value in values.items():
                 full_key = f"{section}.{key}"
                 self.set(full_key, value, source)
-    
+
     def watch(self, key: str, callback: Callable[[str, Any, Any], None]):
         """Watch for changes to a configuration key."""
         with self._lock:
             self.watchers[key].append(callback)
-    
+
     def unwatch(self, key: str, callback: Callable[[str, Any, Any], None]):
         """Stop watching for changes to a configuration key."""
         with self._lock:
             if callback in self.watchers[key]:
                 self.watchers[key].remove(callback)
-    
+
     def _notify_watchers(self, key: str, old_value: Any, new_value: Any):
         """Notify watchers of configuration changes."""
-        _, _, print_error = _get_cached_print_utils()
+        print_info, print_warning, print_error = _get_cached_print_utils()
         for callback in self.watchers[key]:
             try:
                 callback(key, old_value, new_value)
             except Exception as e:  # pylint: disable=broad-exception-caught
                 print_error(f"Config watcher callback failed: {e}")
-    
+
     def load_from_file(self, file_path: str) -> bool:
         """Load configuration from file."""
-        _, print_warning, print_error = _get_cached_print_utils()
+        print_info, print_warning, print_error = _get_cached_print_utils()
         try:
             file_path = Path(file_path)
             if not file_path.exists():
@@ -397,7 +397,7 @@ class UnifiedConfigManager:
         except Exception as e:  # pylint: disable=broad-exception-caught
             print_error(f"Failed to load config from {file_path}: {e}")
             return False
-    
+
     def _load_ini_config(self):
         """Load configuration from INI file."""
         for section in self.ini_config.sections():
@@ -414,10 +414,10 @@ class UnifiedConfigManager:
                         self.config[full_key] = value.lower() == 'true'
                     else:
                         self.config[full_key] = value
-    
+
     def save_to_file(self, file_path: str, fmt: str = "json") -> bool:
         """Save configuration to file."""
-        _, _, print_error = _get_cached_print_utils()
+        print_info, print_warning, print_error = _get_cached_print_utils()
         try:
             file_path = Path(file_path)
 
@@ -439,7 +439,7 @@ class UnifiedConfigManager:
         except Exception as e:  # pylint: disable=broad-exception-caught
             print_error(f"Failed to save config to {file_path}: {e}")
             return False
-    
+
     def _save_ini_config(self, file_path: Path):
         """Save configuration to INI file."""
         sections = defaultdict(dict)
@@ -456,7 +456,7 @@ class UnifiedConfigManager:
                 for option, value in options.items():
                     f.write(f"{option} = {value}\n")
                 f.write("\n")
-    
+
     def get_change_history(self, key: Optional[str] = None, limit: int = 100) -> List[ConfigChange]:
         """Get configuration change history."""
         with self._lock:
@@ -465,7 +465,7 @@ class UnifiedConfigManager:
             else:
                 changes = list(self.change_history)
             return changes[-limit:]
-    
+
     def reset_to_defaults(self, section: Optional[str] = None):
         """Reset configuration to defaults."""
         with self._lock:
@@ -478,7 +478,7 @@ class UnifiedConfigManager:
                 # Reset all configuration
                 for schema in self.schemas.values():
                     self.config[schema.key] = schema.default_value
-    
+
     def validate_all(self) -> Dict[str, List[str]]:
         """Validate all configuration values."""
         with self._lock:
@@ -491,25 +491,25 @@ class UnifiedConfigManager:
 
     def _validate_and_reset(self):
         """Validate loaded config and reset invalid values to defaults."""
-        _, print_warning, _ = _get_cached_print_utils()
+        print_info, print_warning, print_error = _get_cached_print_utils()
         errors = self.validate_all()
         for key, error_msgs in errors.items():
             if key in self.schemas:
                 default_val = self.schemas[key].default_value
                 self.config[key] = default_val
                 print_warning(f"Reset invalid config '{key}' to default '{default_val}'. Errors: {error_msgs[0] if error_msgs else 'Unknown'}")
-    
+
     def get_schema(self, key: str) -> Optional[ConfigSchema]:
         """Get schema for a configuration key."""
         return self.schemas.get(key)
-    
+
     def list_keys(self, section: Optional[str] = None) -> List[str]:
         """List all configuration keys."""
         with self._lock:
             if section:
                 return [k for k in self.config.keys() if k.startswith(f"{section}.")]
             return list(self.config.keys())
-    
+
     def export_config(self, fmt: str = "json") -> str:
         """Export configuration as string."""
         if fmt.lower() == 'json':
@@ -518,7 +518,7 @@ class UnifiedConfigManager:
             return yaml.dump(self._unflatten_config(self.config), default_flow_style=False)
         else:
             raise ValueError(f"Unsupported export format: {fmt}")
-    
+
     # Backward compatibility methods
     def get_float(self, section: str, key: str, default: float = 0.0) -> float:
         """Get float value (INI-style)."""
@@ -553,16 +553,16 @@ class UnifiedConfigManager:
             return str(value)
         except (ValueError, TypeError):
             return default
-    
+
     def set_value(self, section: str, key: str, value: Any):
         """Set value (INI-style)."""
         self.set(f"{section}.{key}", value)
-    
+
     def save(self):
         """Save configuration to file."""
         if self.config_file:
             self.save_to_file(self.config_file)
-    
+
     def reload(self):
         """Reload configuration from file."""
         if self.config_file:

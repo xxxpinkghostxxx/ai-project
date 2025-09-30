@@ -7,12 +7,10 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
-import numpy as np
 import pytest
 import torch
-from torch_geometric.data import Data
 
 from src.neural.behavior_engine import BehaviorEngine
 from src.neural.connection_logic import (create_weighted_connection,

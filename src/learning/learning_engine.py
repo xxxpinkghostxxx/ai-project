@@ -121,7 +121,7 @@ class LearningEngine:
 
             return modulated_rate
 
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError, TypeError) as e:
             log_step("Error calculating energy-modulated rate", error=str(e))
             return base_rate
 
@@ -195,7 +195,7 @@ class LearningEngine:
 
         return 0.0  # No learning if timing difference is too large
 
-    def _on_spike(self, event_type: str, data: Dict[str, Any]) -> None:
+    def _on_spike(self, _event_type: str, data: Dict[str, Any]) -> None:
         """Handle SPIKE event and apply timing learning."""
         try:
             node_id = data['node_id']
@@ -207,7 +207,7 @@ class LearningEngine:
             delta_t = 0.0  # Would calculate from last spikes
             change = self.apply_timing_learning(pre_node, post_node, edge, delta_t)
             self.emit_learning_update(source_id, node_id, change)
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError, TypeError) as e:
             log_step("Error emitting learning update event", error=str(e), source_id=source_id, target_id=node_id)
 
     def emit_learning_update(self, source_id: int, target_id: int, weight_change: float) -> None:
@@ -218,7 +218,7 @@ class LearningEngine:
                 'target_id': target_id,
                 'weight_change': weight_change
             })
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError, RuntimeError) as e:
             log_step("Error handling spike event", error=str(e), source_id=source_id, target_id=target_id)
 
     def consolidate_connections(self, graph: Any) -> Any:
@@ -285,7 +285,7 @@ class LearningEngine:
         if memory_traces_formed > 0:
             log_step("Memory traces formed", count=memory_traces_formed)
         return graph
-    def _has_stable_pattern(self, node: Any, graph: Any) -> bool:
+    def _has_stable_pattern(self, node: Any, _graph: Any) -> bool:
 
         last_activation = node.get('last_activation', 0)
         current_time = time.time()

@@ -146,7 +146,7 @@ class PerformanceMonitoringService(IPerformanceMonitor):
 
 
 
-        except Exception as e:
+        except RuntimeError as e:
             print(f"Error collecting performance metrics: {e}")
 
         return metrics
@@ -296,9 +296,6 @@ class PerformanceMonitoringService(IPerformanceMonitor):
 
 
 
-            except Exception as e:
-                print(f"Error in monitoring loop: {e}")
-                time.sleep(1.0)  # Sleep longer on error
 
     def get_system_info(self) -> Dict[str, Any]:
         """
@@ -357,17 +354,8 @@ class PerformanceMonitoringService(IPerformanceMonitor):
             return system_info
         except (psutil.Error, OSError, RuntimeError) as e:
             return {"error": f"Failed to get system info: {e}"}
-        except Exception as e:
-            return {"error": f"Failed to get system info: {e}"}
-
-    def cleanup(self) -> None:
-        """Clean up resources."""
-        self.stop_monitoring()
-        with self._lock:
-            self._metrics_history.clear()
-
-
-
-
-
-
+def cleanup(self) -> None:
+    """Clean up resources."""
+    self.stop_monitoring()
+    with self._lock:
+        self._metrics_history.clear()

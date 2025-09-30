@@ -16,8 +16,7 @@ import pytest
 import torch
 from torch_geometric.data import Data
 
-from src.neural.neural_map_persistence import (NeuralMapPersistence,
-                                               create_neural_map_persistence)
+from src.neural.neural_map_persistence import NeuralMapPersistence
 
 
 class TestNeuralMapPersistence:

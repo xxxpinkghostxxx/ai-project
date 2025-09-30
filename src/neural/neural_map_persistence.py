@@ -55,7 +55,7 @@ class NeuralMapPersistence:
             map_data['metadata'] = truncated_metadata
             filename = f"neural_map_slot_{slot_number}.json"
             filepath = os.path.join(self.save_directory, filename)
-            with open(filepath, 'w') as f:
+            with open(filepath, 'w', encoding='utf-8') as f:
                 json.dump(map_data, f, indent=2)
             self.slot_metadata[slot_number] = metadata
             log_step("Set slot metadata", slot_number=slot_number, key_type=str(type(slot_number)))
@@ -65,8 +65,8 @@ class NeuralMapPersistence:
                     node_count=metadata['node_count'],
                     edge_count=metadata['edge_count'])
             return True
-        except Exception as e:
-            logging.error(f"Error saving neural map: {e}", exc_info=True)
+        except (IOError, OSError, ValueError, TypeError) as e:
+            logging.error("Error saving neural map: %s", e, exc_info=True)
             log_step("Error saving neural map", error=str(e), slot_number=slot_number)
             return False
     def load_neural_map(self, slot_number: int) -> Optional[Data]:
@@ -81,7 +81,7 @@ class NeuralMapPersistence:
             if not os.path.exists(filepath):
                 log_step("Neural map file not found", filepath=filepath)
                 return None
-            with open(filepath, 'r') as f:
+            with open(filepath, 'r', encoding='utf-8') as f:
                 map_data = json.load(f)
             graph = self._deserialize_graph(map_data)
             if graph is not None:
@@ -91,7 +91,7 @@ class NeuralMapPersistence:
                         node_count=metadata.get('node_count', 0),
                         edge_count=metadata.get('edge_count', 0))
             return graph
-        except Exception as e:
+        except (IOError, OSError, ValueError, json.JSONDecodeError) as e:
             log_step("Error loading neural map", error=str(e), slot_number=slot_number)
             return None
     def delete_neural_map(self, slot_number: int) -> bool:
@@ -113,7 +113,7 @@ class NeuralMapPersistence:
             else:
                 log_step("Neural map file not found for deletion", filepath=filepath)
                 return False
-        except Exception as e:
+        except (IOError, OSError, ValueError) as e:
             log_step("Error deleting neural map", error=str(e), slot_number=slot_number)
             return False
     def list_available_slots(self) -> Dict[int, Dict[str, Any]]:
@@ -154,7 +154,7 @@ class NeuralMapPersistence:
                         else:
                             serialized_data[attr_name] = attr_value
             return serialized_data
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError) as e:
             log_step("Error serializing graph", error=str(e))
             return {}
     def _deserialize_graph(self, map_data: Dict[str, Any]) -> Optional[Data]:
@@ -177,21 +177,21 @@ class NeuralMapPersistence:
                     else:
                         setattr(graph, attr_name, attr_value)
             return graph
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError, RuntimeError) as e:
             log_step("Error deserializing graph", error=str(e))
             return None
     def _load_slot_metadata(self):
         try:
             metadata_file = os.path.join(self.save_directory, "slot_metadata.json")
             if os.path.exists(metadata_file):
-                with open(metadata_file, 'r') as f:
+                with open(metadata_file, 'r', encoding='utf-8') as f:
                     loaded_metadata = json.load(f)
                 # Convert string keys back to integers
                 self.slot_metadata = {int(k): v for k, v in loaded_metadata.items()}
                 log_step("Loaded slot metadata", keys=list(self.slot_metadata.keys()), key_types=[str(type(k)) for k in self.slot_metadata.keys()])
             else:
                 self.slot_metadata = {}
-        except Exception as e:
+        except (IOError, OSError, ValueError, json.JSONDecodeError) as e:
             log_step("Error loading slot metadata", error=str(e))
             self.slot_metadata = {}
     def _save_slot_metadata(self):
@@ -206,9 +206,9 @@ class NeuralMapPersistence:
                     if isinstance(value, str) and len(value) > 10000:  # 10KB limit
                         truncated_meta[key] = value[:10000] + "...[truncated]"
                 truncated_metadata[slot] = truncated_meta
-            with open(metadata_file, 'w') as f:
+            with open(metadata_file, 'w', encoding='utf-8') as f:
                 json.dump(truncated_metadata, f, indent=2)
-        except Exception as e:
+        except (IOError, OSError, ValueError, json.JSONEncodeError) as e:
             log_step("Error saving slot metadata", error=str(e))
     def get_persistence_statistics(self) -> Dict[str, Any]:
         return {
@@ -240,7 +240,7 @@ if __name__ == "__main__":
         print(f"Persistence statistics: {stats}")
         slots = persistence.list_available_slots()
         print(f"Available slots: {len(slots)}")
-    except Exception as e:
+    except (ValueError, TypeError, IOError, OSError) as e:
         print(f"NeuralMapPersistence test failed: {e}")
     print("NeuralMapPersistence test completed!")
 

@@ -26,11 +26,12 @@ class NodeAccessLayer:
             self.id_manager = id_manager
         self._node_cache: Dict[int, Dict[str, Any]] = {}
         self._cache_valid = False
+        self._invalid_id_count = 0
         log_step("NodeAccessLayer initialized", graph_nodes=len(graph.node_labels) if hasattr(graph, 'node_labels') else 0)
     def get_node_by_id(self, node_id: int) -> Optional[Dict[str, Any]]:
  
         if not isinstance(node_id, (int, np.integer)):
-            logging.warning(f"Invalid node ID type: {type(node_id)}")
+            logging.warning("Invalid node ID type: %s", type(node_id))
             return None
         if hasattr(node_id, 'item'):
             node_id = int(node_id.item())
@@ -42,16 +43,14 @@ class NodeAccessLayer:
         
         index = self.id_manager.get_node_index(node_id)
         if index is None:
-            if not hasattr(self, '_invalid_id_count'):
-                self._invalid_id_count = 0
             self._invalid_id_count += 1
             if self._invalid_id_count % 1000 == 0:
-                logging.warning(f"Invalid node ID: {node_id} (not found in ID manager) - {self._invalid_id_count} total invalid IDs")
+                logging.warning("Invalid node ID: %s (not found in ID manager) - %s total invalid IDs", node_id, self._invalid_id_count)
             return None
         
         # Safety check
         if index < 0 or index >= len(self.graph.node_labels):
-            logging.warning(f"Index {index} out of range for node ID: {node_id} (max index: {len(self.graph.node_labels)-1})")
+            logging.warning("Index %s out of range for node ID: %s (max index: %s)", index, node_id, len(self.graph.node_labels)-1)
             return None
         
         if self._cache_valid and node_id in self._node_cache:
@@ -215,8 +214,8 @@ def select_nodes_by_behavior(graph, behavior: str) -> List[int]:
     return access_layer.select_nodes_by_behavior(behavior)
 
 
-def select_nodes_by_state(graph, state: str) -> List[int]:
-    access_layer = NodeAccessLayer(graph)
+def select_nodes_by_state(_graph, state: str) -> List[int]:
+    access_layer = NodeAccessLayer(_graph)
     return access_layer.select_nodes_by_state(state)
 
 
@@ -236,9 +235,6 @@ def update_node_property(graph, node_id: int, property_name: str, new_value: Any
         new_value: New value for the property
         id_manager: Node ID manager (optional, will use global if not provided)
     """
-    import logging
-
-    from src.utils.logging_utils import log_step
 
     if id_manager is None:
         id_manager = get_id_manager()
@@ -252,18 +248,18 @@ def update_node_property(graph, node_id: int, property_name: str, new_value: Any
         
         # Validate node_id
         if not id_manager.is_valid_id(node_id):
-            logging.warning(f"Invalid node ID: {node_id}")
+            logging.warning("Invalid node ID: %s", node_id)
             return False
         
         index = id_manager.get_node_index(node_id)
         if index is None:
-            logging.warning(f"Could not retrieve index for node_id {node_id}")
+            logging.warning("Could not retrieve index for node_id %s", node_id)
             return False
         
         if property_name == 'energy':
             # Handle energy update in graph.x
             if not hasattr(graph, 'x') or graph.x is None or index >= graph.x.shape[0]:
-                logging.warning(f"Graph missing valid 'x' attribute or index {index} out of range for node {node_id}")
+                logging.warning("Graph missing valid 'x' attribute or index %s out of range for node %s", index, node_id)
                 return False
             
             energy_cap = get_node_energy_cap()
@@ -275,12 +271,12 @@ def update_node_property(graph, node_id: int, property_name: str, new_value: Any
         else:
             # Handle other properties in node_labels
             if not hasattr(graph, 'node_labels') or graph.node_labels is None or index >= len(graph.node_labels):
-                logging.warning(f"Graph missing valid 'node_labels' attribute or index {index} out of range for node {node_id}")
+                logging.warning("Graph missing valid 'node_labels' attribute or index %s out of range for node %s", index, node_id)
                 return False
             
             node = graph.node_labels[index]
             if not isinstance(node, dict):
-                logging.warning(f"Node labels for node {node_id} at index {index} is not a dict")
+                logging.warning("Node labels for node %s at index %s is not a dict", node_id, index)
                 return False
             
             old_value = node.get(property_name, None)
@@ -289,9 +285,9 @@ def update_node_property(graph, node_id: int, property_name: str, new_value: Any
                      extra={"node_id": node_id, "property": property_name, "old_value": old_value, "new_value": new_value})
             return True
     
-    except Exception as e:
-        logging.error(f"Error in update_node_property for node {node_id}, property '{property_name}': {str(e)}")
-        log_step(f"Failed to update property '{property_name}' for node {node_id} due to error: {str(e)}",
+    except (ValueError, TypeError, AttributeError, IndexError) as e:
+        logging.error("Error in update_node_property for node %s, property '%s': %s", node_id, property_name, str(e))
+        log_step("Failed to update property '%s' for node %s due to error: %s",
                  extra={"node_id": node_id, "property": property_name, "error": str(e)})
         return False
 

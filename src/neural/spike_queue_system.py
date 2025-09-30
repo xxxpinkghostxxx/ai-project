@@ -42,6 +42,17 @@ class SpikeQueue:
         self._max_size = max_size
         self._spike_count = 0
         self._dropped_spikes = 0
+        self.stats = {
+            'total_spikes': 0,
+            'processed_spikes': 0,
+            'dropped_spikes': 0,
+            'queue_size_max': 0,
+            'processing_time': 0.0,
+            'spikes_by_type': {spike_type: 0 for spike_type in SpikeType},
+            'invalid_spikes': 0,
+            'invalid_timestamps': 0,
+            'heap_repairs': 0
+        }
 
     def get_queue_internal(self) -> List[Spike]:
         """Get the internal queue."""
@@ -78,7 +89,7 @@ class SpikeQueue:
     def repair_heap_internal(self) -> None:
         """Repair heap structure (internal method)."""
         self._repair_heap()
-        self.stats = {
+        _stats = {
             'total_spikes': 0,
             'processed_spikes': 0,
             'dropped_spikes': 0,
@@ -93,7 +104,7 @@ class SpikeQueue:
                 self.stats['invalid_spikes'] = self.stats.get('invalid_spikes', 0) + 1
                 return False
             if not isinstance(spike.timestamp, (int, float)) or spike.timestamp < 0:
-                logging.error(f"Invalid spike timestamp: {spike.timestamp}")
+                logging.error("Invalid spike timestamp: %s", spike.timestamp)
                 self.stats['invalid_timestamps'] = self.stats.get('invalid_timestamps', 0) + 1
                 return False
             if len(self.get_queue_internal()) >= self.get_max_size_internal():
@@ -111,8 +122,8 @@ class SpikeQueue:
                 if self.stats['total_spikes'] % 1000 == 0:
                     self.validate_heap_structure_internal()
                 return True
-            except Exception as e:
-                logging.error(f"Heap corruption detected during spike insertion: {e}")
+            except (IndexError, ValueError, RuntimeError) as e:
+                logging.error("Heap corruption detected during spike insertion: %s", e)
                 self.repair_heap_internal()
                 return False
     def pop(self) -> Optional[Spike]:
@@ -138,25 +149,25 @@ class SpikeQueue:
         with self.get_lock_internal():
             spikes = []
             temp_queue = []
-            queue = self.get_queue_internal()
-            while queue:
-                spike = heapq.heappop(queue)
+            internal_queue = self.get_queue_internal()
+            while internal_queue:
+                spike = heapq.heappop(internal_queue)
                 if start_time <= spike.timestamp <= end_time:
                     spikes.append(spike)
                 else:
                     temp_queue.append(spike)
             for spike in temp_queue:
-                heapq.heappush(queue, spike)
+                heapq.heappush(internal_queue, spike)
             return spikes
     def get_statistics(self) -> Dict[str, Any]:
         with self.get_lock_internal():
-            stats = self.stats.copy()
-            stats['current_queue_size'] = self.get_spike_count_internal()
-            stats['drop_rate'] = (self.get_dropped_spikes_internal() / max(1, self.stats['total_spikes'] + self.get_dropped_spikes_internal())) * 100
-            return stats
+            queue_stats = self.stats.copy()
+            queue_stats['current_queue_size'] = self.get_spike_count_internal()
+            queue_stats['drop_rate'] = (self.get_dropped_spikes_internal() / max(1, self.stats['total_spikes'] + self.get_dropped_spikes_internal())) * 100
+            return queue_stats
     def reset_statistics(self):
         with self.get_lock_internal():
-            self.stats = {
+            _stats = {
                 'total_spikes': 0,
                 'processed_spikes': 0,
                 'dropped_spikes': 0,
@@ -176,15 +187,15 @@ class SpikeQueue:
                 right_child = 2 * i + 2
                 if left_child < len(queue):
                     if queue[i].timestamp > queue[left_child].timestamp:
-                        logging.error(f"Heap property violated at index {i} (left child)")
+                        logging.error("Heap property violated at index %s (left child)", i)
                         return False
                 if right_child < len(queue):
                     if queue[i].timestamp > queue[right_child].timestamp:
-                        logging.error(f"Heap property violated at index {i} (right child)")
+                        logging.error("Heap property violated at index %s (right child)", i)
                         return False
             return True
-        except Exception as e:
-            logging.error(f"Heap validation failed: {e}")
+        except (IndexError, ValueError, AttributeError) as e:
+            logging.error("Heap validation failed: %s", e)
             return False
     def _repair_heap(self):
         try:
@@ -192,8 +203,8 @@ class SpikeQueue:
             heapq.heapify(self.get_queue_internal())
             self.stats['heap_repairs'] += 1
             logging.info("Heap repair completed")
-        except Exception as e:
-            logging.error(f"Heap repair failed: {e}")
+        except (IndexError, ValueError, RuntimeError) as e:
+            logging.error("Heap repair failed: %s", e)
             self.get_queue_internal().clear()
             self.set_spike_count_internal(0)
             logging.error("Heap cleared due to unrecoverable corruption")
@@ -218,7 +229,7 @@ class SpikePropagator:
             'failed_transmissions': 0
         }
     def schedule_spike(self, source_node_id: int, target_node_id: int,
-                       spike_type: SpikeType = SpikeType.EXCITATORY,
+                       spike_type_param: SpikeType = SpikeType.EXCITATORY,
                        amplitude: float = 1.0, weight: float = 1.0,
                        timestamp: float = None) -> bool:
         delay = self._calculate_propagation_delay(source_node_id, target_node_id)
@@ -238,10 +249,10 @@ class SpikePropagator:
         )
         return self.spike_queue.push(spike)
     def process_spikes(self, max_spikes: int = 1000) -> int:
-        spikes_processed = 0
+        _spikes_processed = 0
         start_time = time.time()
         log_step(f"Starting to process up to {max_spikes} spikes")
-        while spikes_processed < max_spikes:
+        while _spikes_processed < max_spikes:
             spike = self.spike_queue.pop()
             if not spike:
                 log_step("No spike in queue")
@@ -249,18 +260,18 @@ class SpikePropagator:
             current_time = time.time()
             log_step(f"Spike timestamp: {spike.timestamp}, current_time: {current_time}")
             if spike.timestamp > current_time + 0.01:
-                log_step(f"Spike is future, pushing back")
+                log_step("Spike is future, pushing back")
                 self.spike_queue.push(spike)
                 break
             success = self._process_single_spike(spike)
             log_step(f"Processed spike, success: {success}")
             if success is not None:
-                spikes_processed += 1
+                _spikes_processed += 1
                 if success:
                     self.stats['spikes_propagated'] += 1
         processing_time = time.time() - start_time
         self.stats['propagation_time'] += processing_time
-        return spikes_processed
+        return _spikes_processed
     def _process_single_spike(self, spike: Spike):
         try:
             log_step(f"Processing single spike, target: {spike.target_node_id}")
@@ -278,7 +289,7 @@ class SpikePropagator:
             else:
                 self.stats['failed_transmissions'] += 1
             return success
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError, RuntimeError) as e:
             log_step(f"Error processing spike: {e}")
             return False
     def _apply_synaptic_transmission(self, spike: Spike) -> bool:
@@ -311,10 +322,10 @@ class SpikePropagator:
             new_membrane_potential = membrane_potential + (synaptic_input * 0.1)
             access_layer.update_node_property(spike.target_node_id, 'membrane_potential',
                                             min(new_membrane_potential, 1.0))
-            spike_count = target_node.get('spike_count', 0)
-            access_layer.update_node_property(spike.target_node_id, 'spike_count', spike_count + 1)
+            current_spike_count = target_node.get('spike_count', 0)
+            access_layer.update_node_property(spike.target_node_id, 'spike_count', current_spike_count + 1)
             return True
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError, RuntimeError) as e:
             log_step(f"Error applying synaptic transmission: {e}")
             return False
     def _check_for_cascading_spikes(self, spike: Spike):
@@ -324,7 +335,7 @@ class SpikePropagator:
             # Emit for cascading check; subscriber can handle
             self.simulation_manager.event_bus.emit('SPIKE', {'node_id': spike.target_node_id, 'timestamp': spike.timestamp, 'check_cascade': True})
             return
-        except Exception:
+        except (AttributeError, KeyError, RuntimeError):
             # Fallback to direct
             try:
                 if not self.simulation_manager:
@@ -340,8 +351,9 @@ class SpikePropagator:
                 if membrane_potential >= threshold:
                     self._schedule_cascading_spike(spike.target_node_id, spike.timestamp)
                     access_layer.update_node_property(spike.target_node_id, 'membrane_potential', 0.0)
-            except Exception as e:
+            except (AttributeError, KeyError, ValueError, RuntimeError) as e:
                 log_step(f"Error checking for cascading spikes: {e}")
+                # events_processed variable is not used in this method
     def _schedule_cascading_spike(self, node_id: int, timestamp: float):
         try:
             try:
@@ -358,7 +370,7 @@ class SpikePropagator:
                     )
             except (OverflowError, ValueError):
                 return
-        except Exception as e:
+        except (ValueError, TypeError, OverflowError) as e:
             log_step(f"Error scheduling cascading spike: {e}")
     @staticmethod
     @nb.jit(nopython=True)
@@ -366,23 +378,23 @@ class SpikePropagator:
         distance = abs(target_id - source_id)
         distance_delay = min(float(distance) * 0.0001, max_delay)
         return base_delay + distance_delay + avg_synaptic
-    
-    
+
+
     def _calculate_propagation_delay(self, source_id: int, target_id: int) -> float:
-        avg_synaptic = (self.synaptic_delay_range[0] + self.synaptic_delay_range[1]) / 2.0
-        return self.calculate_propagation_delay(source_id, target_id, self.base_propagation_delay, self.max_propagation_delay, avg_synaptic)
+        avg_synaptic_delay = (self.synaptic_delay_range[0] + self.synaptic_delay_range[1]) / 2.0
+        return self.calculate_propagation_delay(source_id, target_id, self.base_propagation_delay, self.max_propagation_delay, avg_synaptic_delay)
     def _get_refractory_period(self, node_id: int) -> float:
         return self.refractory_periods.get(node_id, 0.002)
-    def _get_propagation_speed(self, source_id: int, target_id: int) -> float:
+    def _get_propagation_speed(self, _source_id: int, _target_id: int) -> float:
         return 1.0
-    def _is_in_refractory_period(self, node_id: int, timestamp: float) -> bool:
+    def _is_in_refractory_period(self, _node_id: int, _timestamp: float) -> bool:
         return False
     def _update_refractory_period(self, node_id: int, timestamp: float):
         pass
     def get_statistics(self) -> Dict[str, Any]:
-        stats = self.stats.copy()
-        stats['queue_stats'] = self.spike_queue.get_statistics()
-        return stats
+        _stats = self.stats.copy()
+        _stats['queue_stats'] = self.spike_queue.get_statistics()
+        return _stats
     def reset_statistics(self):
         self.stats = {
             'spikes_propagated': 0,
@@ -418,11 +430,11 @@ class SpikeQueueSystem:
         self.running = False
         log_step("Spike queue system stopped")
     def schedule_spike(self, source_id: int, target_id: int,
-                      spike_type: SpikeType = SpikeType.EXCITATORY,
+                      spike_type_param: SpikeType = SpikeType.EXCITATORY,
                       amplitude: float = 1.0, weight: float = 1.0,
                       timestamp: float = None) -> bool:
         success = self.spike_propagator.schedule_spike(
-            source_id, target_id, spike_type, amplitude, weight, timestamp
+            source_id, target_id, spike_type_param, amplitude, weight, timestamp
         )
         if success:
             self.stats['total_spikes_scheduled'] += 1
@@ -430,10 +442,10 @@ class SpikeQueueSystem:
     def process_spikes(self, max_spikes: int = None) -> int:
         if max_spikes is None:
             max_spikes = self.max_spikes_per_step
-        spikes_processed = self.spike_propagator.process_spikes(max_spikes)
-        self.stats['total_spikes_processed'] += spikes_processed
-        current_time = time.time()
-        self.stats['system_uptime'] = current_time - self.current_time
+        _spikes_processed = self.spike_propagator.process_spikes(max_spikes)
+        self.stats['total_spikes_processed'] += _spikes_processed
+        current_time_val = time.time()
+        self.stats['system_uptime'] = current_time_val - self.current_time
         if self.stats['system_uptime'] > 0:
             self.stats['spikes_per_second'] = self.stats['total_spikes_processed'] / self.stats['system_uptime']
         queue_stats = self.spike_propagator.spike_queue.get_statistics()
@@ -445,9 +457,9 @@ class SpikeQueueSystem:
     def clear_queue(self):
         self.spike_propagator.spike_queue.clear()
     def get_statistics(self) -> Dict[str, Any]:
-        stats = self.stats.copy()
-        stats['propagator_stats'] = self.spike_propagator.get_statistics()
-        return stats
+        _stats = self.stats.copy()
+        _stats['propagator_stats'] = self.spike_propagator.get_statistics()
+        return _stats
     def reset_statistics(self):
         self.stats = {
             'total_spikes_scheduled': 0,
@@ -479,7 +491,7 @@ if __name__ == "__main__":
         print(f"Processed {spikes_processed} spikes")
         stats = system.get_statistics()
         print(f"System statistics: {stats}")
-    except Exception as e:
+    except (ValueError, TypeError, AttributeError) as e:
         print(f"Spike queue system test failed: {e}")
     print("Spike queue system test completed!")
 

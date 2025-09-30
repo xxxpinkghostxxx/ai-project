@@ -6,10 +6,12 @@ multiple services in the neural simulation system, including full simulation
 scenarios, cross-service communication, and end-to-end functionality.
 """
 
+import os
 import time
 import unittest
 from unittest.mock import MagicMock, Mock, patch
 
+import psutil
 import torch
 from torch_geometric.data import Data
 
@@ -388,9 +390,6 @@ class TestPerformanceIntegration(unittest.TestCase):
 
     def test_memory_usage_integration(self):
         """Test memory usage across integrated services."""
-        import os
-
-        import psutil
 
         process = psutil.Process(os.getpid())
         initial_memory = process.memory_info().rss / 1024 / 1024  # MB

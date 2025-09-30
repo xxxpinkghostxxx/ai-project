@@ -8,7 +8,6 @@ membrane potential updates, and refractory period handling.
 
 import time
 import unittest
-from unittest.mock import Mock, patch
 
 import torch
 from torch_geometric.data import Data

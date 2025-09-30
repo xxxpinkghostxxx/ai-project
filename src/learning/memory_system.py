@@ -48,7 +48,7 @@ class MemorySystem:
         if memory_traces_formed > 0:
             log_step("Memory traces formed", count=memory_traces_formed)
         return graph
-    def _has_stable_pattern(self, node, graph):
+    def _has_stable_pattern(self, node, _graph):
 
         last_activation = node.get('last_activation', 0)
         current_time = time.time()
@@ -85,14 +85,14 @@ class MemorySystem:
                 'last_accessed': time.time(),
                 'pattern_type': self._classify_pattern(incoming_edges, graph)
             }
-        except Exception as e:
+        except (KeyError, TypeError, ValueError) as e:
             log_step("Failed to create memory trace", error=str(e), node_idx=node_idx)
             return
         log_step("Memory trace created",
                 node_id=node_idx,
                 pattern_type=self.memory_traces[node_idx]['pattern_type'],
                 connection_count=len(incoming_edges))
-    def _classify_pattern(self, connections, graph):
+    def _classify_pattern(self, connections, _graph):
 
         if not connections:
             return 'isolated'
@@ -253,9 +253,9 @@ class MemorySystem:
         return min(importance, 1.0)
 
 
-def analyze_memory_distribution(memory_system):
+def analyze_memory_distribution(memory_sys):
 
-    summary = memory_system.get_memory_summary()
+    summary = memory_sys.get_memory_summary()
     pattern_distribution = {}
     strength_distribution = []
     for memory in summary:
@@ -270,12 +270,12 @@ def analyze_memory_distribution(memory_system):
     }
 
 
-def calculate_memory_efficiency(memory_system):
+def calculate_memory_efficiency(memory_sys):
 
-    stats = memory_system.get_memory_statistics()
-    formation_efficiency = min(stats['traces_formed'] / 10.0, 1.0)
-    consolidation_efficiency = min(stats['traces_consolidated'] / 5.0, 1.0)
-    recall_efficiency = min(stats['patterns_recalled'] / 3.0, 1.0)
+    efficiency_stats = memory_sys.get_memory_statistics()
+    formation_efficiency = min(efficiency_stats['traces_formed'] / 10.0, 1.0)
+    consolidation_efficiency = min(efficiency_stats['traces_consolidated'] / 5.0, 1.0)
+    recall_efficiency = min(efficiency_stats['patterns_recalled'] / 3.0, 1.0)
     efficiency = (formation_efficiency * 0.4 +
                  consolidation_efficiency * 0.3 +
                  recall_efficiency * 0.3)

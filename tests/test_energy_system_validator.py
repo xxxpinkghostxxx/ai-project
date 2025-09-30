@@ -7,7 +7,7 @@ for the EnergySystemValidator class, covering validation of energy as central in
 
 import time
 import unittest
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import torch
 from torch_geometric.data import Data

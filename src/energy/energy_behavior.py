@@ -3,8 +3,8 @@ import time
 
 import torch
 
-from config.unified_config_manager import (get_learning_config,
-                                           get_system_constants)
+from config.unified_config_manager import get_system_constants
+from src.energy.node_access_layer import NodeAccessLayer
 
 
 def safe_divide(numerator: float, denominator: float, fallback: float = 0.0) -> float:
@@ -18,9 +18,26 @@ from .energy_constants import (EnergyConstants, HighwayConstants,
                                IntegratorConstants, OscillatorConstants,
                                RelayConstants)
 
-_energy_cap_cache = None
-_energy_cap_cache_time = 0
-_energy_cap_cache_ttl = 300
+class _EnergyCapCache:
+    """Simple cache for energy cap values to avoid repeated calculations."""
+
+    def __init__(self):
+        self._cache = None
+        self._cache_time = 0
+        self._cache_ttl = 300
+
+    def get(self):
+        current_time = time.time()
+        if (self._cache is not None and
+            current_time - self._cache_time < self._cache_ttl):
+            return self._cache
+        return None
+
+    def set(self, value):
+        self._cache = value
+        self._cache_time = time.time()
+
+_energy_cap_cache = _EnergyCapCache()
 
 
 class EnergyCalculator:
@@ -49,25 +66,25 @@ class EnergyCalculator:
 
 def get_node_energy_cap():
     """Get node energy cap with assertions for safety."""
-    global _energy_cap_cache, _energy_cap_cache_time
-    import time
     current_time = time.time()
     assert current_time > 0, "Current time must be positive"
-    
-    if (_energy_cap_cache is not None and
-        current_time - _energy_cap_cache_time < _energy_cap_cache_ttl):
-        assert _energy_cap_cache > 0, "Cached energy cap must be positive"
-        return _energy_cap_cache
+
+    # Check cache first
+    cached_value = _energy_cap_cache.get()
+    if cached_value is not None:
+        assert cached_value > 0, "Cached energy cap must be positive"
+        return cached_value
+
+    # Calculate new value
     constants = get_system_constants()
-    _energy_cap_cache = constants.get('node_energy_cap', 5.0)  # Updated default to match new config
-    _energy_cap_cache_time = current_time
-    assert _energy_cap_cache > 0, "Energy cap must be positive"
-    return _energy_cap_cache
+    energy_cap = constants.get('node_energy_cap', 5.0)  # Updated default to match new config
+    assert energy_cap > 0, "Energy cap must be positive"
+    _energy_cap_cache.set(energy_cap)
+    return energy_cap
 _ENERGY_CAP_PRECACHED = None
 
 
 def _precache_energy_cap():
-    global _ENERGY_CAP_PRECACHED
     if _ENERGY_CAP_PRECACHED is None:
         _ENERGY_CAP_PRECACHED = get_node_energy_cap()
         # Ensure we have a reasonable fallback if config is not loaded
@@ -79,7 +96,6 @@ _precache_energy_cap()
 
 def update_node_energy_with_learning(graph, node_id, delta_energy):
 
-    from src.energy.node_access_layer import NodeAccessLayer
     access_layer = NodeAccessLayer(graph)
     if not access_layer.is_valid_node_id(node_id):
         log_step("Invalid node_id for energy update", node_id=node_id)
@@ -95,7 +111,6 @@ def update_node_energy_with_learning(graph, node_id, delta_energy):
     new_energy = current_energy + delta_energy
     if 'membrane_potential' in node:
         membrane_pot = node['membrane_potential']
-        config = get_learning_config()
         threshold = node.get('threshold', EnergyConstants.get_activation_threshold())
         if membrane_pot > threshold:
             node['last_activation'] = time.time()
@@ -134,7 +149,7 @@ def update_node_energy_with_learning(graph, node_id, delta_energy):
     return graph
 
 
-def apply_energy_behavior(graph, behavior_params=None, _recursion_depth=0):
+def apply_energy_behavior(graph, _recursion_depth=0):
     """Optimized energy behavior application with reduced overhead."""
     MAX_RECURSION_DEPTH = 10
     if _recursion_depth > MAX_RECURSION_DEPTH:
@@ -191,7 +206,6 @@ def apply_energy_behavior(graph, behavior_params=None, _recursion_depth=0):
 
 def apply_oscillator_energy_dynamics(graph, node_id):
 
-    from src.energy.node_access_layer import NodeAccessLayer
     access_layer = NodeAccessLayer(graph)
     node = access_layer.get_node_by_id(node_id)
     if node is None:
@@ -227,7 +241,6 @@ def apply_oscillator_energy_dynamics(graph, node_id):
 
 def apply_integrator_energy_dynamics(graph, node_id):
 
-    from src.energy.node_access_layer import NodeAccessLayer
     access_layer = NodeAccessLayer(graph)
     node = access_layer.get_node_by_id(node_id)
     if node is None:
@@ -258,7 +271,6 @@ def apply_integrator_energy_dynamics(graph, node_id):
 
 def apply_relay_energy_dynamics(graph, node_id):
 
-    from src.energy.node_access_layer import NodeAccessLayer
     access_layer = NodeAccessLayer(graph)
     node = access_layer.get_node_by_id(node_id)
     if node is None:
@@ -290,7 +302,6 @@ def apply_relay_energy_dynamics(graph, node_id):
 
 def apply_highway_energy_dynamics(graph, node_id):
 
-    from src.energy.node_access_layer import NodeAccessLayer
     access_layer = NodeAccessLayer(graph)
     node = access_layer.get_node_by_id(node_id)
     if node is None:
@@ -329,7 +340,6 @@ def apply_highway_energy_dynamics(graph, node_id):
 
 def apply_dynamic_energy_dynamics(graph, node_id):
 
-    from src.energy.node_access_layer import NodeAccessLayer
     access_layer = NodeAccessLayer(graph)
     node = access_layer.get_node_by_id(node_id)
     if node is None:
@@ -337,7 +347,6 @@ def apply_dynamic_energy_dynamics(graph, node_id):
     current_energy = access_layer.get_node_energy(node_id)
     if current_energy is None:
         return graph
-    config = get_learning_config()
     decay_rate = EnergyConstants.get_decay_rate()
     decayed_energy = current_energy * decay_rate
     new_energy = max(current_energy - decayed_energy, 0)
@@ -362,7 +371,6 @@ def emit_energy_pulse(graph, source_node_id, _recursion_depth=0):
                 source_node=source_node_id,
                 depth=_recursion_depth)
         return graph
-    from src.energy.node_access_layer import NodeAccessLayer
     access_layer = NodeAccessLayer(graph)
     if not access_layer.is_valid_node_id(source_node_id):
         log_step("Invalid source_node_id for energy pulse", source_node_id=source_node_id)
@@ -412,7 +420,6 @@ def update_membrane_potentials(graph):
     if num_nodes > 1000:
         return graph
 
-    from src.energy.node_access_layer import NodeAccessLayer
     access_layer = NodeAccessLayer(graph)
 
     try:
@@ -445,7 +452,7 @@ def update_membrane_potentials(graph):
                     membrane_potential = min(energy / energy_cap, membrane_cap)
                     access_layer.update_node_property(node_id, 'membrane_potential', membrane_potential)
 
-    except Exception as e:
+    except (AttributeError, ValueError, TypeError, RuntimeError) as e:
         # Reduced logging frequency for performance
         if num_nodes % 100 == 0:
             log_step("Membrane potential update failed, skipping", error=str(e))
@@ -457,7 +464,6 @@ def apply_refractory_periods(graph):
 
     if not hasattr(graph, 'node_labels'):
         return graph
-    current_time = time.time()
     time_step = EnergyConstants.TIME_STEP
     sample_size = min(100, len(graph.node_labels))
     refractory_count = 0

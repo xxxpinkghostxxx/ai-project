@@ -318,7 +318,7 @@ class DistributedCoordinatorService(IDistributedCoordinator):
             if task_id in completed_tasks:
                 task = completed_tasks[task_id]
                 return task.result
-            elif task_id in tasks:
+            if task_id in tasks:
                 task = tasks[task_id]
                 if task.status == "completed":
                     return task.result
@@ -675,7 +675,6 @@ class DistributedCoordinatorService(IDistributedCoordinator):
         with self.get_lock():
             task_queue = self.get_task_queue()
             nodes = self.get_nodes()
-            max_tasks_per_node = self.get_max_tasks_per_node()
             # Process up to 10 tasks per iteration
             for _ in range(min(10, len(task_queue))):
                 if not task_queue:

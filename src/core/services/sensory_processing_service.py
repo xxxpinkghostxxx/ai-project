@@ -107,7 +107,7 @@ class SensoryProcessingService(ISensoryProcessor):
 
             return graph
 
-        except Exception as e:
+        except (AttributeError, ValueError, TypeError, RuntimeError) as e:
             print(f"Error processing sensory input: {e}")
             return graph
 
@@ -141,7 +141,7 @@ class SensoryProcessingService(ISensoryProcessor):
 
             return True
 
-        except Exception as e:
+        except (AttributeError, ValueError, TypeError, RuntimeError) as e:
             print(f"Error initializing sensory pathways: {e}")
             return False
 
@@ -169,7 +169,7 @@ class SensoryProcessingService(ISensoryProcessor):
 
             return graph
 
-        except Exception as e:
+        except (AttributeError, ValueError, TypeError, RuntimeError) as e:
             print(f"Error applying sensory adaptation: {e}")
             return graph
 
@@ -395,9 +395,45 @@ class SensoryProcessingService(ISensoryProcessor):
         Args:
             graph: Neural graph
         """
-        # This would create connections between sensory and processing nodes
-        # Simplified implementation for now
-        pass
+        if not hasattr(graph, 'node_labels') or not hasattr(graph, 'edge_index'):
+            return
+
+        # Get all sensory nodes and processing nodes
+        sensory_nodes = []
+        processing_nodes = []
+
+        for node in graph.node_labels:
+            if node.get('type') == 'sensory':
+                sensory_nodes.append(node.get('id'))
+            elif node.get('type') == 'processing':
+                processing_nodes.append(node.get('id'))
+
+        # Create connections between sensory and processing nodes
+        if sensory_nodes and processing_nodes:
+            # Initialize edge_index if it doesn't exist
+            if not hasattr(graph, 'edge_index') or graph.edge_index is None:
+                graph.edge_index = [[], []]
+
+            # Create connections from each sensory node to a subset of processing nodes
+            for sensory_node in sensory_nodes:
+                # Connect to 2-3 random processing nodes
+                num_connections = min(3, len(processing_nodes))
+                target_nodes = np.random.choice(processing_nodes, size=num_connections, replace=False)
+
+                for target_node in target_nodes:
+                    # Add bidirectional connection
+                    graph.edge_index[0].append(sensory_node)
+                    graph.edge_index[1].append(target_node)
+                    graph.edge_index[0].append(target_node)
+                    graph.edge_index[1].append(sensory_node)
+
+                    # Set connection weights if edge_attr exists
+                    if hasattr(graph, 'edge_attr'):
+                        if graph.edge_attr is None:
+                            graph.edge_attr = []
+                        # Add forward and backward weights
+                        graph.edge_attr.append(0.5)  # Forward weight
+                        graph.edge_attr.append(0.3)  # Backward weight
 
     def _apply_activations_to_graph(self, graph: Data, activation_pattern: Dict[str, Any]) -> None:
         """

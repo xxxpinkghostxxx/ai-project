@@ -7,11 +7,12 @@ scenarios, error handling, performance benchmarks, and real-world usage patterns
 """
 
 import os
+import psutil
 import sys
 import threading
 import time
 import unittest
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import numpy as np
 import torch
@@ -23,7 +24,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from src.core.interfaces.sensory_processor import SensoryInput
 from src.core.services.sensory_processing_service import \
     SensoryProcessingService
-from src.energy.node_access_layer import NodeAccessLayer
 from src.sensory.audio_to_neural_bridge import (AudioToNeuralBridge,
                                                 create_audio_to_neural_bridge)
 from src.sensory.sensory_workspace_mapper import (
@@ -690,9 +690,6 @@ class TestSensoryPerformance(unittest.TestCase):
 
     def test_memory_usage(self):
         """Test memory usage during processing."""
-        import os
-
-        import psutil
 
         process = psutil.Process(os.getpid())
         initial_memory = process.memory_info().rss / 1024 / 1024  # MB

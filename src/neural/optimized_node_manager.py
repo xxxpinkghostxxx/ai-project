@@ -148,7 +148,7 @@ class OptimizedNodeManager:
                 raise MemoryError("Failed to allocate memory for node_data array")
 
         except MemoryError as e:
-            logging.error(f"Memory allocation failed for {max_nodes} nodes: {e}")
+            logging.error("Memory allocation failed for %s nodes: %s", max_nodes, e)
             raise
 
         # Efficient lookup structures
@@ -222,7 +222,7 @@ class OptimizedNodeManager:
                     # Check memory usage before creating nodes
                     current_memory_mb = self.node_data.nbytes / (1024 * 1024)
                     if current_memory_mb > self.get_memory_limit() * 0.9:  # 90% of limit
-                        logging.warning(f"Memory usage high ({current_memory_mb:.1f}MB), limiting node creation")
+                        logging.warning("Memory usage high (%.1fMB), limiting node creation", current_memory_mb)
                         break
 
                     if len(self.active_nodes) >= self.max_nodes:
@@ -237,7 +237,7 @@ class OptimizedNodeManager:
 
                     # Validate index bounds
                     if index < 0 or index >= self.max_nodes:
-                        logging.error(f"Invalid index {index}, skipping node creation")
+                        logging.error("Invalid index %s, skipping node creation", index)
                         continue
 
                     # Generate unique ID
@@ -250,8 +250,8 @@ class OptimizedNodeManager:
                     # Initialize node data with error handling
                     try:
                         self.initialize_node_data_internal(index, node_id, spec)
-                    except Exception as e:
-                        logging.error(f"Failed to initialize node data for index {index}: {e}")
+                    except (ValueError, TypeError, RuntimeError) as e:
+                        logging.error("Failed to initialize node data for index %s: %s", index, e)
                         continue
 
                     # Add to spatial index if position provided
@@ -261,7 +261,7 @@ class OptimizedNodeManager:
                             self.spatial_index.add_node(node_id, x, y)
                             self.node_positions[index] = [x, y]
                         except (ValueError, TypeError) as e:
-                            logging.warning(f"Invalid position data for node {node_id}: {e}")
+                            logging.warning("Invalid position data for node %s: %s", node_id, e)
                             continue
 
                     self.active_nodes.add(node_id)
@@ -277,8 +277,8 @@ class OptimizedNodeManager:
 
                 log_step("Batch node creation", count=len(created_ids), total_active=self.stats['active_nodes'])
                 return created_ids
-        except Exception as e:
-            logging.error(f"Error in create_node_batch: {e}")
+        except (MemoryError, ValueError, TypeError) as e:
+            logging.error("Error in create_node_batch: %s", e)
             return []
     
     def _find_available_index(self) -> Optional[int]:
@@ -345,11 +345,11 @@ class OptimizedNodeManager:
         try:
             val = float(value)
             if not (min_val <= val <= max_val):
-                logging.warning(f"Value {val} for {field_name} out of range [{min_val}, {max_val}], clamping")
+                logging.warning("Value %s for %s out of range [%s, %s], clamping", val, field_name, min_val, max_val)
                 val = max(min_val, min(max_val, val))
             return val
         except (ValueError, TypeError):
-            logging.warning(f"Invalid value {value} for {field_name}, using default")
+            logging.warning("Invalid value %s for %s, using default", value, field_name)
             return min_val if min_val > 0 else 0.0
     
     def update_nodes_batch(self, node_ids: List[int], updates: Dict[str, Any]):
@@ -362,18 +362,18 @@ class OptimizedNodeManager:
 
             for node_id in node_ids:
                 if not isinstance(node_id, int):
-                    logging.warning(f"Skipping invalid node_id: {node_id}")
+                    logging.warning("Skipping invalid node_id: %s", node_id)
                     continue
 
                 if node_id not in self.node_id_to_index:
-                    logging.debug(f"Node {node_id} not found, skipping update")
+                    logging.debug("Node %s not found, skipping update", node_id)
                     continue
 
                 index = self.node_id_to_index[node_id]
 
                 # Validate index bounds
                 if index < 0 or index >= self.max_nodes:
-                    logging.error(f"Invalid index {index} for node {node_id}")
+                    logging.error("Invalid index %s for node %s", index, node_id)
                     continue
 
                 try:
@@ -408,8 +408,8 @@ class OptimizedNodeManager:
 
                     updated_count += 1
 
-                except Exception as e:
-                    logging.error(f"Error updating node {node_id} at index {index}: {e}")
+                except (ValueError, TypeError, KeyError) as e:
+                    logging.error("Error updating node %s at index %s: %s", node_id, index, e)
                     continue
 
             self.stats['operation_count'] += 1
@@ -450,18 +450,18 @@ class OptimizedNodeManager:
                 try:
                     # Validate batch contents
                     if not all(isinstance(node_id, int) for node_id in batch):
-                        logging.error(f"Invalid node IDs in {operation_type} batch")
+                        logging.error("Invalid node IDs in %s batch", operation_type)
                         return
 
                     operation_func(batch)
                     self.stats['operation_count'] += 1
-                    log_step(f"Processed {operation_type} batch", count=len(batch))
+                    log_step("Processed %s batch", operation_type=operation_type, count=len(batch))
 
-                except Exception as e:
-                    logging.error(f"Error processing {operation_type} batch: {e}")
+                except (ValueError, TypeError, RuntimeError) as e:
+                    logging.error("Error processing %s batch: %s", operation_type, e)
                     # Re-queue failed batch for retry if it's recoverable
                     if len(batch) <= self.batch_processor.batch_size // 2:
-                        logging.info(f"Re-queuing failed {operation_type} batch for retry")
+                        logging.info("Re-queuing failed %s batch for retry", operation_type)
                         self.batch_processor.add_to_batch(operation_type, batch)
     
     def remove_inactive_nodes(self):
@@ -550,8 +550,8 @@ class OptimizedNodeManager:
                 self.node_positions.fill(0.0)
                 # Use slice assignment for better performance
                 self.node_metadata[:] = [None] * len(self.node_metadata)
-            except Exception as e:
-                logging.error(f"Error during cleanup: {e}")
+            except (AttributeError, MemoryError) as e:
+                logging.error("Error during cleanup: %s", e)
                 # Fallback cleanup
                 self.node_metadata = [None] * self.max_nodes
 
@@ -579,13 +579,13 @@ class OptimizedNodeManager:
         with self.get_lock():
             current_mb = self.node_data.nbytes / (1024 * 1024)
             if current_mb > self.get_memory_limit():
-                logging.warning(f"Memory usage ({current_mb:.1f}MB) exceeds limit ({self.get_memory_limit()}MB)")
+                logging.warning("Memory usage (%.1fMB) exceeds limit (%sMB)", current_mb, self.get_memory_limit())
                 return False
             return True
 
 # Global optimized node manager instance
-_global_node_manager = None
 _global_lock = threading.Lock()
+_global_node_manager: Optional[OptimizedNodeManager] = None
 
 def get_optimized_node_manager() -> OptimizedNodeManager:
     """Get the global optimized node manager instance with thread safety."""

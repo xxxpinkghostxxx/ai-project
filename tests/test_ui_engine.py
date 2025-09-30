@@ -7,7 +7,7 @@ import os
 import sys
 import time
 import unittest
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -27,22 +27,22 @@ sys.modules['torch_geometric.data'].Data = Mock()
 import dearpygui.dearpygui as dpg
 
 from src.ui.ui_engine import (add_live_feed_data, apply_config_changes,
-                              auto_start_simulation, clear_live_feed_data,
-                              clear_operation_status, create_fallback_ui,
-                              create_main_window, create_ui, export_metrics,
-                              force_close_application, get_coordinator,
-                              get_latest_graph, get_latest_graph_for_ui,
-                              get_live_feed_data, get_simulation_running,
-                              handle_keyboard_shortcut,
-                              load_neural_map_callback,
-                              reset_simulation_callback, reset_to_defaults,
-                              run_ui, save_neural_map_callback,
-                              set_simulation_running, show_keyboard_shortcuts,
-                              start_simulation_callback,
-                              stop_simulation_callback, update_frame,
-                              update_graph, update_graph_visualization,
-                              update_operation_status, update_ui_display,
-                              view_logs_callback)
+                               auto_start_simulation, clear_live_feed_data,
+                               clear_operation_status, create_fallback_ui,
+                               create_main_window, create_ui, export_metrics,
+                               force_close_application, get_coordinator,
+                               get_latest_graph,
+                               get_live_feed_data, get_simulation_running,
+                               handle_keyboard_shortcut,
+                               load_neural_map_callback,
+                               reset_simulation_callback, reset_to_defaults,
+                               run_ui, save_neural_map_callback,
+                               set_simulation_running, show_keyboard_shortcuts,
+                               start_simulation_callback,
+                               stop_simulation_callback,
+                               update_graph, update_graph_visualization,
+                               update_operation_status, update_ui_display,
+                               view_logs_callback)
 from src.ui.ui_state_manager import cleanup_ui_state, get_ui_state_manager
 
 

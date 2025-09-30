@@ -86,7 +86,7 @@ class NodeIDManager:
         try:
             yield txn
             self._commit_transaction(transaction_id)
-        except Exception as e:
+        except (ValueError, RuntimeError, KeyError) as e:
             self._rollback_transaction(transaction_id)
             raise e
         finally:
@@ -121,9 +121,9 @@ class NodeIDManager:
                             log_step(f"Cleaned up {removed_count} old transactions")
 
                 log_step(f"Transaction {transaction_id} committed successfully",
-                        operations=len(txn.operations))
+                         operations=len(txn.operations))
 
-            except Exception as e:
+            except (ValueError, RuntimeError, KeyError) as e:
                 log_step(f"Transaction {transaction_id} commit failed, rolling back", error=str(e))
                 raise e
 
@@ -169,7 +169,7 @@ class NodeIDManager:
                         logging.warning("Metadata size %s exceeds limit %s, truncating", metadata_size, self._get_metadata_size_limit())
                         # Keep only essential metadata
                         metadata = {'size_exceeded': True, 'original_size': metadata_size}
-                except Exception as e:
+                except (TypeError, ValueError, UnicodeEncodeError) as e:
                     logging.warning("Could not calculate metadata size: %s", e)
                     metadata = {'size_error': str(e)}
 
@@ -263,7 +263,7 @@ class NodeIDManager:
             node_type = node_type[:50]
 
         if metadata is not None and not isinstance(metadata, dict):
-            logging.warning(f"Invalid metadata type {type(metadata)}, ignoring")
+            logging.warning("Invalid metadata type %s, ignoring", type(metadata))
             metadata = None
 
         try:
@@ -285,7 +285,7 @@ class NodeIDManager:
 
             return generated_id
 
-        except Exception as e:
+        except (ValueError, RuntimeError, KeyError) as e:
             logging.error("Failed to generate unique ID for type '%s': %s", node_type, e)
             raise
     def _find_next_available_id_efficient(self) -> Optional[int]:
@@ -340,7 +340,7 @@ class NodeIDManager:
         except ValueError as e:
             logging.warning("Failed to register index for node %s: %s", node_id, e)
             return False
-        except Exception as e:
+        except (KeyError, RuntimeError) as e:
             logging.error("Unexpected error registering index for node %s: %s", node_id, e)
             return False
     def get_node_index(self, node_id: int) -> Optional[int]:
@@ -385,7 +385,7 @@ class NodeIDManager:
         except ValueError as e:
             logging.warning("Failed to recycle node ID %s: %s", node_id, e)
             return False
-        except Exception as e:
+        except (KeyError, RuntimeError) as e:
             logging.error("Unexpected error recycling node ID %s: %s", node_id, e)
             return False
     def get_all_active_ids(self) -> List[int]:
@@ -497,7 +497,7 @@ class NodeIDManager:
                     sum(sys.getsizeof(txn) for txn in self._get_completed_transactions())
                 )
                 stats['memory_usage_mb'] = memory_usage / (1024 * 1024)
-            except Exception:
+            except (AttributeError, TypeError, OSError):
                 stats['memory_usage_mb'] = 0.0
 
             # Add transaction statistics
@@ -633,7 +633,7 @@ class NodeIDManager:
                         result['errors'].append(f"Recycled ID {recycled_id} still marked as active")
                         result['passed'] = False
 
-            except Exception as e:
+            except (KeyError, ValueError, RuntimeError) as e:
                 result['passed'] = False
                 result['errors'].append(f"Integrity check failed with exception: {e}")
 
@@ -731,34 +731,48 @@ class NodeIDManager:
                     transactions_cleaned=len(self._completed_transactions),
                     metadata_cleaned=len(orphaned_metadata),
                     recycled_trimmed=len(self._recycled_ids))
-_id_manager_instance = None
-_id_manager_lock = threading.Lock()
+class _IDManagerSingleton:
+    """Singleton wrapper for NodeIDManager to avoid global statements."""
+
+    def __init__(self):
+        self._instance = None
+        self._lock = threading.Lock()
+
+    def get_instance(self) -> NodeIDManager:
+        if self._instance is None:
+            with self._lock:
+                if self._instance is None:
+                    self._instance = NodeIDManager()
+        return self._instance
+
+    def reset_instance(self):
+        with self._lock:
+            if self._instance is not None:
+                self._instance.reset()
+            else:
+                self._instance = NodeIDManager()
+
+    def force_reset(self):
+        """Force reset the ID manager, creating a new instance."""
+        with self._lock:
+            self._instance = None
+            log_step("ID manager force reset - new instance will be created")
+
+# Global singleton instance
+_id_manager_singleton = _IDManagerSingleton()
 
 
 def get_id_manager() -> NodeIDManager:
-
-    global _id_manager_instance
-    if _id_manager_instance is None:
-        with _id_manager_lock:
-            if _id_manager_instance is None:
-                _id_manager_instance = NodeIDManager()
-    return _id_manager_instance
+    return _id_manager_singleton.get_instance()
 
 
 def reset_id_manager():
-    global _id_manager_instance
-    with _id_manager_lock:
-        if _id_manager_instance is not None:
-            _id_manager_instance.reset()
-        else:
-            _id_manager_instance = NodeIDManager()
+    _id_manager_singleton.reset_instance()
+
 
 def force_reset_id_manager():
     """Force reset the ID manager, creating a new instance."""
-    global _id_manager_instance
-    with _id_manager_lock:
-        _id_manager_instance = None
-        log_step("ID manager force reset - new instance will be created")
+    _id_manager_singleton.force_reset()
 
 
 def generate_node_id(node_type: str = "unknown", metadata: Optional[Dict[str, Any]] = None) -> int:

@@ -30,17 +30,16 @@ sys.modules['mss'] = Mock()
 import dearpygui.dearpygui as dpg
 import numpy as np
 import torch
-from torch_geometric.data import Data
 
 from src.core.interfaces.service_registry import IServiceRegistry
 from src.core.interfaces.simulation_coordinator import ISimulationCoordinator
 from src.ui.screen_graph import capture_screen, create_pixel_gray_graph
 from src.ui.ui_engine import (clear_operation_status, create_main_window,
-                              get_coordinator, reset_simulation_callback,
-                              run_ui, start_simulation_callback,
-                              stop_simulation_callback,
-                              update_graph_visualization,
-                              update_operation_status, update_ui_display)
+                               get_coordinator, reset_simulation_callback,
+                               start_simulation_callback,
+                               stop_simulation_callback,
+                               update_graph_visualization,
+                               update_operation_status, update_ui_display)
 from src.ui.ui_state_manager import cleanup_ui_state, get_ui_state_manager
 
 

@@ -6,7 +6,6 @@ for the UnifiedLauncher class, covering all aspects of launcher functionality.
 """
 
 import os
-import sys
 import tempfile
 import time
 import unittest

@@ -8,7 +8,7 @@ method testing and validation.
 
 import time
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from src.energy.energy_constants import (ConnectionConstants, EnergyConstants,
                                          HighwayConstants, IntegratorConstants,

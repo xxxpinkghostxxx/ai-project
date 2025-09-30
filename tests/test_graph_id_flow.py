@@ -13,12 +13,11 @@ import unittest
 from typing import Any, Dict, List
 from unittest.mock import MagicMock
 
-import numpy as np
 import torch
 
 from src.core.services.simulation_coordinator import SimulationCoordinator
 # Import the components we're testing
-from src.energy.node_id_manager import NodeIDManager, get_id_manager
+from src.energy.node_id_manager import get_id_manager
 from src.utils.connection_validator import get_connection_validator
 from src.utils.graph_integrity_manager import get_graph_integrity_manager
 from src.utils.graph_merger import get_graph_merger

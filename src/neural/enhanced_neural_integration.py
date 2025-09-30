@@ -46,7 +46,7 @@ class EnhancedNeuralIntegration:
             self.integration_stats['total_updates'] += 1
             self.last_update_step = step
             return graph
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError, RuntimeError) as e:
             log_step("Error in enhanced neural integration", error=str(e))
             self.integration_stats['integration_errors'] += 1
             return graph
@@ -58,7 +58,7 @@ class EnhancedNeuralIntegration:
             if not access_layer.is_valid_node_id(node_id):
                 log_step("Invalid node ID for enhanced node creation", node_id=node_id)
                 return False
-            behavior = self.node_behavior_system.create_node_behavior(
+            _behavior = self.node_behavior_system.create_node_behavior(
                 node_id, node_type, subtype=subtype, **kwargs
             )
             access_layer.update_node_property(node_id, 'enhanced_behavior', True)
@@ -70,7 +70,7 @@ class EnhancedNeuralIntegration:
                 graph.enhanced_node_ids.append(node_id)
             log_step("Enhanced node created", node_id=node_id, type=node_type, subtype=subtype)
             return True
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError, RuntimeError) as e:
             log_step("Error creating enhanced node", node_id=node_id, error=str(e))
             return False
     def create_enhanced_connection(self, graph: Data, source_id: int, target_id: int,
@@ -92,7 +92,7 @@ class EnhancedNeuralIntegration:
                         target_id=target_id,
                         type=connection_type)
             return success
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError, RuntimeError) as e:
             log_step("Error creating enhanced connection",
                     source_id=source_id,
                     target_id=target_id,
@@ -115,11 +115,11 @@ class EnhancedNeuralIntegration:
         self.connection_system.set_neuromodulator_level(neuromodulator, level)
         self.neural_dynamics.set_neuromodulator_level(neuromodulator, level)
     def get_integration_statistics(self) -> Dict[str, Any]:
-        stats = self.integration_stats.copy()
-        stats['neural_dynamics_stats'] = self.neural_dynamics.get_statistics()
-        stats['connection_stats'] = self.connection_system.get_connection_statistics()
-        stats['node_behavior_stats'] = self.node_behavior_system.get_behavior_statistics()
-        return stats
+        integration_stats = self.integration_stats.copy()
+        integration_stats['neural_dynamics_stats'] = self.neural_dynamics.get_statistics()
+        integration_stats['connection_stats'] = self.connection_system.get_connection_statistics()
+        integration_stats['node_behavior_stats'] = self.node_behavior_system.get_behavior_statistics()
+        return integration_stats
     def reset_integration_statistics(self):
         self.integration_stats = {
             'total_updates': 0,
@@ -194,7 +194,7 @@ if __name__ == "__main__":
         integration.disable_integration()
         integration.enable_integration()
         print("Enable/disable test: PASSED")
-    except Exception as e:
+    except (AttributeError, KeyError, ValueError) as e:
         print(f"EnhancedNeuralIntegration test failed: {e}")
     print("EnhancedNeuralIntegration test completed!")
 

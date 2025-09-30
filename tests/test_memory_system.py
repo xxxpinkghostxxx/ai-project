@@ -10,12 +10,10 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-import numpy as np
 import pytest
 import torch
-from torch_geometric.data import Data
 
 from src.learning.memory_system import (MemorySystem,
                                         analyze_memory_distribution,

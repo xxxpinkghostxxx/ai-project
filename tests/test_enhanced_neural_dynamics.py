@@ -10,15 +10,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import threading
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import numpy as np
 import pytest
-import torch
-from torch_geometric.data import Data
 
 from src.neural.enhanced_neural_dynamics import (
-    EnhancedNeuralDynamics, create_enhanced_neural_dynamics)
+    EnhancedNeuralDynamics)
 
 
 class TestEnhancedNeuralDynamics:

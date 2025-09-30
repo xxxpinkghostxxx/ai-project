@@ -13,7 +13,6 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 import torch
-from torch_geometric.data import Data
 
 from src.neural.network_metrics import (NetworkMetrics, create_network_metrics,
                                         quick_network_analysis)

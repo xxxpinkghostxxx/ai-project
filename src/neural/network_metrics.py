@@ -23,6 +23,9 @@ class NetworkMetrics:
         self.last_metrics = {}
         self.calculation_times = deque(maxlen=100)
         self.metric_updates = 0
+        self._initial_energy = 0.0
+        self._energy_sources = 0.0
+        self._energy_sinks = 0.0
         logging.info("[NETWORK_METRICS] Initialized with calculation interval: %d", self.calculation_interval)
     @log_runtime
     def calculate_criticality(self, graph) -> float:
@@ -48,8 +51,7 @@ class NetworkMetrics:
             branching_ratio = new_activations / total_activations
             self._update_activation_patterns(current_patterns)
             if logging.getLogger().isEnabledFor(logging.DEBUG):
-                logging.debug(f"[NETWORK_METRICS] Criticality: total={total_activations}, "
-                            f"new={new_activations}, ratio={branching_ratio:.3f}")
+                logging.debug("[NETWORK_METRICS] Criticality: total=%s, new=%s, ratio=%.3f", total_activations, new_activations, branching_ratio)
             log_step("calculate_criticality end")
             return branching_ratio
         log_step("calculate_criticality end - no activations")
@@ -81,8 +83,7 @@ class NetworkMetrics:
             'min_degree': degree_distribution.get('min_degree', 0)
         }
         if logging.getLogger().isEnabledFor(logging.DEBUG):
-            logging.debug(f"[NETWORK_METRICS] Connectivity: nodes={num_nodes}, edges={num_edges}, "
-                        f"density={density:.3f}, clustering={clustering_coeff:.3f}")
+            logging.debug("[NETWORK_METRICS] Connectivity: nodes=%s, edges=%s, density=%.3f, clustering=%.3f", num_nodes, num_edges, density, clustering_coeff)
         log_step("analyze_connectivity end")
         return connectivity_metrics
     @log_runtime
@@ -94,7 +95,7 @@ class NetworkMetrics:
             return {'total_energy': 0.0, 'energy_variance': 0.0, 'energy_entropy': 0.0}
         total_energy = float(torch.sum(graph.x[:, 0]).item())
         num_nodes = len(graph.node_labels)
-        avg_energy = total_energy / num_nodes if num_nodes > 0 else 0.0
+        _avg_energy = total_energy / num_nodes if num_nodes > 0 else 0.0
         energy_variance = float(torch.var(graph.x[:, 0]).item()) if len(graph.x) > 1 else 0.0
         energy_entropy = self._calculate_energy_entropy(graph.x[:, 0].cpu().numpy())
         try:
@@ -115,8 +116,7 @@ class NetworkMetrics:
         conservation_status = self._check_energy_conservation(graph, total_energy)
         energy_distribution.update(conservation_status)
         if logging.getLogger().isEnabledFor(logging.DEBUG):
-            logging.debug(f"[NETWORK_METRICS] Energy: total={total_energy:.2f}, "
-                        f"variance={energy_variance:.2f}, entropy={energy_entropy:.3f}")
+            logging.debug("[NETWORK_METRICS] Energy: total=%.2f, variance=%.2f, entropy=%.3f", total_energy, energy_variance, energy_entropy)
         log_step("measure_energy_balance end")
         return energy_distribution
     @log_runtime
@@ -145,8 +145,7 @@ class NetworkMetrics:
         self.metric_updates += 1
         self.calculation_times.append(performance_metrics['calculation_time'])
         if logging.getLogger().isEnabledFor(logging.DEBUG):
-            logging.debug(f"[NETWORK_METRICS] Comprehensive metrics calculated in "
-                        f"{performance_metrics['calculation_time']:.4f}s")
+            logging.debug("[NETWORK_METRICS] Comprehensive metrics calculated in %.4fs", performance_metrics['calculation_time'])
         log_step("calculate_comprehensive_metrics end")
         return comprehensive_metrics
     def get_metrics_trends(self, window_size: int = 10) -> Dict[str, List[float]]:
@@ -318,11 +317,9 @@ class NetworkMetrics:
             return 0.0
         kurtosis = np.mean(((values - mean) / std) ** 4) - 3
         return float(kurtosis)
-    def _check_energy_conservation(self, graph, total_energy: float) -> Dict[str, any]:
-        if not hasattr(self, '_initial_energy'):
+    def _check_energy_conservation(self, _graph, total_energy: float) -> Dict[str, any]:
+        if self._initial_energy == 0.0:
             self._initial_energy = total_energy
-            self._energy_sources = 0.0
-            self._energy_sinks = 0.0
         energy_drift = total_energy - self._initial_energy
         drift_percentage = (energy_drift / self._initial_energy) * 100 if self._initial_energy > 0 else 0
         conservation_violation = drift_percentage > 10.0
@@ -350,7 +347,7 @@ class NetworkMetrics:
             return 10.0  # High ratio when no inhibitory
         return excitatory_sum / inhibitory_sum
 
-    def _adjust_ei_balance(self, graph, target_ratio: float):
+    def _adjust_ei_balance(self, graph, _target_ratio: float):
         if not hasattr(graph, 'edge_attributes') or not graph.edge_attributes:
             return
         for edge in graph.edge_attributes:
