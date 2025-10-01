@@ -159,52 +159,9 @@ class MemoryOptimizer:
         memory_saved = 0.0
 
         with self._lock.write_lock():
-            # Clear unused attributes
-            if hasattr(graph, 'edge_attributes') and graph.edge_attributes:
-                original_count = len(graph.edge_attributes)
-                # Remove None values and duplicates
-                graph.edge_attributes = [attr for attr in graph.edge_attributes if attr is not None]
-                cleaned_count = len(graph.edge_attributes)
-                if cleaned_count < original_count:
-                    optimizations.append(f"Cleaned {original_count - cleaned_count} edge attributes")
-                    memory_saved += (original_count - cleaned_count) * 0.1  # Estimate memory saved
-
-            # Optimize node labels
-            if hasattr(graph, 'node_labels') and graph.node_labels:
-                for node in graph.node_labels:
-                    if isinstance(node, dict):
-                        # Remove large unused data
-                        keys_to_remove = []
-                        for key, value in node.items():
-                            if isinstance(value, (list, tuple)) and len(value) > 1000:
-                                keys_to_remove.append(key)
-                            elif hasattr(value, '__dict__') and len(value.__dict__) > 100:
-                                # Clear large object attributes
-                                for attr in list(value.__dict__.keys()):
-                                    if attr.startswith('_cache') or attr.startswith('_temp'):
-                                        try:
-                                            delattr(value, attr)
-                                        except (AttributeError, KeyError):
-                                            pass
-
-                        for key in keys_to_remove:
-                            try:
-                                del node[key]
-                                memory_saved += 0.05  # Estimate memory saved
-                            except (AttributeError, KeyError):
-                                pass
-
-            # Optimize tensor memory
-            if hasattr(graph, 'x') and graph.x is not None:
-                # Ensure tensor is contiguous for better memory access
-                if not graph.x.is_contiguous():
-                    graph.x = graph.x.contiguous()
-                    optimizations.append("Made tensor contiguous")
-
-            if hasattr(graph, 'edge_index') and graph.edge_index is not None:
-                if not graph.edge_index.is_contiguous():
-                    graph.edge_index = graph.edge_index.contiguous()
-                    optimizations.append("Made edge_index contiguous")
+            memory_saved += self._optimize_edge_attributes(graph, optimizations)
+            memory_saved += self._optimize_node_labels(graph)
+            self._optimize_tensors(graph, optimizations)
 
         stats = {
             'optimizations_applied': len(optimizations),
@@ -220,6 +177,64 @@ class MemoryOptimizer:
                     optimizations=len(optimizations), memory_saved=f"{memory_saved:.2f}MB")
 
         return stats
+
+    def _optimize_edge_attributes(self, graph, optimizations):
+        """Optimize edge attributes by removing None values."""
+        memory_saved = 0.0
+        if hasattr(graph, 'edge_attributes') and graph.edge_attributes:
+            original_count = len(graph.edge_attributes)
+            graph.edge_attributes = [attr for attr in graph.edge_attributes if attr is not None]
+            cleaned_count = len(graph.edge_attributes)
+            if cleaned_count < original_count:
+                optimizations.append(f"Cleaned {original_count - cleaned_count} edge attributes")
+                memory_saved = (original_count - cleaned_count) * 0.1
+        return memory_saved
+
+    def _clean_object_attributes(self, value):
+        """Clean large object attributes from a value."""
+        if hasattr(value, '__dict__') and len(value.__dict__) > 100:
+            for attr in list(value.__dict__.keys()):
+                if attr.startswith('_cache') or attr.startswith('_temp'):
+                    try:
+                        delattr(value, attr)
+                    except (AttributeError, KeyError):
+                        pass
+
+    def _process_node(self, node):
+        """Process a single node to remove large unused data."""
+        memory_saved = 0.0
+        if isinstance(node, dict):
+            keys_to_remove = []
+            for key, value in node.items():
+                if isinstance(value, (list, tuple)) and len(value) > 1000:
+                    keys_to_remove.append(key)
+                self._clean_object_attributes(value)
+            for key in keys_to_remove:
+                try:
+                    del node[key]
+                    memory_saved += 0.05
+                except (AttributeError, KeyError):
+                    pass
+        return memory_saved
+
+    def _optimize_node_labels(self, graph):
+        """Optimize node labels by removing large unused data."""
+        memory_saved = 0.0
+        if hasattr(graph, 'node_labels') and graph.node_labels:
+            for node in graph.node_labels:
+                memory_saved += self._process_node(node)
+        return memory_saved
+
+    def _optimize_tensors(self, graph, optimizations):
+        """Optimize tensor memory by making them contiguous."""
+        if hasattr(graph, 'x') and graph.x is not None:
+            if not graph.x.is_contiguous():
+                graph.x = graph.x.contiguous()
+                optimizations.append("Made tensor contiguous")
+        if hasattr(graph, 'edge_index') and graph.edge_index is not None:
+            if not graph.edge_index.is_contiguous():
+                graph.edge_index = graph.edge_index.contiguous()
+                optimizations.append("Made edge_index contiguous")
 
     def get_optimization_statistics(self) -> Dict[str, Any]:
         """Get memory optimization statistics."""
@@ -357,11 +372,16 @@ class _MemoryManagerSingleton:
         self._lock = threading.Lock()
 
     def get_instance(self) -> MemoryManager:
+        """Get the singleton instance of MemoryManager."""
         if self._instance is None:
             with self._lock:
                 if self._instance is None:
                     self._instance = MemoryManager()
         return self._instance
+
+    def is_initialized(self) -> bool:
+        """Check if the singleton instance has been initialized."""
+        return self._instance is not None
 
 # Global singleton instance
 _memory_manager_singleton = _MemoryManagerSingleton()

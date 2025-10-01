@@ -1,4 +1,13 @@
 
+"""
+Event-driven system for neural simulations.
+
+This module provides an event-driven framework for simulating neural networks,
+including event types, event queues, event processors, and the main event-driven system.
+It supports various neural events such as spikes, synaptic transmissions, plasticity updates,
+and energy transfers, with thread-safe operations and comprehensive statistics tracking.
+"""
+
 import heapq
 import threading
 import time
@@ -10,6 +19,7 @@ from src.utils.logging_utils import log_step
 
 
 class EventType(Enum):
+    """Enumeration of different types of neural events in the simulation."""
     SPIKE = "spike"
     SYNAPTIC_TRANSMISSION = "synaptic_transmission"
     PLASTICITY_UPDATE = "plasticity_update"
@@ -24,6 +34,7 @@ class EventType(Enum):
 
 
 class NeuralEvent:
+    """Represents a neural event with type, timing, and associated data."""
     event_type: EventType
     timestamp: float
     source_node_id: int
@@ -37,31 +48,38 @@ class NeuralEvent:
 
 
 class EventQueue:
+    """Thread-safe priority queue for managing neural events."""
     def __init__(self):
         self._queue = []
         self._lock = threading.RLock()
         self._event_count = 0
     def push(self, event: NeuralEvent):
+        """Add an event to the queue."""
         with self._lock:
             heapq.heappush(self._queue, event)
             self._event_count += 1
     def pop(self) -> Optional[NeuralEvent]:
+        """Remove and return the highest priority event from the queue."""
         with self._lock:
             if self._queue:
                 self._event_count -= 1
                 return heapq.heappop(self._queue)
             return None
     def peek(self) -> Optional[NeuralEvent]:
+        """Return the highest priority event without removing it."""
         with self._lock:
             return self._queue[0] if self._queue else None
     def size(self) -> int:
+        """Return the number of events in the queue."""
         with self._lock:
             return self._event_count
     def clear(self):
+        """Remove all events from the queue."""
         with self._lock:
             self._queue.clear()
             self._event_count = 0
     def get_events_in_timeframe(self, start_time: float, end_time: float) -> List[NeuralEvent]:
+        """Return events within the specified time range without removing them."""
         with self._lock:
             events = []
             temp_queue = []
@@ -77,6 +95,7 @@ class EventQueue:
 
 
 class EventProcessor:
+    """Handles processing of neural events by delegating to specific handlers."""
     def __init__(self, simulation_manager=None):
         self.simulation_manager = simulation_manager
         self.event_handlers: Dict[EventType, Callable] = {
@@ -98,6 +117,7 @@ class EventProcessor:
             'queue_size_max': 0
         }
     def process_event(self, event: NeuralEvent) -> bool:
+        """Process a single neural event using the appropriate handler."""
         start_time = time.time()
         try:
             handler = self.event_handlers.get(event.event_type)
@@ -108,9 +128,8 @@ class EventProcessor:
                 processing_time = time.time() - start_time
                 self.stats['processing_time'] += processing_time
                 return success
-            else:
-                log_step(f"No handler for event type: {event.event_type}")
-                return False
+            log_step(f"No handler for event type: {event.event_type}")
+            return False
         except (AttributeError, KeyError, ValueError, RuntimeError) as e:
             log_step(f"Error processing event {event.event_type}: {e}")
             return False
@@ -287,8 +306,10 @@ class EventProcessor:
         except (AttributeError, KeyError, ValueError) as e:
             log_step(f"Error triggering plasticity events: {e}")
     def get_statistics(self) -> Dict[str, Any]:
+        """Return a copy of the current statistics."""
         return self.stats.copy()
     def reset_statistics(self):
+        """Reset all statistics to their initial values."""
         self.stats = {
             'events_processed': 0,
             'events_by_type': {event_type: 0 for event_type in EventType},
@@ -298,6 +319,7 @@ class EventProcessor:
 
 
 class EventDrivenSystem:
+    """Main system for managing event-driven neural simulations."""
     def __init__(self, simulation_manager=None):
         self.simulation_manager = simulation_manager
         self.event_queue = EventQueue()
@@ -313,13 +335,16 @@ class EventDrivenSystem:
             'queue_size_history': []
         }
     def start(self):
+        """Start the event-driven system."""
         self.running = True
         self.current_time = time.time()
         log_step("Event-driven system started")
     def stop(self):
+        """Stop the event-driven system."""
         self.running = False
         log_step("Event-driven system stopped")
     def process_events(self, max_events: int = None) -> int:
+        """Process up to max_events from the queue."""
         if max_events is None:
             max_events = self.max_events_per_step
         events_processed_count = 0
@@ -342,8 +367,10 @@ class EventDrivenSystem:
             self.stats['queue_size_history'] = self.stats['queue_size_history'][-1000:]
         return events_processed_count
     def schedule_event(self, event: NeuralEvent):
+        """Schedule a neural event for processing."""
         self.event_queue.push(event)
     def schedule_spike(self, node_id: int, timestamp: float = None, priority: int = 1):
+        """Schedule a spike event for a node."""
         if timestamp is None:
             timestamp = self.current_time
         spike_event = NeuralEvent(
@@ -354,6 +381,7 @@ class EventDrivenSystem:
         )
         self.schedule_event(spike_event)
     def schedule_energy_transfer(self, source_id: int, target_id: int, amount: float, timestamp: float = None):
+        """Schedule an energy transfer event."""
         if timestamp is None:
             timestamp = self.current_time
         transfer_event = NeuralEvent(
@@ -366,11 +394,13 @@ class EventDrivenSystem:
         )
         self.schedule_event(transfer_event)
     def get_statistics(self) -> Dict[str, Any]:
+        """Return comprehensive system statistics."""
         system_stats = self.stats.copy()
         system_stats['queue_size'] = self.event_queue.size()
         system_stats['processor_stats'] = self.event_processor.get_statistics()
         return system_stats
     def reset_statistics(self):
+        """Reset all system statistics."""
         self.stats = {
             'total_events_processed': 0,
             'simulation_time': 0.0,
@@ -381,6 +411,7 @@ class EventDrivenSystem:
 
 
 def create_event_driven_system(simulation_manager=None) -> EventDrivenSystem:
+    """Factory function to create an EventDrivenSystem instance."""
     return EventDrivenSystem(simulation_manager)
 if __name__ == "__main__":
     print("Event-driven system created successfully!")
@@ -395,8 +426,8 @@ if __name__ == "__main__":
         system.schedule_spike(1, time.time())
         system.schedule_energy_transfer(1, 2, 10.0, time.time() + 0.001)
         print(f"Event queue size: {system.event_queue.size()}")
-        events_processed = system.process_events(10)
-        print(f"Processed {events_processed} events")
+        EVENTS_PROCESSED = system.process_events(10)
+        print(f"Processed {EVENTS_PROCESSED} events")
         stats = system.get_statistics()
         print(f"System statistics: {stats}")
     except (AttributeError, KeyError, ValueError) as e:

@@ -7,17 +7,17 @@ from typing import Any, Dict, Optional
 
 class StatisticsManager:
     """Manages and consolidates statistics for different modules."""
-    
+
     def __init__(self):
         self._stats: Dict[str, Dict[str, Any]] = {}
-    
+
     def register_module_stats(self, module_name: str, initial_stats: Dict[str, Any]):
         """Registers initial statistics for a given module."""
         if module_name not in self._stats:
             self._stats[module_name] = initial_stats
         else:
             self._stats[module_name].update(initial_stats)
-    
+
     def update_module_stats(self, module_name: str, key: str, value: Any):
         """Updates a specific statistic for a module."""
         if module_name in self._stats:
@@ -25,7 +25,7 @@ class StatisticsManager:
         else:
             # Optionally log a warning if trying to update unregistered module
             pass
-    
+
     def increment_module_stat(self, module_name: str, key: str, amount: int = 1):
         """Increments a numeric statistic for a module."""
         if module_name in self._stats and key in self._stats[module_name]:
@@ -33,15 +33,15 @@ class StatisticsManager:
         else:
             # Optionally log a warning
             pass
-    
+
     def get_module_stats(self, module_name: str) -> Dict[str, Any]:
         """Retrieves all statistics for a given module."""
         return self._stats.get(module_name, {}).copy()
-    
+
     def get_all_stats(self) -> Dict[str, Dict[str, Any]]:
         """Retrieves statistics for all registered modules."""
         return {k: v.copy() for k, v in self._stats.items()}
-    
+
     def reset_module_stats(self, module_name: str, initial_stats: Optional[Dict[str, Any]] = None):
         """Resets statistics for a module, optionally to new initial values."""
         if module_name in self._stats:
@@ -53,7 +53,7 @@ class StatisticsManager:
         else:
             # Optionally log a warning
             pass
-    
+
     def reset_all_stats(self):
         """Resets all registered statistics."""
         self._stats.clear()
@@ -79,9 +79,3 @@ def create_standard_stats(module_name: str) -> Dict[str, Any]:
         'last_reset_time': 0.0,
         'module_name': module_name
     }
-
-
-
-
-
-

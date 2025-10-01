@@ -1,10 +1,10 @@
+"""Memory system module for managing neural network memory traces and learning."""
 
 import time
 
 import numpy as np
 
 from src.utils.logging_utils import log_step
-
 DEFAULT_MEMORY_STRENGTH = 1.0
 DEFAULT_MEMORY_DECAY_RATE = 0.99
 DEFAULT_CONSOLIDATION_THRESHOLD = 0.8
@@ -13,6 +13,7 @@ DEFAULT_MAX_MEMORY_TRACES = 1000
 
 
 class MemorySystem:
+    """Manages memory traces, consolidation, decay, and pattern recall for neural networks."""
 
     def __init__(self):
         self.memory_traces = {}
@@ -31,6 +32,7 @@ class MemorySystem:
         self.cache_decay_rate = 0.95
     def form_memory_traces(self, graph):
 
+        """Form memory traces for nodes with stable patterns in the neural graph."""
         if not hasattr(graph, 'node_labels') or not graph.node_labels:
             log_step("Memory trace formation skipped: no node_labels")
             return graph
@@ -105,19 +107,21 @@ class MemorySystem:
             behavior_counts[behavior] = behavior_counts.get(behavior, 0) + 1
         if excitatory_count > inhibitory_count + modulatory_count:
             if 'oscillator' in behavior_counts:
-                return 'rhythmic_excitatory'
+                pattern_type = 'rhythmic_excitatory'
             elif 'integrator' in behavior_counts:
-                return 'integrative_excitatory'
+                pattern_type = 'integrative_excitatory'
             else:
-                return 'excitatory_dominant'
+                pattern_type = 'excitatory_dominant'
         elif inhibitory_count > excitatory_count:
-            return 'inhibitory_dominant'
+            pattern_type = 'inhibitory_dominant'
         elif modulatory_count > 0:
-            return 'modulatory_influenced'
+            pattern_type = 'modulatory_influenced'
         else:
-            return 'balanced'
+            pattern_type = 'balanced'
+        return pattern_type
     def consolidate_memories(self, graph):
 
+        """Consolidate existing memory traces based on stable patterns."""
         current_time = time.time()
         consolidated_count = 0
         for node_idx, memory_trace in list(self.memory_traces.items()):
@@ -138,6 +142,7 @@ class MemorySystem:
         return graph
     def decay_memories(self):
 
+        """Apply decay to memory traces and remove weak ones."""
         current_time = time.time()
         to_remove = []
         for node_idx, memory_trace in self.memory_traces.items():
@@ -154,6 +159,7 @@ class MemorySystem:
         return len(to_remove)
     def recall_patterns(self, graph, target_node_idx):
 
+        """Recall relevant memory patterns for a target node."""
         recalled_patterns = []
         for node_idx, memory_trace in self.memory_traces.items():
             if self._is_pattern_relevant(memory_trace, target_node_idx, graph):
@@ -205,10 +211,12 @@ class MemorySystem:
                 removed_node=weakest_idx,
                 new_node=new_node_idx)
     def get_memory_statistics(self):
+        """Return a copy of the current memory statistics."""
         total_strength = sum(trace['strength'] for trace in self.memory_traces.values())
         self.memory_stats['total_memory_strength'] = total_strength
         return self.memory_stats.copy()
     def reset_statistics(self):
+        """Reset all memory statistics to initial values."""
         self.memory_stats = {
             'traces_formed': 0,
             'traces_consolidated': 0,
@@ -217,8 +225,10 @@ class MemorySystem:
             'total_memory_strength': 0.0
         }
     def get_memory_trace_count(self):
+        """Return the number of memory traces currently stored."""
         return len(self.memory_traces)
     def get_memory_summary(self):
+        """Return a summary of all memory traces with key information."""
         summary = []
         for node_idx, trace in self.memory_traces.items():
             summary.append({
@@ -231,6 +241,7 @@ class MemorySystem:
         return summary
     def get_node_memory_importance(self, node_id):
 
+        """Calculate and return the importance score for a node's memory trace."""
         if node_id not in self.memory_traces:
             return 0.0
         trace = self.memory_traces[node_id]
@@ -255,6 +266,7 @@ class MemorySystem:
 
 def analyze_memory_distribution(memory_sys):
 
+    """Analyze the distribution of memory patterns and strengths."""
     summary = memory_sys.get_memory_summary()
     pattern_distribution = {}
     strength_distribution = []
@@ -272,6 +284,7 @@ def analyze_memory_distribution(memory_sys):
 
 def calculate_memory_efficiency(memory_sys):
 
+    """Calculate the overall efficiency of the memory system."""
     efficiency_stats = memory_sys.get_memory_statistics()
     formation_efficiency = min(efficiency_stats['traces_formed'] / 10.0, 1.0)
     consolidation_efficiency = min(efficiency_stats['traces_consolidated'] / 5.0, 1.0)

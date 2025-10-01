@@ -404,6 +404,10 @@ class HomeostasisController:
             'target_ratio': self.branching_target
         }
     def monitor_network_health(self, graph):
+        """Monitors network health by checking energy levels, connection density, and recent regulation activity.
+
+        Returns a dictionary with status, health score, warnings, and metrics.
+        """
 
         if not hasattr(graph, 'node_labels') or graph.node_labels is None or not hasattr(graph, 'x') or graph.x is None:
             return {'status': 'unknown', 'warnings': []}
@@ -548,7 +552,7 @@ def detect_network_anomalies(graph):
             ratio = count / total_nodes
             if ratio > 0.8:
                 anomalies.append(f"Behavior imbalance: {behavior} dominates ({count}/{total_nodes})")
-        return anomalies
+    return anomalies
 
 
 

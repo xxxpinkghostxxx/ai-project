@@ -1,8 +1,10 @@
+"""Module for calculating and analyzing network metrics in neural systems."""
 
 import logging
 from collections import defaultdict, deque
 from typing import Dict, List
 
+import time
 import numpy as np
 import torch
 
@@ -11,6 +13,7 @@ from src.utils.logging_utils import log_runtime, log_step
 
 
 class NetworkMetrics:
+    """Class for computing various network metrics including criticality, connectivity, and energy balance."""
 
     def __init__(self, calculation_interval: int = None):
 
@@ -29,7 +32,7 @@ class NetworkMetrics:
         logging.info("[NETWORK_METRICS] Initialized with calculation interval: %d", self.calculation_interval)
     @log_runtime
     def calculate_criticality(self, graph) -> float:
-
+        """Calculate the criticality of the network based on activation patterns."""
         log_step("calculate_criticality start")
         if not hasattr(graph, 'node_labels') or not graph.node_labels:
             logging.warning("[NETWORK_METRICS] No node labels found for criticality calculation")
@@ -58,7 +61,7 @@ class NetworkMetrics:
         return 0.0
     @log_runtime
     def analyze_connectivity(self, graph) -> Dict[str, float]:
-
+        """Analyze the connectivity metrics of the network graph."""
         log_step("analyze_connectivity start")
         if not hasattr(graph, 'edge_index') or graph.edge_index is None:
             logging.warning("[NETWORK_METRICS] No edge index found for connectivity analysis")
@@ -88,7 +91,7 @@ class NetworkMetrics:
         return connectivity_metrics
     @log_runtime
     def measure_energy_balance(self, graph) -> Dict[str, float]:
-
+        """Measure the energy balance and distribution in the network."""
         log_step("measure_energy_balance start")
         if not hasattr(graph, 'x') or graph.x is None:
             logging.warning("[NETWORK_METRICS] No node features found for energy balance")
@@ -121,20 +124,19 @@ class NetworkMetrics:
         return energy_distribution
     @log_runtime
     def calculate_comprehensive_metrics(self, graph) -> Dict[str, any]:
-
+        """Calculate comprehensive metrics including criticality, connectivity, and energy."""
         log_step("calculate_comprehensive_metrics start")
-        import time as _time
-        start_time = _time.time()
+        start_time = time.time()
         criticality = self.calculate_criticality(graph)
         connectivity = self.analyze_connectivity(graph)
         energy_balance = self.measure_energy_balance(graph)
         performance_metrics = {
-            'calculation_time': _time.time() - start_time,
+            'calculation_time': time.time() - start_time,
             'metric_updates': self.metric_updates,
             'calculation_efficiency': self._calculate_efficiency()
         }
         comprehensive_metrics = {
-            'timestamp': _time.time(),
+            'timestamp': time.time(),
             'criticality': criticality,
             'connectivity': connectivity,
             'energy_balance': energy_balance,
@@ -149,7 +151,7 @@ class NetworkMetrics:
         log_step("calculate_comprehensive_metrics end")
         return comprehensive_metrics
     def get_metrics_trends(self, window_size: int = 10) -> Dict[str, List[float]]:
-
+        """Get trends in metrics over a specified window size."""
         if len(self.metrics_history) < window_size:
             return {}
         recent_metrics = list(self.metrics_history)[-window_size:]
@@ -161,47 +163,30 @@ class NetworkMetrics:
         }
         return trends
     def get_network_health_score(self) -> Dict[str, any]:
-
+        """Calculate and return the network health score based on metrics."""
         if not self.last_metrics:
             return {'score': 0.0, 'status': 'unknown', 'recommendations': []}
         metrics = self.last_metrics
         health_score = 0.0
         recommendations = []
         criticality = metrics.get('criticality', 0.0)
-        if 0.8 <= criticality <= 1.2:
-            health_score += 25.0
-        elif 0.5 <= criticality <= 1.5:
-            health_score += 15.0
-        else:
-            health_score += 5.0
-            recommendations.append("Criticality outside optimal range")
-        connectivity = metrics.get('connectivity', {})
-        density = connectivity.get('density', 0.0)
-        if 0.1 <= density <= 0.5:
-            health_score += 25.0
-        elif 0.05 <= density <= 0.7:
-            health_score += 15.0
-        else:
-            health_score += 5.0
-            recommendations.append("Network density outside optimal range")
-        energy_balance = metrics.get('energy_balance', {})
-        energy_variance = energy_balance.get('energy_variance', 0.0)
-        if energy_variance < 100.0:
-            health_score += 25.0
-        elif energy_variance < 500.0:
-            health_score += 15.0
-        else:
-            health_score += 5.0
-            recommendations.append("High energy variance detected")
-        performance = metrics.get('performance', {})
-        calc_time = performance.get('calculation_time', 0.0)
-        if calc_time < 0.001:
-            health_score += 25.0
-        elif calc_time < 0.01:
-            health_score += 15.0
-        else:
-            health_score += 5.0
-            recommendations.append("Metric calculation performance degraded")
+        density = metrics.get('connectivity', {}).get('density', 0.0)
+        energy_variance = metrics.get('energy_balance', {}).get('energy_variance', 0.0)
+        calc_time = metrics.get('performance', {}).get('calculation_time', 0.0)
+        health_checks = [
+            ('criticality', criticality, [(0.8, 1.2, 25.0), (0.5, 1.5, 15.0)], "Criticality outside optimal range"),
+            ('density', density, [(0.1, 0.5, 25.0), (0.05, 0.7, 15.0)], "Network density outside optimal range"),
+            ('energy_variance', energy_variance, [(0.0, 100.0, 25.0), (0.0, 500.0, 15.0)], "High energy variance detected"),
+            ('calculation_time', calc_time, [(0.0, 0.001, 25.0), (0.0, 0.01, 15.0)], "Metric calculation performance degraded"),
+        ]
+        for _, value, ranges, rec in health_checks:
+            for low, high, score in ranges:
+                if low <= value <= high:
+                    health_score += score
+                    break
+            else:
+                health_score += 5.0
+                recommendations.append(rec)
         if health_score >= 80.0:
             status = 'excellent'
         elif health_score >= 60.0:
@@ -255,10 +240,9 @@ class NetworkMetrics:
         density = num_edges / (num_nodes * (num_nodes - 1)) if num_nodes > 1 else 0
         if density > 0.5:
             return 1.5
-        elif density > 0.1:
+        if density > 0.1:
             return 2.5
-        else:
-            return 4.0
+        return 4.0
     def _analyze_degree_distribution(self, graph) -> Dict[str, float]:
         if not hasattr(graph, 'edge_index') or graph.edge_index is None:
             return {'variance': 0.0, 'entropy': 0.0, 'max_degree': 0, 'min_degree': 0}
@@ -367,11 +351,12 @@ class NetworkMetrics:
 
 
 def create_network_metrics(calculation_interval: int = 50) -> NetworkMetrics:
+    """Create a new NetworkMetrics instance with specified calculation interval."""
     return NetworkMetrics(calculation_interval)
 
 
 def quick_network_analysis(graph) -> Dict[str, any]:
-
+    """Perform a quick analysis of the network metrics."""
     metrics = NetworkMetrics()
     return metrics.calculate_comprehensive_metrics(graph)
 

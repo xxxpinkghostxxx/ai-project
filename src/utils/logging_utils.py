@@ -1,3 +1,4 @@
+"""Logging utilities for the neural network simulation."""
 import functools
 import logging
 import time
@@ -9,6 +10,7 @@ log_lock = Lock()
 
 
 def append_log_line(line):
+    """Append a log line to the global log buffer, maintaining a maximum number of lines."""
     global log_lines  # pylint: disable=global-statement
     with log_lock:
         log_lines.append(line)
@@ -17,6 +19,7 @@ def append_log_line(line):
 
 
 class UILogHandler(logging.Handler):
+    """Custom logging handler that integrates with UI callbacks and maintains a log buffer."""
 
     def __init__(self, ui_callback=None):
         super().__init__()
@@ -32,6 +35,7 @@ class UILogHandler(logging.Handler):
 
 
 def setup_logging(ui_callback=None, level=logging.INFO):
+    """Set up the logging system with a UI handler and specified level."""
 
     handler = UILogHandler(ui_callback=ui_callback)
     handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
@@ -41,12 +45,14 @@ def setup_logging(ui_callback=None, level=logging.INFO):
 
 
 def get_log_lines():
+    """Return a copy of the current log lines."""
 
     with log_lock:
         return list(log_lines)
 
 
 def log_runtime(func):
+    """Decorator to log the runtime of a function."""
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
@@ -61,6 +67,7 @@ def log_runtime(func):
 
 
 def log_step(step_desc, **kwargs):
+    """Log a step description with optional keyword arguments."""
 
     msg = f"[STEP] {step_desc}"
     if kwargs:
@@ -70,6 +77,7 @@ def log_step(step_desc, **kwargs):
 
 
 def log_node_state(node_label, prefix="[NODE_STATE]"):
+    """Log the state of a neural node with required fields."""
 
     required_fields = ["type", "energy", "behavior", "state", "last_update"]
     for field in required_fields:

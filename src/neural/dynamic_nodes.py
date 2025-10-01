@@ -1,3 +1,8 @@
+"""Module for managing dynamic nodes in neural graphs.
+
+This module provides functionality to add dynamic nodes to the neural network graph,
+including energy initialization, node labeling, and graph updates.
+"""
 import torch
 
 from src.energy.energy_behavior import get_node_energy_cap

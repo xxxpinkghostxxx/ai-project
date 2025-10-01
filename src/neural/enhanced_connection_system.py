@@ -1,4 +1,11 @@
 
+"""
+Enhanced Connection System Module
+
+This module provides advanced neural connection management with support for multiple
+connection types, plasticity, neuromodulation, and thread-safe operations.
+"""
+
 import threading
 import time
 from collections import defaultdict
@@ -12,6 +19,12 @@ from src.utils.logging_utils import log_step
 
 
 class EnhancedConnection:
+    """
+    Represents an enhanced neural connection with advanced features.
+
+    Supports multiple connection types (excitatory, inhibitory, modulatory, gated, plastic),
+    plasticity mechanisms, neuromodulation, fatigue modeling, and thread-safe operations.
+    """
 
     def __init__(self, source_id: int, target_id: int, connection_type: str = 'excitatory',
                  weight: float = 1.0, **kwargs):
@@ -75,7 +88,7 @@ class EnhancedConnection:
         """Validate and clamp float values."""
         try:
             val = float(value)
-            if not (min_val <= val <= max_val):
+            if not min_val <= val <= max_val:
                 log_step(f"Value {val} for {field_name} out of range [{min_val}, {max_val}], clamping")
                 val = max(min_val, min(max_val, val))
             return val
@@ -88,7 +101,7 @@ class EnhancedConnection:
         try:
             val = float(weight)
             # Allow reasonable weight range
-            if not (-100.0 <= val <= 100.0):
+            if not -100.0 <= val <= 100.0:
                 log_step(f"Weight {val} out of range, clamping")
                 val = max(-100.0, min(100.0, val))
             return val
@@ -192,14 +205,19 @@ class EnhancedConnection:
                 if len(self.gate_history) > 50:
                     self.gate_history = self.gate_history[-50:]
     def update_fatigue(self):
+        """Update fatigue level using recovery rate."""
         self.fatigue_level *= self.fatigue_recovery_rate
     def get_connection_strength(self) -> float:
+        """Get the absolute strength of the connection."""
         return abs(self.weight)
     def get_connection_efficiency(self) -> float:
+        """Get the current transmission efficiency considering fatigue."""
         return self.transmission_efficiency * (1.0 - self.fatigue_level)
     def is_active(self) -> bool:
+        """Check if the connection is active and efficient."""
         return self.active and self.get_connection_efficiency() > 0.1
     def to_dict(self) -> Dict[str, Any]:
+        """Convert connection to dictionary representation."""
         return {
             'source_id': self.source_id,
             'target_id': self.target_id,
@@ -223,6 +241,12 @@ class EnhancedConnection:
 
 
 class EnhancedConnectionSystem:
+    """
+    Manages a system of enhanced neural connections with thread-safe operations.
+
+    Provides functionality for creating, removing, and updating connections,
+    handling neuromodulation, plasticity, and connection pruning.
+    """
 
     def __init__(self):
         # Thread safety
@@ -253,40 +277,41 @@ class EnhancedConnectionSystem:
                           connection_type: str = 'excitatory', **kwargs) -> bool:
         """Create a connection with comprehensive validation and thread safety."""
         # Input validation
-        if not isinstance(source_id, int) or source_id < 0:
+        valid = True
+        if not (isinstance(source_id, int) and source_id >= 0):
             log_step("Error: invalid source_id", source_id=source_id)
-            return False
-        if not isinstance(target_id, int) or target_id < 0:
+            valid = False
+        if not (isinstance(target_id, int) and target_id >= 0):
             log_step("Error: invalid target_id", target_id=target_id)
-            return False
+            valid = False
         if source_id == target_id:
             log_step("Error: cannot create self-connection", source_id=source_id)
-            return False
-        if not isinstance(connection_type, str):
-            log_step("Error: connection_type must be string", type=type(connection_type))
-            return False
-        if connection_type not in ['excitatory', 'inhibitory', 'modulatory', 'gated', 'plastic']:
-            log_step("Invalid connection type", type=connection_type)
+            valid = False
+        if not isinstance(connection_type, str) or connection_type not in ['excitatory', 'inhibitory', 'modulatory', 'gated', 'plastic']:
+            log_step("Error: invalid connection_type", type=connection_type)
+            valid = False
+        if not valid:
             return False
 
         with self._lock:
-            # Check memory limits
+            # Check limits and existence
+            can_create = True
             if len(self.connections) >= self.max_connections:
                 log_step("Maximum connections reached", limit=self.max_connections)
-                return False
-
-            # Check connections per node limits
-            if len(self.node_connections[source_id]) >= self.max_connections_per_node:
+                can_create = False
+            elif len(self.node_connections[source_id]) >= self.max_connections_per_node:
                 log_step("Maximum connections per node reached for source", source_id=source_id, limit=self.max_connections_per_node)
-                return False
-            if len(self.node_connections[target_id]) >= self.max_connections_per_node:
+                can_create = False
+            elif len(self.node_connections[target_id]) >= self.max_connections_per_node:
                 log_step("Maximum connections per node reached for target", target_id=target_id, limit=self.max_connections_per_node)
-                return False
-
-            if (source_id, target_id) in self.connection_index:
+                can_create = False
+            elif (source_id, target_id) in self.connection_index:
                 log_step("Connection already exists", source_id=source_id, target_id=target_id)
+                can_create = False
+            if not can_create:
                 return False
 
+            # Create connection
             try:
                 connection = EnhancedConnection(source_id, target_id, connection_type, **kwargs)
                 connection_idx = len(self.connections)
@@ -297,10 +322,7 @@ class EnhancedConnectionSystem:
                 self.stats['total_connections'] += 1
                 self.stats['connections_by_type'][connection_type] += 1
                 self.stats['connections_created'] += 1
-                log_step("Connection created",
-                        source_id=source_id,
-                        target_id=target_id,
-                        type=connection_type)
+                log_step("Connection created", source_id=source_id, target_id=target_id, type=connection_type)
                 return True
             except (ValueError, TypeError, AttributeError, RuntimeError) as e:
                 log_step("Error creating connection", error=str(e), source_id=source_id, target_id=target_id)
@@ -467,7 +489,7 @@ class EnhancedConnectionSystem:
             source_id = connection.source_id
             target_id = connection.target_id
             self.remove_connection(source_id, target_id)
-            
+
             # Diagnostic log for prune
             log_step(f"[PRUNE] Weak connection pruned: {source_id} -> {target_id}, weight={connection.weight}, reason={'low_weight' if abs(connection.weight) < ConnectionConstants.WEIGHT_MIN else 'high_fatigue'}, fatigue={connection.fatigue_level}")
     def set_neuromodulator_level(self, neuromodulator: str, level: float):
@@ -569,6 +591,7 @@ class EnhancedConnectionSystem:
 
 
 def create_enhanced_connection_system() -> EnhancedConnectionSystem:
+    """Create and return a new instance of EnhancedConnectionSystem."""
     return EnhancedConnectionSystem()
 if __name__ == "__main__":
     print("EnhancedConnectionSystem created successfully!")
@@ -582,8 +605,8 @@ if __name__ == "__main__":
     try:
         system = create_enhanced_connection_system()
         print(f"Connection system created with {len(system.connections)} connections")
-        success = system.create_connection(1, 2, 'excitatory', weight=1.5)
-        print(f"Connection creation test: {'PASSED' if success else 'FAILED'}")
+        SUCCESS = system.create_connection(1, 2, 'excitatory', weight=1.5)
+        print(f"Connection creation test: {'PASSED' if SUCCESS else 'FAILED'}")
         stats = system.get_connection_statistics()
         print(f"Connection statistics: {stats}")
     except (ValueError, TypeError, AttributeError, RuntimeError) as e:

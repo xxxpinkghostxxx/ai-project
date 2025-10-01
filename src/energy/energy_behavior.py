@@ -214,6 +214,7 @@ def apply_oscillator_energy_dynamics(graph, node_id):
 
 
 def apply_integrator_energy_dynamics(graph, node_id):
+    """Apply integrator energy dynamics to accumulate energy from incoming connections."""
 
     access_layer = NodeAccessLayer(graph)
     node = access_layer.get_node_by_id(node_id)
@@ -244,37 +245,44 @@ def apply_integrator_energy_dynamics(graph, node_id):
 
 
 def apply_relay_energy_dynamics(graph, node_id):
+    """Apply relay energy dynamics to transfer amplified energy to connected targets."""
 
     access_layer = NodeAccessLayer(graph)
     node = access_layer.get_node_by_id(node_id)
     if node is None:
         return graph
     relay_amplification = node.get('relay_amplification', RelayConstants.get_relay_amplification())
-    if hasattr(graph, 'edge_attributes'):
-        current_energy = access_layer.get_node_energy(node_id)
-        if current_energy is not None:
-            transfer_energy = current_energy * RelayConstants.ENERGY_TRANSFER_FRACTION
-            for edge in graph.edge_attributes:
-                if edge.source == node_id:
-                    target_id = edge.target
-                    if access_layer.get_node_by_id(target_id) is not None:
-                        amplified_transfer = transfer_energy * relay_amplification
-                        target_energy = access_layer.get_node_energy(target_id)
-                        if target_energy is not None:
-                            new_target_energy = min(target_energy + amplified_transfer, get_node_energy_cap())
-                            access_layer.set_node_energy(target_id, new_target_energy)
-                            access_layer.update_node_property(target_id, 'membrane_potential', min(new_target_energy / get_node_energy_cap(), EnergyConstants.MEMBRANE_POTENTIAL_CAP))
-            new_relay_energy = max(current_energy - amplified_transfer, 0)
-            access_layer.set_node_energy(node_id, new_relay_energy)
-            access_layer.update_node_property(node_id, 'membrane_potential', min(new_relay_energy / get_node_energy_cap(), EnergyConstants.MEMBRANE_POTENTIAL_CAP))
-            log_step("Relay energy transfer",
-                    node_id=node_id,
-                    transfer_energy=transfer_energy,
-                    amplification=relay_amplification)
+    if not hasattr(graph, 'edge_attributes'):
+        return graph
+    current_energy = access_layer.get_node_energy(node_id)
+    if current_energy is None:
+        return graph
+    transfer_energy = current_energy * RelayConstants.ENERGY_TRANSFER_FRACTION
+    amplified_transfer = transfer_energy * relay_amplification
+    for edge in graph.edge_attributes:
+        if edge.source != node_id:
+            continue
+        target_id = edge.target
+        if not access_layer.is_valid_node_id(target_id):
+            continue
+        target_energy = access_layer.get_node_energy(target_id)
+        if target_energy is None:
+            continue
+        new_target_energy = min(target_energy + amplified_transfer, get_node_energy_cap())
+        access_layer.set_node_energy(target_id, new_target_energy)
+        access_layer.update_node_property(target_id, 'membrane_potential', min(new_target_energy / get_node_energy_cap(), EnergyConstants.MEMBRANE_POTENTIAL_CAP))
+    new_relay_energy = max(current_energy - amplified_transfer, 0)
+    access_layer.set_node_energy(node_id, new_relay_energy)
+    access_layer.update_node_property(node_id, 'membrane_potential', min(new_relay_energy / get_node_energy_cap(), EnergyConstants.MEMBRANE_POTENTIAL_CAP))
+    log_step("Relay energy transfer",
+             node_id=node_id,
+             transfer_energy=transfer_energy,
+             amplification=relay_amplification)
     return graph
 
 
 def apply_highway_energy_dynamics(graph, node_id):
+    """Apply highway energy dynamics to boost low energy and distribute to connected nodes."""
 
     access_layer = NodeAccessLayer(graph)
     node = access_layer.get_node_by_id(node_id)
@@ -282,37 +290,43 @@ def apply_highway_energy_dynamics(graph, node_id):
         return graph
     highway_energy_boost = node.get('highway_energy_boost', HighwayConstants.get_highway_energy_boost())
     current_energy = access_layer.get_node_energy(node_id)
-    if current_energy is not None:
-        if current_energy < HighwayConstants.ENERGY_THRESHOLD_LOW:
-            boosted_energy = min(current_energy + HighwayConstants.ENERGY_BOOST_AMOUNT, get_node_energy_cap())
-            access_layer.set_node_energy(node_id, boosted_energy)
-            access_layer.update_node_property(node_id, 'membrane_potential', min(boosted_energy / get_node_energy_cap(), EnergyConstants.MEMBRANE_POTENTIAL_CAP))
-            log_step("Highway energy boosted",
-                    node_id=node_id,
-                    old_energy=current_energy,
-                    new_energy=boosted_energy)
-        if hasattr(graph, 'edge_attributes'):
-            distribution_count = 0
-            for edge in graph.edge_attributes:
-                if edge.source == node_id:
-                    target_id = edge.target
-                    if access_layer.get_node_by_id(target_id) is not None:
-                        distribution_energy = HighwayConstants.DISTRIBUTION_ENERGY_BASE * highway_energy_boost
-                        target_energy = access_layer.get_node_energy(target_id)
-                        if target_energy is not None:
-                            new_target_energy = min(target_energy + distribution_energy, get_node_energy_cap())
-                            access_layer.set_node_energy(target_id, new_target_energy)
-                            access_layer.update_node_property(target_id, 'membrane_potential', min(new_target_energy / get_node_energy_cap(), EnergyConstants.MEMBRANE_POTENTIAL_CAP))
-                            distribution_count += 1
-            if distribution_count > 0:
-                log_step("Highway energy distribution",
-                        node_id=node_id,
-                        targets=distribution_count,
-                        energy_per_target=10.0 * highway_energy_boost)
+    if current_energy is None:
+        return graph
+    if current_energy < HighwayConstants.ENERGY_THRESHOLD_LOW:
+        boosted_energy = min(current_energy + HighwayConstants.ENERGY_BOOST_AMOUNT, get_node_energy_cap())
+        access_layer.set_node_energy(node_id, boosted_energy)
+        access_layer.update_node_property(node_id, 'membrane_potential', min(boosted_energy / get_node_energy_cap(), EnergyConstants.MEMBRANE_POTENTIAL_CAP))
+        log_step("Highway energy boosted",
+                 node_id=node_id,
+                 old_energy=current_energy,
+                 new_energy=boosted_energy)
+    if not hasattr(graph, 'edge_attributes'):
+        return graph
+    distribution_count = 0
+    for edge in graph.edge_attributes:
+        if edge.source != node_id:
+            continue
+        target_id = edge.target
+        if not access_layer.is_valid_node_id(target_id):
+            continue
+        distribution_energy = HighwayConstants.DISTRIBUTION_ENERGY_BASE * highway_energy_boost
+        target_energy = access_layer.get_node_energy(target_id)
+        if target_energy is None:
+            continue
+        new_target_energy = min(target_energy + distribution_energy, get_node_energy_cap())
+        access_layer.set_node_energy(target_id, new_target_energy)
+        access_layer.update_node_property(target_id, 'membrane_potential', min(new_target_energy / get_node_energy_cap(), EnergyConstants.MEMBRANE_POTENTIAL_CAP))
+        distribution_count += 1
+    if distribution_count > 0:
+        log_step("Highway energy distribution",
+                 node_id=node_id,
+                 targets=distribution_count,
+                 energy_per_target=10.0 * highway_energy_boost)
     return graph
 
 
 def apply_dynamic_energy_dynamics(graph, node_id):
+    """Apply dynamic energy dynamics with decay and plasticity updates."""
 
     access_layer = NodeAccessLayer(graph)
     node = access_layer.get_node_by_id(node_id)
@@ -470,6 +484,7 @@ def update_membrane_potentials(graph):
 
 
 def apply_refractory_periods(graph):
+    """Apply refractory periods to nodes, updating timers and resetting potentials."""
 
     if not hasattr(graph, 'node_labels'):
         return graph
@@ -492,11 +507,13 @@ def apply_refractory_periods(graph):
 
 
 def couple_sensory_energy_to_channel(graph):
+    """Couple sensory energy to a specific channel."""
 
     return graph
 
 
 def propagate_sensory_energy(graph):
+    """Propagate sensory energy through the network."""
 
     return graph
 

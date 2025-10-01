@@ -137,18 +137,17 @@ class ConfigValidator:
         if schema.validation_func:
             return schema.validation_func(value)
 
-        if schema.config_type == ConfigType.STRING:
-            return cls.validate_string(value, schema)
-        elif schema.config_type == ConfigType.INTEGER:
-            return cls.validate_integer(value, schema)
-        elif schema.config_type == ConfigType.FLOAT:
-            return cls.validate_float(value, schema)
-        elif schema.config_type == ConfigType.BOOLEAN:
-            return cls.validate_boolean(value)
-        elif schema.config_type == ConfigType.LIST:
-            return cls.validate_list(value, schema)
-        elif schema.config_type == ConfigType.DICT:
-            return cls.validate_dict(value, schema)
+        validators = {
+            ConfigType.STRING: cls.validate_string,
+            ConfigType.INTEGER: cls.validate_integer,
+            ConfigType.FLOAT: cls.validate_float,
+            ConfigType.BOOLEAN: cls.validate_boolean,
+            ConfigType.LIST: cls.validate_list,
+            ConfigType.DICT: cls.validate_dict,
+        }
+
+        if schema.config_type in validators:
+            return validators[schema.config_type](value, schema)
 
         return True
 
@@ -306,7 +305,7 @@ class UnifiedConfigManager:
 
             # Store old value for change tracking
             old_value = self.config.get(key)
-            
+
             # Set new value
             self.config[key] = value
 
@@ -510,10 +509,9 @@ class UnifiedConfigManager:
         """Export configuration as string."""
         if fmt.lower() == 'json':
             return json.dumps(self._unflatten_config(self.config), indent=2)
-        elif fmt.lower() in ['yml', 'yaml']:
+        if fmt.lower() in ['yml', 'yaml']:
             return yaml.dump(self._unflatten_config(self.config), default_flow_style=False)
-        else:
-            raise ValueError(f"Unsupported export format: {fmt}")
+        raise ValueError(f"Unsupported export format: {fmt}")
 
     # Backward compatibility methods
     def get_float(self, section: str, key: str, default: float = 0.0) -> float:
@@ -579,18 +577,15 @@ def get_config(section: str, key: str, default: Any = None, value_type: type = s
     if value is None:
         return default
     try:
-        if value_type == int:
-            return int(value)
-        elif value_type == float:
-            return float(value)
-        elif value_type == bool:
-            if isinstance(value, str):
-                return value.lower() in ('true', '1', 'yes', 'on')
-            return bool(value)
-        elif value_type == str:
-            return str(value)
-        else:
-            return value
+        value_converters = {
+            int: int,
+            float: float,
+            bool: lambda v: v.lower() in ('true', '1', 'yes', 'on') if isinstance(v, str) else bool(v),
+            str: str,
+        }
+        if value_type in value_converters:
+            return value_converters[value_type](value)
+        return value
     except (ValueError, TypeError):
         return default
 

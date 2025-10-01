@@ -1,3 +1,4 @@
+"""Live Hebbian Learning module for neural network simulation with energy-based modulation."""
 
 import time
 from typing import Any, Dict
@@ -11,6 +12,7 @@ from src.utils.logging_utils import log_step
 
 
 class LiveHebbianLearning:
+    """Class implementing live Hebbian learning with STDP and energy modulation."""
 
     def __init__(self, simulation_manager=None):
 
@@ -39,7 +41,7 @@ class LiveHebbianLearning:
                 stdp_window=self.stdp_window,
                 energy_modulation=self.energy_learning_modulation)
     def apply_continuous_learning(self, graph: Data, step: int) -> Data:
-
+        """Apply continuous learning to the neural graph."""
         if not self.learning_active:
             return graph
         try:
@@ -120,27 +122,29 @@ class LiveHebbianLearning:
             return graph
     def _get_node_energy(self, node_id: int) -> float:
         """Get energy level for a node from the simulation manager."""
+        energy = 2.0
         try:
             if self.simulation_manager and hasattr(self.simulation_manager, 'get_neural_graph'):
                 graph = self.simulation_manager.get_neural_graph()
-                if hasattr(graph, 'node_labels'):
-                    # Find node by ID
-                    for idx, node in enumerate(graph.node_labels):
-                        if node.get('id') == node_id:
-                            if hasattr(graph, 'x') and idx < len(graph.x):
-                                return graph.x[idx, 0].item()
-                            return node.get('energy', 0.0)
-            # Fallback: if no simulation manager, return a default energy based on node_id
-            # This ensures energy modulation works even without a full simulation manager
-            if isinstance(node_id, int):
-                # Create pseudo-random but deterministic energy values for testing
-                # This gives us a range of energy values for modulation testing
-                energy_value = 0.5 + 0.4 * ((node_id * 7) % 10) / 10.0  # Range: 0.5 to 0.9
-                return min(energy_value, 4.5)  # Cap at 4.5 for energy cap of 5.0
-            return 2.0  # Default fallback energy
+                found_energy = self._find_node_energy(graph, node_id)
+                if found_energy is not None:
+                    energy = found_energy
+            if energy == 2.0 and isinstance(node_id, int):
+                energy_value = 0.5 + 0.4 * ((node_id * 7) % 10) / 10.0
+                energy = min(energy_value, 4.5)
         except (AttributeError, KeyError, ValueError, IndexError) as e:
             log_step("Error getting node energy", error=str(e))
-            return 2.0  # Safe fallback
+            energy = 2.0
+        return energy
+
+    def _find_node_energy(self, graph, node_id):
+        if hasattr(graph, 'node_labels'):
+            for idx, node in enumerate(graph.node_labels):
+                if node.get('id') == node_id:
+                    if hasattr(graph, 'x') and idx < len(graph.x):
+                        return graph.x[idx, 0].item()
+                    return node.get('energy', 2.0)
+        return None
 
     def _calculate_energy_modulated_learning_rate(self, source_id: int, target_id: int) -> float:
         """Calculate learning rate modulated by node energy levels."""
@@ -261,8 +265,10 @@ class LiveHebbianLearning:
         except (AttributeError, KeyError, ValueError, ZeroDivisionError) as e:
             log_step("Error updating learning statistics", error=str(e))
     def get_learning_statistics(self) -> Dict[str, Any]:
+        """Return a copy of the learning statistics."""
         return self.learning_stats.copy()
     def reset_learning_statistics(self):
+        """Reset all learning statistics to zero."""
         self.learning_stats = {
             'total_weight_changes': 0,
             'stdp_events': 0,
@@ -273,12 +279,15 @@ class LiveHebbianLearning:
             'energy_modulated_events': 0
         }
     def set_learning_rate(self, learning_rate: float):
+        """Set the learning rate within bounds."""
         self.learning_rate = max(0.001, min(0.1, learning_rate))
         log_step("Learning rate updated", new_rate=self.learning_rate)
     def set_learning_active(self, active: bool):
+        """Set whether learning is active."""
         self.learning_active = active
         log_step("Learning active state changed", active=active)
     def get_learning_parameters(self) -> Dict[str, float]:
+        """Return a dictionary of current learning parameters."""
         return {
             'learning_rate': self.learning_rate,
             'base_learning_rate': self.base_learning_rate,
@@ -290,6 +299,7 @@ class LiveHebbianLearning:
             'energy_learning_modulation': self.energy_learning_modulation
         }
     def cleanup(self):
+        """Clean up internal data structures."""
         self.node_activity_history.clear()
         self.edge_activity_history.clear()
         self.last_activity_time.clear()
@@ -297,7 +307,7 @@ class LiveHebbianLearning:
 
 
 def create_live_hebbian_learning(simulation_manager=None) -> LiveHebbianLearning:
-
+    """Create a new LiveHebbianLearning instance."""
     return LiveHebbianLearning(simulation_manager)
 if __name__ == "__main__":
     print("LiveHebbianLearning created successfully!")

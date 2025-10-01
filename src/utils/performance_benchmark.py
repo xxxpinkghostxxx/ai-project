@@ -13,6 +13,9 @@ from typing import Any, Callable, Dict, List
 
 import psutil
 
+from src.core.services.simulation_coordinator import SimulationCoordinator
+from src.neural.optimized_node_manager import get_optimized_node_manager
+from src.utils.performance_cache import get_performance_cache_manager
 
 @dataclass
 class BenchmarkResult:
@@ -299,12 +302,6 @@ def run_comprehensive_benchmark() -> PerformanceBenchmark:
     bench = PerformanceBenchmark()
 
     try:
-        # Import required modules
-        from src.core.services.simulation_coordinator import \
-            SimulationCoordinator
-        from src.neural.optimized_node_manager import \
-            get_optimized_node_manager
-        from src.utils.performance_cache import get_performance_cache_manager
 
         # Benchmark simulation startup
         startup_result = bench.benchmark_simulation_startup(SimulationCoordinator)

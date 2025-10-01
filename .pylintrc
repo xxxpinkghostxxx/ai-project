@@ -2,6 +2,7 @@
 disable=
     C0301,  # line-too-long
     C0305,  # trailing-newlines
+    E1101,  # no-member
     R0902,  # too-many-instance-attributes
     R0914,  # too-many-locals
     W0212   # protected-access

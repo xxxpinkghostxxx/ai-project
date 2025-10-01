@@ -1,5 +1,9 @@
 
+"""Node ID Manager module for managing unique node IDs in neural graph systems."""
+
+import json
 import logging
+import sys
 import threading
 import time
 from contextlib import contextmanager
@@ -31,6 +35,7 @@ class IDTransaction:
 
 
 class NodeIDManager:
+    """Manages unique node IDs for neural graph systems with thread safety and transaction support."""
 
     def __init__(self):
         # Validate and set reasonable defaults
@@ -162,7 +167,6 @@ class NodeIDManager:
                     raise ValueError(f"Invalid metadata: must be dict or None, got {type(metadata)}")
 
                 # Check metadata size limit
-                import json
                 try:
                     metadata_size = len(json.dumps(metadata).encode('utf-8'))
                     if metadata_size > self._get_metadata_size_limit():
@@ -484,8 +488,6 @@ class NodeIDManager:
 
             # Calculate memory usage
             try:
-                import sys
-
                 # Rough memory estimation
                 memory_usage = (
                     sys.getsizeof(self._get_active_ids()) +
@@ -565,20 +567,22 @@ class NodeIDManager:
                 if node_id is None:
                     validation_results['missing_ids'].append(i)
                     validation_results['errors'].append(f"Node at index {i} missing ID")
-                elif not self.is_valid_id(node_id):
+                    continue
+                if not self.is_valid_id(node_id):
                     validation_results['errors'].append(f"Node at index {i} has invalid ID: {node_id}")
-                elif self.get_node_index(node_id) != i:
+                    continue
+                if self.get_node_index(node_id) != i:
                     validation_results['errors'].append(
                         f"Node ID {node_id} index mismatch: expected {i}, got {self.get_node_index(node_id)}"
                     )
-                else:
-                    # Additional integrity checks
-                    expected_type = node_label.get('type', 'unknown')
-                    actual_type = self.get_node_type(node_id)
-                    if expected_type != actual_type:
-                        validation_results['warnings'].append(
-                            f"Node {node_id} type mismatch: expected {expected_type}, got {actual_type}"
-                        )
+                    continue
+                # Additional integrity checks
+                expected_type = node_label.get('type', 'unknown')
+                actual_type = self.get_node_type(node_id)
+                if expected_type != actual_type:
+                    validation_results['warnings'].append(
+                        f"Node {node_id} type mismatch: expected {expected_type}, got {actual_type}"
+                    )
 
             for node_id in self._get_active_ids():
                 if node_id not in self._get_id_to_index():
@@ -739,6 +743,7 @@ class _IDManagerSingleton:
         self._lock = threading.Lock()
 
     def get_instance(self) -> NodeIDManager:
+        """Get the singleton instance of NodeIDManager."""
         if self._instance is None:
             with self._lock:
                 if self._instance is None:
@@ -746,6 +751,7 @@ class _IDManagerSingleton:
         return self._instance
 
     def reset_instance(self):
+        """Reset the singleton instance."""
         with self._lock:
             if self._instance is not None:
                 self._instance.reset()
@@ -763,10 +769,12 @@ _id_manager_singleton = _IDManagerSingleton()
 
 
 def get_id_manager() -> NodeIDManager:
+    """Get the global NodeIDManager instance."""
     return _id_manager_singleton.get_instance()
 
 
 def reset_id_manager():
+    """Reset the global NodeIDManager instance."""
     _id_manager_singleton.reset_instance()
 
 
@@ -776,22 +784,27 @@ def force_reset_id_manager():
 
 
 def generate_node_id(node_type: str = "unknown", metadata: Optional[Dict[str, Any]] = None) -> int:
+    """Generate a new unique node ID."""
     return get_id_manager().generate_unique_id(node_type, metadata)
 
 
 def get_node_index_by_id(node_id: int) -> Optional[int]:
+    """Get the index of a node by its ID."""
     return get_id_manager().get_node_index(node_id)
 
 
 def get_node_id_by_index(index: int) -> Optional[int]:
+    """Get the node ID by its index."""
     return get_id_manager().get_node_id(index)
 
 
 def is_valid_node_id(node_id: int) -> bool:
+    """Check if a node ID is valid."""
     return get_id_manager().is_valid_id(node_id)
 
 
 def recycle_node_id(node_id: int) -> bool:
+    """Recycle a node ID."""
     return get_id_manager().recycle_node_id(node_id)
 
 

@@ -1,4 +1,6 @@
 
+"""Enhanced neural dynamics module for simulating advanced neural network behaviors."""
+
 import logging
 import threading
 import time
@@ -20,6 +22,7 @@ from src.utils.logging_utils import log_step
 
 
 class EnhancedNeuralDynamics:
+    """Enhanced neural dynamics class implementing advanced synaptic plasticity and neural behaviors."""
 
     def __init__(self):
         # Thread safety
@@ -104,7 +107,7 @@ class EnhancedNeuralDynamics:
             if np.isnan(val):
                 logging.warning("Value %s for %s is NaN, using default", val, field_name)
                 return min_val if min_val > 0 else 0.0
-            if not (min_val <= val <= max_val):
+            if not min_val <= val <= max_val:
                 logging.warning("Value %s for %s out of range [%s, %s], clamping", val, field_name, min_val, max_val)
                 val = max(min_val, min(max_val, val))
             return val
@@ -249,7 +252,7 @@ class EnhancedNeuralDynamics:
                     time_diff = current_time - last_spike
 
                     # Only consider recent spikes
-                    if time_diff < 0.1 and time_diff >= 0:
+                    if 0 <= time_diff < 0.1:
                         # Get effective weight with bounds checking
                         if hasattr(edge, 'get_effective_weight'):
                             try:
@@ -313,6 +316,7 @@ class EnhancedNeuralDynamics:
     @staticmethod
     @nb.jit(nopython=True)
     def compute_stdp_weight_change(source_times, target_times, ltp_rate, ltd_rate, tau_plus, tau_minus, stdp_window):
+        """Compute STDP weight change using numba-accelerated calculation."""
         weight_change = 0.0
         n_source = len(source_times)
         n_target = len(target_times)
@@ -324,8 +328,7 @@ class EnhancedNeuralDynamics:
                 elif -stdp_window < delta_t < 0:
                     weight_change -= ltd_rate * np.exp(-delta_t / tau_minus)
         return weight_change
-    
-    
+
     def _apply_stdp_learning(self, graph: Data, _step: int) -> Data:
 
         if not hasattr(graph, 'edge_attributes'):
@@ -350,7 +353,7 @@ class EnhancedNeuralDynamics:
                 continue
             if not source_spikes or not target_spikes:
                 continue
-                
+
             # Diagnostic: Log STDP attempt
             logging.debug("[DYNAMICS] STDP for edge %s: source=%s (%s spikes), target=%s (%s spikes)", edge_idx, source_id, len(source_spikes), target_id, len(target_spikes))
             source_array = np.array(source_spikes, dtype=np.float64)
@@ -367,7 +370,6 @@ class EnhancedNeuralDynamics:
                 if source_node is None or target_node is None:
                     logging.warning("[DYNAMICS] Skipping STDP for invalid edge %s: source_id=%s (valid=%s), target_id=%s (valid=%s)", edge_idx, source_id, source_node is not None, target_id, target_node is not None)
                     continue
-                
                 new_weight = max(ConnectionConstants.WEIGHT_MIN,
                                min(ConnectionConstants.WEIGHT_CAP_MAX,
                                    edge.weight + weight_change))
@@ -549,12 +551,12 @@ class EnhancedNeuralDynamics:
         """Minimal safe implementation for criticality adjustment."""
         if not hasattr(graph, 'edge_attributes'):
             return
-        
+
         # Simple adjustment: add/remove random edges to move toward target
         target_diff = self.criticality_target - current_criticality
         if abs(target_diff) < 0.1:  # Close enough
             return
-            
+
         # Add or remove a few edges based on direction
         if target_diff > 0:  # Need to increase criticality
             # Add a few random edges
@@ -678,6 +680,7 @@ class EnhancedNeuralDynamics:
 
 
 def create_enhanced_neural_dynamics() -> EnhancedNeuralDynamics:
+    """Create and return an instance of EnhancedNeuralDynamics."""
     return EnhancedNeuralDynamics()
 if __name__ == "__main__":
     print("EnhancedNeuralDynamics created successfully!")
