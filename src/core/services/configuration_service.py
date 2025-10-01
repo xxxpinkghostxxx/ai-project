@@ -156,6 +156,7 @@ class ConfigurationService(IConfigurationService):
             }
         }
 
+    # pylint: disable=too-many-nested-blocks
     def load_configuration(self, config_path: Optional[str] = None) -> bool:
         """
         Load configuration from file or use defaults.
@@ -192,9 +193,8 @@ class ConfigurationService(IConfigurationService):
 
                 self._config_path = config_path
                 return True
-            else:
-                # Use defaults
-                return True
+            # Use defaults
+            return True
 
         except (IOError, OSError, configparser.Error) as e:
             print(f"Error loading configuration: {e}")
@@ -265,9 +265,8 @@ class ConfigurationService(IConfigurationService):
                 if self._validate_parameter(key, value, scope):
                     self._config[scope.value][key] = value
                     return True
-                else:
-                    print(f"Parameter validation failed for {key} = {value}")
-                    return False
+                print(f"Parameter validation failed for {key} = {value}")
+                return False
 
         except ValueError as e:
             print(f"Error setting parameter: {e}")
@@ -318,8 +317,7 @@ class ConfigurationService(IConfigurationService):
         """
         if scope:
             return self._schema.get(scope.value, {})
-        else:
-            return self._schema.copy()
+        return self._schema.copy()
 
     def _validate_parameter(self, key: str, value: Any, scope: ConfigurationScope) -> bool:
         """

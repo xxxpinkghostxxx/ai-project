@@ -12,7 +12,7 @@ from collections import defaultdict, deque
 from typing import Any, Dict, Optional
 
 import torch
-import torch.nn as nn
+from torch import nn
 from torch_geometric.data import Data
 
 from ..interfaces.configuration_service import IConfigurationService
@@ -24,7 +24,7 @@ class GPUNeuralDynamics(nn.Module):
     """GPU-accelerated neural dynamics computation."""
 
     def __init__(self, hidden_size: int = 128):
-        super(GPUNeuralDynamics, self).__init__()
+        super().__init__()
         self.hidden_size = hidden_size
 
         # Neural dynamics layers
@@ -70,7 +70,7 @@ class GPULearningModule(nn.Module):
     """GPU-accelerated learning algorithms."""
 
     def __init__(self, input_size: int = 128, learning_rate: float = 0.01):
-        super(GPULearningModule, self).__init__()
+        super().__init__()
         self.learning_rate = learning_rate
 
         # STDP learning layers

@@ -8,22 +8,21 @@ maintaining biological plausibility and energy-based processing.
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple
+from dataclasses import dataclass
 
 from torch_geometric.data import Data
 
 
+@dataclass
 class SensoryInput:
     """Represents a sensory input stimulus."""
 
-    def __init__(self, modality: str, data: Any, intensity: float = 1.0,
-                 spatial_location: Optional[Tuple[float, float]] = None,
-                 temporal_pattern: Optional[List[float]] = None):
-        self.modality = modality  # "visual", "auditory", "tactile", etc.
-        self.data = data  # Raw sensory data
-        self.intensity = intensity
-        self.timestamp = 0.0
-        self.spatial_location = spatial_location
-        self.temporal_pattern = temporal_pattern
+    modality: str  # "visual", "auditory", "tactile", etc.
+    data: Any  # Raw sensory data
+    intensity: float = 1.0
+    spatial_location: Optional[Tuple[float, float]] = None
+    temporal_pattern: Optional[List[float]] = None
+    timestamp: float = 0.0
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert sensory input to dictionary."""

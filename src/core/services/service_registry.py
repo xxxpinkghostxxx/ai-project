@@ -11,9 +11,9 @@ from threading import RLock
 from typing import Any, Dict, List, Optional, Type, TypeVar
 
 from ..interfaces.service_registry import (IServiceRegistry, ServiceDescriptor,
-                                           ServiceHealth, ServiceLifetime)
+                                            ServiceHealth, ServiceLifetime)
 
-ServiceType = TypeVar('ServiceType')
+T = TypeVar('T')
 
 
 class ServiceNotFoundError(Exception):
@@ -38,7 +38,7 @@ class ServiceRegistry(IServiceRegistry):
         self._lock = RLock()
         self._resolution_stack: List[Type] = []  # Detect circular dependencies
 
-    def register[T](self, service_type: Type[T], implementation_type: Type[T],
+    def register(self, service_type: Type[T], implementation_type: Type[T],
                    lifetime: ServiceLifetime = ServiceLifetime.SINGLETON) -> None:
         """
         Register a service implementation.
@@ -64,7 +64,7 @@ class ServiceRegistry(IServiceRegistry):
             self._services[service_type] = descriptor
             self._analyze_dependencies(descriptor)
 
-    def register_instance[T](self, service_type: Type[T], instance: T) -> None:
+    def register_instance(self, service_type: Type[T], instance: T) -> None:
         """
         Register a pre-created service instance.
 
@@ -83,7 +83,7 @@ class ServiceRegistry(IServiceRegistry):
             descriptor.health = ServiceHealth.HEALTHY
             self._services[service_type] = descriptor
 
-    def resolve[T](self, service_type: Type[T]) -> T:
+    def resolve(self, service_type: Type[T]) -> T:
         """
         Resolve a service instance.
 
@@ -199,19 +199,19 @@ class ServiceRegistry(IServiceRegistry):
         warnings = []
 
         with self._lock:
-            for service_type in self._services.keys():
+            for svc_type in self._services:
                 try:
                     # Try to resolve the service to check dependencies
-                    self.resolve(service_type)
+                    self.resolve(svc_type)
                 except ServiceResolutionError as e:
                     issues.append({
-                        'service': service_type.__name__,
+                        'service': svc_type.__name__,
                         'error': str(e),
                         'type': 'resolution_error'
                     })
                 except (ServiceNotFoundError, ValueError, TypeError) as e:
                     issues.append({
-                        'service': service_type.__name__,
+                        'service': svc_type.__name__,
                         'error': str(e),
                         'type': 'unexpected_error'
                     })
@@ -228,9 +228,9 @@ class ServiceRegistry(IServiceRegistry):
         graph = {}
 
         with self._lock:
-            for service_type, descriptor in self._services.items():
+            for svc_type, descriptor in self._services.items():
                 dependencies = [dep.__name__ for dep in descriptor.dependencies]
-                graph[service_type.__name__] = dependencies
+                graph[svc_type.__name__] = dependencies
 
         return graph
 

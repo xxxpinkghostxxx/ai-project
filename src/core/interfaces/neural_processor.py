@@ -8,21 +8,22 @@ while maintaining biological plausibility and performance requirements.
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Tuple
+from dataclasses import dataclass, field
 
 from torch_geometric.data import Data
 
 
+@dataclass
 class NeuralState:
     """Represents the current neural state of the system."""
 
-    def __init__(self):
-        self.membrane_potentials: Dict[int, float] = {}
-        self.thresholds: Dict[int, float] = {}
-        self.refractory_periods: Dict[int, float] = {}
-        self.last_spike_times: Dict[int, float] = {}
-        self.neural_activities: Dict[int, float] = {}
-        self.total_spikes: int = 0
-        self.active_neurons: int = 0
+    membrane_potentials: Dict[int, float] = field(default_factory=dict)
+    thresholds: Dict[int, float] = field(default_factory=dict)
+    refractory_periods: Dict[int, float] = field(default_factory=dict)
+    last_spike_times: Dict[int, float] = field(default_factory=dict)
+    neural_activities: Dict[int, float] = field(default_factory=dict)
+    total_spikes: int = 0
+    active_neurons: int = 0
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert neural state to dictionary for serialization."""
@@ -37,15 +38,15 @@ class NeuralState:
         }
 
 
+@dataclass
 class SpikeEvent:
     """Represents a neural spike event."""
 
-    def __init__(self, neuron_id: int, timestamp: float, membrane_potential: float):
-        self.neuron_id = neuron_id
-        self.timestamp = timestamp
-        self.membrane_potential = membrane_potential
-        self.energy_consumed = 0.0
-        self.propagation_targets: List[int] = []
+    neuron_id: int
+    timestamp: float
+    membrane_potential: float
+    energy_consumed: float = 0.0
+    propagation_targets: List[int] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert spike event to dictionary."""

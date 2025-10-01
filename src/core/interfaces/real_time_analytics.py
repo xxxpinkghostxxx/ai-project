@@ -8,17 +8,23 @@ predictive analytics, and adaptive optimization of neural simulation systems.
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+from dataclasses import dataclass, field
 
 
+@dataclass
 class AnalyticsMetric:
     """Represents a performance or system metric."""
 
-    def __init__(self, name: str, value: float, timestamp: Optional[float] = None):
-        self.name = name
-        self.value = value
-        self.timestamp = timestamp or datetime.now().timestamp()
-        self.unit = "unit"  # e.g., "ms", "MB", "ops/sec"
-        self.category = "general"  # e.g., "performance", "memory", "energy"
+    name: str
+    value: float
+    timestamp: Optional[float] = None
+    unit: str = "unit"  # e.g., "ms", "MB", "ops/sec"
+    category: str = "general"  # e.g., "performance", "memory", "energy"
+
+    def __post_init__(self):
+        """Set default timestamp if not provided."""
+        if self.timestamp is None:
+            self.timestamp = datetime.now().timestamp()
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert metric to dictionary."""
@@ -31,15 +37,15 @@ class AnalyticsMetric:
         }
 
 
+@dataclass
 class PredictionModel:
     """Represents a predictive analytics model."""
 
-    def __init__(self, model_type: str, target_metric: str):
-        self.model_type = model_type  # "linear", "exponential", "neural_network"
-        self.target_metric = target_metric
-        self.accuracy = 0.0
-        self.last_trained = 0.0
-        self.parameters: Dict[str, Any] = {}
+    model_type: str  # "linear", "exponential", "neural_network"
+    target_metric: str
+    accuracy: float = 0.0
+    last_trained: float = 0.0
+    parameters: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert model to dictionary."""

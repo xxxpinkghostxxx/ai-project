@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
 
 
-class IAccessLayer(ABC):
+class IAccessLayer(ABC):  # pylint: disable=too-few-public-methods
     """
     Interface for accessing nodes in the graph.
     """

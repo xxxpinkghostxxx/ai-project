@@ -1,3 +1,4 @@
+"""Neural behavior engine for managing node behaviors in the neural network."""
 import time
 from typing import Any, Dict
 
@@ -8,6 +9,9 @@ from torch_geometric.data import Data
 from config.unified_config_manager import (get_enhanced_nodes_config,
                                            get_system_constants)
 from src.utils.logging_utils import log_step
+from src.energy.energy_behavior import get_node_energy_cap
+from src.energy.node_access_layer import NodeAccessLayer
+from src.utils.statistics_utils import create_standard_stats
 
 try:
     from src.utils.unified_error_handler import get_error_handler
@@ -26,21 +30,21 @@ except ImportError:
 
 
 def get_time_step() -> float:
+    """Get the time step from system constants."""
     constants = get_system_constants()
     return constants.get('time_step', 0.01)
 
-
 def get_refractory_period() -> float:
+    """Get the refractory period from system constants."""
     constants = get_system_constants()
     return constants.get('refractory_period', 0.1)
-from src.energy.energy_behavior import get_node_energy_cap
-from src.energy.node_access_layer import NodeAccessLayer
-from src.utils.statistics_utils import create_standard_stats
+
 
 
 class BehaviorCache:
     """Cache for behavior-related configuration data to reduce global scope."""
     def __init__(self):
+        """Initialize the behavior cache."""
         self._energy_cap_cache = None
         self._energy_cap_cache_time = 0
         self._energy_cap_cache_ttl = 60
@@ -49,10 +53,12 @@ class BehaviorCache:
         self._enhanced_nodes_cache_ttl = 60
 
     def get_energy_cap_255(self) -> float:
+        """Get the energy cap value of 255 from system constants."""
         constants = get_system_constants()
         return constants.get('energy_cap_255', 255.0)
 
     def get_enhanced_nodes_config_cached(self) -> Dict[str, float]:
+        """Get cached enhanced nodes configuration."""
         current_time_val = time.time()
         if (self._enhanced_nodes_cache is not None and
             current_time_val - self._enhanced_nodes_cache_time < self._enhanced_nodes_cache_ttl):
@@ -67,15 +73,19 @@ _behavior_cache = BehaviorCache()
 
 
 def get_energy_cap_255() -> float:
+    """Get the cached energy cap value of 255."""
     return _behavior_cache.get_energy_cap_255()
 
 
 def get_enhanced_nodes_config_cached() -> Dict[str, float]:
+    """Get cached enhanced nodes configuration."""
     return _behavior_cache.get_enhanced_nodes_config_cached()
 
 
 class BehaviorEngine:
+    """Engine for managing neural node behaviors."""
     def __init__(self) -> None:
+        """Initialize the behavior engine."""
         self.behavior_handlers: Dict[str, callable] = {
             'sensory': self.update_sensory_node,
             'dynamic': self.update_dynamic_node,
@@ -124,12 +134,11 @@ class BehaviorEngine:
             return False
 
         # Try enhanced behavior first
-        if self._try_enhanced_behavior(node, graph, step, access_layer, node_id):
+        if self._try_enhanced_behavior(node, graph, step, access_layer):
             return True
 
         # Fall back to basic behavior
-        return self._update_basic_behavior(node, graph, step, access_layer, node_id)
-    
+        return self._update_basic_behavior(node, graph, step, access_layer)
     def _validate_node_behavior_inputs(self, node_id: int, graph: Data, step: int):
         """Validate inputs for node behavior update."""
         assert isinstance(node_id, int), "Node ID must be an integer"
@@ -137,9 +146,9 @@ class BehaviorEngine:
         assert graph is not None, "Graph must not be None"
         assert isinstance(step, int), "Step must be an integer"
         assert step >= 0, "Step must be non-negative"
-    
-    def _try_enhanced_behavior(self, node: Dict, graph: Data, step: int, access_layer, node_id: int) -> bool:
+    def _try_enhanced_behavior(self, node: Dict, graph: Data, step: int, access_layer) -> bool:
         """Try to update node using enhanced behavior system."""
+        node_id = node['id']
         has_enhanced_behavior = node.get('enhanced_behavior', False)
         if not has_enhanced_behavior or self.enhanced_integration is None:
             return False
@@ -158,9 +167,8 @@ class BehaviorEngine:
             if success:
                 self.behavior_stats['enhanced_updates'] += 1
                 return True
-            else:
-                log_step("Enhanced behavior update failed", node_id=node_id, step=step)
-                return False
+            log_step("Enhanced behavior update failed", node_id=node_id, step=step)
+            return False
 
         except AttributeError as e:
             log_step("Enhanced integration missing required attributes", error=str(e), node_id=node_id, step=step)
@@ -169,39 +177,40 @@ class BehaviorEngine:
 
         return False
 
-    def _update_basic_behavior(self, node: Dict, graph: Data, step: int, access_layer, node_id: int) -> bool:
+    def _update_basic_behavior(self, node: Dict, graph: Data, step: int, access_layer) -> bool:
         """Update node using basic behavior system."""
+        node_id = node['id']
         behavior = node.get('behavior', 'dynamic')
         handler = self.behavior_handlers.get(behavior, self.update_dynamic_node)
         log_step(f"Updating {behavior} node behavior", node_id=node_id, step=step)
-        
         try:
             handler(node_id, graph, step, access_layer)
             access_layer.update_node_property(node_id, 'last_update', step)
             self.behavior_stats['basic_updates'] += 1
             return True
         except (ValueError, TypeError, AttributeError, KeyError) as e:
-            return self._handle_behavior_error(e, behavior, node_id, access_layer, step, "Error updating")
+            return self._handle_behavior_error(e, f"Error updating {behavior} node", (node_id, step), access_layer)
         except (RuntimeError, MemoryError, OSError) as e:
-            return self._handle_behavior_error(e, behavior, node_id, access_layer, step, "Unexpected error updating")
+            return self._handle_behavior_error(e, f"Unexpected error updating {behavior} node", (node_id, step), access_layer)
 
-    def _handle_behavior_error(self, error: Exception, behavior: str, node_id: int, access_layer, step: int, error_type: str) -> bool:
+    def _handle_behavior_error(self, error: Exception, error_msg: str, context: tuple, access_layer) -> bool:
         """Handle errors during behavior update."""
-        log_step(f"{error_type} {behavior} node", error=str(error), node_id=node_id)
+        node_id, step = context
+        log_step(error_msg, error=str(error), node_id=node_id)
 
         if self.error_handler is not None:
             try:
                 recovery_success = self.error_handler.handle_error(
-                    error, f"{error_type} {behavior} node",
+                    error, error_msg,
                     recovery_func=lambda: self._recover_node_behavior(node_id, access_layer),
                     critical=False
                 )
                 if recovery_success:
-                    log_step(f"Recovered from {behavior} node error", node_id=node_id)
+                    log_step(f"Recovered from {error_msg}", node_id=node_id)
                     access_layer.update_node_property(node_id, 'last_update', step)
                     return True
             except (AttributeError, KeyError, RuntimeError) as recovery_error:
-                log_step(f"Recovery failed for {behavior} node", error=str(recovery_error), node_id=node_id)
+                log_step(f"Recovery failed: {error_msg}", error=str(recovery_error), node_id=node_id)
 
         try:
             access_layer.update_node_property(node_id, 'last_update', step)
@@ -209,6 +218,7 @@ class BehaviorEngine:
             pass
         return False
     def _recover_node_behavior(self, node_id: int, access_layer) -> bool:
+        """Recover node behavior to a safe state."""
 
         try:
             access_layer.update_node_property(node_id, 'state', 'inactive')
@@ -306,6 +316,7 @@ class BehaviorEngine:
 
         access_layer.update_node_property(node_id, 'membrane_potential', min(membrane_potential, 1.0))
     def update_integrator_node(self, node_id: int, graph: Data, step: int, access_layer=None) -> None:
+        """Update integrator node behavior."""
 
         if access_layer is None:
             access_layer = NodeAccessLayer(graph)
@@ -334,6 +345,7 @@ class BehaviorEngine:
             access_layer.update_node_property(node_id, 'state', state)
         access_layer.update_node_property(node_id, 'membrane_potential', min(membrane_potential, 1.0))
     def update_relay_node(self, node_id: int, graph: Data, step: int, access_layer=None) -> None:
+        """Update relay node behavior."""
 
         if access_layer is None:
             access_layer = NodeAccessLayer(graph)
@@ -362,6 +374,7 @@ class BehaviorEngine:
             access_layer.update_node_property(node_id, 'state', state)
         access_layer.update_node_property(node_id, 'membrane_potential', min(membrane_potential, 1.0))
     def update_highway_node(self, node_id: int, graph: Data, _step: int, access_layer=None) -> None:
+        """Update highway node behavior."""
 
         if access_layer is None:
             access_layer = NodeAccessLayer(graph)
@@ -386,6 +399,7 @@ class BehaviorEngine:
             else:
                 access_layer.update_node_property(node_id, 'state', 'active')
     def update_workspace_node(self, node_id: int, graph: Data, _step: int, access_layer=None) -> None:
+        """Update workspace node behavior."""
 
         if access_layer is None:
             access_layer = NodeAccessLayer(graph)
@@ -420,6 +434,7 @@ class BehaviorEngine:
             else:
                 access_layer.update_node_property(node_id, 'state', 'active')
     def set_neuromodulator_level(self, neuromodulator: str, level: float):
+        """Set the level of a neuromodulator."""
         if self.enhanced_integration is not None:
             try:
                 if hasattr(self.enhanced_integration, 'set_neuromodulator_level'):
@@ -429,18 +444,20 @@ class BehaviorEngine:
             except (AttributeError, KeyError, ValueError) as e:
                 log_step("Error setting neuromodulator level", error=str(e))
     def get_enhanced_statistics(self) -> Dict[str, Any]:
+        """Get enhanced integration statistics."""
         if self.enhanced_integration is not None:
             try:
                 if hasattr(self.enhanced_integration, 'get_integration_statistics'):
                     return self.enhanced_integration.get_integration_statistics()
-                else:
-                    log_step("Enhanced integration missing get_integration_statistics method")
+                log_step("Enhanced integration missing get_integration_statistics method")
             except (AttributeError, KeyError, RuntimeError) as e:
                 log_step("Error getting enhanced statistics", error=str(e))
         return {}
     def get_behavior_statistics(self) -> Dict[str, int]:
+        """Get behavior statistics."""
         return self.behavior_stats.copy()
     def reset_statistics(self) -> None:
+        """Reset behavior statistics."""
         self.behavior_stats = create_standard_stats('behavior_engine')
         # Add behavior-specific stats
         self.behavior_stats.update({
@@ -464,6 +481,7 @@ class BehaviorEngine:
 
 
 def should_transition_to_learning(node: Dict[str, Any]) -> bool:
+    """Check if node should transition to learning."""
 
     last_activation = node.get('last_activation', 0)
     current_time = time.time()
@@ -475,6 +493,7 @@ def should_transition_to_learning(node: Dict[str, Any]) -> bool:
 
 
 def energy_above_threshold(node: Dict[str, Any]) -> bool:
+    """Check if node energy is above threshold."""
 
     energy = node.get('energy', 0.0)
     threshold = node.get('threshold', 0.5)
@@ -482,6 +501,7 @@ def energy_above_threshold(node: Dict[str, Any]) -> bool:
 
 
 def has_active_connections(node: Dict[str, Any], graph: Data) -> bool:
+    """Check if node has active connections."""
 
     if not hasattr(graph, 'edge_index') or graph.edge_index.numel() == 0:
         return False

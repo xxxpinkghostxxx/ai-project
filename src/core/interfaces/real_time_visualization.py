@@ -7,17 +7,18 @@ energy flow, and system performance in the neural simulation system.
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict
+from dataclasses import dataclass, field
 
 
+@dataclass
 class VisualizationData:
     """Represents visualization data for rendering."""
 
-    def __init__(self, data_type: str, timestamp: float):
-        self.data_type = data_type  # "neural_activity", "energy_flow", "connections", "performance"
-        self.timestamp = timestamp
-        self.data = {}
-        self.metadata = {}
-        self.rendering_hints = {}
+    data_type: str  # "neural_activity", "energy_flow", "connections", "performance"
+    timestamp: float
+    data: Dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    rendering_hints: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert visualization data to dictionary."""
@@ -30,18 +31,18 @@ class VisualizationData:
         }
 
 
+@dataclass
 class VisualizationLayer:
     """Represents a visualization layer with rendering properties."""
 
-    def __init__(self, layer_id: str, layer_type: str):
-        self.layer_id = layer_id
-        self.layer_type = layer_type  # "neural", "energy", "connections", "performance"
-        self.visible = True
-        self.opacity = 1.0
-        self.z_index = 0
-        self.color_scheme = "default"
-        self.update_frequency = 30  # FPS
-        self.last_update = 0.0
+    layer_id: str
+    layer_type: str  # "neural", "energy", "connections", "performance"
+    visible: bool = True
+    opacity: float = 1.0
+    z_index: int = 0
+    color_scheme: str = "default"
+    update_frequency: int = 30  # FPS
+    last_update: float = 0.0
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert layer to dictionary."""
@@ -57,16 +58,16 @@ class VisualizationLayer:
         }
 
 
+@dataclass
 class CameraController:
     """Controls camera/viewport for 3D visualization."""
 
-    def __init__(self):
-        self.position = [0.0, 0.0, 100.0]
-        self.rotation = [0.0, 0.0, 0.0]
-        self.zoom = 1.0
-        self.target = [0.0, 0.0, 0.0]
-        self.projection_mode = "perspective"  # "perspective", "orthographic"
-        self.field_of_view = 60.0
+    position: list = field(default_factory=lambda: [0.0, 0.0, 100.0])
+    rotation: list = field(default_factory=lambda: [0.0, 0.0, 0.0])
+    zoom: float = 1.0
+    target: list = field(default_factory=lambda: [0.0, 0.0, 0.0])
+    projection_mode: str = "perspective"  # "perspective", "orthographic"
+    field_of_view: float = 60.0
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert camera controller to dictionary."""

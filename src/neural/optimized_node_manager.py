@@ -4,6 +4,7 @@ Provides spatial indexing, batch operations, and memory-efficient node managemen
 """
 
 import logging
+import random
 import threading
 import time
 from collections import defaultdict, deque
@@ -16,13 +17,13 @@ from src.utils.logging_utils import log_step
 
 class SpatialIndex:
     """Spatial indexing for efficient node queries in large graphs."""
-    
+
     def __init__(self, grid_size: int = 100):
         self.grid_size = grid_size
         self.grid: Dict[Tuple[int, int], Set[int]] = defaultdict(set)
         self.node_positions: Dict[int, Tuple[float, float]] = {}
         self._lock = threading.RLock()
-    
+
     def add_node(self, node_id: int, x: float, y: float):
         """Add a node to the spatial index."""
         with self._lock:
@@ -30,7 +31,7 @@ class SpatialIndex:
             grid_y = int(y // self.grid_size)
             self.grid[(grid_x, grid_y)].add(node_id)
             self.node_positions[node_id] = (x, y)
-    
+
     def remove_node(self, node_id: int):
         """Remove a node from the spatial index."""
         with self._lock:
@@ -40,85 +41,85 @@ class SpatialIndex:
                 grid_y = int(y // self.grid_size)
                 self.grid[(grid_x, grid_y)].discard(node_id)
                 del self.node_positions[node_id]
-    
+
     def get_nodes_in_radius(self, center_x: float, center_y: float, radius: float) -> Set[int]:
         """Get all nodes within a radius of a point."""
         with self._lock:
             result = set()
             grid_radius = int(radius // self.grid_size) + 1
-            
+
             center_grid_x = int(center_x // self.grid_size)
             center_grid_y = int(center_y // self.grid_size)
-            
+
             for dx in range(-grid_radius, grid_radius + 1):
                 for dy in range(-grid_radius, grid_radius + 1):
                     grid_x = center_grid_x + dx
                     grid_y = center_grid_y + dy
-                    
+
                     if (grid_x, grid_y) in self.grid:
                         for node_id in self.grid[(grid_x, grid_y)]:
                             if node_id in self.node_positions:
                                 x, y = self.node_positions[node_id]
                                 if (x - center_x)**2 + (y - center_y)**2 <= radius**2:
                                     result.add(node_id)
-            
+
             return result
-    
+
     def get_nearest_nodes(self, x: float, y: float, count: int = 10) -> List[Tuple[int, float]]:
         """Get the nearest N nodes to a point."""
         with self._lock:
             candidates = []
-            
+
             # Check nearby grid cells
             grid_x = int(x // self.grid_size)
             grid_y = int(y // self.grid_size)
-            
+
             for dx in range(-2, 3):
                 for dy in range(-2, 3):
                     cell_x = grid_x + dx
                     cell_y = grid_y + dy
-                    
+
                     if (cell_x, cell_y) in self.grid:
                         for node_id in self.grid[(cell_x, cell_y)]:
                             if node_id in self.node_positions:
                                 nx, ny = self.node_positions[node_id]
                                 distance = (nx - x)**2 + (ny - y)**2
                                 candidates.append((node_id, distance))
-            
+
             # Sort by distance and return top N
             candidates.sort(key=lambda x: x[1])
             return candidates[:count]
 
 class BatchNodeProcessor:
     """Batch processing system for efficient node operations."""
-    
+
     def __init__(self, batch_size: int = 1000):
         self.batch_size = batch_size
         self.node_batches: Dict[str, List[List[int]]] = defaultdict(list)
         self.processing_queues: Dict[str, deque] = defaultdict(deque)
         self._lock = threading.RLock()
-    
+
     def add_to_batch(self, operation_type: str, node_ids: List[int]):
         """Add nodes to a batch operation queue."""
         with self._lock:
             queue = self.processing_queues[operation_type]
             for node_id in node_ids:
                 queue.append(node_id)
-            
+
             # Create batches when queue is full
             while len(queue) >= self.batch_size:
                 batch = []
                 for _ in range(self.batch_size):
                     batch.append(queue.popleft())
                 self.node_batches[operation_type].append(batch)
-    
+
     def get_batch(self, operation_type: str) -> Optional[List[int]]:
         """Get the next batch for processing."""
         with self._lock:
             if self.node_batches[operation_type]:
                 return self.node_batches[operation_type].pop(0)
             return None
-    
+
     def get_batch_count(self, operation_type: str) -> int:
         """Get the number of pending batches for an operation type."""
         with self._lock:
@@ -126,7 +127,7 @@ class BatchNodeProcessor:
 
 class OptimizedNodeManager:
     """High-performance node manager with spatial indexing and batch processing."""
-    
+
     def __init__(self, max_nodes: int = 100000):
         # Validate max_nodes parameter
         if max_nodes <= 0 or max_nodes > 10000000:  # Reasonable upper limit
@@ -177,7 +178,7 @@ class OptimizedNodeManager:
         """Set the memory limit in MB (internal method)."""
         self._memory_limit_mb = limit_mb
 
-    def get_lock(self) -> threading.RLock():
+    def get_lock(self) -> threading.RLock:
         """Get the internal lock."""
         return self._lock
 
@@ -200,7 +201,7 @@ class OptimizedNodeManager:
     def remove_node_internal(self, node_id: int) -> None:
         """Remove a single node (internal method)."""
         self._remove_node(node_id)
-    
+
     def create_node_batch(self, node_specs: List[Dict[str, Any]]) -> List[int]:
         """Create multiple nodes in a batch operation with validation."""
         if not isinstance(node_specs, list):
@@ -280,18 +281,16 @@ class OptimizedNodeManager:
         except (MemoryError, ValueError, TypeError) as e:
             logging.error("Error in create_node_batch: %s", e)
             return []
-    
+
     def _find_available_index(self) -> Optional[int]:
         """Find an available index for a new node."""
         for i in range(self.max_nodes):
             if i not in self.index_to_node_id:
                 return i
         return None
-    
-    def _generate_node_id(self, node_type: str) -> int:
-        """Generate a unique node ID with collision avoidance."""
-        import random
 
+    def _generate_node_id(self, _node_type: str) -> int:
+        """Generate a unique node ID with collision avoidance."""
         max_attempts = 100
         for attempt in range(max_attempts):
             # Use timestamp, random component, and attempt counter for uniqueness
@@ -304,7 +303,7 @@ class OptimizedNodeManager:
 
         # Fallback: use a very large number to avoid collisions
         return int(time.time() * 1000000) + len(self.active_nodes) + random.randint(1000000000, 2000000000)
-    
+
     def _initialize_node_data(self, index: int, node_id: int, spec: Dict[str, Any]):
         """Initialize node data at the given index with bounds checking."""
         # Validate index bounds
@@ -338,20 +337,20 @@ class OptimizedNodeManager:
             # Clean up partial initialization
             self.node_data[index] = 0.0
             self.node_metadata[index] = None
-            raise RuntimeError(f"Failed to initialize node data at index {index}: {e}")
+            raise RuntimeError(f"Failed to initialize node data at index {index}: {e}") from e
 
     def _validate_float(self, value: Any, min_val: float, max_val: float, field_name: str) -> float:
         """Validate and clamp float values."""
         try:
             val = float(value)
-            if not (min_val <= val <= max_val):
+            if not min_val <= val <= max_val:
                 logging.warning("Value %s for %s out of range [%s, %s], clamping", val, field_name, min_val, max_val)
                 val = max(min_val, min(max_val, val))
             return val
         except (ValueError, TypeError):
             logging.warning("Invalid value %s for %s, using default", value, field_name)
             return min_val if min_val > 0 else 0.0
-    
+
     def update_nodes_batch(self, node_ids: List[int], updates: Dict[str, Any]):
         """Update multiple nodes in a batch operation with validation."""
         if not isinstance(node_ids, list) or not isinstance(updates, dict):
@@ -416,11 +415,11 @@ class OptimizedNodeManager:
 
             if updated_count > 0:
                 log_step("Batch node update", count=updated_count)
-    
+
     def get_nodes_in_area(self, center_x: float, center_y: float, radius: float) -> List[int]:
         """Get all nodes within a radius using spatial indexing."""
         return list(self.spatial_index.get_nodes_in_radius(center_x, center_y, radius))
-    
+
     def get_node_data_batch(self, node_ids: List[int]) -> np.ndarray:
         """Get node data for multiple nodes efficiently."""
         with self._lock:
@@ -428,12 +427,12 @@ class OptimizedNodeManager:
             for node_id in node_ids:
                 if node_id in self.node_id_to_index:
                     indices.append(self.node_id_to_index[node_id])
-            
+
             if not indices:
                 return np.array([])
-            
+
             return self.node_data[indices].copy()
-    
+
     def process_node_operations_batch(self, operation_type: str, operation_func):
         """Process batched node operations with comprehensive error handling."""
         if not isinstance(operation_type, str) or not operation_type:
@@ -463,47 +462,47 @@ class OptimizedNodeManager:
                     if len(batch) <= self.batch_processor.batch_size // 2:
                         logging.info("Re-queuing failed %s batch for retry", operation_type)
                         self.batch_processor.add_to_batch(operation_type, batch)
-    
+
     def remove_inactive_nodes(self):
         """Remove nodes that are no longer active."""
         with self._lock:
             inactive_nodes = []
-            
+
             for node_id in list(self.active_nodes):
                 index = self.node_id_to_index[node_id]
                 if self.node_data[index, 8] < 0.5:  # state != active
                     inactive_nodes.append(node_id)
-            
+
             for node_id in inactive_nodes:
                 self.remove_node_internal(node_id)
-            
+
             if inactive_nodes:
                 log_step("Removed inactive nodes", count=len(inactive_nodes))
-    
+
     def _remove_node(self, node_id: int):
         """Remove a single node."""
         if node_id not in self.node_id_to_index:
             return
-        
+
         index = self.node_id_to_index[node_id]
-        
+
         # Remove from spatial index
         self.spatial_index.remove_node(node_id)
-        
+
         # Clear data
         self.node_data[index] = 0.0
         self.node_metadata[index] = None
         self.node_positions[index] = [0.0, 0.0]
-        
+
         # Remove from lookup structures
         self.active_nodes.discard(node_id)
         del self.node_id_to_index[node_id]
         del self.index_to_node_id[index]
         if node_id in self.node_types:
             del self.node_types[node_id]
-        
+
         self.stats['active_nodes'] = len(self.active_nodes)
-    
+
     def get_performance_stats(self) -> Dict[str, Any]:
         """Get performance statistics with thread safety."""
         with self._lock:
@@ -534,7 +533,7 @@ class OptimizedNodeManager:
                 'memory_limit_mb': self.get_memory_limit(),
                 'memory_usage_percent': (memory_usage_mb / self.get_memory_limit() * 100) if self.get_memory_limit() > 0 else 0.0
             }
-    
+
     def cleanup(self):
         """Clean up resources efficiently."""
         with self._lock:
@@ -583,21 +582,22 @@ class OptimizedNodeManager:
                 return False
             return True
 
-# Global optimized node manager instance
-_global_lock = threading.Lock()
-_global_node_manager: Optional[OptimizedNodeManager] = None
+class OptimizedNodeManagerSingleton:
+    """Singleton wrapper for OptimizedNodeManager to avoid global variables."""
+
+    _instance: Optional[OptimizedNodeManager] = None
+    _lock = threading.Lock()
+
+    @classmethod
+    def get_instance(cls) -> OptimizedNodeManager:
+        """Get the singleton instance with thread safety."""
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:  # Double-check locking
+                    cls._instance = OptimizedNodeManager()
+        return cls._instance
+
 
 def get_optimized_node_manager() -> OptimizedNodeManager:
-    """Get the global optimized node manager instance with thread safety."""
-    global _global_node_manager
-    if _global_node_manager is None:
-        with _global_lock:
-            if _global_node_manager is None:  # Double-check locking
-                _global_node_manager = OptimizedNodeManager()
-    return _global_node_manager
-
-
-
-
-
-
+    """Get the optimized node manager instance."""
+    return OptimizedNodeManagerSingleton.get_instance()

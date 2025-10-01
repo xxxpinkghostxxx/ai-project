@@ -13,14 +13,6 @@ from typing import Any, Dict, List, Optional
 
 from torch_geometric.data import Data
 
-from ..interfaces.configuration_service import IConfigurationService
-from ..interfaces.energy_manager import IEnergyManager
-from ..interfaces.event_coordinator import IEventCoordinator
-from ..interfaces.graph_manager import IGraphManager
-from ..interfaces.learning_engine import ILearningEngine
-from ..interfaces.neural_processor import INeuralProcessor
-from ..interfaces.performance_monitor import IPerformanceMonitor
-from ..interfaces.sensory_processor import ISensoryProcessor
 from ..interfaces.service_registry import IServiceRegistry
 from ..interfaces.simulation_coordinator import (ISimulationCoordinator,
                                                   SimulationState)
@@ -38,39 +30,31 @@ class SimulationCoordinator(ISimulationCoordinator):
     while maintaining biological plausibility and performance requirements.
     """
 
-    def __init__(self,
-                 service_registry: IServiceRegistry,
-                 neural_processor: INeuralProcessor,
-                 energy_manager: IEnergyManager,
-                 learning_engine: ILearningEngine,
-                 sensory_processor: ISensoryProcessor,
-                 performance_monitor: IPerformanceMonitor,
-                 graph_manager: IGraphManager,
-                 event_coordinator: IEventCoordinator,
-                 configuration_service: IConfigurationService):
+    def __init__(self, service_registry: IServiceRegistry, **services):
         """
         Initialize the SimulationCoordinator with all required services.
 
         Args:
             service_registry: Service registry for dependency resolution
-            neural_processor: Neural dynamics processing service
-            energy_manager: Energy flow and conservation service
-            learning_engine: Learning and plasticity service
-            sensory_processor: Sensory input processing service
-            performance_monitor: Performance monitoring service
-            graph_manager: Graph management service
-            event_coordinator: Event-driven communication service
-            configuration_service: Configuration management service
+            **services: Keyword arguments for all required services:
+                - neural_processor: Neural dynamics processing service
+                - energy_manager: Energy flow and conservation service
+                - learning_engine: Learning and plasticity service
+                - sensory_processor: Sensory input processing service
+                - performance_monitor: Performance monitoring service
+                - graph_manager: Graph management service
+                - event_coordinator: Event-driven communication service
+                - configuration_service: Configuration management service
         """
         self.service_registry = service_registry
-        self.neural_processor = neural_processor
-        self.energy_manager = energy_manager
-        self.learning_engine = learning_engine
-        self.sensory_processor = sensory_processor
-        self.performance_monitor = performance_monitor
-        self.graph_manager = graph_manager
-        self.event_coordinator = event_coordinator
-        self.configuration_service = configuration_service
+        self.neural_processor = services['neural_processor']
+        self.energy_manager = services['energy_manager']
+        self.learning_engine = services['learning_engine']
+        self.sensory_processor = services['sensory_processor']
+        self.performance_monitor = services['performance_monitor']
+        self.graph_manager = services['graph_manager']
+        self.event_coordinator = services['event_coordinator']
+        self.configuration_service = services['configuration_service']
 
         # Simulation state
         self._simulation_state = SimulationState()

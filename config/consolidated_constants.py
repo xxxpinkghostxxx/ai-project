@@ -3,10 +3,22 @@ Consolidated constants to reduce string duplication across the codebase.
 """
 
 import logging
-from config.unified_config_manager import get_config_manager
 
 # Setup logging
 logger = logging.getLogger(__name__)
+
+# Lazy import to avoid circular dependency
+try:
+    from config.unified_config_manager import get_config_manager
+except ImportError:
+    get_config_manager = None
+
+def _get_config_manager():
+    """Lazy import of config manager to avoid circular imports."""
+    if get_config_manager is None:
+        logger.debug("Config manager not available due to circular import")
+        return None
+    return get_config_manager()
 
 # Common UI Constants
 UI_CONSTANTS = {
@@ -192,7 +204,10 @@ DEFAULT_VALUES = {
 def load_constants_from_config():
     """Load constants from configuration file."""
     try:
-        config_manager = get_config_manager()
+        config_manager = _get_config_manager()
+        if config_manager is None:
+            logger.debug("Config manager not available due to circular import, using defaults")
+            return
         logger.info("Loading constants from config...")
 
         # Load energy cap

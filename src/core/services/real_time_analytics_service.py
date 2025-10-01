@@ -520,27 +520,25 @@ class RealTimeAnalyticsService(IRealTimeAnalytics):
         """Categorize a metric based on its name."""
         if any(keyword in metric_name.lower() for keyword in ["time", "latency", "duration"]):
             return "performance"
-        elif any(keyword in metric_name.lower() for keyword in ["memory", "ram", "gpu"]):
+        if any(keyword in metric_name.lower() for keyword in ["memory", "ram", "gpu"]):
             return "memory"
-        elif any(keyword in metric_name.lower() for keyword in ["energy", "power"]):
+        if any(keyword in metric_name.lower() for keyword in ["energy", "power"]):
             return "energy"
-        elif any(keyword in metric_name.lower() for keyword in ["cpu", "utilization"]):
+        if any(keyword in metric_name.lower() for keyword in ["cpu", "utilization"]):
             return "system"
-        else:
-            return "general"
+        return "general"
 
     def _get_metric_unit(self, metric_name: str) -> str:
         """Get the unit for a metric based on its name."""
         if "time" in metric_name.lower():
             return "ms"
-        elif "memory" in metric_name.lower():
+        if "memory" in metric_name.lower():
             return "MB"
-        elif "energy" in metric_name.lower():
+        if "energy" in metric_name.lower():
             return "units"
-        elif "rate" in metric_name.lower():
+        if "rate" in metric_name.lower():
             return "ops/sec"
-        else:
-            return "unit"
+        return "unit"
 
     def _collect_neural_metrics(self) -> List[AnalyticsMetric]:
         """Collect neural simulation specific metrics."""

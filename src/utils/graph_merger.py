@@ -116,7 +116,7 @@ class GraphMerger:
             except Exception as e:
                 self._stats['failed_merges'] += 1
                 log_step("Graph merge failed", error=str(e))
-                raise GraphMergeConflictError(f"Graph merge failed: {e}")
+                raise GraphMergeConflictError(f"Graph merge failed: {e}") from e
 
     def _validate_graphs_for_merge(self, graph1, graph2) -> Dict[str, Any]:
         """Validate that graphs can be merged."""
@@ -194,11 +194,10 @@ class GraphMerger:
 
         if identical:
             return 'identical'  # Can safely keep one
-        else:
-            return 'different'  # Need to resolve conflict
+        return 'different'  # Need to resolve conflict
 
     def _create_id_mapping(self, graph1, graph2, conflict_analysis,
-                          resolution_strategy: str, preserve_primary: bool) -> Dict[int, int]:
+                           resolution_strategy: str, _preserve_primary: bool) -> Dict[int, int]:
         """Create mapping for resolving ID conflicts."""
         id_mapping = {}
         next_available_id = self._find_next_available_id(graph1, graph2)
@@ -254,7 +253,7 @@ class GraphMerger:
         merged_graph = self._copy_graph_structure(graph1)
 
         # Add nodes from secondary graph with ID remapping
-        if hasattr(graph2, 'node_labels'):
+        if hasattr(graph2, 'node_labels'):  # pylint: disable=too-many-nested-blocks
             for node in graph2.node_labels:
                 original_id = node.get('id')
                 if original_id is not None:
@@ -329,7 +328,7 @@ class GraphMerger:
                     value = getattr(graph, attr)
                     if not callable(value):
                         setattr(copied_graph, attr, value)
-                except:
+                except Exception:  # pylint: disable=broad-except
                     pass
 
         return copied_graph
@@ -370,18 +369,18 @@ class GraphMerger:
 
 
 # Global instance
-_graph_merger_instance = None
-_graph_merger_lock = threading.Lock()
+_GRAPH_MERGER_INSTANCE = None
+_GRAPH_MERGER_LOCK = threading.Lock()
 
 
 def get_graph_merger() -> GraphMerger:
     """Get the global graph merger instance."""
-    global _graph_merger_instance
-    if _graph_merger_instance is None:
-        with _graph_merger_lock:
-            if _graph_merger_instance is None:
-                _graph_merger_instance = GraphMerger()
-    return _graph_merger_instance
+    global _GRAPH_MERGER_INSTANCE  # pylint: disable=global-statement
+    if _GRAPH_MERGER_INSTANCE is None:
+        with _GRAPH_MERGER_LOCK:
+            if _GRAPH_MERGER_INSTANCE is None:
+                _GRAPH_MERGER_INSTANCE = GraphMerger()
+    return _GRAPH_MERGER_INSTANCE
 
 
 

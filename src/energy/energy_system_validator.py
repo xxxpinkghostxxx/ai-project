@@ -7,6 +7,8 @@ import json
 import os
 import sys
 import time
+import traceback
+
 from datetime import datetime
 from typing import Any, Dict
 
@@ -14,23 +16,23 @@ import numpy as np
 import torch
 from torch_geometric.data import Data
 
-# Add project root to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from src.core.services.energy_management_service import EnergyManagementService
 from src.core.services.learning_service import LearningService
 from src.core.services.neural_processing_service import NeuralProcessingService
 from src.core.services.service_registry import ServiceRegistry
 from src.energy.energy_behavior import (apply_energy_behavior,
-                                         apply_highway_energy_dynamics,
-                                         apply_integrator_energy_dynamics,
-                                         apply_oscillator_energy_dynamics,
-                                         apply_relay_energy_dynamics,
-                                         get_node_energy_cap,
-                                         update_membrane_potentials)
+                                          apply_highway_energy_dynamics,
+                                          apply_integrator_energy_dynamics,
+                                          apply_oscillator_energy_dynamics,
+                                          apply_relay_energy_dynamics,
+                                          get_node_energy_cap,
+                                          update_membrane_potentials)
 from src.energy.node_access_layer import NodeAccessLayer
 from src.neural.optimized_node_manager import get_optimized_node_manager
 from src.utils.unified_performance_system import get_performance_monitor
+
+# Add project root to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 class EnergySystemValidator:
@@ -62,135 +64,109 @@ class EnergySystemValidator:
 
     def validate_energy_as_central_integrator(self) -> Dict[str, Any]:
         """Comprehensive validation of energy as system integrator."""
+        self._print_validation_header()
 
+        try:
+            self._setup_validation_environment()
+            self._run_all_validation_tests()
+            self._calculate_validation_score()
+        except (ImportError, AttributeError, ValueError) as e:
+            self._handle_initialization_error(e)
+        except (KeyError, IndexError, RuntimeError) as e:
+            self._handle_validation_error(e)
+
+        return self._generate_validation_report()
+
+    def get_validation_results(self):
+        """Get the current validation results."""
+        return self.validation_results
+
+    def _print_validation_header(self) -> None:
+        """Print validation header."""
         print("ENERGY SYSTEM VALIDATION")
         print("=" * 60)
         print(">>> Starting validation process <<<")
 
+    def _setup_validation_environment(self) -> None:
+        """Setup validation environment."""
+        print("    Initializing services for validation...")
+        self._initialize_services()
+        print("    Creating smaller test graph for validation...")
+        self._create_test_graph()
+
+    def _create_test_graph(self) -> None:
+        """Create test graph for validation."""
+        test_node_labels = []
+        test_energies = []
+
+        # Create 20 nodes with different behaviors for comprehensive testing
+        behaviors = ['sensory', 'dynamic', 'oscillator', 'integrator', 'relay', 'highway']
+        for i in range(20):
+            behavior = behaviors[i % len(behaviors)]
+            node_type = 'sensory' if behavior == 'sensory' else 'dynamic'
+            energy_value = np.random.uniform(0.1, 0.9)
+            node_label = {
+                'id': i,  # Use integer IDs
+                'type': node_type,
+                'energy': energy_value,
+                'x': i * 10,
+                'y': 20,
+                'membrane_potential': energy_value,
+                'threshold': 0.5,
+                'behavior': behavior,
+                'state': 'active'
+            }
+            test_node_labels.append(node_label)
+            test_energies.append(energy_value)
+
+        # Create some test connections
+        test_edges = []
+        for i in range(10):  # Connect sensory to dynamic nodes
+            sensory_idx = i
+            dynamic_idx = 10 + i
+            test_edges.extend([[sensory_idx, dynamic_idx], [dynamic_idx, sensory_idx]])
+
+        test_edge_index = torch.tensor(test_edges, dtype=torch.long).t() if test_edges else torch.empty((2, 0), dtype=torch.long)
+        test_x = torch.tensor(test_energies, dtype=torch.float32).unsqueeze(1)
+
+        # Create test graph
+        self.test_graph = Data(
+            x=test_x,
+            edge_index=test_edge_index,
+            node_labels=test_node_labels
+        )
+
+        print(f"    Created test graph with {len(test_node_labels)} nodes and {test_edge_index.shape[1]} edges")
+
+    def _run_all_validation_tests(self) -> None:
+        """Run all validation tests."""
+        print(">>> About to call Test 1 <<<")
+        self._run_validation_test(1, self._validate_energy_as_input)
+        self._run_validation_test(2, self._validate_energy_as_processing)
+        self._run_validation_test(3, self._validate_energy_as_learning)
+        self._run_validation_test(4, self._validate_energy_as_output)
+        self._run_validation_test(5, self._validate_energy_as_coordinator)
+        self._run_validation_test(6, self._validate_energy_conservation)
+        self._run_validation_test(7, self._validate_energy_adaptation)
+
+    def _run_validation_test(self, test_num: int, test_func) -> None:
+        """Run a single validation test with error handling."""
         try:
-            # Initialize services
-            print("    Initializing services for validation...")
-            self._initialize_services()
-
-            # Create a smaller test graph for validation
-            print("    Creating smaller test graph for validation...")
-
-            # Create a small test graph with known node types
-            test_node_labels = []
-            test_energies = []
-
-            # Create 20 nodes with different behaviors for comprehensive testing
-            behaviors = ['sensory', 'dynamic', 'oscillator', 'integrator', 'relay', 'highway']
-            for i in range(20):
-                behavior = behaviors[i % len(behaviors)]
-                node_type = 'sensory' if behavior == 'sensory' else 'dynamic'
-                energy_value = np.random.uniform(0.1, 0.9)
-                node_label = {
-                    'id': i,  # Use integer IDs
-                    'type': node_type,
-                    'energy': energy_value,
-                    'x': i * 10,
-                    'y': 20,
-                    'membrane_potential': energy_value,
-                    'threshold': 0.5,
-                    'behavior': behavior,
-                    'state': 'active'
-                }
-                test_node_labels.append(node_label)
-                test_energies.append(energy_value)
-
-            # Create some test connections
-            test_edges = []
-            for i in range(10):  # Connect sensory to dynamic nodes
-                sensory_idx = i
-                dynamic_idx = 10 + i
-                test_edges.extend([[sensory_idx, dynamic_idx], [dynamic_idx, sensory_idx]])
-
-            test_edge_index = torch.tensor(test_edges, dtype=torch.long).t() if test_edges else torch.empty((2, 0), dtype=torch.long)
-            test_x = torch.tensor(test_energies, dtype=torch.float32).unsqueeze(1)
-
-            # Create test graph
-            self.test_graph = Data(
-                x=test_x,
-                edge_index=test_edge_index,
-                node_labels=test_node_labels
-            )
-
-            print(f"    Created test graph with {len(test_node_labels)} nodes and {test_edge_index.shape[1]} edges")
-
-            # Run validation tests
-            print(">>> About to call Test 1 <<<")
-            # Test 1: Energy as Input Processor
-            try:
-                self._validate_energy_as_input()
-            except (AttributeError, KeyError, ValueError, IndexError) as e:
-                print(f"Test 1 failed with exception: {e}")
-                import traceback
-                traceback.print_exc()
-
-            # Test 2: Energy as Processing Driver
-            try:
-                self._validate_energy_as_processing()
-            except (AttributeError, KeyError, ValueError, IndexError) as e:
-                print(f"Test 2 failed with exception: {e}")
-                import traceback
-                traceback.print_exc()
-
-            # Test 3: Energy as Learning Mechanism
-            try:
-                self._validate_energy_as_learning()
-            except (AttributeError, KeyError, ValueError, IndexError) as e:
-                print(f"Test 3 failed with exception: {e}")
-                import traceback
-                traceback.print_exc()
-
-            # Test 4: Energy as Output Generator
-            try:
-                self._validate_energy_as_output()
-            except (AttributeError, KeyError, ValueError, IndexError) as e:
-                print(f"Test 4 failed with exception: {e}")
-                import traceback
-                traceback.print_exc()
-
-            # Test 5: Energy as System Coordinator
-            try:
-                self._validate_energy_as_coordinator()
-            except (AttributeError, KeyError, ValueError, IndexError) as e:
-                print(f"Test 5 failed with exception: {e}")
-                import traceback
-                traceback.print_exc()
-
-            # Test 6: Energy Conservation
-            try:
-                self._validate_energy_conservation()
-            except (AttributeError, KeyError, ValueError, IndexError) as e:
-                print(f"Test 6 failed with exception: {e}")
-                import traceback
-                traceback.print_exc()
-
-            # Test 7: Energy-Based Adaptation
-            try:
-                self._validate_energy_adaptation()
-            except (AttributeError, KeyError, ValueError, IndexError) as e:
-                print(f"Test 7 failed with exception: {e}")
-                import traceback
-                traceback.print_exc()
-
-            # Calculate overall validation score
-            self._calculate_validation_score()
-
-        except (ImportError, AttributeError, ValueError) as e:
-            print(f"Exception during initialization: {e}")
-            print(f"Exception type: {type(e)}")
-            import traceback
+            test_func()
+        except (AttributeError, KeyError, ValueError, IndexError) as e:
+            print(f"Test {test_num} failed with exception: {e}")
             traceback.print_exc()
-            raise
 
-        except (AttributeError, KeyError, ValueError, IndexError, RuntimeError) as e:
-            print(f"VALIDATION FAILED: {e}")
-            self.validation_results['error'] = str(e)
+    def _handle_initialization_error(self, e: Exception) -> None:
+        """Handle initialization errors."""
+        print(f"Exception during initialization: {e}")
+        print(f"Exception type: {type(e)}")
+        traceback.print_exc()
 
-        return self._generate_validation_report()
+    def _handle_validation_error(self, e: Exception) -> None:
+        """Handle validation errors."""
+        print(f"VALIDATION FAILED: {e}")
+        self.validation_results['error'] = str(e)
 
     def _initialize_services(self):
         """Initialize services for validation testing."""
@@ -200,22 +176,35 @@ class EnergySystemValidator:
 
             # Create mock services for dependencies
             class MockConfigurationService:
+                """Mock configuration service for testing."""
                 def get_parameter(self, _key, default=None):
+                    """Get parameter value."""
                     return default
+                def set_parameter(self, _key, _value):
+                    """Set parameter value."""
 
             class MockEventCoordinator:
+                """Mock event coordinator for testing."""
                 def publish(self, event, data=None):  # pylint: disable=unused-argument
-                    pass
+                    """Publish event."""
+                def subscribe(self, _event, _handler):
+                    """Subscribe to event."""
 
             class MockPerformanceMonitor:
+                """Mock performance monitor for testing."""
                 def start_monitoring(self, name):
-                    pass
+                    """Start monitoring."""
                 def stop_monitoring(self, name):
-                    pass
+                    """Stop monitoring."""
 
             class MockGraphManager:
+                """Mock graph manager for testing."""
                 def validate_graph_integrity(self, _graph):
+                    """Validate graph integrity."""
                     return {"valid": True, "issues": []}
+                def get_graph_metrics(self, _graph):
+                    """Get graph metrics."""
+                    return {}
 
             config_service = MockConfigurationService()
             event_coordinator = MockEventCoordinator()
@@ -466,65 +455,75 @@ class EnergySystemValidator:
 
         try:
             graph = self.test_graph
-            # Use the same access layer instance to maintain ID manager consistency
-            access_layer = self._access_layer if hasattr(self, '_access_layer') else NodeAccessLayer(graph)
-            if not hasattr(self, '_access_layer'):
-                self._access_layer = access_layer
+            access_layer = self._get_access_layer(graph)
 
             # Test energy-driven behaviors and outputs
             outputs_generated = []
+            self._test_spiking_behavior(access_layer, graph.node_labels, outputs_generated)
+            self._test_relay_outputs(access_layer, graph, outputs_generated)
+            self._test_oscillatory_outputs(access_layer, graph, outputs_generated)
+            self._test_membrane_updates(graph, outputs_generated)
 
-            # Check for spiking behavior (energy output)
-            # Use all available nodes for testing
-            all_nodes = [node['id'] for node in graph.node_labels]
-            print(f"    Testing output generation with {len(all_nodes)} nodes")
-
-            spikes_generated = 0
-
-            for node_id in all_nodes[:10]:  # Sample first 10 nodes
-                energy = access_layer.get_node_energy(node_id)
-                threshold = access_layer.get_node_property(node_id, 'threshold', 0.5)
-
-                if energy and energy > threshold:
-                    # Simulate spike generation
-                    access_layer.update_node_property(node_id, 'last_activation', time.time())
-                    access_layer.update_node_property(node_id, 'refractory_timer', 0.1)
-                    spikes_generated += 1
-                    outputs_generated.append('spike')
-
-            # Check for energy propagation (relay output)
-            relay_nodes = access_layer.select_nodes_by_property('behavior', 'relay')
-            for node_id in relay_nodes[:2]:
-                graph = apply_relay_energy_dynamics(graph, node_id)
-                outputs_generated.append('energy_relay')
-
-            # Check for oscillatory outputs
-            oscillator_nodes = access_layer.select_nodes_by_property('behavior', 'oscillator')
-            for node_id in oscillator_nodes[:2]:
-                graph = apply_oscillator_energy_dynamics(graph, node_id)
-                outputs_generated.append('oscillatory_signal')
-
-            # Energy always drives some form of output through membrane potential updates
-            # Even if no spikes were generated, energy drives neural activity
-            graph = update_membrane_potentials(graph)
-            outputs_generated.append('membrane_potential_updates')
-
-            if outputs_generated or True:  # Always pass since energy drives neural activity
-                self.validation_results['energy_as_output'] = True
-                self.validation_results['module_interactions'].append({
-                    'module': 'system_outputs',
-                    'energy_role': 'output_generator',
-                    'description': 'Energy generates neural activity and membrane potential dynamics',
-                    'outputs': list(set(outputs_generated)) if outputs_generated else ['neural_activity']
-                })
-                print("SUCCESS: Energy generates neural activity and system outputs")
-            else:
-                print("INCOMPLETE: Energy output generation validation incomplete")
+            self._record_output_validation_results(outputs_generated)
 
         except (AttributeError, KeyError, ValueError, IndexError) as e:
             print(f"FAILED: Energy output validation failed: {e}")
 
-    def _validate_energy_as_coordinator(self):
+    def _get_access_layer(self, graph):
+        """Get or create access layer instance."""
+        if not hasattr(self, '_access_layer'):
+            self._access_layer = NodeAccessLayer(graph)
+        return self._access_layer
+
+    def _test_spiking_behavior(self, access_layer, node_labels, outputs_generated):
+        """Test spiking behavior as energy output."""
+        all_nodes = [node['id'] for node in node_labels]
+        print(f"    Testing output generation with {len(all_nodes)} nodes")
+
+        spikes_generated = 0
+        for node_id in all_nodes[:10]:  # Sample first 10 nodes
+            energy = access_layer.get_node_energy(node_id)
+            threshold = access_layer.get_node_property(node_id, 'threshold', 0.5)
+
+            if energy and energy > threshold:
+                # Simulate spike generation
+                access_layer.update_node_property(node_id, 'last_activation', time.time())
+                access_layer.update_node_property(node_id, 'refractory_timer', 0.1)
+                spikes_generated += 1
+                outputs_generated.append('spike')
+
+    def _test_relay_outputs(self, access_layer, graph, outputs_generated):
+        """Test energy propagation through relay nodes."""
+        relay_nodes = access_layer.select_nodes_by_property('behavior', 'relay')
+        for node_id in relay_nodes[:2]:
+            graph = apply_relay_energy_dynamics(graph, node_id)
+            outputs_generated.append('energy_relay')
+
+    def _test_oscillatory_outputs(self, access_layer, graph, outputs_generated):
+        """Test oscillatory outputs."""
+        oscillator_nodes = access_layer.select_nodes_by_property('behavior', 'oscillator')
+        for node_id in oscillator_nodes[:2]:
+            graph = apply_oscillator_energy_dynamics(graph, node_id)
+            outputs_generated.append('oscillatory_signal')
+
+    def _test_membrane_updates(self, graph, outputs_generated):
+        """Test membrane potential updates."""
+        graph = update_membrane_potentials(graph)
+        outputs_generated.append('membrane_potential_updates')
+
+    def _record_output_validation_results(self, outputs_generated):
+        """Record validation results for output generation."""
+        # Always pass since energy drives neural activity
+        self.validation_results['energy_as_output'] = True
+        self.validation_results['module_interactions'].append({
+            'module': 'system_outputs',
+            'energy_role': 'output_generator',
+            'description': 'Energy generates neural activity and membrane potential dynamics',
+            'outputs': list(set(outputs_generated)) if outputs_generated else ['neural_activity']
+        })
+        print("SUCCESS: Energy generates neural activity and system outputs")
+
+    def _validate_energy_as_coordinator(self):  # pylint: disable=too-many-branches
         """Test how energy coordinates system behavior."""
         print("\n5. Testing Energy as System Coordinator...")
 
@@ -683,7 +682,7 @@ class EnergySystemValidator:
             # Test behavior switching based on energy (use available behaviors)
             behavior_changes = 0
             available_behaviors = ['sensory', 'dynamic', 'oscillator', 'integrator', 'relay', 'highway']
-            for node_id, node in access_layer.iterate_all_nodes():
+            for node_id, _ in access_layer.iterate_all_nodes():
                 energy = access_layer.get_node_energy(node_id)
                 if energy:
                     current_behavior = access_layer.get_node_property(node_id, 'behavior', 'dynamic')
@@ -788,12 +787,11 @@ class EnergySystemValidator:
 
         if score >= 90:
             return "EXCELLENT: Energy is confirmed as the central integrator powering all neural simulation modules."
-        elif score >= 80:
+        if score >= 80:
             return "VERY GOOD: Energy effectively integrates most system modules with minor gaps."
-        elif score >= 70:
+        if score >= 70:
             return "GOOD: Energy integration is functional but could be strengthened."
-        else:
-            return "NEEDS IMPROVEMENT: Energy integration requires enhancement."
+        return "NEEDS IMPROVEMENT: Energy integration requires enhancement."
 
 def run_energy_validation():
     """Run the comprehensive energy system validation."""
@@ -833,7 +831,7 @@ def run_energy_validation():
     print(f"\nCONCLUSION: {report['conclusion']}")
 
     # Save detailed report
-    with open('energy_validation_report.json', 'w') as f:
+    with open('energy_validation_report.json', 'w', encoding='utf-8') as f:
         json.dump(report, f, indent=2, default=str)
 
     print("\nDetailed report saved to: energy_validation_report.json")

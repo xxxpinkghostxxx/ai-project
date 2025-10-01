@@ -8,21 +8,22 @@ separation of concerns and enabling dependency injection.
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
+from dataclasses import dataclass, field
 
 from torch_geometric.data import Data
 
 
+@dataclass
 class SimulationState:
     """Represents the current state of the neural simulation."""
 
-    def __init__(self):
-        self.step_count: int = 0
-        self.is_running: bool = False
-        self.last_step_time: float = 0.0
-        self.total_energy: float = 0.0
-        self.active_neurons: int = 0
-        self.learning_events: int = 0
-        self.performance_metrics: Dict[str, float] = {}
+    step_count: int = 0
+    is_running: bool = False
+    last_step_time: float = 0.0
+    total_energy: float = 0.0
+    active_neurons: int = 0
+    learning_events: int = 0
+    performance_metrics: Dict[str, float] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert state to dictionary for serialization."""

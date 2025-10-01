@@ -8,6 +8,7 @@ and lifecycle management in the dependency injection framework.
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Any, Dict, List, Optional, Type, TypeVar
+from dataclasses import dataclass, field
 
 T = TypeVar('T')
 
@@ -27,18 +28,17 @@ class ServiceHealth(Enum):
     UNKNOWN = "unknown"
 
 
+@dataclass
 class ServiceDescriptor:
     """Describes a registered service."""
 
-    def __init__(self, service_type: Type, implementation_type: Type,
-                 lifetime: ServiceLifetime = ServiceLifetime.SINGLETON):
-        self.service_type = service_type
-        self.implementation_type = implementation_type
-        self.lifetime = lifetime
-        self.instance = None
-        self.health = ServiceHealth.UNKNOWN
-        self.dependencies: List[Type] = []
-        self.metadata: Dict[str, Any] = {}
+    service_type: Type
+    implementation_type: Type
+    lifetime: ServiceLifetime = ServiceLifetime.SINGLETON
+    instance: Optional[Any] = None
+    health: ServiceHealth = ServiceHealth.UNKNOWN
+    dependencies: List[Type] = field(default_factory=list)
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert service descriptor to dictionary."""

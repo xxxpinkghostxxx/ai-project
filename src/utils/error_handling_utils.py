@@ -25,7 +25,7 @@ def safe_graph_access(graph, attribute: str, default_value: Any = None) -> Any:
     """
     try:
         return getattr(graph, attribute, default_value)
-    except Exception:
+    except Exception:  # pylint: disable=broad-except
         message = "Failed to access graph attribute %s: %s"
         logging.warning(message)
         print_warning(message)
@@ -38,7 +38,7 @@ def safe_hasattr(obj, *attributes) -> bool:
     """
     try:
         return all(hasattr(obj, attr) for attr in attributes)
-    except Exception:
+    except Exception:  # pylint: disable=broad-except
         message = "Failed to check attributes %s: %s"
         logging.warning(message)
         print_warning(message)
@@ -71,7 +71,7 @@ class ErrorContext:
         self.start_time = time.time()
         try:
             self.memory_start = psutil.Process().memory_info().rss
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
             self.memory_start = None
         return self
 
@@ -82,7 +82,7 @@ class ErrorContext:
             if self.memory_start is not None:
                 try:
                     memory_used = psutil.Process().memory_info().rss - self.memory_start
-                except Exception:
+                except Exception:  # pylint: disable=broad-except
                     pass
 
             error_msg = "Error in %s: %s"
@@ -105,7 +105,8 @@ class ErrorContext:
             if self.cleanup_func:
                 try:
                     self.cleanup_func()
-                except Exception as cleanup_error:
+                except Exception as cleanup_error:  # pylint: disable=broad-except
+                    # Broad exception catch necessary as cleanup_func is user-provided and may raise any exception
                     logging.error("Cleanup failed in %s: %s", self.context, cleanup_error)
 
         return False  # Don't suppress the exception
@@ -133,7 +134,7 @@ def handle_errors(context: str = "operation",
         def wrapper(*args, **kwargs):
             try:
                 return func(*args, **kwargs)
-            except exceptions:
+            except exceptions:  # pylint: disable=broad-exception-caught
                 duration = time.time() - start_time
 
                 error_msg = "Error in %s: %s"
@@ -160,7 +161,7 @@ def handle_errors(context: str = "operation",
                 if cleanup_func:
                     try:
                         cleanup_func()
-                    except Exception as cleanup_error:
+                    except Exception as cleanup_error:  # pylint: disable=broad-except
                         logging.error("Cleanup failed in %s: %s", context, cleanup_error)
 
                 # Re-raise if requested
@@ -181,7 +182,7 @@ def performance_monitor(func: Callable) -> Callable:
         start_memory = None
         try:
             start_memory = psutil.Process().memory_info().rss
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
             pass
 
         try:
@@ -193,7 +194,7 @@ def performance_monitor(func: Callable) -> Callable:
             if start_memory is not None:
                 try:
                     memory_used = psutil.Process().memory_info().rss - start_memory
-                except Exception:
+                except Exception:  # pylint: disable=broad-except
                     pass
 
             # Log performance metrics for slow operations
@@ -232,7 +233,7 @@ def memory_guard(memory_limit_mb: int = 1000, cleanup_func: Optional[Callable] =
             if cleanup_func:
                 try:
                     cleanup_func()
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-except
                     logging.error("Memory cleanup failed: %s", e)
 
 
@@ -273,7 +274,7 @@ class ResourceManager:
             for resource, cleanup_func in reversed(self.resources):
                 try:
                     cleanup_func(resource)
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-except
                     logging.error("Failed to cleanup resource: %s", e)
             self.resources.clear()
 
@@ -296,7 +297,7 @@ def safe_tensor_operation(operation: Callable, _context: str = "tensor operation
         logging.warning(error_msg)
         print_warning(error_msg)
         return fallback_value
-    except Exception:
+    except Exception:  # pylint: disable=broad-except
         error_msg = "Unexpected error in tensor operation %s: %s"
         logging.error(error_msg)
         print_error(error_msg)
@@ -313,7 +314,7 @@ def safe_file_operation(_file_path: str, operation: Callable,
         logging.error(error_msg)
         print_error(error_msg)
         return None
-    except Exception:
+    except Exception:  # pylint: disable=broad-except
         error_msg = "Unexpected error in file operation %s: %s"
         logging.error(error_msg)
         print_error(error_msg)
@@ -339,7 +340,7 @@ def safe_network_operation(operation: Callable, _context: str = "network operati
                 logging.error(error_msg)
                 print_error(error_msg)
                 return None
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
             error_msg = "Unexpected error in network operation %s: %s"
             logging.error(error_msg)
             print_error(error_msg)
@@ -359,14 +360,14 @@ def get_resource_manager() -> ResourceManager:
 # Additional utility functions from exception_utils.py
 
 def safe_graph_operation(operation: Callable, _graph_context: str = "graph",
-                         error_msg: str = "Graph operation failed") -> Any:
+                          error_msg: str = "Graph operation failed") -> Any:
     """
     Safely perform graph operations with consistent error handling.
     Replaces repeated graph operation error patterns.
     """
     try:
         return operation()
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
         logging.warning("%s: %s", error_msg, e)
         print_warning(f"{error_msg}: {e}")
         return None
@@ -385,7 +386,7 @@ def handle_critical_error(error: Exception, context: str = "",
     if fallback_action:
         try:
             fallback_action()
-        except Exception as fallback_e:
+        except Exception as fallback_e:  # pylint: disable=broad-except
             logging.error("Fallback action also failed: %s", fallback_e)
             print_error(f"Fallback action also failed: {fallback_e}")
 

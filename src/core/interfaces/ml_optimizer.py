@@ -8,19 +8,20 @@ providing intelligent parameter tuning, performance prediction, and automated op
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+from dataclasses import dataclass, field
 
 
+@dataclass
 class OptimizationModel:
     """Represents an ML optimization model."""
 
-    def __init__(self, model_type: str, target_metric: str):
-        self.model_type = model_type  # "regression", "classification", "reinforcement"
-        self.target_metric = target_metric
-        self.accuracy = 0.0
-        self.training_data_size = 0
-        self.last_trained = 0.0
-        self.parameters: Dict[str, Any] = {}
-        self.feature_importance: Dict[str, float] = {}
+    model_type: str  # "regression", "classification", "reinforcement"
+    target_metric: str
+    accuracy: float = 0.0
+    training_data_size: int = 0
+    last_trained: float = 0.0
+    parameters: Dict[str, Any] = field(default_factory=dict)
+    feature_importance: Dict[str, float] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert model to dictionary."""
@@ -35,19 +36,19 @@ class OptimizationModel:
         }
 
 
+@dataclass
 class OptimizationExperiment:
     """Represents an optimization experiment."""
 
-    def __init__(self, experiment_id: str, optimization_target: str):
-        self.experiment_id = experiment_id
-        self.optimization_target = optimization_target
-        self.start_time = datetime.now().timestamp()
-        self.end_time: Optional[float] = None
-        self.status = "running"  # "running", "completed", "failed"
-        self.parameters_tested: List[Dict[str, Any]] = []
-        self.results: List[Dict[str, Any]] = []
-        self.best_configuration: Optional[Dict[str, Any]] = None
-        self.improvement_percentage = 0.0
+    experiment_id: str
+    optimization_target: str
+    start_time: float = field(default_factory=lambda: datetime.now().timestamp())
+    end_time: Optional[float] = None
+    status: str = "running"  # "running", "completed", "failed"
+    parameters_tested: List[Dict[str, Any]] = field(default_factory=list)
+    results: List[Dict[str, Any]] = field(default_factory=list)
+    best_configuration: Optional[Dict[str, Any]] = None
+    improvement_percentage: float = 0.0
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert experiment to dictionary."""

@@ -328,11 +328,11 @@ class RealTimeVisualizationService(IRealTimeVisualization):
                 json_data = json.dumps(frame_data, indent=2, default=str)
                 return json_data.encode('utf-8')
 
-            elif format_type == "data":
+            if format_type == "data":
                 # Return raw data
                 return json.dumps(frame_data, default=str).encode('utf-8')
 
-            elif format_type == "image":
+            if format_type == "image":
                 # Create a simple text-based representation (placeholder for actual image)
                 snapshot_text = "Neural Simulation Visualization Snapshot\n"
                 snapshot_text += f"Timestamp: {frame_data.get('timestamp', 'N/A')}\n"
@@ -345,8 +345,7 @@ class RealTimeVisualizationService(IRealTimeVisualization):
 
                 return snapshot_text.encode('utf-8')
 
-            else:
-                return b"Unsupported format"
+            return b"Unsupported format"
 
         except (ValueError, TypeError, AttributeError, RuntimeError) as e:
             print(f"Error creating visualization snapshot: {e}")

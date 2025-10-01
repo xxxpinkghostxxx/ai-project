@@ -9,23 +9,24 @@ plasticity while maintaining biological plausibility and energy modulation.
 import time
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Tuple
+from dataclasses import dataclass, field
 
 from torch_geometric.data import Data
 
 
+@dataclass
 class LearningState:
     """Represents the current learning state of the system."""
 
-    def __init__(self):
-        self.synaptic_weights: Dict[Tuple[int, int], float] = {}
-        self.eligibility_traces: Dict[Tuple[int, int], float] = {}
-        self.learning_rates: Dict[int, float] = {}
-        self.plasticity_enabled: Dict[int, bool] = {}
-        self.memory_traces: Dict[int, Dict[str, Any]] = {}
-        self.stdp_events: int = 0
-        self.hebbian_events: int = 0
-        self.consolidation_events: int = 0
-        self.initialization_time: float = time.time()
+    synaptic_weights: Dict[Tuple[int, int], float] = field(default_factory=dict)
+    eligibility_traces: Dict[Tuple[int, int], float] = field(default_factory=dict)
+    learning_rates: Dict[int, float] = field(default_factory=dict)
+    plasticity_enabled: Dict[int, bool] = field(default_factory=dict)
+    memory_traces: Dict[int, Dict[str, Any]] = field(default_factory=dict)
+    stdp_events: int = 0
+    hebbian_events: int = 0
+    consolidation_events: int = 0
+    initialization_time: float = field(default_factory=time.time)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert learning state to dictionary for serialization."""
@@ -48,18 +49,18 @@ class LearningState:
         }
 
 
+@dataclass
 class PlasticityEvent:
     """Represents a synaptic plasticity event."""
 
-    def __init__(self, source_id: int, target_id: int, weight_change: float, event_type: str):
-        self.source_id = source_id
-        self.target_id = target_id
-        self.weight_change = weight_change
-        self.event_type = event_type  # "stdp", "hebbian", "consolidation"
-        self.timestamp = 0.0
-        self.energy_modulated = False
-        self.energy_factor = 0.0
-        self.learning_rate_used = 0.0
+    source_id: int
+    target_id: int
+    weight_change: float
+    event_type: str  # "stdp", "hebbian", "consolidation"
+    timestamp: float = 0.0
+    energy_modulated: bool = False
+    energy_factor: float = 0.0
+    learning_rate_used: float = 0.0
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert plasticity event to dictionary."""

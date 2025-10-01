@@ -618,22 +618,24 @@ class AdaptiveConfigurationService(IAdaptiveConfiguration):
                 # High-risk parameters
                 change_ratio = abs(new_value - old_value) / abs(old_value) if old_value != 0 else 1
                 if change_ratio > 0.5:
-                    return "high"
+                    risk_level = "high"
                 elif change_ratio > 0.2:
-                    return "medium"
+                    risk_level = "medium"
                 else:
-                    return "low"
+                    risk_level = "low"
 
             elif param_name == "batch_size":
                 # Medium-risk parameter
                 change_ratio = abs(new_value - old_value) / abs(old_value) if old_value != 0 else 1
                 if change_ratio > 1.0:
-                    return "medium"
+                    risk_level = "medium"
                 else:
-                    return "low"
+                    risk_level = "low"
 
             else:
-                return "low"
+                risk_level = "low"
+
+            return risk_level
 
         except ValueError:
             return "medium"

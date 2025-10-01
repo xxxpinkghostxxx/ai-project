@@ -7,21 +7,27 @@ based on system performance, workload characteristics, and environmental factors
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple
+from dataclasses import dataclass, field
 
 
+@dataclass
 class ConfigurationParameter:
     """Represents a configurable parameter with adaptation capabilities."""
 
-    def __init__(self, name: str, current_value: Any, value_type: str = "float"):
-        self.name = name
-        self.current_value = current_value
-        self.value_type = value_type  # "int", "float", "bool", "str"
-        self.min_value: Optional[Any] = None
-        self.max_value: Optional[Any] = None
-        self.default_value = current_value
-        self.adaptation_enabled = True
-        self.last_adapted = 0.0
-        self.adaptation_history: List[Tuple[float, Any]] = []
+    name: str
+    current_value: Any
+    value_type: str = "float"  # "int", "float", "bool", "str"
+    min_value: Optional[Any] = None
+    max_value: Optional[Any] = None
+    default_value: Optional[Any] = None
+    adaptation_enabled: bool = True
+    last_adapted: float = 0.0
+    adaptation_history: List[Tuple[float, Any]] = field(default_factory=list)
+
+    def __post_init__(self):
+        """Set default_value if not provided."""
+        if self.default_value is None:
+            self.default_value = self.current_value
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert parameter to dictionary."""
@@ -38,17 +44,17 @@ class ConfigurationParameter:
         }
 
 
+@dataclass
 class AdaptationRule:
     """Represents a rule for parameter adaptation."""
 
-    def __init__(self, parameter_name: str, condition: str, action: str):
-        self.parameter_name = parameter_name
-        self.condition = condition  # e.g., "cpu_usage > 0.8"
-        self.action = action  # e.g., "decrease batch_size by 0.2"
-        self.priority = 1
-        self.enabled = True
-        self.activation_count = 0
-        self.last_activated = 0.0
+    parameter_name: str
+    condition: str  # e.g., "cpu_usage > 0.8"
+    action: str  # e.g., "decrease batch_size by 0.2"
+    priority: int = 1
+    enabled: bool = True
+    activation_count: int = 0
+    last_activated: float = 0.0
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert rule to dictionary."""

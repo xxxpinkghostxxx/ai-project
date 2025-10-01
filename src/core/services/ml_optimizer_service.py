@@ -27,35 +27,35 @@ class SimpleRegressionModel:
         self.feature_names: List[str] = []
         self.trained = False
 
-    def train(self, X: List[List[float]], y: List[float]) -> bool:
+    def train(self, features: List[List[float]], y: List[float]) -> bool:
         """Train the regression model using simple linear regression."""
         try:
-            if len(X) == 0 or len(y) == 0:
+            if len(features) == 0 or len(y) == 0:
                 return False
 
             # Get feature names from first sample
-            if isinstance(X[0], dict):
-                self.feature_names = list(X[0].keys())
+            if isinstance(features[0], dict):
+                self.feature_names = list(features[0].keys())
                 # Convert dict features to lists
-                X_numeric = []
-                for sample in X:
-                    X_numeric.append([sample.get(feature, 0.0) for feature in self.feature_names])
-                X = X_numeric
+                features_numeric = []
+                for sample in features:
+                    features_numeric.append([sample.get(feature, 0.0) for feature in self.feature_names])
+                features = features_numeric
 
-            n_features = len(X[0])
-            n_samples = len(X)
+            n_features = len(features[0])
+            n_samples = len(features)
 
             # Simple linear regression implementation
             # Calculate means
             y_mean = sum(y) / len(y)
             x_means = []
             for i in range(n_features):
-                x_means.append(sum(row[i] for row in X) / len(X))
+                x_means.append(sum(row[i] for row in features) / len(features))
 
             # Calculate coefficients
             for i in range(n_features):
-                numerator = sum((X[j][i] - x_means[i]) * (y[j] - y_mean) for j in range(n_samples))
-                denominator = sum((X[j][i] - x_means[i]) ** 2 for j in range(n_samples))
+                numerator = sum((features[j][i] - x_means[i]) * (y[j] - y_mean) for j in range(n_samples))
+                denominator = sum((features[j][i] - x_means[i]) ** 2 for j in range(n_samples))
 
                 if denominator != 0:
                     self.coefficients[self.feature_names[i]] = numerator / denominator
@@ -74,13 +74,13 @@ class SimpleRegressionModel:
             print(f"Error training regression model: {e}")
             return False
 
-    def predict(self, X: Dict[str, float]) -> float:
+    def predict(self, features: Dict[str, float]) -> float:
         """Make prediction using trained model."""
         if not self.trained:
             return 0.0
 
         prediction = self.intercept
-        for feature, value in X.items():
+        for feature, value in features.items():
             prediction += self.coefficients.get(feature, 0.0) * value
 
         return prediction
@@ -186,23 +186,23 @@ class MLOptimizerService(IMLOptimizer):
                 return False
 
             # Prepare training data
-            X = []
+            features_list = []
             y = []
 
             for data_point in historical_data:
                 if target_metric in data_point:
                     features = {k: v for k, v in data_point.items() if k != target_metric and isinstance(v, (int, float))}
                     if features:
-                        X.append(features)
+                        features_list.append(features)
                         y.append(data_point[target_metric])
 
-            if len(X) < self.min_training_samples:
-                print(f"Insufficient valid training samples: {len(X)}")
+            if len(features_list) < self.min_training_samples:
+                print(f"Insufficient valid training samples: {len(features_list)}")
                 return False
 
             # Train regression model
             model = SimpleRegressionModel()
-            success = model.train(X, y)
+            success = model.train(features_list, y)
 
             if success:
                 # Store the trained model
@@ -211,10 +211,10 @@ class MLOptimizerService(IMLOptimizer):
 
                 # Create optimization model metadata
                 opt_model = OptimizationModel("regression", target_metric)
-                opt_model.accuracy = self._calculate_model_accuracy(model, X[-10:], y[-10:])  # Test on last 10 samples
-                opt_model.training_data_size = len(X)
+                opt_model.accuracy = self._calculate_model_accuracy(model, features_list[-10:], y[-10:])  # Test on last 10 samples
+                opt_model.training_data_size = len(features_list)
                 opt_model.last_trained = time.time()
-                opt_model.parameters = {"features": list(X[0].keys())}
+                opt_model.parameters = {"features": list(features_list[0].keys())}
                 opt_model.feature_importance = self._calculate_feature_importance(model)
 
                 self.optimization_models[model_key] = opt_model
@@ -223,7 +223,7 @@ class MLOptimizerService(IMLOptimizer):
                 self.event_coordinator.publish("ml_model_trained", {
                     "model_key": model_key,
                     "target_metric": target_metric,
-                    "training_samples": len(X),
+                    "training_samples": len(features_list),
                     "accuracy": opt_model.accuracy,
                     "timestamp": time.time()
                 })
@@ -416,49 +416,71 @@ class MLOptimizerService(IMLOptimizer):
             current_metrics = self.analytics_service.collect_system_metrics()
             current_state = {metric.name: metric.value for metric in current_metrics}
 
-            # Predict optimal values based on optimization type
-            if optimization_type == "performance":
-                target_metrics = ["step_time", "cpu_usage"]
-            elif optimization_type == "energy":
-                target_metrics = ["energy_consumption_rate", "energy_efficiency"]
-            elif optimization_type == "stability":
-                target_metrics = ["memory_usage", "connection_stability"]
-            else:
-                target_metrics = ["step_time"]
+            # Get target metrics for optimization type
+            target_metrics = self._get_target_metrics(optimization_type)
 
             # Get predictions for target metrics
             predictions = self.predict_optimal_configuration(current_state)
 
             # Generate optimized parameters
-            for target_metric in target_metrics:
-                if target_metric in predictions["predictions"]:
-                    pred_data = predictions["predictions"][target_metric]
-
-                    # Map metric predictions to parameter adjustments
-                    if target_metric == "step_time" and "batch_size" in parameters:
-                        # Lower step time suggests larger batch size
-                        current_batch = parameters["batch_size"]
-                        if pred_data["predicted_value"] < current_state.get("step_time", 0.1):
-                            optimization_results["optimized_parameters"]["batch_size"] = min(512, int(current_batch * 1.2))
-                        else:
-                            optimization_results["optimized_parameters"]["batch_size"] = max(16, int(current_batch * 0.8))
-
-                    elif target_metric == "energy_efficiency" and "energy_decay_rate" in parameters:
-                        # Higher efficiency suggests optimal decay rate
-                        efficiency = pred_data["predicted_value"]
-                        if efficiency > 0.8:
-                            optimization_results["optimized_parameters"]["energy_decay_rate"] = 0.995
-                        elif efficiency < 0.5:
-                            optimization_results["optimized_parameters"]["energy_decay_rate"] = 0.98
-
-                    optimization_results["expected_improvement"][target_metric] = pred_data["predicted_value"]
-                    optimization_results["confidence"] = max(optimization_results["confidence"], pred_data["confidence"])
+            self._generate_optimized_parameters(
+                target_metrics, predictions, parameters, current_state, optimization_results
+            )
 
             return optimization_results
 
         except (ValueError, TypeError, KeyError, AttributeError) as e:
             print(f"Error applying ML optimization: {e}")
             return {"error": str(e)}
+
+    def _get_target_metrics(self, optimization_type: str) -> List[str]:
+        """Get target metrics for optimization type."""
+        metric_map = {
+            "performance": ["step_time", "cpu_usage"],
+            "energy": ["energy_consumption_rate", "energy_efficiency"],
+            "stability": ["memory_usage", "connection_stability"]
+        }
+        return metric_map.get(optimization_type, ["step_time"])
+
+    def _generate_optimized_parameters(self, target_metrics: List[str],
+                                     predictions: Dict[str, Any], parameters: Dict[str, Any],
+                                     current_state: Dict[str, Any], results: Dict[str, Any]) -> None:
+        """Generate optimized parameters based on predictions."""
+        for target_metric in target_metrics:
+            if target_metric in predictions["predictions"]:
+                pred_data = predictions["predictions"][target_metric]
+
+                # Apply parameter adjustments based on metric
+                self._adjust_parameters_for_metric(target_metric, pred_data, parameters, current_state, results)
+
+                results["expected_improvement"][target_metric] = pred_data["predicted_value"]
+                results["confidence"] = max(results["confidence"], pred_data["confidence"])
+
+    def _adjust_parameters_for_metric(self, target_metric: str, pred_data: Dict[str, Any],
+                                    parameters: Dict[str, Any], current_state: Dict[str, Any],
+                                    results: Dict[str, Any]) -> None:
+        """Adjust parameters based on specific metric predictions."""
+        if target_metric == "step_time" and "batch_size" in parameters:
+            self._adjust_batch_size(pred_data, parameters, current_state, results)
+        elif target_metric == "energy_efficiency" and "energy_decay_rate" in parameters:
+            self._adjust_energy_decay_rate(pred_data, results)
+
+    def _adjust_batch_size(self, pred_data: Dict[str, Any], parameters: Dict[str, Any],
+                         current_state: Dict[str, Any], results: Dict[str, Any]) -> None:
+        """Adjust batch size based on step time prediction."""
+        current_batch = parameters["batch_size"]
+        if pred_data["predicted_value"] < current_state.get("step_time", 0.1):
+            results["optimized_parameters"]["batch_size"] = min(512, int(current_batch * 1.2))
+        else:
+            results["optimized_parameters"]["batch_size"] = max(16, int(current_batch * 0.8))
+
+    def _adjust_energy_decay_rate(self, pred_data: Dict[str, Any], results: Dict[str, Any]) -> None:
+        """Adjust energy decay rate based on efficiency prediction."""
+        efficiency = pred_data["predicted_value"]
+        if efficiency > 0.8:
+            results["optimized_parameters"]["energy_decay_rate"] = 0.995
+        elif efficiency < 0.5:
+            results["optimized_parameters"]["energy_decay_rate"] = 0.98
 
     def analyze_optimization_impact(self, before_metrics: Dict[str, Any],
                                   after_metrics: Dict[str, Any]) -> Dict[str, Any]:
@@ -486,56 +508,89 @@ class MLOptimizerService(IMLOptimizer):
                 before_value = before_metrics.get(metric_name, 0)
                 after_value = after_metrics.get(metric_name, 0)
 
-                if before_value != 0:
-                    change_percentage = ((after_value - before_value) / abs(before_value)) * 100
-                else:
-                    change_percentage = 0
+                change_percentage = self._calculate_change_percentage(before_value, after_value)
 
-                # Categorize impact
-                if abs(change_percentage) > 5:  # Significant change
-                    if metric_name in ["step_time", "cpu_usage", "memory_usage"]:
-                        # Lower is better for these metrics
-                        if change_percentage < 0:
-                            impact_analysis["improvements"][metric_name] = {
-                                "change_percentage": change_percentage,
-                                "before": before_value,
-                                "after": after_value
-                            }
-                        else:
-                            impact_analysis["degradations"][metric_name] = {
-                                "change_percentage": change_percentage,
-                                "before": before_value,
-                                "after": after_value
-                            }
-                    elif metric_name in ["energy_efficiency", "learning_progress"]:
-                        # Higher is better for these metrics
-                        if change_percentage > 0:
-                            impact_analysis["improvements"][metric_name] = {
-                                "change_percentage": change_percentage,
-                                "before": before_value,
-                                "after": after_value
-                            }
-                        else:
-                            impact_analysis["degradations"][metric_name] = {
-                                "change_percentage": change_percentage,
-                                "before": before_value,
-                                "after": after_value
-                            }
+                # Categorize impact if significant
+                if abs(change_percentage) > 5:
+                    self._categorize_metric_impact(
+                        metric_name, change_percentage, before_value, after_value, impact_analysis
+                    )
 
             # Determine overall impact
-            num_improvements = len(impact_analysis["improvements"])
-            num_degradations = len(impact_analysis["degradations"])
-
-            if num_improvements > num_degradations:
-                impact_analysis["overall_impact"] = "positive"
-            elif num_degradations > num_improvements:
-                impact_analysis["overall_impact"] = "negative"
+            self._determine_overall_impact(impact_analysis)
 
             return impact_analysis
 
         except (ValueError, TypeError, KeyError, ZeroDivisionError) as e:
             print(f"Error analyzing optimization impact: {e}")
             return {"error": str(e)}
+
+    def _calculate_change_percentage(self, before_value: float, after_value: float) -> float:
+        """Calculate percentage change between values."""
+        if before_value != 0:
+            return ((after_value - before_value) / abs(before_value)) * 100
+        return 0
+
+    def _categorize_metric_impact(self, metric_name: str, change_percentage: float,
+                                before_value: float, after_value: float,
+                                impact_analysis: Dict[str, Any]) -> None:
+        """Categorize the impact of a metric change."""
+        # Define metric preferences (lower/higher is better)
+        lower_better = ["step_time", "cpu_usage", "memory_usage"]
+        higher_better = ["energy_efficiency", "learning_progress"]
+
+        if metric_name in lower_better:
+            self._assess_lower_better_metric(
+                metric_name, change_percentage, before_value, after_value, impact_analysis
+            )
+        elif metric_name in higher_better:
+            self._assess_higher_better_metric(
+                metric_name, change_percentage, before_value, after_value, impact_analysis
+            )
+
+    def _assess_lower_better_metric(self, metric_name: str, change_percentage: float,
+                                  before_value: float, after_value: float,
+                                  impact_analysis: Dict[str, Any]) -> None:
+        """Assess metrics where lower values are better."""
+        if change_percentage < 0:
+            impact_analysis["improvements"][metric_name] = {
+                "change_percentage": change_percentage,
+                "before": before_value,
+                "after": after_value
+            }
+        else:
+            impact_analysis["degradations"][metric_name] = {
+                "change_percentage": change_percentage,
+                "before": before_value,
+                "after": after_value
+            }
+
+    def _assess_higher_better_metric(self, metric_name: str, change_percentage: float,
+                                   before_value: float, after_value: float,
+                                   impact_analysis: Dict[str, Any]) -> None:
+        """Assess metrics where higher values are better."""
+        if change_percentage > 0:
+            impact_analysis["improvements"][metric_name] = {
+                "change_percentage": change_percentage,
+                "before": before_value,
+                "after": after_value
+            }
+        else:
+            impact_analysis["degradations"][metric_name] = {
+                "change_percentage": change_percentage,
+                "before": before_value,
+                "after": after_value
+            }
+
+    def _determine_overall_impact(self, impact_analysis: Dict[str, Any]) -> None:
+        """Determine the overall impact based on improvements vs degradations."""
+        num_improvements = len(impact_analysis["improvements"])
+        num_degradations = len(impact_analysis["degradations"])
+
+        if num_improvements > num_degradations:
+            impact_analysis["overall_impact"] = "positive"
+        elif num_degradations > num_improvements:
+            impact_analysis["overall_impact"] = "negative"
 
     def get_optimization_recommendations(self, current_metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
@@ -631,21 +686,21 @@ class MLOptimizerService(IMLOptimizer):
                 target_metric = model_key.replace("_optimizer", "")
 
                 # Prepare validation data
-                X_val = []
+                features_val = []
                 y_val = []
 
                 for data_point in validation_data:
                     if target_metric in data_point:
                         features = {k: v for k, v in data_point.items() if k != target_metric and isinstance(v, (int, float))}
                         if features:
-                            X_val.append(features)
+                            features_val.append(features)
                             y_val.append(data_point[target_metric])
 
-                if len(X_val) < 5:  # Need minimum validation samples
+                if len(features_val) < 5:  # Need minimum validation samples
                     continue
 
                 # Calculate predictions
-                predictions = [model.predict(features) for features in X_val]
+                predictions = [model.predict(features) for features in features_val]
 
                 # Calculate accuracy metrics
                 mse = sum((pred - actual) ** 2 for pred, actual in zip(predictions, y_val)) / len(predictions)
@@ -660,7 +715,7 @@ class MLOptimizerService(IMLOptimizer):
                 validation_results["validation_accuracy"][model_key] = {
                     "rmse": rmse,
                     "r_squared": r_squared,
-                    "validation_samples": len(X_val)
+                    "validation_samples": len(features_val)
                 }
 
                 validation_results["models_validated"] += 1
@@ -680,13 +735,13 @@ class MLOptimizerService(IMLOptimizer):
             return {"error": str(e)}
 
     def _calculate_model_accuracy(self, model: SimpleRegressionModel,
-                                X_test: List[Dict[str, float]], y_test: List[float]) -> float:
+                                x_test: List[Dict[str, float]], y_test: List[float]) -> float:
         """Calculate model accuracy on test data."""
         try:
-            if not X_test or not y_test:
+            if not x_test or not y_test:
                 return 0.0
 
-            predictions = [model.predict(features) for features in X_test]
+            predictions = [model.predict(features) for features in x_test]
 
             # Calculate R-squared
             y_mean = sum(y_test) / len(y_test)

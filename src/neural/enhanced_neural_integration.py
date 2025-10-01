@@ -1,6 +1,30 @@
 
 
 
+"""
+Enhanced Neural Integration Module
+
+This module provides a comprehensive integration system for enhanced neural networks,
+coordinating multiple neural subsystems including dynamics, connections, and node behaviors.
+It serves as a central hub for managing complex neural interactions and provides
+a unified interface for neural simulation systems.
+
+Key Features:
+- Coordinates enhanced neural dynamics, connection systems, and node behaviors
+- Provides integration with existing ID-based neural architecture
+- Maintains comprehensive statistics and error tracking
+- Supports dynamic neuromodulator level management
+- Offers cleanup and resource management capabilities
+
+Classes:
+    EnhancedNeuralIntegration: Main integration class that coordinates all neural subsystems
+
+Functions:
+    create_enhanced_neural_integration(): Factory function for creating integration instances
+    integrate_with_simulation_manager(): Utility for integrating with simulation managers
+"""
+
+
 from typing import Any, Dict
 
 import torch
@@ -16,8 +40,41 @@ from src.utils.logging_utils import log_step
 
 
 class EnhancedNeuralIntegration:
+    """
+    Enhanced Neural Integration System
+
+    This class serves as the central coordinator for enhanced neural network subsystems,
+    integrating neural dynamics, connection systems, and node behavior management into
+    a unified framework. It provides comprehensive monitoring, error handling, and
+    statistical tracking for complex neural simulations.
+
+    The integration system maintains compatibility with existing ID-based neural
+    architectures while adding advanced features for enhanced neural processing.
+
+    Attributes:
+        neural_dynamics: Enhanced neural dynamics subsystem
+        connection_system: Enhanced connection management system
+        node_behavior_system: Enhanced node behavior system
+        integration_active (bool): Whether integration is currently active
+        update_frequency (int): Frequency of integration updates
+        last_update_step (int): Step number of last update
+        integration_stats (dict): Comprehensive statistics tracking
+
+    Key Features:
+        - Coordinates multiple neural subsystems
+        - Provides unified interface for neural operations
+        - Maintains detailed statistics and error tracking
+        - Supports dynamic neuromodulator management
+        - Offers comprehensive cleanup and resource management
+    """
 
     def __init__(self):
+        """
+        Initialize the Enhanced Neural Integration system.
+
+        Sets up all neural subsystems (dynamics, connections, node behaviors)
+        and initializes tracking statistics and configuration parameters.
+        """
         self.neural_dynamics = create_enhanced_neural_dynamics()
         self.connection_system = create_enhanced_connection_system()
         self.node_behavior_system = create_enhanced_node_behavior_system()
@@ -32,7 +89,25 @@ class EnhancedNeuralIntegration:
             'integration_errors': 0
         }
         log_step("EnhancedNeuralIntegration initialized")
+
     def integrate_with_existing_system(self, graph: Data, step: int) -> Data:
+        """
+        Integrate enhanced neural systems with existing graph structure.
+
+        Coordinates the update process across all neural subsystems (dynamics,
+        connections, node behaviors) for the given simulation step.
+
+        Args:
+            graph (Data): The neural network graph structure to update
+            step (int): Current simulation step number
+
+        Returns:
+            Data: Updated graph structure with enhanced neural processing applied
+
+        Note:
+            If integration is disabled or errors occur, returns the original graph
+            and logs appropriate warnings.
+        """
 
         if not self.integration_active:
             return graph
@@ -50,8 +125,27 @@ class EnhancedNeuralIntegration:
             log_step("Error in enhanced neural integration", error=str(e))
             self.integration_stats['integration_errors'] += 1
             return graph
-    def create_enhanced_node(self, graph: Data, node_id: int, node_type: str = 'dynamic',
-                           subtype: str = 'standard', **kwargs) -> bool:
+    def create_enhanced_node(self, graph: Data, node_id: int, node_type: str = 'dynamic', subtype: str = 'standard', **kwargs) -> bool:
+        """
+        Create an enhanced node with advanced behavioral capabilities.
+
+        Creates a new node with enhanced neural properties and integrates it
+        with the existing node behavior system.
+
+        Args:
+            graph (Data): The neural network graph structure
+            node_id (int): Unique identifier for the new node
+            node_type (str): Type of neural node ('dynamic', 'static', etc.)
+            subtype (str): Subtype specification for the node
+            **kwargs: Additional node properties (is_excitatory, etc.)
+
+        Returns:
+            bool: True if node creation successful, False otherwise
+
+        Note:
+            Validates node ID before creation and updates graph metadata
+            to track enhanced nodes.
+        """
 
         try:
             access_layer = NodeAccessLayer(graph)
@@ -73,14 +167,31 @@ class EnhancedNeuralIntegration:
         except (AttributeError, KeyError, ValueError, RuntimeError) as e:
             log_step("Error creating enhanced node", node_id=node_id, error=str(e))
             return False
+
     def create_enhanced_connection(self, graph: Data, source_id: int, target_id: int,
-                                 connection_type: str = 'excitatory', **kwargs) -> bool:
+        connection_type: str = 'excitatory', **kwargs) -> bool:
+        """
+        Create an enhanced connection between two nodes with advanced properties.
+
+        Creates a new connection with enhanced neural properties and integrates it
+        with the existing connection system.
+
+        Args:
+            graph (Data): The neural network graph structure
+            source_id (int): Source node identifier
+            target_id (int): Target node identifier
+            connection_type (str): Type of connection ('excitatory', 'inhibitory', etc.)
+            **kwargs: Additional connection properties
+
+        Returns:
+            bool: True if connection creation successful, False otherwise
+        """
 
         try:
             access_layer = NodeAccessLayer(graph)
             if not access_layer.is_valid_node_id(source_id) or not access_layer.is_valid_node_id(target_id):
                 log_step("Invalid node IDs for enhanced connection creation",
-                        source_id=source_id, target_id=target_id)
+                source_id=source_id, target_id=target_id)
                 return False
             success = self.connection_system.create_connection(
                 source_id, target_id, connection_type, **kwargs
@@ -88,17 +199,27 @@ class EnhancedNeuralIntegration:
             if success:
                 self._update_graph_edges(graph)
                 log_step("Enhanced connection created",
-                        source_id=source_id,
-                        target_id=target_id,
-                        type=connection_type)
+                source_id=source_id,
+                target_id=target_id,
+                type=connection_type)
             return success
         except (AttributeError, KeyError, ValueError, RuntimeError) as e:
             log_step("Error creating enhanced connection",
-                    source_id=source_id,
-                    target_id=target_id,
-                    error=str(e))
+                source_id=source_id,
+                target_id=target_id,
+                error=str(e))
             return False
+
     def _update_graph_edges(self, graph: Data):
+        """
+        Update the graph's edge_index to reflect current active connections.
+
+        Synchronizes the PyTorch Geometric graph structure with the enhanced
+        connection system's active connections.
+
+        Args:
+            graph (Data): The neural network graph structure to update
+        """
         if not hasattr(graph, 'edge_index'):
             graph.edge_index = torch.empty((2, 0), dtype=torch.long)
         active_connections = []
@@ -111,16 +232,45 @@ class EnhancedNeuralIntegration:
                 graph.edge_index = new_edges
             else:
                 graph.edge_index = torch.cat([graph.edge_index, new_edges], dim=1)
+
     def set_neuromodulator_level(self, neuromodulator: str, level: float):
+        """
+        Set neuromodulator levels across all neural subsystems.
+
+        Updates the specified neuromodulator level in both the connection
+        system and neural dynamics subsystems.
+
+        Args:
+            neuromodulator (str): Name of the neuromodulator
+            level (float): New level value for the neuromodulator
+        """
         self.connection_system.set_neuromodulator_level(neuromodulator, level)
         self.neural_dynamics.set_neuromodulator_level(neuromodulator, level)
+
     def get_integration_statistics(self) -> Dict[str, Any]:
+        """
+        Get comprehensive integration statistics.
+
+        Retrieves and aggregates statistics from all neural subsystems
+        along with integration-specific metrics.
+
+        Returns:
+            Dict[str, Any]: Comprehensive statistics dictionary containing
+                integration stats, neural dynamics stats, connection stats,
+                and node behavior stats
+        """
         integration_stats = self.integration_stats.copy()
         integration_stats['neural_dynamics_stats'] = self.neural_dynamics.get_statistics()
         integration_stats['connection_stats'] = self.connection_system.get_connection_statistics()
         integration_stats['node_behavior_stats'] = self.node_behavior_system.get_behavior_statistics()
         return integration_stats
+
     def reset_integration_statistics(self):
+        """
+        Reset all integration statistics to initial state.
+
+        Clears statistics in the integration system and all neural subsystems.
+        """
         self.integration_stats = {
             'total_updates': 0,
             'neural_dynamics_updates': 0,
@@ -131,13 +281,32 @@ class EnhancedNeuralIntegration:
         self.neural_dynamics.reset_statistics()
         self.connection_system.reset_statistics()
         self.node_behavior_system.reset_statistics()
+
     def enable_integration(self):
+        """
+        Enable the enhanced neural integration system.
+
+        Activates integration processing for all neural subsystems.
+        """
         self.integration_active = True
         log_step("Enhanced neural integration enabled")
+
     def disable_integration(self):
+        """
+        Disable the enhanced neural integration system.
+
+        Deactivates integration processing while preserving system state.
+        """
         self.integration_active = False
         log_step("Enhanced neural integration disabled")
+
     def cleanup(self):
+        """
+        Clean up all neural subsystems and release resources.
+
+        Performs cleanup operations on all neural subsystems and logs
+        the completion of cleanup process.
+        """
         self.neural_dynamics.cleanup()
         self.connection_system.cleanup()
         self.node_behavior_system.cleanup()
@@ -145,6 +314,15 @@ class EnhancedNeuralIntegration:
 
 
 def create_enhanced_neural_integration() -> EnhancedNeuralIntegration:
+    """
+    Create a new instance of EnhancedNeuralIntegration.
+
+    Factory function that creates and returns a new EnhancedNeuralIntegration
+    instance with all subsystems properly initialized.
+
+    Returns:
+        EnhancedNeuralIntegration: A new integration instance ready for use
+    """
     return EnhancedNeuralIntegration()
 
 
@@ -156,27 +334,28 @@ def integrate_with_simulation_manager(simulation_manager):
     if simulation_manager is None:
         log_step("Warning: simulation_manager is None, skipping integration")
         return None
-        
+
     enhanced_integration = create_enhanced_neural_integration()
-    
+
     # Check if simulation_manager has required attributes
     if not hasattr(simulation_manager, 'enhanced_integration'):
         simulation_manager.enhanced_integration = enhanced_integration
-    
+
     if hasattr(simulation_manager, '_update_node_behaviors'):
         original_update_node_behaviors = simulation_manager._update_node_behaviors
         def enhanced_update_node_behaviors():
             original_update_node_behaviors()
             if hasattr(simulation_manager, 'graph') and simulation_manager.graph is not None:
                 simulation_manager.graph = enhanced_integration.integrate_with_existing_system(
-                    simulation_manager.graph, getattr(simulation_manager, 'step_counter', 0)
+                simulation_manager.graph, getattr(simulation_manager, 'step_counter', 0)
                 )
         simulation_manager._update_node_behaviors = enhanced_update_node_behaviors
         log_step("Enhanced neural integration added to simulation manager")
     else:
         log_step("Warning: simulation_manager missing _update_node_behaviors method")
-    
+
     return enhanced_integration
+
 if __name__ == "__main__":
     print("EnhancedNeuralIntegration created successfully!")
     print("Features include:")
@@ -197,10 +376,5 @@ if __name__ == "__main__":
     except (AttributeError, KeyError, ValueError) as e:
         print(f"EnhancedNeuralIntegration test failed: {e}")
     print("EnhancedNeuralIntegration test completed!")
-
-
-
-
-
 
 

@@ -12,7 +12,7 @@ from typing import Any, Callable, Dict, Optional
 
 class LazyLoader:
     """Thread-safe lazy loading system for expensive components."""
-    
+
     def __init__(self):
         self._lock = threading.RLock()
         self._loaded_components: Dict[str, Any] = {}
@@ -23,7 +23,7 @@ class LazyLoader:
         self._priorities: Dict[str, int] = {}
         self._dependencies: Dict[str, list] = {}
 
-    def get_lock_internal(self) -> threading.RLock():
+    def get_lock_internal(self) -> threading.RLock:
         """Get the internal lock."""
         return self._lock
 
@@ -47,9 +47,9 @@ class LazyLoader:
         """Get the load times dictionary."""
         return self._load_times
 
-    def set_load_time_internal(self, name: str, time: float) -> None:
+    def set_load_time_internal(self, name: str, load_time: float) -> None:
         """Set a load time."""
-        self._load_times[name] = time
+        self._load_times[name] = load_time
 
     def get_load_callbacks_internal(self) -> Dict[str, list]:
         """Get the load callbacks dictionary."""
@@ -84,7 +84,7 @@ class LazyLoader:
     def set_dependencies_internal(self, name: str, deps: list) -> None:
         """Set dependencies."""
         self._dependencies[name] = deps
-    
+
     def lazy_load(self, component_name: str, factory_func: Callable[[], Any],
                     priority: int = 0, dependencies: list = None) -> Any:
         """
@@ -141,23 +141,23 @@ class LazyLoader:
                 self.set_load_time_internal(component_name, load_time)
                 self.set_loading_flag_internal(component_name, False)
 
-                logging.info(f"Lazy loaded {component_name} in {load_time:.3f}s")
+                logging.info("Lazy loaded %s in %.3fs", component_name, load_time)
 
                 # Trigger callbacks
                 callbacks = self.get_load_callbacks_internal().get(component_name, [])
                 for callback in callbacks:
                     try:
                         callback(component)
-                    except Exception as e:
-                        logging.error(f"Load callback error for {component_name}: {e}")
+                    except Exception as e:  # pylint: disable=broad-except
+                        logging.error("Load callback error for %s: %s", component_name, e)
 
                 return component
 
             except Exception as e:
                 self.set_loading_flag_internal(component_name, False)
-                logging.error(f"Failed to lazy load {component_name}: {e}")
+                logging.error("Failed to lazy load %s: %s", component_name, e)
                 raise
-    
+
     def preload_components(self, component_names: list, max_concurrent: int = 3):
         """
         Preload multiple components in parallel with controlled concurrency.
@@ -166,7 +166,7 @@ class LazyLoader:
             component_names: List of component names to preload
             max_concurrent: Maximum number of concurrent loading operations
         """
-        import concurrent.futures
+        import concurrent.futures  # pylint: disable=import-outside-toplevel
 
         def load_component(name):
             with self.get_lock_internal():
@@ -175,7 +175,7 @@ class LazyLoader:
 
                 # Check if factory function exists
                 if name not in self.get_factory_functions_internal():
-                    logging.warning(f"No factory function registered for component: {name}")
+                    logging.warning("No factory function registered for component: %s", name)
                     return name, False
 
                 try:
@@ -184,8 +184,8 @@ class LazyLoader:
                                    self.get_priorities_internal().get(name, 0),
                                    self.get_dependencies_internal().get(name, []))
                     return name, True
-                except Exception as e:
-                    logging.error(f"Failed to preload component {name}: {e}")
+                except Exception as e:  # pylint: disable=broad-except
+                    logging.error("Failed to preload component %s: %s", name, e)
                     return name, False
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_concurrent) as executor:
@@ -193,25 +193,25 @@ class LazyLoader:
             for future in concurrent.futures.as_completed(futures):
                 name, success = future.result()
                 if success:
-                    logging.info(f"Preloaded component: {name}")
+                    logging.info("Preloaded component: %s", name)
                 else:
-                    logging.warning(f"Failed to preload component: {name}")
-    
+                    logging.warning("Failed to preload component: %s", name)
+
     def get_load_time(self, component_name: str) -> Optional[float]:
         """Get the load time for a component."""
         with self.get_lock_internal():
             return self.get_load_times_internal().get(component_name)
-    
+
     def add_load_callback(self, component_name: str, callback: Callable[[Any], None]):
         """Add a callback to be called when a component is loaded."""
         with self.get_lock_internal():
             self.add_load_callback_internal(component_name, callback)
-    
+
     def is_loaded(self, component_name: str) -> bool:
         """Check if a component is loaded."""
         with self.get_lock_internal():
             return component_name in self.get_loaded_components_internal()
-    
+
     def get_stats(self) -> Dict[str, Any]:
         """Get loading statistics."""
         with self.get_lock_internal():
@@ -220,7 +220,7 @@ class LazyLoader:
                 'load_times': self.get_load_times_internal().copy(),
                 'total_components': len(self.get_loaded_components_internal())
             }
-    
+
     def cleanup(self):
         """Clean up all loaded components."""
         with self.get_lock_internal():
@@ -231,8 +231,8 @@ class LazyLoader:
                 if component and hasattr(component, 'cleanup'):
                     try:
                         component.cleanup()
-                    except Exception as e:
-                        logging.error(f"Error cleaning up {component_name}: {e}")
+                    except Exception as e:  # pylint: disable=broad-except
+                        logging.error("Error cleaning up %s: %s", component_name, e)
 
             loaded_components.clear()
             self.get_loading_flags_internal().clear()
@@ -260,10 +260,10 @@ def lazy_component(component_name: str, priority: int = 0, dependencies: list = 
     """
     def decorator(func):
         @wraps(func)
-        def wrapper(self, *args, **kwargs):
+        def wrapper(self, *_args, **_kwargs):
             loader = get_lazy_loader()
             component = loader.lazy_load(component_name, lambda: func(self),  # Load without args
-                                         priority, dependencies)
+                                          priority, dependencies)
             return component
         return wrapper
     return decorator
@@ -271,23 +271,23 @@ def lazy_component(component_name: str, priority: int = 0, dependencies: list = 
 # Component factory functions for common lazy loads
 def create_lazy_simulation_coordinator():
     """Lazy factory for simulation coordinator."""
-    from src.core.services.simulation_coordinator import SimulationCoordinator
-    return SimulationCoordinator(None, None, None, None, None, None, None, None, None)
+    from src.core.services.simulation_coordinator import SimulationCoordinator  # pylint: disable=import-outside-toplevel
+    return SimulationCoordinator(None, neural_processor=None, energy_manager=None, learning_engine=None, sensory_processor=None, performance_monitor=None, graph_manager=None, event_coordinator=None, configuration_service=None)
 
 def create_lazy_ui_engine():
     """Lazy factory for UI engine."""
-    from src.ui.ui_engine import create_ui
+    from src.ui.ui_engine import create_ui  # pylint: disable=import-outside-toplevel
     return create_ui()
 
 def create_lazy_neural_dynamics():
     """Lazy factory for neural dynamics."""
     from src.neural.enhanced_neural_dynamics import \
-        create_enhanced_neural_dynamics
+        create_enhanced_neural_dynamics  # pylint: disable=import-outside-toplevel
     return create_enhanced_neural_dynamics()
 
 def create_lazy_performance_monitor():
     """Lazy factory for performance monitor."""
-    from src.utils.unified_performance_system import get_performance_monitor
+    from src.utils.unified_performance_system import get_performance_monitor  # pylint: disable=import-outside-toplevel
     return get_performance_monitor()
 
 

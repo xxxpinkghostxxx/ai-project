@@ -8,17 +8,22 @@ providing publish-subscribe pattern for loose coupling between services.
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
+from dataclasses import dataclass, field
 
 
+@dataclass
 class Event:
     """Represents an event in the system."""
 
-    def __init__(self, event_type: str, data: Any, source: str):
-        self.event_type = event_type
-        self.data = data
-        self.source = source
-        self.timestamp = datetime.now()
-        self.id = f"{event_type}_{self.timestamp.timestamp()}"
+    event_type: str
+    data: Any
+    source: str
+    timestamp: datetime = field(default_factory=datetime.now)
+    id: str = field(init=False)  # Will be computed in __post_init__
+
+    def __post_init__(self):
+        """Compute event ID after initialization."""
+        self.id = f"{self.event_type}_{self.timestamp.timestamp()}"
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert event to dictionary."""

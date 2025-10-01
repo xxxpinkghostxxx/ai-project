@@ -314,52 +314,12 @@ class GraphManagementService(IGraphManager):
                 issues.append("Graph is None")
                 return {"valid": False, "issues": issues}
 
-            # Check node features
-            if not hasattr(graph, 'x') or graph.x is None:
-                issues.append("Missing node features tensor")
-            elif graph.x.numel() == 0:
-                issues.append("Empty node features tensor")
-
-            # Check edge index
-            if not hasattr(graph, 'edge_index') or graph.edge_index is None:
-                issues.append("Missing edge index tensor")
-            elif graph.edge_index.numel() == 0:
-                issues.append("Empty edge index tensor")
-            elif graph.edge_index.shape[0] != 2:
-                issues.append(f"Invalid edge index shape: {graph.edge_index.shape}")
-
-            # Check node labels
-            if hasattr(graph, 'node_labels'):
-                if not graph.node_labels:
-                    issues.append("Empty node labels")
-                elif len(graph.node_labels) != graph.x.shape[0]:
-                    issues.append(
-                        f"Node labels count ({len(graph.node_labels)}) doesn't match "
-                        f"node features ({graph.x.shape[0]})"
-                    )
-
-                # Check node label structure
-                for i, node in enumerate(graph.node_labels):
-                    if not isinstance(node, dict):
-                        issues.append(f"Node {i} label is not a dictionary")
-                    elif 'id' not in node:
-                        issues.append(f"Node {i} missing 'id' field")
-
-            # Check edge attributes
-            if hasattr(graph, 'edge_attributes'):
-                if (graph.edge_attributes and
-                        len(graph.edge_attributes) != graph.edge_index.shape[1]):
-                    issues.append(
-                        f"Edge attributes count ({len(graph.edge_attributes)}) doesn't "
-                        f"match edges ({graph.edge_index.shape[1]})"
-                    )
-
-            # Check for NaN or infinite values
-            if hasattr(graph, 'x') and graph.x is not None:
-                if torch.isnan(graph.x).any():
-                    issues.append("Node features contain NaN values")
-                if torch.isinf(graph.x).any():
-                    issues.append("Node features contain infinite values")
+            # Perform validation checks
+            self._validate_node_features(graph, issues)
+            self._validate_edge_index(graph, issues)
+            self._validate_node_labels(graph, issues)
+            self._validate_edge_attributes(graph, issues)
+            self._validate_tensor_values(graph, issues)
 
         except (AttributeError, TypeError, ValueError) as e:
             issues.append(f"Validation error: {e}")
@@ -371,6 +331,64 @@ class GraphManagementService(IGraphManager):
             "edges": graph.edge_index.shape[1] if hasattr(graph, 'edge_index') else 0,
             "node_features_shape": graph.x.shape if hasattr(graph, 'x') else None
         }
+
+    def _validate_node_features(self, graph: Data, issues: list) -> None:
+        """Validate node features."""
+        if not hasattr(graph, 'x') or graph.x is None:
+            issues.append("Missing node features tensor")
+        elif graph.x.numel() == 0:
+            issues.append("Empty node features tensor")
+
+    def _validate_edge_index(self, graph: Data, issues: list) -> None:
+        """Validate edge index."""
+        if not hasattr(graph, 'edge_index') or graph.edge_index is None:
+            issues.append("Missing edge index tensor")
+        elif graph.edge_index.numel() == 0:
+            issues.append("Empty edge index tensor")
+        elif graph.edge_index.shape[0] != 2:
+            issues.append(f"Invalid edge index shape: {graph.edge_index.shape}")
+
+    def _validate_node_labels(self, graph: Data, issues: list) -> None:
+        """Validate node labels."""
+        if not hasattr(graph, 'node_labels'):
+            return
+
+        if not graph.node_labels:
+            issues.append("Empty node labels")
+        elif len(graph.node_labels) != graph.x.shape[0]:
+            issues.append(
+                f"Node labels count ({len(graph.node_labels)}) doesn't match "
+                f"node features ({graph.x.shape[0]})"
+            )
+
+        # Check node label structure
+        for i, node in enumerate(graph.node_labels):
+            if not isinstance(node, dict):
+                issues.append(f"Node {i} label is not a dictionary")
+            elif 'id' not in node:
+                issues.append(f"Node {i} missing 'id' field")
+
+    def _validate_edge_attributes(self, graph: Data, issues: list) -> None:
+        """Validate edge attributes."""
+        if not hasattr(graph, 'edge_attributes'):
+            return
+
+        if (graph.edge_attributes and
+                len(graph.edge_attributes) != graph.edge_index.shape[1]):
+            issues.append(
+                f"Edge attributes count ({len(graph.edge_attributes)}) doesn't "
+                f"match edges ({graph.edge_index.shape[1]})"
+            )
+
+    def _validate_tensor_values(self, graph: Data, issues: list) -> None:
+        """Validate tensor values for NaN/inf."""
+        if not hasattr(graph, 'x') or graph.x is None:
+            return
+
+        if torch.isnan(graph.x).any():
+            issues.append("Node features contain NaN values")
+        if torch.isinf(graph.x).any():
+            issues.append("Node features contain infinite values")
 
     def get_graph_statistics(self, graph: Data) -> Dict[str, Any]:
         """

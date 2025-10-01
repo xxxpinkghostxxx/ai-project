@@ -149,13 +149,13 @@ class ConfigValidator:
             return cls.validate_list(value, schema)
         elif schema.config_type == ConfigType.DICT:
             return cls.validate_dict(value, schema)
-        
+
         return True
 
 
 class UnifiedConfigManager:
     """Unified configuration manager with validation and change notifications."""
-    
+
     def __init__(self, config_file: Optional[str] = None):
         self.config_file = config_file
         self.config: Dict[str, Any] = {}
@@ -167,7 +167,7 @@ class UnifiedConfigManager:
 
         # INI parser for backward compatibility
         self.ini_config = configparser.ConfigParser()
-        
+
         # Load initial configuration
         if config_file and Path(config_file).exists():
             self.load_from_file(config_file)
@@ -176,7 +176,7 @@ class UnifiedConfigManager:
 
         # Setup default schemas
         self._setup_default_schemas()
-        
+
         log_step("UnifiedConfigManager initialized")
 
     def _flatten_config(self, data: Dict[str, Any], parent_key: str = '', sep: str = '.') -> Dict[str, Any]:
@@ -355,7 +355,6 @@ class UnifiedConfigManager:
 
     def _notify_watchers(self, key: str, old_value: Any, new_value: Any):
         """Notify watchers of configuration changes."""
-        print_info, print_warning, print_error = _get_cached_print_utils()
         for callback in self.watchers[key]:
             try:
                 callback(key, old_value, new_value)
@@ -364,7 +363,6 @@ class UnifiedConfigManager:
 
     def load_from_file(self, file_path: str) -> bool:
         """Load configuration from file."""
-        print_info, print_warning, print_error = _get_cached_print_utils()
         try:
             file_path = Path(file_path)
             if not file_path.exists():
@@ -417,7 +415,6 @@ class UnifiedConfigManager:
 
     def save_to_file(self, file_path: str, fmt: str = "json") -> bool:
         """Save configuration to file."""
-        print_info, print_warning, print_error = _get_cached_print_utils()
         try:
             file_path = Path(file_path)
 
@@ -449,7 +446,7 @@ class UnifiedConfigManager:
                 sections[section][option] = str(value)
             else:
                 sections['General'][key] = str(value)
-        
+
         with open(file_path, 'w', encoding='utf-8') as f:
             for section, options in sections.items():
                 f.write(f"[{section}]\n")
@@ -491,7 +488,6 @@ class UnifiedConfigManager:
 
     def _validate_and_reset(self):
         """Validate loaded config and reset invalid values to defaults."""
-        print_info, print_warning, print_error = _get_cached_print_utils()
         errors = self.validate_all()
         for key, error_msgs in errors.items():
             if key in self.schemas:
@@ -507,7 +503,7 @@ class UnifiedConfigManager:
         """List all configuration keys."""
         with self._lock:
             if section:
-                return [k for k in self.config.keys() if k.startswith(f"{section}.")]
+                return [k for k in self.config if k.startswith(f"{section}.")]
             return list(self.config.keys())
 
     def export_config(self, fmt: str = "json") -> str:

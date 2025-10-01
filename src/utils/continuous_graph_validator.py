@@ -18,7 +18,7 @@ from src.utils.reader_writer_lock import get_graph_lock
 class ValidationRule:
     """Represents a validation rule with repair capability."""
 
-    def __init__(self, name: str, check_func: Callable, repair_func: Optional[Callable] = None,
+    def __init__(self, name: str, check_func: Callable, repair_func: Optional[Callable] = None,  # pylint: disable=too-many-arguments,too-many-positional-arguments
                  severity: str = 'warning', interval: float = 60.0):
         self.name = name
         self.check_func = check_func
@@ -62,14 +62,13 @@ class ValidationRule:
                                 'original_issue': result,
                                 'repair_result': repair_result
                             }
-                        else:
-                            return {
-                                'rule': self.name,
-                                'status': 'repair_failed',
-                                'issue': result,
-                                'repair_error': repair_result.get('error', 'Unknown repair error')
-                            }
-                    except Exception as e:
+                        return {
+                            'rule': self.name,
+                            'status': 'repair_failed',
+                            'issue': result,
+                            'repair_error': repair_result.get('error', 'Unknown repair error')
+                        }
+                    except Exception as e:  # pylint: disable=broad-except
                         log_step(f"Repair failed for rule '{self.name}'", error=str(e))
                         return {
                             'rule': self.name,
@@ -77,19 +76,17 @@ class ValidationRule:
                             'issue': result,
                             'repair_error': str(e)
                         }
-                else:
-                    return {
-                        'rule': self.name,
-                        'status': 'no_repair_available',
-                        'issue': result
-                    }
-            else:
                 return {
                     'rule': self.name,
-                    'status': 'passed'
+                    'status': 'no_repair_available',
+                    'issue': result
                 }
+            return {
+                'rule': self.name,
+                'status': 'passed'
+            }
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             log_step(f"Validation rule '{self.name}' check failed", error=str(e))
             return {
                 'rule': self.name,
@@ -111,6 +108,8 @@ class ContinuousGraphValidator:
         self._full_check_interval = 300.0  # Full check every 5 minutes
         self._auto_repair_enabled = True
         self._stop_event = threading.Event()
+        self._graph_source = None
+        self._id_manager_source = None
 
         self._stats = {
             'checks_performed': 0,
@@ -134,14 +133,14 @@ class ContinuousGraphValidator:
         """Register the default set of validation rules."""
 
         # Rule 1: Graph structure integrity
-        def check_graph_structure(graph, id_manager):
+        def check_graph_structure(graph, _id_manager):
             if not hasattr(graph, 'node_labels') or not graph.node_labels:
                 return {'passed': False, 'error': 'Graph missing node_labels'}
             if not hasattr(graph, 'x') or graph.x is None:
                 return {'passed': False, 'error': 'Graph missing energy tensor'}
             return {'passed': True}
 
-        def repair_graph_structure(graph, id_manager, issue):
+        def repair_graph_structure(graph, _id_manager, _issue):
             # Attempt to create missing attributes
             if not hasattr(graph, 'node_labels'):
                 graph.node_labels = []
@@ -178,10 +177,10 @@ class ContinuousGraphValidator:
                 }
             return {'passed': True}
 
-        def repair_id_consistency(graph, id_manager, issue):
+        def repair_id_consistency(graph, _id_manager, _issue):
             # Clean up orphaned IDs
-            if 'orphaned_ids' in issue:
-                for node_id in issue['orphaned_ids']:
+            if 'orphaned_ids' in _issue:
+                for node_id in _issue['orphaned_ids']:
                     # Remove from graph
                     graph.node_labels = [
                         node for node in graph.node_labels
@@ -198,7 +197,7 @@ class ContinuousGraphValidator:
         ))
 
         # Rule 3: Energy value validation
-        def check_energy_values(graph, id_manager):
+        def check_energy_values(graph, _id_manager):
             if not hasattr(graph, 'x') or graph.x is None or graph.x.numel() == 0:
                 return {'passed': True}  # Skip if no energy values
 
@@ -216,7 +215,7 @@ class ContinuousGraphValidator:
                 }
             return {'passed': True}
 
-        def repair_energy_values(graph, id_manager, issue):
+        def repair_energy_values(graph, _id_manager, _issue):
             # Clamp invalid energy values to valid range
             if hasattr(graph, 'x') and graph.x is not None:
                 with torch.no_grad():
@@ -235,7 +234,7 @@ class ContinuousGraphValidator:
         ))
 
         # Rule 4: Connection integrity
-        def check_connection_integrity(graph, id_manager):
+        def check_connection_integrity(graph, _id_manager):
             if not hasattr(graph, 'edge_index') or graph.edge_index is None:
                 return {'passed': True}
 
@@ -258,12 +257,12 @@ class ContinuousGraphValidator:
                 }
             return {'passed': True}
 
-        def repair_connection_integrity(graph, id_manager, issue):
+        def repair_connection_integrity(graph, _id_manager, _issue):
             # Remove invalid connections
-            if 'invalid_connections' in issue and hasattr(graph, 'edge_index'):
+            if 'invalid_connections' in _issue and hasattr(graph, 'edge_index'):
                 valid_mask = torch.ones(graph.edge_index.shape[1], dtype=torch.bool)
 
-                for i, (source_idx, target_idx) in enumerate(issue['invalid_connections']):
+                for _, (source_idx, target_idx) in enumerate(_issue['invalid_connections']):
                     # Find the connection index in the edge tensor
                     for j in range(graph.edge_index.shape[1]):
                         if (graph.edge_index[0, j].item() == source_idx and
@@ -343,7 +342,7 @@ class ContinuousGraphValidator:
                 # Wait before next cycle
                 self._stop_event.wait(self._check_interval)
 
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-except
                 log_step("Error in validation loop", error=str(e))
                 self._stop_event.wait(self._check_interval)
 
@@ -358,7 +357,7 @@ class ContinuousGraphValidator:
             repairs_successful = 0
 
             # Check each rule
-            for rule_name, rule in self._rules.items():
+            for _rule_name, rule in self._rules.items():
                 if rule.should_check():
                     result = rule.check_and_repair(graph, id_manager)
                     results.append(result)
@@ -445,18 +444,18 @@ class ContinuousGraphValidator:
 
 
 # Global instance
-_continuous_validator_instance = None
-_continuous_validator_lock = threading.Lock()
+_CONTINUOUS_VALIDATOR_INSTANCE = None
+_CONTINUOUS_VALIDATOR_LOCK = threading.Lock()
 
 
 def get_continuous_graph_validator() -> ContinuousGraphValidator:
     """Get the global continuous graph validator instance."""
-    global _continuous_validator_instance
-    if _continuous_validator_instance is None:
-        with _continuous_validator_lock:
-            if _continuous_validator_instance is None:
-                _continuous_validator_instance = ContinuousGraphValidator()
-    return _continuous_validator_instance
+    global _CONTINUOUS_VALIDATOR_INSTANCE  # pylint: disable=global-statement
+    if _CONTINUOUS_VALIDATOR_INSTANCE is None:
+        with _CONTINUOUS_VALIDATOR_LOCK:
+            if _CONTINUOUS_VALIDATOR_INSTANCE is None:
+                _CONTINUOUS_VALIDATOR_INSTANCE = ContinuousGraphValidator()
+    return _CONTINUOUS_VALIDATOR_INSTANCE
 
 
 

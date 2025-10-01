@@ -7,14 +7,15 @@ from typing import Any, Callable, Dict
 
 def _get_constants():
     """Lazy import of consolidated constants to avoid circular imports."""
+    # pylint: disable=import-outside-toplevel
     from config.consolidated_constants import (CONNECTION_PROPERTIES,
-                                               CONNECTION_TYPES,
-                                               DEFAULT_VALUES, ERROR_MESSAGES,
-                                               LOG_MESSAGES, NODE_PROPERTIES,
-                                               NODE_STATES, NODE_TYPES,
-                                               PERFORMANCE_METRICS,
-                                               SYSTEM_STATES, THRESHOLDS,
-                                               UI_CONSTANTS)
+                                                CONNECTION_TYPES,
+                                                DEFAULT_VALUES, ERROR_MESSAGES,
+                                                LOG_MESSAGES, NODE_PROPERTIES,
+                                                NODE_STATES, NODE_TYPES,
+                                                PERFORMANCE_METRICS,
+                                                SYSTEM_STATES, THRESHOLDS,
+                                                UI_CONSTANTS)
     return {
         'UI_CONSTANTS': UI_CONSTANTS,
         'ERROR_MESSAGES': ERROR_MESSAGES,
@@ -32,15 +33,15 @@ def _get_constants():
 
 
 # Cache for constants
-_constants_cache = None
+_CONSTANTS_CACHE = None
 
 
 def _get_cached_constants():
     """Get cached constants with lazy loading."""
-    global _constants_cache
-    if _constants_cache is None:
-        _constants_cache = _get_constants()
-    return _constants_cache
+    global _CONSTANTS_CACHE  # pylint: disable=global-statement
+    if _CONSTANTS_CACHE is None:
+        _CONSTANTS_CACHE = _get_constants()
+    return _CONSTANTS_CACHE
 
 
 def create_standard_node(node_id: int, node_type: str = 'dynamic',
@@ -50,22 +51,22 @@ def create_standard_node(node_id: int, node_type: str = 'dynamic',
     Replaces repeated node creation patterns.
     """
     consts = _get_cached_constants()
-    NODE_PROPERTIES = consts['NODE_PROPERTIES']
-    NODE_STATES = consts['NODE_STATES']
-    DEFAULT_VALUES = consts['DEFAULT_VALUES']
+    node_properties = consts['NODE_PROPERTIES']
+    node_states = consts['NODE_STATES']
+    default_values = consts['DEFAULT_VALUES']
     return {
-        NODE_PROPERTIES['ID']: node_id,
-        NODE_PROPERTIES['TYPE']: node_type,
-        NODE_PROPERTIES['SUBTYPE']: subtype,
-        NODE_PROPERTIES['ENERGY']: kwargs.get('energy', 0.0),
-        NODE_PROPERTIES['STATE']: kwargs.get('state', NODE_STATES['INACTIVE']),
-        NODE_PROPERTIES['THRESHOLD']: kwargs.get('threshold', DEFAULT_VALUES['THRESHOLD_DEFAULT']),
-        NODE_PROPERTIES['MEMBRANE_POTENTIAL']: kwargs.get('membrane_potential', 0.0),
-        NODE_PROPERTIES['REFRACTORY_TIMER']: kwargs.get('refractory_timer', 0.0),
-        NODE_PROPERTIES['LAST_UPDATE']: kwargs.get('last_update', 0),
-        NODE_PROPERTIES['PLASTICITY_ENABLED']: kwargs.get('plasticity_enabled', True),
-        NODE_PROPERTIES['ELIGIBILITY_TRACE']: kwargs.get('eligibility_trace', DEFAULT_VALUES['ELIGIBILITY_TRACE_DEFAULT']),
-        NODE_PROPERTIES['ENHANCED_BEHAVIOR']: kwargs.get('enhanced_behavior', False),
+        node_properties['ID']: node_id,
+        node_properties['TYPE']: node_type,
+        node_properties['SUBTYPE']: subtype,
+        node_properties['ENERGY']: kwargs.get('energy', 0.0),
+        node_properties['STATE']: kwargs.get('state', node_states['INACTIVE']),
+        node_properties['THRESHOLD']: kwargs.get('threshold', default_values['THRESHOLD_DEFAULT']),
+        node_properties['MEMBRANE_POTENTIAL']: kwargs.get('membrane_potential', 0.0),
+        node_properties['REFRACTORY_TIMER']: kwargs.get('refractory_timer', 0.0),
+        node_properties['LAST_UPDATE']: kwargs.get('last_update', 0),
+        node_properties['PLASTICITY_ENABLED']: kwargs.get('plasticity_enabled', True),
+        node_properties['ELIGIBILITY_TRACE']: kwargs.get('eligibility_trace', default_values['ELIGIBILITY_TRACE_DEFAULT']),
+        node_properties['ENHANCED_BEHAVIOR']: kwargs.get('enhanced_behavior', False),
         **kwargs
     }
 
@@ -92,7 +93,7 @@ def create_sensory_node(node_id: int, x: float, y: float, energy: float = 0.0, *
     Replaces repeated sensory node creation patterns.
     """
     consts = _get_cached_constants()
-    NODE_STATES = consts['NODE_STATES']
+    node_states = consts['NODE_STATES']
     return create_standard_node(
         node_id=node_id,
         node_type='sensory',
@@ -101,7 +102,7 @@ def create_sensory_node(node_id: int, x: float, y: float, energy: float = 0.0, *
         y=y,
         behavior='sensory',
         energy=energy,
-        state=NODE_STATES['ACTIVE'],
+        state=node_states['ACTIVE'],
         **kwargs
     )
 
@@ -130,18 +131,18 @@ def create_standard_connection(source_id: int, target_id: int,
     Replaces repeated connection creation patterns.
     """
     consts = _get_cached_constants()
-    CONNECTION_PROPERTIES = consts['CONNECTION_PROPERTIES']
-    DEFAULT_VALUES = consts['DEFAULT_VALUES']
+    connection_properties = consts['CONNECTION_PROPERTIES']
+    default_values = consts['DEFAULT_VALUES']
     return {
-        CONNECTION_PROPERTIES['SOURCE']: source_id,
-        CONNECTION_PROPERTIES['TARGET']: target_id,
-        CONNECTION_PROPERTIES['TYPE']: connection_type,
-        CONNECTION_PROPERTIES['WEIGHT']: weight,
-        CONNECTION_PROPERTIES['DELAY']: kwargs.get('delay', DEFAULT_VALUES['DELAY_DEFAULT']),
-        CONNECTION_PROPERTIES['ACTIVE']: kwargs.get('active', True),
-        CONNECTION_PROPERTIES['ELIGIBILITY_TRACE']: kwargs.get('eligibility_trace', DEFAULT_VALUES['ELIGIBILITY_TRACE_DEFAULT']),
-        CONNECTION_PROPERTIES['LAST_ACTIVITY']: kwargs.get('last_activity', 0.0),
-        CONNECTION_PROPERTIES['ACTIVATION_COUNT']: kwargs.get('activation_count', 0),
+        connection_properties['SOURCE']: source_id,
+        connection_properties['TARGET']: target_id,
+        connection_properties['TYPE']: connection_type,
+        connection_properties['WEIGHT']: weight,
+        connection_properties['DELAY']: kwargs.get('delay', default_values['DELAY_DEFAULT']),
+        connection_properties['ACTIVE']: kwargs.get('active', True),
+        connection_properties['ELIGIBILITY_TRACE']: kwargs.get('eligibility_trace', default_values['ELIGIBILITY_TRACE_DEFAULT']),
+        connection_properties['LAST_ACTIVITY']: kwargs.get('last_activity', 0.0),
+        connection_properties['ACTIVATION_COUNT']: kwargs.get('activation_count', 0),
         **kwargs
     }
 
@@ -169,18 +170,18 @@ def create_standard_performance_metrics() -> Dict[str, Any]:
     Replaces repeated performance metrics initialization patterns.
     """
     consts = _get_cached_constants()
-    PERFORMANCE_METRICS = consts['PERFORMANCE_METRICS']
+    performance_metrics = consts['PERFORMANCE_METRICS']
     return {
-        PERFORMANCE_METRICS['STEP_TIME']: 0.0,
-        PERFORMANCE_METRICS['TOTAL_RUNTIME']: 0.0,
-        PERFORMANCE_METRICS['FPS']: 0.0,
-        PERFORMANCE_METRICS['MEMORY_USAGE']: 0.0,
-        PERFORMANCE_METRICS['CPU_PERCENT']: 0.0,
-        PERFORMANCE_METRICS['GPU_USAGE']: 0.0,
-        PERFORMANCE_METRICS['ERROR_RATE']: 0.0,
-        PERFORMANCE_METRICS['NODE_COUNT']: 0,
-        PERFORMANCE_METRICS['EDGE_COUNT']: 0,
-        PERFORMANCE_METRICS['THROUGHPUT']: 0.0
+        performance_metrics['STEP_TIME']: 0.0,
+        performance_metrics['TOTAL_RUNTIME']: 0.0,
+        performance_metrics['FPS']: 0.0,
+        performance_metrics['MEMORY_USAGE']: 0.0,
+        performance_metrics['CPU_PERCENT']: 0.0,
+        performance_metrics['GPU_USAGE']: 0.0,
+        performance_metrics['ERROR_RATE']: 0.0,
+        performance_metrics['NODE_COUNT']: 0,
+        performance_metrics['EDGE_COUNT']: 0,
+        performance_metrics['THROUGHPUT']: 0.0
     }
 
 
@@ -190,16 +191,16 @@ def create_standard_ui_elements() -> Dict[str, str]:
     Replaces repeated UI element creation patterns.
     """
     consts = _get_cached_constants()
-    UI_CONSTANTS = consts['UI_CONSTANTS']
+    ui_constants = consts['UI_CONSTANTS']
     return {
-        'main_window': UI_CONSTANTS['MAIN_WINDOW_TAG'],
-        'status_text': UI_CONSTANTS['STATUS_TEXT_TAG'],
-        'nodes_text': UI_CONSTANTS['NODES_TEXT_TAG'],
-        'edges_text': UI_CONSTANTS['EDGES_TEXT_TAG'],
-        'energy_text': UI_CONSTANTS['ENERGY_TEXT_TAG'],
-        'connections_text': UI_CONSTANTS['CONNECTIONS_TEXT_TAG'],
-        'legend_window': UI_CONSTANTS['LEGEND_WINDOW_TAG'],
-        'help_window': UI_CONSTANTS['HELP_WINDOW_TAG']
+        'main_window': ui_constants['MAIN_WINDOW_TAG'],
+        'status_text': ui_constants['STATUS_TEXT_TAG'],
+        'nodes_text': ui_constants['NODES_TEXT_TAG'],
+        'edges_text': ui_constants['EDGES_TEXT_TAG'],
+        'energy_text': ui_constants['ENERGY_TEXT_TAG'],
+        'connections_text': ui_constants['CONNECTIONS_TEXT_TAG'],
+        'legend_window': ui_constants['LEGEND_WINDOW_TAG'],
+        'help_window': ui_constants['HELP_WINDOW_TAG']
     }
 
 
@@ -208,34 +209,34 @@ def create_standard_error_handler() -> Dict[str, Callable]:
     Create standard error handling patterns.
     Replaces repeated error handling patterns.
     """
-    def handle_value_error(error: Exception, context: str = "") -> bool:
+    def handle_value_error(_error: Exception, _context: str = "") -> bool:
         """Handle ValueError with standard pattern."""
         return False
-    
-    def handle_type_error(error: Exception, context: str = "") -> bool:
+
+    def handle_type_error(_error: Exception, _context: str = "") -> bool:
         """Handle TypeError with standard pattern."""
         return False
-    
-    def handle_attribute_error(error: Exception, context: str = "") -> bool:
+
+    def handle_attribute_error(_error: Exception, _context: str = "") -> bool:
         """Handle AttributeError with standard pattern."""
         return False
-    
-    def handle_key_error(error: Exception, context: str = "") -> bool:
+
+    def handle_key_error(_error: Exception, _context: str = "") -> bool:
         """Handle KeyError with standard pattern."""
         return False
-    
-    def handle_runtime_error(error: Exception, context: str = "") -> bool:
+
+    def handle_runtime_error(_error: Exception, _context: str = "") -> bool:
         """Handle RuntimeError with standard pattern."""
         return False
-    
-    def handle_memory_error(error: Exception, context: str = "") -> bool:
+
+    def handle_memory_error(_error: Exception, _context: str = "") -> bool:
         """Handle MemoryError with standard pattern."""
         return False
-    
-    def handle_os_error(error: Exception, context: str = "") -> bool:
+
+    def handle_os_error(_error: Exception, _context: str = "") -> bool:
         """Handle OSError with standard pattern."""
         return False
-    
+
     return {
         'ValueError': handle_value_error,
         'TypeError': handle_type_error,
@@ -253,9 +254,9 @@ def create_standard_validation_patterns() -> Dict[str, Callable]:
     Replaces repeated validation patterns.
     """
     consts = _get_cached_constants()
-    DEFAULT_VALUES = consts['DEFAULT_VALUES']
-    NODE_TYPES = consts['NODE_TYPES']
-    CONNECTION_TYPES = consts['CONNECTION_TYPES']
+    default_values = consts['DEFAULT_VALUES']
+    node_types = consts['NODE_TYPES']
+    connection_types = consts['CONNECTION_TYPES']
 
     def validate_node_id(node_id: Any) -> bool:
         """Validate node ID with standard pattern."""
@@ -263,7 +264,7 @@ def create_standard_validation_patterns() -> Dict[str, Callable]:
 
     def validate_energy_value(energy: Any) -> bool:
         """Validate energy value with standard pattern."""
-        return isinstance(energy, (int, float)) and 0 <= energy <= DEFAULT_VALUES['ENERGY_CAP']
+        return isinstance(energy, (int, float)) and 0 <= energy <= default_values['ENERGY_CAP']
 
     def validate_threshold_value(threshold: Any) -> bool:
         """Validate threshold value with standard pattern."""
@@ -275,11 +276,11 @@ def create_standard_validation_patterns() -> Dict[str, Callable]:
 
     def validate_node_type(node_type: Any) -> bool:
         """Validate node type with standard pattern."""
-        return isinstance(node_type, str) and node_type in NODE_TYPES.values()
+        return isinstance(node_type, str) and node_type in node_types.values()
 
     def validate_connection_type(connection_type: Any) -> bool:
         """Validate connection type with standard pattern."""
-        return isinstance(connection_type, str) and connection_type in CONNECTION_TYPES.values()
+        return isinstance(connection_type, str) and connection_type in connection_types.values()
 
     return {
         'node_id': validate_node_id,
@@ -303,24 +304,25 @@ def create_standard_initialization_patterns() -> Dict[str, Callable]:
         self.active = kwargs.get('active', True)
         self.created_at = kwargs.get('created_at', 0.0)
         self.last_updated = kwargs.get('last_updated', 0.0)
-    
+
     def initialize_statistics(self) -> None:
         """Initialize statistics with standard pattern."""
         self.stats = create_standard_statistics()
         self.performance_metrics = create_standard_performance_metrics()
-    
+
     def initialize_callbacks(self) -> None:
         """Initialize callbacks with standard pattern."""
         self.callbacks = []
         self.error_callbacks = []
         self.success_callbacks = []
-    
+
     def initialize_locks(self) -> None:
         """Initialize locks with standard pattern."""
+        # pylint: disable=import-outside-toplevel
         import threading
         self._lock = threading.RLock()
         self._stats_lock = threading.RLock()
-    
+
     return {
         'basic_properties': initialize_basic_properties,
         'statistics': initialize_statistics,
@@ -341,14 +343,14 @@ def create_standard_cleanup_patterns() -> Dict[str, Callable]:
         self.active = False
         self.created_at = 0.0
         self.last_updated = 0.0
-    
+
     def cleanup_statistics(self) -> None:
         """Cleanup statistics with standard pattern."""
         if hasattr(self, 'stats'):
             self.stats.clear()
         if hasattr(self, 'performance_metrics'):
             self.performance_metrics.clear()
-    
+
     def cleanup_callbacks(self) -> None:
         """Cleanup callbacks with standard pattern."""
         if hasattr(self, 'callbacks'):
@@ -357,24 +359,17 @@ def create_standard_cleanup_patterns() -> Dict[str, Callable]:
             self.error_callbacks.clear()
         if hasattr(self, 'success_callbacks'):
             self.success_callbacks.clear()
-    
+
     def cleanup_locks(self) -> None:
         """Cleanup locks with standard pattern."""
         if hasattr(self, '_lock'):
             del self._lock
         if hasattr(self, '_stats_lock'):
             del self._stats_lock
-    
+
     return {
         'basic_properties': cleanup_basic_properties,
         'statistics': cleanup_statistics,
         'callbacks': cleanup_callbacks,
         'locks': cleanup_locks
     }
-
-
-
-
-
-
-

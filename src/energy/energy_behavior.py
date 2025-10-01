@@ -1,100 +1,73 @@
 
+"""
+Energy behavior implementation for neural simulation.
+
+This module defines various energy-based behaviors for neural nodes,
+including oscillators, integrators, relays, and dynamic energy management.
+Energy behaviors control how nodes process, store, and transfer energy
+throughout the neural network.
+"""
+
 import time
 
 import torch
 
-from config.unified_config_manager import get_system_constants
 from src.energy.node_access_layer import NodeAccessLayer
-
-
-def safe_divide(numerator: float, denominator: float, fallback: float = 0.0) -> float:
-    if denominator == 0 or denominator <= 0:
-        return fallback
-    return numerator / denominator
 from src.utils.common_utils import safe_hasattr
 from src.utils.logging_utils import log_step
 
 from .energy_constants import (EnergyConstants, HighwayConstants,
-                               IntegratorConstants, OscillatorConstants,
-                               RelayConstants)
+                                IntegratorConstants, OscillatorConstants,
+                                RelayConstants, get_node_energy_cap, _ENERGY_CAP_PRECACHED)
 
-class _EnergyCapCache:
-    """Simple cache for energy cap values to avoid repeated calculations."""
 
-    def __init__(self):
-        self._cache = None
-        self._cache_time = 0
-        self._cache_ttl = 300
-
-    def get(self):
-        current_time = time.time()
-        if (self._cache is not None and
-            current_time - self._cache_time < self._cache_ttl):
-            return self._cache
-        return None
-
-    def set(self, value):
-        self._cache = value
-        self._cache_time = time.time()
-
-_energy_cap_cache = _EnergyCapCache()
-
+def safe_divide(numerator: float, denominator: float, fallback: float = 0.0) -> float:
+    """Safely divide two numbers with fallback for division by zero."""
+    if denominator == 0 or denominator <= 0:
+        return fallback
+    return numerator / denominator
 
 class EnergyCalculator:
+    """Utility class for energy-related calculations."""
+
     @staticmethod
     def calculate_energy_cap() -> float:
+        """Calculate the maximum energy capacity for nodes."""
         return get_node_energy_cap()
+
     @staticmethod
     def calculate_energy_decay(current_energy: float, decay_rate: float) -> float:
+        """Calculate energy decay over time."""
         return current_energy * decay_rate
+
     @staticmethod
     def calculate_energy_transfer(energy: float, transfer_fraction: float) -> float:
+        """Calculate energy transfer amount."""
         return energy * transfer_fraction
+
     @staticmethod
     def calculate_energy_boost(energy: float, boost_amount: float) -> float:
+        """Calculate energy boost with capacity limits."""
         return min(energy + boost_amount, EnergyCalculator.calculate_energy_cap())
+
     @staticmethod
     def calculate_membrane_potential(energy: float) -> float:
+        """Calculate membrane potential from energy level."""
         energy_cap = EnergyCalculator.calculate_energy_cap()
         if energy_cap <= 0:
             return 0.0
         return min(energy / energy_cap, 1.0)
+
     @staticmethod
     def apply_energy_bounds(energy: float) -> float:
+        """Apply bounds to energy value."""
         return max(0, min(energy, EnergyCalculator.calculate_energy_cap()))
 
 
-def get_node_energy_cap():
-    """Get node energy cap with assertions for safety."""
-    current_time = time.time()
-    assert current_time > 0, "Current time must be positive"
-
-    # Check cache first
-    cached_value = _energy_cap_cache.get()
-    if cached_value is not None:
-        assert cached_value > 0, "Cached energy cap must be positive"
-        return cached_value
-
-    # Calculate new value
-    constants = get_system_constants()
-    energy_cap = constants.get('node_energy_cap', 5.0)  # Updated default to match new config
-    assert energy_cap > 0, "Energy cap must be positive"
-    _energy_cap_cache.set(energy_cap)
-    return energy_cap
-_ENERGY_CAP_PRECACHED = None
-
-
-def _precache_energy_cap():
-    if _ENERGY_CAP_PRECACHED is None:
-        _ENERGY_CAP_PRECACHED = get_node_energy_cap()
-        # Ensure we have a reasonable fallback if config is not loaded
-        if _ENERGY_CAP_PRECACHED <= 0 or _ENERGY_CAP_PRECACHED > 100:
-            _ENERGY_CAP_PRECACHED = 5.0  # Updated default to match new config
-    return _ENERGY_CAP_PRECACHED
-_precache_energy_cap()
 
 
 def update_node_energy_with_learning(graph, node_id, delta_energy):
+    """Update node energy with learning-based adjustments."""
 
     access_layer = NodeAccessLayer(graph)
     if not access_layer.is_valid_node_id(node_id):
@@ -151,8 +124,8 @@ def update_node_energy_with_learning(graph, node_id, delta_energy):
 
 def apply_energy_behavior(graph, _recursion_depth=0):
     """Optimized energy behavior application with reduced overhead."""
-    MAX_RECURSION_DEPTH = 10
-    if _recursion_depth > MAX_RECURSION_DEPTH:
+    max_recursion_depth = 10
+    if _recursion_depth > max_recursion_depth:
         # Reduced logging frequency for performance
         if _recursion_depth % 10 == 0:
             log_step("Energy behavior recursion limit reached", depth=_recursion_depth)
@@ -205,6 +178,7 @@ def apply_energy_behavior(graph, _recursion_depth=0):
 
 
 def apply_oscillator_energy_dynamics(graph, node_id):
+    """Apply oscillator energy dynamics to a node."""
 
     access_layer = NodeAccessLayer(graph)
     node = access_layer.get_node_by_id(node_id)
@@ -364,47 +338,82 @@ def apply_dynamic_energy_dynamics(graph, node_id):
 
 
 def emit_energy_pulse(graph, source_node_id, _recursion_depth=0):
+    """Emit energy pulse from source node to connected targets."""
 
-    MAX_RECURSION_DEPTH = 50
-    if _recursion_depth > MAX_RECURSION_DEPTH:
+    # Check recursion limit
+    max_recursion_depth = 50
+    if _recursion_depth > max_recursion_depth:
         log_step("Energy pulse recursion limit reached",
                 source_node=source_node_id,
                 depth=_recursion_depth)
         return graph
+
     access_layer = NodeAccessLayer(graph)
+
+    # Validate source node
     if not access_layer.is_valid_node_id(source_node_id):
         log_step("Invalid source_node_id for energy pulse", source_node_id=source_node_id)
         return graph
+
+    # Get source energy
     source_energy = access_layer.get_node_energy(source_node_id)
     if source_energy is None:
         log_step("Failed to get source energy for pulse", source_node_id=source_node_id)
         return graph
+
+    # Calculate pulse energy
     pulse_energy = source_energy * EnergyConstants.PULSE_ENERGY_FRACTION_LARGE
     pulse_targets = []
+
+    # Process targets if edges exist
     if hasattr(graph, 'edge_attributes'):
-        for edge in graph.edge_attributes:
-            if edge.source == source_node_id:
-                target_id = edge.target
-                if access_layer.is_valid_node_id(target_id):
-                    target_energy = access_layer.get_node_energy(target_id)
-                    if target_energy is not None:
-                        new_target_energy = min(target_energy + pulse_energy, get_node_energy_cap())
-                        if access_layer.set_node_energy(target_id, new_target_energy):
-                            new_membrane_potential = min(safe_divide(new_target_energy, get_node_energy_cap()), EnergyConstants.MEMBRANE_POTENTIAL_CAP)
-                            access_layer.update_node_property(target_id, 'membrane_potential', new_membrane_potential)
-                            pulse_targets.append(target_id)
-                        else:
-                            log_step("Failed to update target energy", target_id=target_id)
-                    else:
-                        log_step("Failed to get target energy", target_id=target_id)
-                else:
-                    log_step("Invalid target_id for energy pulse", target_id=target_id)
+        pulse_targets = _process_pulse_targets(graph, access_layer, source_node_id, pulse_energy)
+
+    # Log successful pulse emission
     if pulse_targets:
         log_step("Energy pulse emitted",
                 source_node=source_node_id,
                 pulse_energy=pulse_energy,
                 targets=pulse_targets)
+
     return graph
+
+def _process_pulse_targets(graph, access_layer, source_node_id, pulse_energy):
+    """Process and update energy for pulse targets."""
+    pulse_targets = []
+
+    for edge in graph.edge_attributes:
+        if edge.source != source_node_id:
+            continue
+
+        target_id = edge.target
+
+        # Validate target
+        if not access_layer.is_valid_node_id(target_id):
+            log_step("Invalid target_id for energy pulse", target_id=target_id)
+            continue
+
+        # Get target energy
+        target_energy = access_layer.get_node_energy(target_id)
+        if target_energy is None:
+            log_step("Failed to get target energy", target_id=target_id)
+            continue
+
+        # Calculate new energy
+        new_target_energy = min(target_energy + pulse_energy, get_node_energy_cap())
+
+        # Update target energy
+        if access_layer.set_node_energy(target_id, new_target_energy):
+            new_membrane_potential = min(
+                safe_divide(new_target_energy, get_node_energy_cap()),
+                EnergyConstants.MEMBRANE_POTENTIAL_CAP
+            )
+            access_layer.update_node_property(target_id, 'membrane_potential', new_membrane_potential)
+            pulse_targets.append(target_id)
+        else:
+            log_step("Failed to update target energy", target_id=target_id)
+
+    return pulse_targets
 
 
 def update_membrane_potentials(graph):

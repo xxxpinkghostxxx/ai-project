@@ -8,22 +8,23 @@ neural modulation while maintaining biological plausibility.
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Tuple
+from dataclasses import dataclass, field
 
 from torch_geometric.data import Data
 
 
+@dataclass
 class EnergyState:
     """Represents the current energy state of the neural system."""
 
-    def __init__(self):
-        self.node_energies: Dict[int, float] = {}
-        self.total_system_energy: float = 0.0
-        self.energy_distribution: Dict[str, float] = {}
-        self.metabolic_costs: Dict[str, float] = {}
-        self.energy_flows: Dict[Tuple[int, int], float] = {}
-        self.energy_efficiency: float = 0.0
-        self.energy_conservation_rate: float = 0.0
-        self.is_initialized: bool = False
+    node_energies: Dict[int, float] = field(default_factory=dict)
+    total_system_energy: float = 0.0
+    energy_distribution: Dict[str, float] = field(default_factory=dict)
+    metabolic_costs: Dict[str, float] = field(default_factory=dict)
+    energy_flows: Dict[Tuple[int, int], float] = field(default_factory=dict)
+    energy_efficiency: float = 0.0
+    energy_conservation_rate: float = 0.0
+    is_initialized: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert energy state to dictionary for serialization."""
@@ -40,16 +41,16 @@ class EnergyState:
         }
 
 
+@dataclass
 class EnergyFlow:
     """Represents energy flow between neurons."""
 
-    def __init__(self, source_id: int, target_id: int, amount: float, flow_type: str = "synaptic"):
-        self.source_id = source_id
-        self.target_id = target_id
-        self.amount = amount
-        self.flow_type = flow_type  # "synaptic", "metabolic", "regulatory"
-        self.timestamp = 0.0
-        self.efficiency = 1.0
+    source_id: int
+    target_id: int
+    amount: float
+    flow_type: str = "synaptic"  # "synaptic", "metabolic", "regulatory"
+    timestamp: float = 0.0
+    efficiency: float = 1.0
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert energy flow to dictionary."""

@@ -8,21 +8,22 @@ while maintaining energy-based coordination and biological plausibility.
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
+from dataclasses import dataclass
 
 from torch_geometric.data import Data
 
 
+@dataclass
 class NodeInfo:
     """Information about a distributed node."""
 
-    def __init__(self, node_id: str, address: str, capabilities: Dict[str, Any]):
-        self.node_id = node_id
-        self.address = address
-        self.capabilities = capabilities
-        self.status = "unknown"  # "active", "inactive", "failed"
-        self.last_heartbeat = 0.0
-        self.workload = 0.0
-        self.energy_level = 1.0
+    node_id: str
+    address: str
+    capabilities: Dict[str, Any]
+    status: str = "unknown"  # "active", "inactive", "failed"
+    last_heartbeat: float = 0.0
+    workload: float = 0.0
+    energy_level: float = 1.0
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert node info to dictionary."""
@@ -37,19 +38,19 @@ class NodeInfo:
         }
 
 
+@dataclass
 class DistributedTask:
     """A task that can be distributed across nodes."""
 
-    def __init__(self, task_id: str, task_type: str, data: Any, priority: int = 1):
-        self.task_id = task_id
-        self.task_type = task_type  # "neural_processing", "learning", "sensory", "energy"
-        self.data = data
-        self.priority = priority
-        self.assigned_node: Optional[str] = None
-        self.status = "pending"  # "pending", "running", "completed", "failed"
-        self.created_time = 0.0
-        self.completed_time = 0.0
-        self.result: Optional[Any] = None
+    task_id: str
+    task_type: str  # "neural_processing", "learning", "sensory", "energy"
+    data: Any
+    priority: int = 1
+    assigned_node: Optional[str] = None
+    status: str = "pending"  # "pending", "running", "completed", "failed"
+    created_time: float = 0.0
+    completed_time: float = 0.0
+    result: Optional[Any] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert task to dictionary."""

@@ -8,22 +8,23 @@ learning, and energy computations.
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
+from dataclasses import dataclass, field
 
 import torch
 from torch_geometric.data import Data
 
 
+@dataclass
 class GPUComputeTask:
     """Represents a GPU-accelerated compute task."""
 
-    def __init__(self, task_id: str, task_type: str, data: Any, priority: int = 1):
-        self.task_id = task_id
-        self.task_type = task_type  # "neural_dynamics", "learning", "energy", "sensory"
-        self.data = data
-        self.priority = priority
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.memory_required = 0  # MB
-        self.compute_intensity = 1.0  # Relative compute intensity
+    task_id: str
+    task_type: str  # "neural_dynamics", "learning", "energy", "sensory"
+    data: Any
+    priority: int = 1
+    device: str = field(default_factory=lambda: "cuda" if torch.cuda.is_available() else "cpu")
+    memory_required: int = 0  # MB
+    compute_intensity: float = 1.0  # Relative compute intensity
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert task to dictionary."""

@@ -115,8 +115,7 @@ class EventCoordinationService(IEventCoordinator):
                     if event.event_type == event_type
                 ]
                 return list(filtered_events)[-limit:]
-            else:
-                return list(self._event_history)[-limit:]
+            return list(self._event_history)[-limit:]
 
     def process_events(self) -> None:
         """

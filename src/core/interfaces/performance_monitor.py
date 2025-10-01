@@ -9,19 +9,20 @@ minimal overhead on the neural simulation.
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+from dataclasses import dataclass, field
 
 
+@dataclass
 class PerformanceMetrics:
     """Container for performance metrics."""
 
-    def __init__(self):
-        self.step_time: float = 0.0
-        self.memory_usage: float = 0.0
-        self.cpu_usage: float = 0.0
-        self.gpu_usage: Optional[float] = None
-        self.network_traffic: float = 0.0
-        self.active_threads: int = 0
-        self.timestamp: datetime = datetime.now()
+    step_time: float = 0.0
+    memory_usage: float = 0.0
+    cpu_usage: float = 0.0
+    gpu_usage: Optional[float] = None
+    network_traffic: float = 0.0
+    active_threads: int = 0
+    timestamp: datetime = field(default_factory=datetime.now)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert metrics to dictionary."""

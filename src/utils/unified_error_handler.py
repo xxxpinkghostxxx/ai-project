@@ -68,95 +68,95 @@ class ErrorRecord:
 
 class RecoveryStrategy:
     """Base class for error recovery strategies."""
-    
-    def can_handle(self, error: Exception, context: ErrorContext) -> bool:
+
+    def can_handle(self, _error: Exception, _context: ErrorContext) -> bool:
         """Check if this strategy can handle the given error."""
         return False
-    
-    def recover(self, error: Exception, context: ErrorContext) -> bool:
+
+    def recover(self, _error: Exception, _context: ErrorContext) -> bool:
         """Attempt to recover from the error."""
         return False
 
 
 class RetryStrategy(RecoveryStrategy):
     """Recovery strategy that retries the operation."""
-    
+
     def __init__(self, max_retries: int = 3, delay: float = 0.1):
         self.max_retries = max_retries
         self.delay = delay
-    
-    def can_handle(self, error: Exception, context: ErrorContext) -> bool:
+
+    def can_handle(self, error: Exception, _context: ErrorContext) -> bool:
         return isinstance(error, (ConnectionError, TimeoutError, OSError))
-    
-    def recover(self, error: Exception, context: ErrorContext) -> bool:
+
+    def recover(self, _error: Exception, _context: ErrorContext) -> bool:
         time.sleep(self.delay)
         return True
 
 
 class FallbackStrategy(RecoveryStrategy):
     """Recovery strategy that uses a fallback method."""
-    
+
     def __init__(self, fallback_func: Callable):
         self.fallback_func = fallback_func
-    
-    def can_handle(self, error: Exception, context: ErrorContext) -> bool:
+
+    def can_handle(self, _error: Exception, _context: ErrorContext) -> bool:
         return True  # Can handle any error with fallback
-    
-    def recover(self, error: Exception, context: ErrorContext) -> bool:
+
+    def recover(self, _error: Exception, _context: ErrorContext) -> bool:
         try:
             self.fallback_func()
             return True
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
+            # Broad exception catch necessary as fallback_func is user-provided and may raise any exception
             return False
 
 
 class CircuitBreakerStrategy(RecoveryStrategy):
     """Circuit breaker pattern for preventing cascading failures."""
-    
+
     def __init__(self, failure_threshold: int = 5, timeout: float = 60.0):
         self.failure_threshold = failure_threshold
         self.timeout = timeout
         self.failure_count = 0
         self.last_failure_time = 0
         self.state = "closed"  # closed, open, half-open
-    
-    def can_handle(self, error: Exception, context: ErrorContext) -> bool:
+
+    def can_handle(self, _error: Exception, _context: ErrorContext) -> bool:
         current_time = time.time()
-        
+
         if self.state == "open":
             if current_time - self.last_failure_time > self.timeout:
                 self.state = "half-open"
                 return True
             return False
-        
+
         return True
-    
-    def recover(self, error: Exception, context: ErrorContext) -> bool:
+
+    def recover(self, error: Exception, _context: ErrorContext) -> bool:
         current_time = time.time()
-        
+
         if self.state == "closed":
             self.failure_count += 1
             if self.failure_count >= self.failure_threshold:
                 self.state = "open"
                 self.last_failure_time = current_time
             return True
-        
-        elif self.state == "half-open":
+
+        if self.state == "half-open":
             if isinstance(error, (ConnectionError, TimeoutError, OSError)):
                 self.state = "open"
                 self.last_failure_time = current_time
                 return False
-            else:
-                self.state = "closed"
-                self.failure_count = 0
-                return True
-        
+            self.state = "closed"
+            self.failure_count = 0
+            return True
+
         return False
 
 
 class UnifiedErrorHandler:
     """Unified error handling system combining all error handling capabilities."""
-    
+
     def __init__(self):
         # Basic error tracking with memory limits
         self.error_counts = {}
@@ -199,14 +199,14 @@ class UnifiedErrorHandler:
         self._setup_logging()
 
         log_step("UnifiedErrorHandler initialized with memory limits")
-    
+
     def _setup_default_strategies(self):
         """Setup default recovery strategies."""
         self.recovery_strategies = [
             RetryStrategy(max_retries=3, delay=0.1),
             CircuitBreakerStrategy(failure_threshold=5, timeout=60.0)
         ]
-    
+
     def _setup_logging(self):
         """Setup error logging."""
         self.logger = logging.getLogger('unified_error_handler')
@@ -218,7 +218,7 @@ class UnifiedErrorHandler:
             handler.setFormatter(formatter)
             self.logger.addHandler(handler)
             self.logger.setLevel(logging.INFO)
-    
+
     def add_recovery_strategy(self, strategy: RecoveryStrategy):
         """Add a recovery strategy with validation."""
         if not isinstance(strategy, RecoveryStrategy):
@@ -237,7 +237,7 @@ class UnifiedErrorHandler:
 
         with self._lock:
             if len(self.error_callbacks) >= self.max_callbacks:
-                logging.warning(f"Maximum error callbacks ({self.max_callbacks}) reached, cannot add more")
+                logging.warning("Maximum error callbacks (%s) reached, cannot add more", self.max_callbacks)
                 return
 
             if callback not in self.error_callbacks:
@@ -250,13 +250,13 @@ class UnifiedErrorHandler:
 
         with self._lock:
             if len(self.recovery_callbacks) >= self.max_callbacks:
-                logging.warning(f"Maximum recovery callbacks ({self.max_callbacks}) reached, cannot add more")
+                logging.warning("Maximum recovery callbacks (%s) reached, cannot add more", self.max_callbacks)
                 return
 
             if callback not in self.recovery_callbacks:
                 self.recovery_callbacks.append(callback)
-    
-    def handle_error(self, error: Exception, context: str = "",
+
+    def handle_error(self, error: Exception, context: str = "",  # pylint: disable=too-many-arguments,too-many-positional-arguments
                     recovery_func: Optional[Callable] = None,
                     critical: bool = False,
                     severity: ErrorSeverity = ErrorSeverity.MEDIUM,
@@ -316,11 +316,11 @@ class UnifiedErrorHandler:
                 return False
 
             return True
-    
+
     def _create_error_context(self, context: str, error: Exception) -> ErrorContext:
         """Create error context from string context and error."""
         frame = traceback.extract_tb(error.__traceback__)[-1] if error.__traceback__ else None
-        
+
         return ErrorContext(
             component=context.split('.')[0] if '.' in context else context,
             function=frame.name if frame else "unknown",
@@ -329,13 +329,13 @@ class UnifiedErrorHandler:
             thread_id=threading.get_ident(),
             user_data={'context_string': context}
         )
-    
+
     def _generate_error_id(self, error: Exception, context: ErrorContext) -> str:
         """Generate unique error ID."""
         error_type = type(error).__name__
         return f"{error_type}_{context.component}_{int(context.timestamp)}"
-    
-    def _update_error_record(self, error_id: str, error: Exception,
+
+    def _update_error_record(self, error_id: str, error: Exception,  # pylint: disable=too-many-arguments,too-many-positional-arguments
                            context: ErrorContext, severity: ErrorSeverity,
                            category: ErrorCategory):
         """Update or create error record with memory limits."""
@@ -398,13 +398,13 @@ class UnifiedErrorHandler:
             keys_to_remove = list(self.recovery_attempts.keys())[:items_to_remove]
             for key in keys_to_remove:
                 del self.recovery_attempts[key]
-    
-    def _log_error(self, error: Exception, context: ErrorContext, 
+
+    def _log_error(self, error: Exception, context: ErrorContext,
                   severity: ErrorSeverity, category: ErrorCategory):
         """Log error with appropriate level."""
         error_type = type(error).__name__
         error_msg = "%s in %s.%s: %s"
-        
+
         if severity == ErrorSeverity.CRITICAL:
             self.logger.critical(error_msg)
             print_error(f"CRITICAL: {error_msg}")
@@ -417,25 +417,25 @@ class UnifiedErrorHandler:
         else:
             self.logger.info(error_msg)
             print_info(f"LOW: {error_msg}")
-        
+
         # Log traceback for debugging
-        self.logger.debug(f"Traceback: {traceback.format_exc()}")
-        
+        self.logger.debug("Traceback: %s", traceback.format_exc())
+
         # Log to step logger
         log_step(f"Error occurred: {error_type}",
                 component=context.component,
                 function=context.function,
                 severity=severity.value,
                 category=category.value)
-    
-    def _update_system_health(self, error: Exception, context: ErrorContext, critical: bool):
+
+    def _update_system_health(self, _error: Exception, _context: ErrorContext, critical: bool):
         """Update system health based on error."""
         current_time = time.time()
 
         # Count recent errors
         recent_errors = sum(1 for record in self.error_history
                           if current_time - record.context.timestamp < 60)
-        
+
         if critical:
             self.system_health = 'failed'
         elif recent_errors > self.max_errors_per_minute:
@@ -446,10 +446,10 @@ class UnifiedErrorHandler:
             self.system_health = 'warning'
         else:
             self.system_health = 'healthy'
-        
+
         self.last_error_time = current_time
-    
-    def _attempt_recovery(self, error: Exception, context: ErrorContext, 
+
+    def _attempt_recovery(self, error: Exception, context: ErrorContext,
                          recovery_func: Optional[Callable]) -> bool:
         """Attempt to recover from error using strategies and recovery function."""
         # Try recovery strategies first
@@ -457,32 +457,35 @@ class UnifiedErrorHandler:
             if strategy.can_handle(error, context):
                 if strategy.recover(error, context):
                     return True
-        
+
         # Try custom recovery function
         if recovery_func:
             try:
                 return recovery_func(error)
-            except Exception as recovery_error:
-                self.logger.warning(f"Recovery function failed: {recovery_error}")
-        
+            except Exception as recovery_error:  # pylint: disable=broad-except
+                # Broad exception catch necessary as recovery_func is user-provided and may raise any exception
+                self.logger.warning("Recovery function failed: %s", recovery_error)
+
         return False
-    
+
     def _notify_error_callbacks(self, error: Exception, context: ErrorContext, critical: bool):
         """Notify error callbacks."""
         for callback in self.error_callbacks:
             try:
                 callback(error, context, critical)
-            except Exception as callback_error:
-                self.logger.error(f"Error callback failed: {callback_error}")
-    
+            except Exception as callback_error:  # pylint: disable=broad-except
+                # Broad exception catch necessary as callbacks are user-provided and may raise any exception
+                self.logger.error("Error callback failed: %s", callback_error)
+
     def _notify_recovery_callbacks(self, error_id: str, success: bool):
         """Notify recovery callbacks."""
         for callback in self.recovery_callbacks:
             try:
                 callback(error_id, success)
-            except Exception as callback_error:
-                self.logger.error(f"Recovery callback failed: {callback_error}")
-    
+            except Exception as callback_error:  # pylint: disable=broad-except
+                # Broad exception catch necessary as callbacks are user-provided and may raise any exception
+                self.logger.error("Recovery callback failed: %s", callback_error)
+
     def get_error_statistics(self) -> Dict[str, Any]:
         """Get comprehensive error statistics."""
         with self._lock:
@@ -490,12 +493,12 @@ class UnifiedErrorHandler:
             error_types = defaultdict(int)
             error_categories = defaultdict(int)
             error_severities = defaultdict(int)
-            
+
             for record in self.error_history:
                 error_types[type(record.exception).__name__] += 1
                 error_categories[record.category.value] += 1
                 error_severities[record.severity.value] += 1
-            
+
             return {
                 'total_errors': total_errors,
                 'system_health': self.system_health,
@@ -503,15 +506,15 @@ class UnifiedErrorHandler:
                 'error_categories': dict(error_categories),
                 'error_severities': dict(error_severities),
                 'recovery_attempts': sum(self.recovery_attempts.values()),
-                'successful_recoveries': sum(1 for r in self.error_records.values() 
+                'successful_recoveries': sum(1 for r in self.error_records.values()
                                           if r.recovery_successful)
             }
-    
+
     def get_error_history(self, limit: int = 100) -> List[ErrorRecord]:
         """Get recent error history."""
         with self._lock:
             return list(self.error_history)[-limit:]
-    
+
     def clear_error_history(self):
         """Clear error history with comprehensive cleanup."""
         with self._lock:
@@ -522,7 +525,7 @@ class UnifiedErrorHandler:
             self.system_health = 'healthy'
             self.last_error_time = 0
             log_step("Error history cleared")
-    
+
     def get_system_health(self) -> Dict[str, Any]:
         """Get system health information."""
         with self._lock:
@@ -535,26 +538,31 @@ class UnifiedErrorHandler:
             }
 
 
-# Global error handler instance
-_error_handler = None
-_error_handler_lock = threading.Lock()
+class ErrorHandlerSingleton:  # pylint: disable=too-few-public-methods
+    """Singleton wrapper for UnifiedErrorHandler."""
+
+    _instance: UnifiedErrorHandler = None
+    _lock = threading.Lock()
+
+    @classmethod
+    def get_instance(cls) -> UnifiedErrorHandler:
+        """Get the singleton instance with thread safety."""
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:  # Double-check locking
+                    cls._instance = UnifiedErrorHandler()
+        return cls._instance
 
 
 def get_error_handler() -> UnifiedErrorHandler:
-    """Get the global error handler instance with thread safety."""
-    global _error_handler
-    if _error_handler is None:
-        with _error_handler_lock:
-            if _error_handler is None:  # Double-check locking
-                _error_handler = UnifiedErrorHandler()
-    return _error_handler
+    """Get the error handler instance."""
+    return ErrorHandlerSingleton.get_instance()
 
 
 # Convenience functions for backward compatibility
 def safe_execute(func: Callable, context: str = "",
-                error_msg: str = "Operation failed",
-                default_return: Any = None,
-                log_level: str = "warning") -> Any:
+                 default_return: Any = None,
+                 log_level: str = "warning") -> Any:
     """Safely execute a function with error handling and validation."""
     if not callable(func):
         logging.error("safe_execute: func must be callable")
@@ -565,7 +573,8 @@ def safe_execute(func: Callable, context: str = "",
 
     try:
         return func()
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
+        # Broad exception catch necessary in safe wrapper to handle any errors from user function
         error_handler = get_error_handler()
         severity = ErrorSeverity.LOW if log_level == "info" else ErrorSeverity.MEDIUM
         error_handler.handle_error(e, context, severity=severity)
@@ -591,22 +600,24 @@ def safe_initialize_component(component_name: str, init_func: Callable,
         result = init_func()
         logging.info("%s initialized successfully", component_name)
         return result
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
+        # Broad exception catch necessary in safe wrapper to handle any errors from user init function
         error_handler = get_error_handler()
         if fallback_func:
             try:
                 result = fallback_func()
                 error_handler.handle_error(e, f"initializing {component_name}",
-                                         recovery_func=lambda _: True,
-                                         severity=ErrorSeverity.LOW)
+                                          recovery_func=lambda _: True,
+                                          severity=ErrorSeverity.LOW)
                 return result
-            except Exception as fallback_error:
+            except Exception as fallback_error:  # pylint: disable=broad-except
+                # Broad exception catch necessary as fallback_func is user-provided and may raise any exception
                 error_handler.handle_error(fallback_error, f"fallback for {component_name}",
-                                         severity=ErrorSeverity.HIGH)
+                                          severity=ErrorSeverity.HIGH)
                 return None
         else:
             error_handler.handle_error(e, f"initializing {component_name}",
-                                     severity=ErrorSeverity.MEDIUM)
+                                      severity=ErrorSeverity.MEDIUM)
             return None
 
 
@@ -626,11 +637,12 @@ def safe_process_step(process_func: Callable, step_name: str,
     try:
         result = process_func()
         return result if isinstance(result, bool) else True
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
+        # Broad exception catch necessary in safe wrapper to handle any errors from user process function
         error_handler = get_error_handler()
         error_handler.handle_error(e, "processing %s (step %s)",
-                                 severity=ErrorSeverity.MEDIUM,
-                                 category=ErrorCategory.SIMULATION)
+                                  severity=ErrorSeverity.MEDIUM,
+                                  category=ErrorCategory.SIMULATION)
         return False
 
 
@@ -642,10 +654,11 @@ def safe_callback_execution(callback: Callable, *args, **kwargs) -> Any:
 
     try:
         return callback(*args, **kwargs)
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
+        # Broad exception catch necessary in safe wrapper to handle any errors from user callback
         error_handler = get_error_handler()
         error_handler.handle_error(e, "callback execution",
-                                 severity=ErrorSeverity.LOW)
+                                  severity=ErrorSeverity.LOW)
         return None
 
 
@@ -658,7 +671,8 @@ def handle_errors(severity: ErrorSeverity = ErrorSeverity.MEDIUM,
         def wrapper(*args, **kwargs):
             try:
                 return func(*args, **kwargs)
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-except
+                # Broad exception catch necessary in decorator to handle any errors from decorated function
                 error_handler = get_error_handler()
                 context = component or func.__name__
                 error_handler.handle_error(e, context, severity=severity, category=category)

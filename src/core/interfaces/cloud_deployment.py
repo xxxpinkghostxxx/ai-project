@@ -8,27 +8,28 @@ to cloud platforms with containerization, orchestration, and scaling capabilitie
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
+from dataclasses import dataclass, field
 
 
+@dataclass
 class DeploymentConfig:
     """Represents a deployment configuration."""
 
-    def __init__(self, deployment_id: str, platform: str):
-        self.deployment_id = deployment_id
-        self.platform = platform  # "aws", "azure", "gcp", "kubernetes"
-        self.region = "us-west-2"
-        self.instance_type = "t3.medium"
-        self.instance_count = 1
-        self.auto_scaling = True
-        self.min_instances = 1
-        self.max_instances = 10
-        self.container_image = ""
-        self.environment_variables: Dict[str, str] = {}
-        self.volumes: List[Dict[str, Any]] = []
-        self.network_config: Dict[str, Any] = {}
-        self.monitoring_config: Dict[str, Any] = {}
-        self.created_at = datetime.now().timestamp()
-        self.status = "pending"  # "pending", "deploying", "running", "failed", "stopped"
+    deployment_id: str
+    platform: str  # "aws", "azure", "gcp", "kubernetes"
+    region: str = "us-west-2"
+    instance_type: str = "t3.medium"
+    instance_count: int = 1
+    auto_scaling: bool = True
+    min_instances: int = 1
+    max_instances: int = 10
+    container_image: str = ""
+    environment_variables: Dict[str, str] = field(default_factory=dict)
+    volumes: List[Dict[str, Any]] = field(default_factory=list)
+    network_config: Dict[str, Any] = field(default_factory=dict)
+    monitoring_config: Dict[str, Any] = field(default_factory=dict)
+    created_at: float = field(default_factory=lambda: 0.0)  # Will be set by caller
+    status: str = "pending"  # "pending", "deploying", "running", "failed", "stopped"
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert deployment config to dictionary."""
@@ -51,20 +52,20 @@ class DeploymentConfig:
         }
 
 
+@dataclass
 class ScalingPolicy:
     """Represents an auto-scaling policy."""
 
-    def __init__(self, policy_id: str, metric_name: str):
-        self.policy_id = policy_id
-        self.metric_name = metric_name
-        self.target_value = 70.0
-        self.scale_out_threshold = 80.0
-        self.scale_in_threshold = 30.0
-        self.cooldown_period = 300  # seconds
-        self.min_instances = 1
-        self.max_instances = 10
-        self.enabled = True
-        self.last_scale_time = 0.0
+    policy_id: str
+    metric_name: str
+    target_value: float = 70.0
+    scale_out_threshold: float = 80.0
+    scale_in_threshold: float = 30.0
+    cooldown_period: int = 300  # seconds
+    min_instances: int = 1
+    max_instances: int = 10
+    enabled: bool = True
+    last_scale_time: float = 0.0
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert scaling policy to dictionary."""
@@ -82,20 +83,20 @@ class ScalingPolicy:
         }
 
 
+@dataclass
 class CloudResource:
     """Represents a cloud resource."""
 
-    def __init__(self, resource_id: str, resource_type: str):
-        self.resource_id = resource_id
-        self.resource_type = resource_type  # "instance", "load_balancer", "database", "storage"
-        self.platform = ""
-        self.region = ""
-        self.status = "pending"  # "pending", "creating", "running", "failed", "terminated"
-        self.public_ip = ""
-        self.private_ip = ""
-        self.created_at = datetime.now().timestamp()
-        self.cost_per_hour = 0.0
-        self.tags: Dict[str, str] = {}
+    resource_id: str
+    resource_type: str  # "instance", "load_balancer", "database", "storage"
+    platform: str = ""
+    region: str = ""
+    status: str = "pending"  # "pending", "creating", "running", "failed", "terminated"
+    public_ip: str = ""
+    private_ip: str = ""
+    created_at: float = field(default_factory=lambda: datetime.now().timestamp())
+    cost_per_hour: float = 0.0
+    tags: Dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert cloud resource to dictionary."""

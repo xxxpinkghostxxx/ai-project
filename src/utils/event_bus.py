@@ -1,3 +1,8 @@
+"""
+Event Bus
+Provides thread-safe pub-sub event system for the application.
+"""
+
 import threading
 from collections import defaultdict
 from typing import Any, Callable, Dict
@@ -27,7 +32,7 @@ class EventBus:
             for callback in self._subscribers.get(event_type, []):
                 try:
                     callback(event_type, data)
-                except Exception:
+                except Exception:  # pylint: disable=broad-except
                     # Silent fail for robustness; could log in production
                     pass
 
@@ -39,7 +44,7 @@ class EventBus:
             for callback in self._subscribers.get(event_type, []):
                 try:
                     callback(event_type, data)
-                except Exception:
+                except Exception:  # pylint: disable=broad-except
                     # Silent fail for robustness; could log in production
                     pass
 
@@ -61,7 +66,7 @@ _event_bus_lock = threading.Lock()
 
 def get_event_bus() -> EventBus:
     """Get the singleton EventBus instance."""
-    global _event_bus_instance
+    global _event_bus_instance  # pylint: disable=global-statement
     with _event_bus_lock:
         if _event_bus_instance is None:
             _event_bus_instance = EventBus()

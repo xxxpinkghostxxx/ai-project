@@ -597,6 +597,7 @@ class CloudDeploymentService(ICloudDeployment):
             print(f"Error creating backup: {e}")
             return ""
 
+    # pylint: disable=too-many-nested-blocks
     def restore_deployment(self, deployment_id: str, backup_id: str) -> bool:
         """
         Restore a deployment from a backup.
@@ -613,6 +614,7 @@ class CloudDeploymentService(ICloudDeployment):
                 return False
 
             backup_data = self.backup_storage[backup_id]
+            restore_successful = True
 
             # Restore deployment configuration
             if deployment_id in self.deployments:
@@ -642,9 +644,9 @@ class CloudDeploymentService(ICloudDeployment):
                             if resource.tags.get("deployment_id") == new_deployment_id:
                                 resource.tags["deployment_id"] = deployment_id
                 else:
-                    return False
+                    restore_successful = False
 
-            return True
+            return restore_successful
 
         except RuntimeError as e:
             print(f"Error restoring deployment: {e}")
@@ -693,7 +695,7 @@ class CloudDeploymentService(ICloudDeployment):
             print(f"Error terminating deployment: {e}")
             return False
 
-    def _validate_deployment_config(self, deployment: DeploymentConfig) -> bool:
+    def _validate_deployment_config(self, deployment: DeploymentConfig) -> bool:  # pylint: disable=too-many-return-statements
         """Validate deployment configuration."""
         try:
             # Check platform support

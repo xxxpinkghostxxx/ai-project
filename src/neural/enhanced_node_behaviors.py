@@ -2,52 +2,10 @@
 """
 Enhanced Node Behaviors Module
 
-This module provides sophisticated neural node behavior implementations with support for
-multiple subtypes including transmitters, resonators, dampeners, oscillators, integrators,
-relays, and highways. Each subtype implements specialized behavioral patterns and parameters
-for advanced neural dynamics simulation.
-
-The module includes:
-- EnhancedNodeBehavior class for individual node behavior management
-- EnhancedNodeBehaviorSystem class for managing collections of node behaviors
-- Advanced neural dynamics including membrane potential and energy management
-- Plasticity mechanisms and learning rate adjustments
-- Theta-burst detection for synaptic plasticity
-- Neuromodulatory sensitivity and IEG tagging
-"""
-
-"""
-Enhanced Node Behaviors Module
-
-This module provides sophisticated neural node behavior implementations with support for
-multiple subtypes including transmitters, resonators, dampeners, oscillators, integrators,
-relays, and highways. Each subtype implements specialized behavioral patterns and parameters
-for advanced neural dynamics simulation.
-
-The module includes:
-- EnhancedNodeBehavior class for individual node behavior management
-- EnhancedNodeBehaviorSystem class for managing collections of node behaviors
-- Advanced neural dynamics including membrane potential and energy management
-- Plasticity mechanisms and learning rate adjustments
-- Theta-burst detection for synaptic plasticity
-- Neuromodulatory sensitivity and IEG tagging
-"""
-Enhanced Node Behaviors Module
-
-This module provides sophisticated neural node behavior implementations with support for
-multiple subtypes including transmitters, resonators, dampeners, oscillators, integrators,
-relays, and highways. Each subtype implements specialized behavioral patterns and parameters
-for advanced neural dynamics simulation.
-
-The module includes:
-- EnhancedNodeBehavior class for individual node behavior management
-- EnhancedNodeBehaviorSystem class for managing collections of node behaviors
-- Advanced neural dynamics including membrane potential and energy management
-- Plasticity mechanisms and learning rate adjustments
-- Theta-burst detection for synaptic plasticity
-- Neuromodulatory sensitivity and IEG tagging
-"""
-
+This module provides sophisticated neural node behavior implementations including
+various subtypes like transmitters, resonators, dampeners, oscillators, integrators,
+relays, and highways. Each node type has specialized update behaviors and
+neural dynamics for complex neural network simulations.
 """
 
 import time
@@ -59,57 +17,22 @@ from torch_geometric.data import Data
 
 from src.energy.node_access_layer import NodeAccessLayer
 from src.utils.logging_utils import log_step
-"""
-Enhanced Node Behaviors Module
 
-This module provides sophisticated neural node behavior implementations with support for
-multiple subtypes including transmitters, resonators, dampeners, oscillators, integrators,
-relays, and highways. Each subtype implements specialized behavioral patterns and parameters
-for advanced neural dynamics simulation.
-
-The module includes:
-- EnhancedNodeBehavior class for individual node behavior management
-- EnhancedNodeBehaviorSystem class for managing collections of node behaviors
-- Advanced neural dynamics including membrane potential and energy management
-- Plasticity mechanisms and learning rate adjustments
-- Theta-burst detection for synaptic plasticity
-- Neuromodulatory sensitivity and IEG tagging
-"""
-
-"""
-Enhanced Node Behaviors Module
-  3 |
-This module provides sophisticated neural node behavior implementations with support for
-multiple subtypes including transmitters, resonators, dampeners, oscillators, integrators,
-relays, and highways. Each subtype implements specialized behavioral patterns and parameters
-for advanced neural dynamics simulation.
-  8 |
-The module includes:
-- EnhancedNodeBehavior class for individual node behavior management
-- EnhancedNodeBehaviorSystem class for managing collections of node behaviors
-- Advanced neural dynamics including membrane potential and energy management
-- Plasticity mechanisms and learning rate adjustments
-- Theta-burst detection for synaptic plasticity
-- Neuromodulatory sensitivity and IEG tagging
-"""
-Enhanced Node Behaviors Module
-
-This module provides sophisticated neural node behavior implementations with support for
-multiple subtypes including transmitters, resonators, dampeners, oscillators, integrators,
-relays, and highways. Each subtype implements specialized behavioral patterns and parameters
-for advanced neural dynamics simulation.
-
-The module includes:
-- EnhancedNodeBehavior class for individual node behavior management
-- EnhancedNodeBehaviorSystem class for managing collections of node behaviors
-- Advanced neural dynamics including membrane potential and energy management
-- Plasticity mechanisms and learning rate adjustments
-- Theta-burst detection for synaptic plasticity
-- Neuromodulatory sensitivity and IEG tagging
-"""
-
-"""
 class EnhancedNodeBehavior:
+    """
+    Enhanced neural node behavior implementation with multiple subtypes.
+
+    This class provides sophisticated neural node behaviors including various
+    subtypes such as transmitters, resonators, dampeners, oscillators,
+    integrators, relays, and highways. Each subtype has specialized update
+    behaviors and neural dynamics for complex neural network simulations.
+
+    Attributes:
+        node_id (int): Unique identifier for the node
+        node_type (str): Type of neural node (e.g., 'dynamic')
+        subtype (str): Specific behavior subtype (e.g., 'transmitter', 'oscillator')
+        Various neural properties like membrane_potential, energy, spike_history, etc.
+    """
 
     def __init__(self, node_id: int, node_type: str = 'dynamic', **kwargs):
 
@@ -182,6 +105,7 @@ class EnhancedNodeBehavior:
             self.highway_efficiency = 0.9
             self.energy_boost = 2.0
     def update_behavior(self, graph: Data, step: int, access_layer: NodeAccessLayer) -> bool:
+        """Update the behavior of this node for the current simulation step."""
 
         try:
             self._update_timing_properties()
@@ -206,13 +130,13 @@ class EnhancedNodeBehavior:
             self._update_ieg_tagging()
             self.last_update = step
             return True
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError) as e:
             log_step("Error updating node behavior",
                     node_id=self.node_id,
                     error=str(e))
             return False
     def _update_timing_properties(self):
-        current_time = time.time()
+        # current_time is used in other methods that call this method
         if self.refractory_timer > 0:
             self.refractory_timer -= 0.01
         if self.ieg_timer > 0:
@@ -269,7 +193,7 @@ class EnhancedNodeBehavior:
             if current_energy is not None:
                 boosted_energy = min(current_energy * self.transmission_boost, self.energy_cap)
                 access_layer.set_node_energy(self.node_id, boosted_energy)
-    def _update_resonator_behavior(self, _graph: Data, access_layer: NodeAccessLayer):
+    def _update_resonator_behavior(self, _graph: Data, _access_layer: NodeAccessLayer):
         current_time = time.time()
         phase = (current_time * self.resonance_frequency) % (2 * np.pi)
         resonance_input = np.sin(phase) * self.resonance_strength
@@ -279,7 +203,7 @@ class EnhancedNodeBehavior:
         if current_energy is not None:
             damped_energy = current_energy * self.damping_factor + self.stability_bonus
             access_layer.set_node_energy(self.node_id, damped_energy)
-    def _update_oscillator_behavior(self, _graph: Data, access_layer: NodeAccessLayer):
+    def _update_oscillator_behavior(self, _graph: Data, _access_layer: NodeAccessLayer):
         current_time = time.time()
         phase = (current_time * self.oscillation_frequency + self.phase_offset) % (2 * np.pi)
         oscillation_input = np.sin(phase) * self.oscillation_amplitude
@@ -302,7 +226,7 @@ class EnhancedNodeBehavior:
         if current_energy is not None:
             highway_energy = current_energy * self.energy_boost
             access_layer.set_node_energy(self.node_id, highway_energy)
-    def _update_plasticity(self, access_layer: NodeAccessLayer):
+    def _update_plasticity(self, _access_layer: NodeAccessLayer):
         if not self.plasticity_enabled:
             return
         self.eligibility_trace *= 0.95
@@ -332,6 +256,7 @@ class EnhancedNodeBehavior:
             if all(0.008 < interval < 0.012 for interval in intervals):
                 self.theta_burst_counter += 1
     def get_behavior_statistics(self) -> Dict[str, Any]:
+        """Get comprehensive statistics about all node behaviors."""
         return {
             'node_id': self.node_id,
             'node_type': self.node_type,
@@ -346,142 +271,80 @@ class EnhancedNodeBehavior:
         }
 
 class EnhancedNodeBehaviorSystem:
+    """
+    System for managing multiple enhanced node behaviors.
+
+    This class manages a collection of EnhancedNodeBehavior instances,
+    providing methods to create, update, and manage neural node behaviors
+    across an entire network. It tracks statistics and provides cleanup
+    functionality for memory management.
+
+    Attributes:
+        node_behaviors (Dict[int, EnhancedNodeBehavior]): Collection of node behaviors
+        behavior_statistics (defaultdict): Statistics tracking for different behavior types
+    """
 
     def __init__(self):
         self.node_behaviors: Dict[int, EnhancedNodeBehavior] = {}
         self.behavior_statistics = defaultdict(int)
         log_step("EnhancedNodeBehaviorSystem initialized")
     def create_node_behavior(self, node_id: int, node_type: str = 'dynamic', **kwargs) -> EnhancedNodeBehavior:
+        """Create a new enhanced node behavior instance."""
 
-        behavior = EnhancedNodeBehavior(node_id, node_type, **kwargs)
-        self.node_behaviors[node_id] = behavior
-        self.behavior_statistics[f'{node_type}_{behavior.subtype}'] += 1
-        log_step("Node behavior created", node_id=node_id, type=node_type, subtype=behavior.subtype)
-        return behavior
+        node_behavior = EnhancedNodeBehavior(node_id, node_type, **kwargs)
+        self.node_behaviors[node_id] = node_behavior
+        self.behavior_statistics[f'{node_type}_{node_behavior.subtype}'] += 1
+        log_step("Node behavior created", node_id=node_id, type=node_type, subtype=node_behavior.subtype)
+        return node_behavior
     def update_node_behaviors(self, graph: Data, step: int) -> Data:
+        """Update all node behaviors in the system."""
 
         access_layer = NodeAccessLayer(graph)
-        for node_id, behavior in self.node_behaviors.items():
+        for node_id, node_behavior in self.node_behaviors.items():
             try:
-                behavior.update_behavior(graph, step, access_layer)
-            except Exception as e:
+                node_behavior.update_behavior(graph, step, access_layer)
+            except (ValueError, TypeError, AttributeError, KeyError) as e:
                 log_step("Error updating node behavior",
                         node_id=node_id,
                         error=str(e))
         return graph
     def get_node_behavior(self, node_id: int) -> Optional[EnhancedNodeBehavior]:
+        """Retrieve a specific node behavior by ID."""
         return self.node_behaviors.get(node_id)
     def remove_node_behavior(self, node_id: int) -> bool:
+        """Remove a node behavior from the system."""
         if node_id in self.node_behaviors:
-            behavior = self.node_behaviors[node_id]
-            self.behavior_statistics[f'{behavior.node_type}_{behavior.subtype}'] -= 1
+            node_behavior = self.node_behaviors[node_id]
+            self.behavior_statistics[f'{node_behavior.node_type}_{node_behavior.subtype}'] -= 1
             del self.node_behaviors[node_id]
             return True
         return False
     def get_behavior_statistics(self) -> Dict[str, Any]:
-        stats = dict(self.behavior_statistics)
-        stats['total_nodes'] = len(self.node_behaviors)
-        stats['active_nodes'] = sum(1 for b in self.node_behaviors.values() if b.state == 'active')
-        return stats
+        """Get comprehensive statistics about all node behaviors."""
+        behavior_stats = dict(self.behavior_statistics)
+        behavior_stats['total_nodes'] = len(self.node_behaviors)
+        behavior_stats['active_nodes'] = sum(1 for node_behavior in self.node_behaviors.values() if node_behavior.state == 'active')
+        return behavior_stats
     def reset_statistics(self):
+        """Reset all behavior statistics to empty."""
         self.behavior_statistics.clear()
+
     def cleanup(self):
-        """
-Enhanced Node Behaviors Module
-
-This module provides sophisticated neural node behavior implementations with support for
-multiple subtypes including transmitters, resonators, dampeners, oscillators, integrators,
-relays, and highways. Each subtype implements specialized behavioral patterns and parameters
-for advanced neural dynamics simulation.
-
-The module includes:
-- EnhancedNodeBehavior class for individual node behavior management
-- EnhancedNodeBehaviorSystem class for managing collections of node behaviors
-- Advanced neural dynamics including membrane potential and energy management
-- Plasticity mechanisms and learning rate adjustments
-- Theta-burst detection for synaptic plasticity
-- Neuromodulatory sensitivity and IEG tagging
-"""
-
-"""Clean up all node behavior data structures to prevent memory leaks."""
-Enhanced Node Behaviors Module
-
-This module provides sophisticated neural node behavior implementations with support for
-multiple subtypes including transmitters, resonators, dampeners, oscillators, integrators,
-relays, and highways. Each subtype implements specialized behavioral patterns and parameters
-for advanced neural dynamics simulation.
-
-The module includes:
-- EnhancedNodeBehavior class for individual node behavior management
-- EnhancedNodeBehaviorSystem class for managing collections of node behaviors
-- Advanced neural dynamics including membrane potential and energy management
-- Plasticity mechanisms and learning rate adjustments
-- Theta-burst detection for synaptic plasticity
-- Neuromodulatory sensitivity and IEG tagging
-"""
-
-"""
-        # Clear spike histories and other data for each behavior
-        for behavior in self.node_behaviors.values():
-            if hasattr(behavior, 'spike_history'):
-                behavior.spike_history.clear()
-            if hasattr(behavior, 'weight_history'):
-                behavior.weight_history.clear()
+        """Clean up all node behavior data structures to prevent memory leaks."""
+        # Clear spike histories and other data for each node behavior
+        for node_behavior in self.node_behaviors.values():
+            if hasattr(node_behavior, 'spike_history'):
+                node_behavior.spike_history.clear()
+            if hasattr(node_behavior, 'weight_history'):
+                node_behavior.weight_history.clear()
 
         self.node_behaviors.clear()
         self.behavior_statistics.clear()
-"""
-Enhanced Node Behaviors Module
 
-This module provides sophisticated neural node behavior implementations with support for
-multiple subtypes including transmitters, resonators, dampeners, oscillators, integrators,
-relays, and highways. Each subtype implements specialized behavioral patterns and parameters
-for advanced neural dynamics simulation.
-
-The module includes:
-- EnhancedNodeBehavior class for individual node behavior management
-- EnhancedNodeBehaviorSystem class for managing collections of node behaviors
-- Advanced neural dynamics including membrane potential and energy management
-- Plasticity mechanisms and learning rate adjustments
-- Theta-burst detection for synaptic plasticity
-- Neuromodulatory sensitivity and IEG tagging
-"""
-
-"""
-Enhanced Node Behaviors Module
-  3 |
-This module provides sophisticated neural node behavior implementations with support for
-multiple subtypes including transmitters, resonators, dampeners, oscillators, integrators,
-relays, and highways. Each subtype implements specialized behavioral patterns and parameters
-for advanced neural dynamics simulation.
-  8 |
-The module includes:
-- EnhancedNodeBehavior class for individual node behavior management
-- EnhancedNodeBehaviorSystem class for managing collections of node behaviors
-- Advanced neural dynamics including membrane potential and energy management
-- Plasticity mechanisms and learning rate adjustments
-- Theta-burst detection for synaptic plasticity
-- Neuromodulatory sensitivity and IEG tagging
-"""
-Enhanced Node Behaviors Module
-
-This module provides sophisticated neural node behavior implementations with support for
-multiple subtypes including transmitters, resonators, dampeners, oscillators, integrators,
-relays, and highways. Each subtype implements specialized behavioral patterns and parameters
-for advanced neural dynamics simulation.
-
-The module includes:
-- EnhancedNodeBehavior class for individual node behavior management
-- EnhancedNodeBehaviorSystem class for managing collections of node behaviors
-- Advanced neural dynamics including membrane potential and energy management
-- Plasticity mechanisms and learning rate adjustments
-- Theta-burst detection for synaptic plasticity
-- Neuromodulatory sensitivity and IEG tagging
-"""
-
-"""
 def create_enhanced_node_behavior_system() -> EnhancedNodeBehaviorSystem:
+    """Create a new enhanced node behavior system instance."""
     return EnhancedNodeBehaviorSystem()
+
 if __name__ == "__main__":
     print("EnhancedNodeBehaviorSystem created successfully!")
     print("Features include:")
@@ -499,56 +362,6 @@ if __name__ == "__main__":
         print(f"Node behavior creation test: {'PASSED' if behavior else 'FAILED'}")
         stats = system.get_behavior_statistics()
         print(f"Behavior statistics: {stats}")
-    except Exception as e:
+    except (ValueError, TypeError, AttributeError) as e:
         print(f"EnhancedNodeBehaviorSystem test failed: {e}")
     print("EnhancedNodeBehaviorSystem test completed!")
-"""
-Enhanced Node Behaviors Module
-
-This module provides sophisticated neural node behavior implementations with support for
-multiple subtypes including transmitters, resonators, dampeners, oscillators, integrators,
-relays, and highways. Each subtype implements specialized behavioral patterns and parameters
-for advanced neural dynamics simulation.
-
-The module includes:
-- EnhancedNodeBehavior class for individual node behavior management
-- EnhancedNodeBehaviorSystem class for managing collections of node behaviors
-- Advanced neural dynamics including membrane potential and energy management
-- Plasticity mechanisms and learning rate adjustments
-- Theta-burst detection for synaptic plasticity
-- Neuromodulatory sensitivity and IEG tagging
-"""
-
-"""
-Enhanced Node Behaviors Module
-  3 |
-This module provides sophisticated neural node behavior implementations with support for
-multiple subtypes including transmitters, resonators, dampeners, oscillators, integrators,
-relays, and highways. Each subtype implements specialized behavioral patterns and parameters
-for advanced neural dynamics simulation.
-  8 |
-The module includes:
-- EnhancedNodeBehavior class for individual node behavior management
-- EnhancedNodeBehaviorSystem class for managing collections of node behaviors
-- Advanced neural dynamics including membrane potential and energy management
-- Plasticity mechanisms and learning rate adjustments
-- Theta-burst detection for synaptic plasticity
-- Neuromodulatory sensitivity and IEG tagging
-"""
-Enhanced Node Behaviors Module
-
-This module provides sophisticated neural node behavior implementations with support for
-multiple subtypes including transmitters, resonators, dampeners, oscillators, integrators,
-relays, and highways. Each subtype implements specialized behavioral patterns and parameters
-for advanced neural dynamics simulation.
-
-The module includes:
-- EnhancedNodeBehavior class for individual node behavior management
-- EnhancedNodeBehaviorSystem class for managing collections of node behaviors
-- Advanced neural dynamics including membrane potential and energy management
-- Plasticity mechanisms and learning rate adjustments
-- Theta-burst detection for synaptic plasticity
-- Neuromodulatory sensitivity and IEG tagging
-"""
-
-"""

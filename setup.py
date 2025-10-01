@@ -5,13 +5,13 @@ This script compiles the Cython modules into optimized C extensions that can be
 imported and used from Python code.
 """
 
+import os
 from setuptools import Extension, setup
 
 try:
     from Cython.Build import cythonize
 except ImportError as exc:
     raise ImportError("Cython is required to build the extensions. Please install it with 'pip install Cython'") from exc
-import os
 
 import numpy as np
 

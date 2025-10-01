@@ -57,8 +57,8 @@ class PerformanceBenchmark:
         for _ in range(warmup_iterations):
             try:
                 func(*args, **kwargs)
-            except Exception as e:
-                logging.warning(f"Warmup iteration failed: {e}")
+            except Exception as e:  # pylint: disable=broad-except
+                logging.warning("Warmup iteration failed: %s", e)
 
         # Force garbage collection before benchmark
         gc.collect()
@@ -66,15 +66,15 @@ class PerformanceBenchmark:
         # Benchmark phase
         start_time = time.time()
         start_memory = psutil.Process().memory_info().rss / (1024 * 1024)
-        start_cpu = psutil.cpu_percent(interval=None)
+        _start_cpu = psutil.cpu_percent(interval=None)
 
         successful_iterations = 0
         for i in range(iterations):
             try:
                 func(*args, **kwargs)
                 successful_iterations += 1
-            except Exception as e:
-                logging.error(f"Benchmark iteration {i} failed: {e}")
+            except Exception as e:  # pylint: disable=broad-except
+                logging.error("Benchmark iteration %d failed: %s", i, e)
 
         end_time = time.time()
         end_memory = psutil.Process().memory_info().rss / (1024 * 1024)
@@ -105,9 +105,8 @@ class PerformanceBenchmark:
         with self._lock:
             self.results.append(result)
 
-        logging.info(f"Benchmark '{test_name}': {operations_per_second:.2f} ops/sec, "
-                    ".2f"
-                    ".1f")
+        logging.info("Benchmark '%s': %.2f ops/sec, %.2f MB, %.1f%% CPU",
+                    test_name, operations_per_second, memory_usage, end_cpu)
 
         return result
 
@@ -162,7 +161,7 @@ class PerformanceBenchmark:
 
         return results
 
-    def benchmark_caching_system(self, cache_manager, num_operations: int = 10000) -> Dict[str, BenchmarkResult]:
+    def benchmark_caching_system(self, cache_manager, _num_operations: int = 10000) -> Dict[str, BenchmarkResult]:
         """Benchmark caching system performance."""
         results = {}
 
@@ -236,9 +235,9 @@ class PerformanceBenchmark:
         # Summary statistics
         if self.results:
             total_tests = len(self.results)
-            avg_ops_per_sec = sum(r.operations_per_second for r in self.results) / total_tests
-            total_memory = sum(r.memory_usage_mb for r in self.results)
-            avg_cpu = sum(r.cpu_usage_percent for r in self.results) / total_tests
+            _avg_ops_per_sec = sum(r.operations_per_second for r in self.results) / total_tests
+            _total_memory = sum(r.memory_usage_mb for r in self.results)
+            _avg_cpu = sum(r.cpu_usage_percent for r in self.results) / total_tests
 
             report_lines.append("OVERALL SUMMARY:")
             report_lines.append(f"  Total Tests: {total_tests}")
@@ -291,13 +290,13 @@ class PerformanceBenchmark:
     def save_report(self, filename: str):
         """Save performance report to file."""
         report = self.generate_report()
-        with open(filename, 'w') as f:
+        with open(filename, 'w', encoding='utf-8') as f:
             f.write(report)
-        logging.info(f"Performance report saved to {filename}")
+        logging.info("Performance report saved to %s", filename)
 
 def run_comprehensive_benchmark() -> PerformanceBenchmark:
     """Run a comprehensive benchmark suite."""
-    benchmark = PerformanceBenchmark()
+    bench = PerformanceBenchmark()
 
     try:
         # Import required modules
@@ -308,32 +307,32 @@ def run_comprehensive_benchmark() -> PerformanceBenchmark:
         from src.utils.performance_cache import get_performance_cache_manager
 
         # Benchmark simulation startup
-        startup_result = benchmark.benchmark_simulation_startup(SimulationCoordinator)
-        benchmark.set_baseline('simulation_startup', startup_result)
+        startup_result = bench.benchmark_simulation_startup(SimulationCoordinator)
+        bench.set_baseline('simulation_startup', startup_result)
 
         # Benchmark node operations
         node_manager = get_optimized_node_manager()
-        node_results = benchmark.benchmark_node_operations(node_manager, num_nodes=5000)
+        node_results = bench.benchmark_node_operations(node_manager, num_nodes=5000)
 
         for test_name, result in node_results.items():
-            benchmark.set_baseline(test_name, result)
+            bench.set_baseline(test_name, result)
 
         # Benchmark caching system
         cache_manager = get_performance_cache_manager()
-        cache_results = benchmark.benchmark_caching_system(cache_manager, num_operations=5000)
+        cache_results = bench.benchmark_caching_system(cache_manager)
 
         for test_name, result in cache_results.items():
-            benchmark.set_baseline(test_name, result)
+            bench.set_baseline(test_name, result)
 
         # Generate and save report
-        benchmark.save_report("performance_benchmark_report.txt")
+        bench.save_report("performance_benchmark_report.txt")
 
         logging.info("Comprehensive benchmark completed successfully")
 
-    except Exception as e:
-        logging.error(f"Benchmark failed: {e}")
+    except Exception as e:  # pylint: disable=broad-except
+        logging.error("Benchmark failed: %s", e)
 
-    return benchmark
+    return bench
 
 if __name__ == "__main__":
     print("Running Neural Simulation Performance Benchmark...")

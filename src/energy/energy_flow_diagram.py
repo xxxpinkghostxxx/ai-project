@@ -4,14 +4,15 @@ Creates visual representations of energy flow through the neural simulation syst
 """
 
 import re
+import networkx as nx
+import matplotlib.pyplot as plt
 
 
 class EnergyFlowDiagram:
     """Generates visual diagrams of energy flow in the neural system."""
 
     def __init__(self):
-        import networkx as nx
-        self.G = nx.DiGraph()
+        self.graph = nx.DiGraph()
         self.node_positions = {}
         self.node_colors = {}
         self.edge_colors = {}
@@ -34,7 +35,7 @@ class EnergyFlowDiagram:
         for i, (layer_name, nodes) in enumerate(layers.items()):
             for j, node in enumerate(nodes):
                 node_id = f"{layer_name}_{j}"
-                self.G.add_node(node_id, label=node, layer=layer_name)
+                self.graph.add_node(node_id, label=node, layer=layer_name)
                 self.node_positions[node_id] = (j * 2, y_positions[i])
 
                 # Color coding by layer
@@ -77,7 +78,7 @@ class EnergyFlowDiagram:
         ]
 
         for source, target in energy_flows:
-            self.G.add_edge(source, target, weight=2)
+            self.graph.add_edge(source, target, weight=2)
             self.edge_colors[(source, target)] = 'darkblue'
 
         # Add feedback loops
@@ -87,7 +88,7 @@ class EnergyFlowDiagram:
         ]
 
         for source, target in feedback_loops:
-            self.G.add_edge(source, target, weight=1)
+            self.graph.add_edge(source, target, weight=1)
             self.edge_colors[(source, target)] = 'darkred'
 
     def create_energy_behavior_diagram(self):
@@ -100,7 +101,7 @@ class EnergyFlowDiagram:
         # Add behavior nodes
         for i, behavior in enumerate(behaviors):
             node_id = f"behavior_{i}"
-            self.G.add_node(node_id, label=behavior, type='behavior')
+            self.graph.add_node(node_id, label=behavior, type='behavior')
             self.node_positions[node_id] = (i * 2, 2)
             self.node_colors[node_id] = 'lightcoral'
             self.node_sizes[node_id] = 1500
@@ -113,18 +114,18 @@ class EnergyFlowDiagram:
         ]
 
         for source, target in behavior_connections:
-            self.G.add_edge(source, target, weight=1.5)
+            self.graph.add_edge(source, target, weight=1.5)
             self.edge_colors[(source, target)] = 'darkgreen'
 
         # Add sensory input
-        self.G.add_node('sensory_input', label='Sensory\nInput', type='input')
+        self.graph.add_node('sensory_input', label='Sensory\nInput', type='input')
         self.node_positions['sensory_input'] = (-2, 3)
         self.node_colors['sensory_input'] = 'lightblue'
         self.node_sizes['sensory_input'] = 1200
 
         # Connect sensory to all behaviors
         for i in range(5):
-            self.G.add_edge('sensory_input', f'behavior_{i}')
+            self.graph.add_edge('sensory_input', f'behavior_{i}')
             self.edge_colors[('sensory_input', f'behavior_{i}')] = 'blue'
 
     def create_learning_integration_diagram(self):
@@ -139,20 +140,20 @@ class EnergyFlowDiagram:
         # Add learning nodes
         for i, node in enumerate(learning_nodes):
             node_id = f"learning_{i}"
-            self.G.add_node(node_id, label=node, type='learning')
+            self.graph.add_node(node_id, label=node, type='learning')
             self.node_positions[node_id] = (i * 1.5, 1)
             self.node_colors[node_id] = 'gold'
             self.node_sizes[node_id] = 1800
 
         # Add energy source
-        self.G.add_node('energy_source', label='Energy\nSource', type='energy')
+        self.graph.add_node('energy_source', label='Energy\nSource', type='energy')
         self.node_positions['energy_source'] = (-1, 2)
         self.node_colors['energy_source'] = 'red'
         self.node_sizes['energy_source'] = 1000
 
         # Connect energy to learning
         for i in range(len(learning_nodes)):
-            self.G.add_edge('energy_source', f'learning_{i}')
+            self.graph.add_edge('energy_source', f'learning_{i}')
             self.edge_colors[('energy_source', f'learning_{i}')] = 'red'
 
         # Add learning flow
@@ -162,35 +163,32 @@ class EnergyFlowDiagram:
         ]
 
         for source, target in learning_flow:
-            self.G.add_edge(source, target, weight=2)
+            self.graph.add_edge(source, target, weight=2)
             self.edge_colors[(source, target)] = 'orange'
 
     def draw_diagram(self, title: str = "Energy Flow Architecture"):
         """Draw the energy flow diagram."""
 
-        import matplotlib.pyplot as plt
-        import networkx as nx
-
         plt.figure(figsize=(15, 10))
 
         # Get node colors and sizes
-        node_color_list = [self.node_colors.get(node, 'lightgray') for node in self.G.nodes()]
-        node_size_list = [self.node_sizes.get(node, 1000) for node in self.G.nodes()]
+        node_color_list = [self.node_colors.get(node, 'lightgray') for node in self.graph.nodes()]
+        node_size_list = [self.node_sizes.get(node, 1000) for node in self.graph.nodes()]
 
         # Draw nodes
         nx.draw_networkx_nodes(
-            self.G, self.node_positions,
+            self.graph, self.node_positions,
             node_color=node_color_list,
             node_size=node_size_list,
             alpha=0.8
         )
 
         # Draw edges
-        edges = list(self.G.edges())
+        edges = list(self.graph.edges())
         edge_colors = [self.edge_colors.get(edge, 'gray') for edge in edges]
 
         nx.draw_networkx_edges(
-            self.G, self.node_positions,
+            self.graph, self.node_positions,
             edgelist=edges,
             edge_color=edge_colors,
             width=2,
@@ -200,9 +198,9 @@ class EnergyFlowDiagram:
         )
 
         # Draw labels
-        labels = {node: self.G.nodes[node]['label'] for node in self.G.nodes()}
+        labels = {node: self.graph.nodes[node]['label'] for node in self.graph.nodes()}
         nx.draw_networkx_labels(
-            self.G, self.node_positions,
+            self.graph, self.node_positions,
             labels,
             font_size=8,
             font_weight='bold'
@@ -218,9 +216,7 @@ class EnergyFlowDiagram:
     def create_energy_centrality_analysis(self):
         """Analyze how central energy is to the system."""
 
-        import networkx as nx
-
-        if len(self.G.nodes()) == 0:
+        if len(self.graph.nodes()) == 0:
             return {
                 'degree_centrality': {},
                 'betweenness_centrality': {},
@@ -228,9 +224,9 @@ class EnergyFlowDiagram:
             }
 
         # Calculate centrality measures
-        degree_centrality = nx.degree_centrality(self.G)
-        betweenness_centrality = nx.betweenness_centrality(self.G)
-        closeness_centrality = nx.closeness_centrality(self.G)
+        degree_centrality = nx.degree_centrality(self.graph)
+        betweenness_centrality = nx.betweenness_centrality(self.graph)
+        closeness_centrality = nx.closeness_centrality(self.graph)
 
         # Find most central nodes
         most_degree = max(degree_centrality.items(), key=lambda x: x[1])
@@ -239,9 +235,9 @@ class EnergyFlowDiagram:
 
         print("Energy Centrality Analysis:")
         print("=" * 50)
-        print(f"Most Connected Node: {self.G.nodes[most_degree[0]]['label']} (degree: {most_degree[1]:.3f})")
-        print(f"Most Central Bridge: {self.G.nodes[most_betweenness[0]]['label']} (betweenness: {most_betweenness[1]:.3f})")
-        print(f"Most Efficient Hub: {self.G.nodes[most_closeness[0]]['label']} (closeness: {most_closeness[1]:.3f})")
+        print(f"Most Connected Node: {self.graph.nodes[most_degree[0]]['label']} (degree: {most_degree[1]:.3f})")
+        print(f"Most Central Bridge: {self.graph.nodes[most_betweenness[0]]['label']} (betweenness: {most_betweenness[1]:.3f})")
+        print(f"Most Efficient Hub: {self.graph.nodes[most_closeness[0]]['label']} (closeness: {most_closeness[1]:.3f})")
 
         return {
             'degree_centrality': degree_centrality,

@@ -7,18 +7,19 @@ optimizing resource utilization and maintaining performance in multi-node setups
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List
+from dataclasses import dataclass
 
 
+@dataclass
 class LoadMetrics:
     """Metrics for load balancing decisions."""
 
-    def __init__(self):
-        self.cpu_usage = 0.0
-        self.memory_usage = 0.0
-        self.task_count = 0
-        self.energy_level = 1.0
-        self.network_latency = 0.0
-        self.task_completion_rate = 0.0
+    cpu_usage: float = 0.0
+    memory_usage: float = 0.0
+    task_count: int = 0
+    energy_level: float = 1.0
+    network_latency: float = 0.0
+    task_completion_rate: float = 0.0
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert metrics to dictionary."""

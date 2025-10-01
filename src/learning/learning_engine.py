@@ -1,4 +1,15 @@
 
+"""
+Learning Engine Module
+
+This module implements the LearningEngine class and related functions for
+energy-modulated synaptic plasticity in neural networks. It provides STDP
+(Spike-Timing Dependent Plasticity), memory consolidation, and biologically
+plausible learning dynamics modulated by node energy levels.
+"""
+
+# pylint: disable=C0413  # Import order disabled due to sys.path modification needed for local imports
+
 import os
 import sys
 
@@ -222,7 +233,18 @@ class LearningEngine:
             log_step("Error handling spike event", error=str(e), source_id=source_id, target_id=target_id)
 
     def consolidate_connections(self, graph: Any) -> Any:
+        """
+        Consolidate synaptic connections based on eligibility traces and energy modulation.
 
+        This method strengthens connections that have accumulated sufficient eligibility
+        traces, with modulation based on the energy levels of connected nodes.
+
+        Args:
+            graph: The graph object containing edges and nodes
+
+        Returns:
+            The modified graph with consolidated connections
+        """
         if not hasattr(graph, 'edge_attributes') or not graph.edge_attributes:
             return graph
         consolidated_count = 0
@@ -272,7 +294,18 @@ class LearningEngine:
         self.learning_stats['total_weight_change'] += total_weight_change
         return graph
     def form_memory_traces(self, graph: Any) -> Any:
+        """
+        Form memory traces for stable neural patterns.
 
+        Identifies nodes with stable activation patterns and creates memory traces
+        to preserve learned connections.
+
+        Args:
+            graph: The graph object to analyze for memory formation
+
+        Returns:
+            The graph with updated memory traces
+        """
         if not hasattr(graph, 'edge_attributes'):
             return graph
         memory_traces_formed = 0
@@ -322,7 +355,18 @@ class LearningEngine:
             'activation_count': 0
         }
     def apply_memory_influence(self, graph: Any) -> Any:
+        """
+        Apply memory trace influence to reinforce learned patterns.
 
+        Reinforces synaptic connections based on stored memory traces,
+        decaying old memories over time.
+
+        Args:
+            graph: The graph object to apply memory influence to
+
+        Returns:
+            The graph with reinforced connections from memory traces
+        """
         if not self.memory_traces:
             return graph
         current_time = time.time()
@@ -351,8 +395,17 @@ class LearningEngine:
                         edge.weight = min(edge.weight + reinforcement, 5.0)
                         break
     def get_learning_statistics(self) -> Dict[str, Any]:
+        """
+        Get a copy of the current learning statistics.
+
+        Returns:
+            Dictionary containing learning statistics
+        """
         return self.learning_stats.copy()
     def reset_statistics(self) -> None:
+        """
+        Reset all learning statistics to zero.
+        """
         self.learning_stats = {
             'stdp_events': 0,
             'weight_changes': 0,
@@ -362,11 +415,27 @@ class LearningEngine:
             'energy_modulated_events': 0
         }
     def get_memory_trace_count(self) -> int:
+        """
+        Get the current number of active memory traces.
+
+        Returns:
+            Number of memory traces
+        """
         return len(self.memory_traces)
 
 
 def calculate_learning_efficiency(graph: Any) -> float:
+    """
+    Calculate the learning efficiency of the neural network.
 
+    Measures the average synaptic weight as a proxy for learning efficiency.
+
+    Args:
+        graph: The graph object to analyze
+
+    Returns:
+        Efficiency score between 0.0 and 1.0
+    """
     if not hasattr(graph, 'edge_attributes') or not graph.edge_attributes:
         return 0.0
     total_weights = sum(edge.weight for edge in graph.edge_attributes)
@@ -376,7 +445,18 @@ def calculate_learning_efficiency(graph: Any) -> float:
 
 
 def detect_learning_patterns(graph: Any) -> Dict[str, Any]:
+    """
+    Detect learning patterns in the neural network.
 
+    Analyzes weight variance and edge type distribution to identify
+    emergent learning patterns.
+
+    Args:
+        graph: The graph object to analyze
+
+    Returns:
+        Dictionary with pattern detection results
+    """
     if not hasattr(graph, 'edge_attributes') or not graph.edge_attributes:
         return {
             'patterns_detected': 0,

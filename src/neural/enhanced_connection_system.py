@@ -507,15 +507,15 @@ class EnhancedConnectionSystem:
         """Get connection statistics with thread safety."""
         with self._lock:
             try:
-                stats = self.stats.copy()
-                stats['neuromodulators'] = self.neuromodulators.copy()
-                stats['active_connections'] = sum(1 for c in self.connections if c.active)
-                stats['memory_usage_mb'] = (
+                stats_copy = self.stats.copy()
+                stats_copy['neuromodulators'] = self.neuromodulators.copy()
+                stats_copy['active_connections'] = sum(1 for c in self.connections if c.active)
+                stats_copy['memory_usage_mb'] = (
                     len(self.connections) * 0.1 +  # Rough estimate per connection
                     len(self.connection_index) * 0.01 +  # Per index entry
                     len(self.node_connections) * 0.05  # Per node entry
                 )
-                return stats
+                return stats_copy
             except (ValueError, TypeError, AttributeError, RuntimeError) as e:
                 log_step("Error getting connection statistics", error=str(e))
                 return {}

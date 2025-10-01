@@ -9,7 +9,7 @@ log_lock = Lock()
 
 
 def append_log_line(line):
-    global log_lines
+    global log_lines  # pylint: disable=global-statement
     with log_lock:
         log_lines.append(line)
         if len(log_lines) > MAX_LOG_LINES:
@@ -27,7 +27,7 @@ class UILogHandler(logging.Handler):
             append_log_line(msg)
             if self.ui_callback:
                 self.ui_callback(msg)
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             print(f"ERROR in UILogHandler.emit: {e}")
 
 
@@ -50,12 +50,12 @@ def log_runtime(func):
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
-        logging.info(f"[RUNTIME] Entering {func.__name__}")
+        logging.info("[RUNTIME] Entering %s", func.__name__)
         start = time.perf_counter()
         result = func(*args, **kwargs)
         end = time.perf_counter()
         elapsed = (end - start) * 1000
-        logging.info(f"[RUNTIME] Exiting {func.__name__} (runtime: {elapsed:.2f} ms)")
+        logging.info("[RUNTIME] Exiting %s (runtime: %.2f ms)", func.__name__, elapsed)
         return result
     return wrapper
 

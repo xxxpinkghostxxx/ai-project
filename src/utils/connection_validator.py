@@ -38,9 +38,10 @@ class ConnectionValidator:
             'warnings_issued': 0
         }
 
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
     def validate_connection(self, graph, source_id: int, target_id: int,
-                          connection_type: str = 'excitatory',
-                          weight: float = 1.0) -> Dict[str, Any]:
+                           connection_type: str = 'excitatory',
+                           weight: float = 1.0) -> Dict[str, Any]:
         """Comprehensive validation of a connection before creation."""
         with self._lock:
             self._stats['validations_performed'] += 1
@@ -188,7 +189,7 @@ class ConnectionValidator:
 
         return result
 
-    def _check_graph_capacity(self, graph, source_id: int, target_id: int) -> Dict[str, List[str]]:
+    def _check_graph_capacity(self, graph, _source_id: int, _target_id: int) -> Dict[str, List[str]]:
         """Check if adding this connection would exceed graph capacity."""
         result = {'warnings': [], 'suggestions': []}
 
@@ -274,12 +275,14 @@ class ConnectionValidator:
 
 
 # Global instance
+# pylint: disable=invalid-name
 _connection_validator_instance = None
 _connection_validator_lock = threading.Lock()
 
 
 def get_connection_validator() -> ConnectionValidator:
     """Get the global connection validator instance."""
+    # pylint: disable=global-statement
     global _connection_validator_instance
     if _connection_validator_instance is None:
         with _connection_validator_lock:

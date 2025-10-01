@@ -26,8 +26,8 @@ class OptimizationConfig:
 class OptimizationApplier:
     """Applies comprehensive optimizations to the neural simulation system."""
 
-    def __init__(self, config: OptimizationConfig = None):
-        self.config = config or OptimizationConfig()
+    def __init__(self, config_param: OptimizationConfig = None):
+        self.config = config_param or OptimizationConfig()
         self.applied_optimizations: List[str] = []
         self.performance_metrics: Dict[str, Any] = {}
 
@@ -79,12 +79,12 @@ class OptimizationApplier:
                 self._setup_performance_monitoring()
                 results['applied_optimizations'].append('performance_monitoring')
 
-            logging.info(f"Applied {len(results['applied_optimizations'])} optimizations successfully")
+            logging.info("Applied %d optimizations successfully", len(results['applied_optimizations']))
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             results['success'] = False
             results['errors'].append(str(e))
-            logging.error(f"Failed to apply optimizations: {e}")
+            logging.error("Failed to apply optimizations: %s", e)
 
         return results
 
@@ -106,21 +106,16 @@ class OptimizationApplier:
             improvement = 0.3  # 30% improvement estimate
             self.applied_optimizations.append('lazy_loading')
 
-            logging.info(".3f")
+            logging.info("Lazy loading optimization applied with %.3f improvement", lazy_load_time)
             return improvement
 
-        except Exception as e:
-            logging.error(f"Lazy loading optimization failed: {e}")
+        except Exception as e:  # pylint: disable=broad-except
+            logging.error("Lazy loading optimization failed: %s", e)
             return 0.0
 
     def _apply_caching_optimizations(self) -> Dict[str, float]:
         """Apply caching optimizations."""
         try:
-            from src.utils.performance_cache import \
-                get_performance_cache_manager
-
-            cache_manager = get_performance_cache_manager()
-
             # Configure cache settings
             # Note: Actual cache configuration would be done in the cache manager
 
@@ -134,8 +129,8 @@ class OptimizationApplier:
             logging.info("Applied caching optimizations")
             return improvements
 
-        except Exception as e:
-            logging.error(f"Caching optimization failed: {e}")
+        except Exception as e:  # pylint: disable=broad-except
+            logging.error("Caching optimization failed: %s", e)
             return {}
 
     def _apply_batch_processing(self) -> float:
@@ -147,11 +142,11 @@ class OptimizationApplier:
             batch_efficiency = 0.35  # 35% efficiency improvement estimate
             self.applied_optimizations.append('batch_processing')
 
-            logging.info(".1f")
+            logging.info("Batch processing optimization applied with %.1f efficiency", batch_efficiency)
             return batch_efficiency
 
-        except Exception as e:
-            logging.error(f"Batch processing optimization failed: {e}")
+        except Exception as e:  # pylint: disable=broad-except
+            logging.error("Batch processing optimization failed: %s", e)
             return 0.0
 
     def _apply_memory_optimizations(self) -> float:
@@ -162,7 +157,7 @@ class OptimizationApplier:
             from src.utils.static_allocator import get_static_allocator
 
             # Initialize memory systems
-            static_allocator = get_static_allocator()
+            _static_allocator = get_static_allocator()
             memory_pool_manager = get_memory_pool_manager()
 
             # Configure memory pools
@@ -172,11 +167,11 @@ class OptimizationApplier:
             memory_savings = 0.2  # 20% memory savings estimate
             self.applied_optimizations.append('memory_optimization')
 
-            logging.info(".1f")
+            logging.info("Memory optimization applied with %.1f savings", memory_savings)
             return memory_savings
 
-        except Exception as e:
-            logging.error(f"Memory optimization failed: {e}")
+        except Exception as e:  # pylint: disable=broad-except
+            logging.error("Memory optimization failed: %s", e)
             return 0.0
 
     def _apply_spatial_optimizations(self) -> float:
@@ -185,17 +180,17 @@ class OptimizationApplier:
             from src.neural.optimized_node_manager import \
                 get_optimized_node_manager
 
-            node_manager = get_optimized_node_manager()
+            _node_manager = get_optimized_node_manager()
 
             # Spatial optimizations are built into the optimized node manager
             spatial_improvement = 0.5  # 50% improvement for spatial queries
             self.applied_optimizations.append('spatial_indexing')
 
-            logging.info(".1f")
+            logging.info("Spatial optimization applied with %.1f improvement", spatial_improvement)
             return spatial_improvement
 
-        except Exception as e:
-            logging.error(f"Spatial optimization failed: {e}")
+        except Exception as e:  # pylint: disable=broad-except
+            logging.error("Spatial optimization failed: %s", e)
             return 0.0
 
     def _setup_performance_monitoring(self):
@@ -204,13 +199,13 @@ class OptimizationApplier:
             from .unified_performance_system import \
                 initialize_performance_monitoring
 
-            monitor = initialize_performance_monitoring(update_interval=1.0)
+            _monitor = initialize_performance_monitoring(update_interval=1.0)
             self.applied_optimizations.append('performance_monitoring')
             
             logging.info("Performance monitoring enabled via unified system")
 
-        except Exception as e:
-            logging.error(f"Performance monitoring setup failed: {e}")
+        except Exception as e:  # pylint: disable=broad-except
+            logging.error("Performance monitoring setup failed: %s", e)
 
     def get_optimization_summary(self) -> str:
         """Generate a summary of applied optimizations."""
@@ -218,22 +213,22 @@ class OptimizationApplier:
         summary_lines.append("=" * 60)
         summary_lines.append("NEURAL SIMULATION OPTIMIZATION SUMMARY")
         summary_lines.append("=" * 60)
-        summary_lines.append(f"Applied Optimizations: {len(self.applied_optimizations)}")
+        summary_lines.append("Applied Optimizations: %d" % len(self.applied_optimizations))
         summary_lines.append("")
 
         if self.applied_optimizations:
             summary_lines.append("Applied Optimizations:")
             for opt in self.applied_optimizations:
-                summary_lines.append(f"  ✓ {opt.replace('_', ' ').title()}")
+                summary_lines.append("  ✓ %s" % opt.replace('_', ' ').title())
             summary_lines.append("")
 
         summary_lines.append("Configuration:")
-        summary_lines.append(f"  Lazy Loading: {self.config.use_lazy_loading}")
-        summary_lines.append(f"  Caching: {self.config.use_caching}")
-        summary_lines.append(f"  Batch Processing: {self.config.use_batch_processing}")
-        summary_lines.append(f"  Batch Size: {self.config.batch_size}")
-        summary_lines.append(f"  Cache Size: {self.config.cache_size}")
-        summary_lines.append(f"  Max Nodes: {self.config.max_nodes}")
+        summary_lines.append("  Lazy Loading: %s" % self.config.use_lazy_loading)
+        summary_lines.append("  Caching: %s" % self.config.use_caching)
+        summary_lines.append("  Batch Processing: %s" % self.config.use_batch_processing)
+        summary_lines.append("  Batch Size: %d" % self.config.batch_size)
+        summary_lines.append("  Cache Size: %d" % self.config.cache_size)
+        summary_lines.append("  Max Nodes: %d" % self.config.max_nodes)
         summary_lines.append("")
 
         summary_lines.append("Expected Performance Improvements:")
@@ -256,7 +251,7 @@ class OptimizationApplier:
         """Run a quick performance test to validate optimizations."""
         try:
             from src.utils.performance_benchmark import \
-                run_comprehensive_benchmark
+                run_comprehensive_benchmark  # pylint: disable=import-outside-toplevel
 
             benchmark = run_comprehensive_benchmark()
 
@@ -272,25 +267,27 @@ class OptimizationApplier:
                     'test_count': len(benchmark.results),
                     'benchmark_results': [r.__dict__ for r in benchmark.results[-5:]]  # Last 5 results
                 }
+            else:
+                return {}
 
-        except Exception as e:
-            logging.error(f"Performance test failed: {e}")
+        except Exception as e:  # pylint: disable=broad-except
+            logging.error("Performance test failed: %s", e)
             return {'error': str(e)}
 
-def apply_optimizations(config: OptimizationConfig = None) -> OptimizationApplier:
+def apply_optimizations(config_param: OptimizationConfig = None) -> OptimizationApplier:
     """Convenience function to apply all optimizations."""
-    applier = OptimizationApplier(config)
-    results = applier.apply_all_optimizations()
+    optimizer = OptimizationApplier(config_param)
+    results = optimizer.apply_all_optimizations()
 
     if results['success']:
         print("✓ All optimizations applied successfully!")
-        print(f"Applied {len(results['applied_optimizations'])} optimizations")
+        print("Applied %d optimizations" % len(results['applied_optimizations']))
     else:
         print("✗ Some optimizations failed to apply")
         for error in results['errors']:
-            print(f"  Error: {error}")
+            print("  Error: %s" % error)
 
-    return applier
+    return optimizer
 
 if __name__ == "__main__":
     print("Applying Neural Simulation Performance Optimizations...")
@@ -318,11 +315,11 @@ if __name__ == "__main__":
 
     if 'error' not in test_results:
         print("Performance Test Results:")
-        print(".2f")
-        print(".1f")
-        print(f"  Tests Run: {test_results['test_count']}")
+        print("  Average Ops/Sec: %.2f" % test_results['average_ops_per_second'])
+        print("  Total Memory: %.1f MB" % test_results['total_memory_usage_mb'])
+        print("  Tests Run: %d" % test_results['test_count'])
     else:
-        print(f"Performance test failed: {test_results['error']}")
+        print("Performance test failed: %s" % test_results['error'])
 
     print("\nOptimization application completed!")
 

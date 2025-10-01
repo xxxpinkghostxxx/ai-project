@@ -201,7 +201,7 @@ class GraphIntegrityManager:
             content = '|'.join(hash_components)
             return hashlib.sha256(content.encode()).hexdigest()[:16]  # Short hash for efficiency
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             log_step(f"Error calculating graph hash: {e}")
             return "error_hash"
 
@@ -217,7 +217,7 @@ class GraphIntegrityManager:
             content = '|'.join(state_components)
             return hashlib.sha256(content.encode()).hexdigest()[:16]
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             log_step(f"Error calculating ID manager hash: {e}")
             return "error_hash"
 
@@ -289,18 +289,18 @@ class GraphIntegrityManager:
 
 
 # Global instance
-_integrity_manager_instance = None
-_integrity_manager_lock = threading.Lock()
+_INTEGRITY_MANAGER_INSTANCE = None
+_INTEGRITY_MANAGER_LOCK = threading.Lock()
 
 
 def get_graph_integrity_manager() -> GraphIntegrityManager:
     """Get the global graph integrity manager instance."""
-    global _integrity_manager_instance
-    if _integrity_manager_instance is None:
-        with _integrity_manager_lock:
-            if _integrity_manager_instance is None:
-                _integrity_manager_instance = GraphIntegrityManager()
-    return _integrity_manager_instance
+    global _INTEGRITY_MANAGER_INSTANCE  # pylint: disable=global-statement
+    if _INTEGRITY_MANAGER_INSTANCE is None:
+        with _INTEGRITY_MANAGER_LOCK:
+            if _INTEGRITY_MANAGER_INSTANCE is None:
+                _INTEGRITY_MANAGER_INSTANCE = GraphIntegrityManager()
+    return _INTEGRITY_MANAGER_INSTANCE
 
 
 

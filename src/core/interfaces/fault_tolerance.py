@@ -7,18 +7,19 @@ system reliability in distributed neural simulation environments.
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
+from dataclasses import dataclass, field
 
 
+@dataclass
 class FailureEvent:
     """Represents a system failure event."""
 
-    def __init__(self, failure_type: str, affected_component: str, severity: str = "medium"):
-        self.failure_type = failure_type  # "node_failure", "network_failure", "service_failure"
-        self.affected_component = affected_component
-        self.severity = severity  # "low", "medium", "high", "critical"
-        self.timestamp = 0.0
-        self.details: Dict[str, Any] = {}
-        self.recovery_actions: List[str] = []
+    failure_type: str  # "node_failure", "network_failure", "service_failure"
+    affected_component: str
+    severity: str = "medium"  # "low", "medium", "high", "critical"
+    timestamp: float = 0.0
+    details: Dict[str, Any] = field(default_factory=dict)
+    recovery_actions: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert failure event to dictionary."""
