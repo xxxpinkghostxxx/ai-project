@@ -1,6 +1,6 @@
 from dataclasses import dataclass
-from typing import Optional
-from utils.error_handler import ErrorHandler
+from typing import Any, List, Optional, Self
+from project.utils.error_handler import ErrorHandler
 
 @dataclass
 class SystemState:
@@ -14,21 +14,21 @@ class SystemState:
     connection_count: int = 0
 
 class StateManager:
-    def __init__(self):
+    def __init__(self) -> None:
         self.state = SystemState()
-        self._observers = []
+        self._observers: List[Any] = []
 
-    def add_observer(self, observer):
+    def add_observer(self: Self, observer: Any) -> None:
         """Add an observer to be notified of state changes"""
         if observer not in self._observers:
             self._observers.append(observer)
 
-    def remove_observer(self, observer):
+    def remove_observer(self: Self, observer: Any) -> None:
         """Remove an observer"""
         if observer in self._observers:
             self._observers.remove(observer)
 
-    def _notify_observers(self):
+    def _notify_observers(self: Self) -> None:
         """Notify all observers of state change"""
         for observer in self._observers:
             try:
@@ -36,7 +36,7 @@ class StateManager:
             except Exception as e:
                 ErrorHandler.log_warning(f"Error notifying observer: {str(e)}")
 
-    def toggle_sensory(self):
+    def toggle_sensory(self: Self) -> Optional[bool]:
         """Toggle sensory input state"""
         try:
             self.state.sensory_enabled = not self.state.sensory_enabled
@@ -46,7 +46,7 @@ class StateManager:
             ErrorHandler.show_error("State Error", f"Failed to toggle sensory: {str(e)}")
             return None
 
-    def toggle_suspend(self):
+    def toggle_suspend(self: Self) -> Optional[bool]:
         """Toggle system suspension state"""
         try:
             self.state.suspended = not self.state.suspended
@@ -56,7 +56,7 @@ class StateManager:
             ErrorHandler.show_error("State Error", f"Failed to toggle suspend: {str(e)}")
             return None
 
-    def update_metrics(self, total_energy: float, node_count: int, connection_count: int):
+    def update_metrics(self: Self, total_energy: float, node_count: int, connection_count: int) -> None:
         """Update system metrics"""
         try:
             self.state.total_energy = total_energy
@@ -66,14 +66,14 @@ class StateManager:
         except Exception as e:
             ErrorHandler.show_error("State Error", f"Failed to update metrics: {str(e)}")
 
-    def get_state(self) -> SystemState:
+    def get_state(self: Self) -> SystemState:
         """Get current system state"""
         return self.state
 
-    def reset(self):
+    def reset(self: Self) -> None:
         """Reset system state to defaults"""
         try:
             self.state = SystemState()
             self._notify_observers()
         except Exception as e:
-            ErrorHandler.show_error("State Error", f"Failed to reset state: {str(e)}") 
+            ErrorHandler.show_error("State Error", f"Failed to reset state: {str(e)}")

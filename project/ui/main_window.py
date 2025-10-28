@@ -1,13 +1,19 @@
 import tkinter as tk
 import numpy as np
 from PIL import Image
-from utils.error_handler import ErrorHandler
-from utils.config_manager import ConfigManager
-from system.state_manager import StateManager
-from .resource_manager import UIResourceManager
+from PIL.Image import Resampling
+import logging
+from typing import Any, Dict, Optional, Self
+from numpy.typing import NDArray
+
+logger = logging.getLogger(__name__)
+from project.utils.error_handler import ErrorHandler
+from project.utils.config_manager import ConfigManager
+from project.system.state_manager import StateManager
+from project.ui.resource_manager import UIResourceManager
 
 class MainWindow:
-    def __init__(self, config_manager: ConfigManager, state_manager: StateManager):
+    def __init__(self, config_manager: ConfigManager, state_manager: StateManager) -> None:
         self.config_manager = config_manager
         self.state_manager = state_manager
         self.resource_manager = UIResourceManager()
@@ -15,7 +21,7 @@ class MainWindow:
 
         # Create main window
         self.window = tk.Tk()
-        self.window.title('DGL AI Workspace Window')
+        self.window.title('PyTorch Geometric AI Workspace Window')
         self.window.configure(bg='#222222')
 
         # Create main frame
@@ -33,17 +39,19 @@ class MainWindow:
 
         # Create metrics panel
         self.metrics_label = tk.Label(
-            self.left_frame, 
-            text="", 
-            fg='#e0e0e0', 
-            bg='#222222', 
-            font=('Consolas', 11, 'bold'), 
+            self.left_frame,
+            text="",
+            fg='#e0e0e0',
+            bg='#222222',
+            font=('Consolas', 11, 'bold'),
             justify='left'
         )
         self.metrics_label.pack(fill='x', pady=(0, 5))
 
         # Create sensory canvas
         sensory_config = self.config_manager.get_config('sensory')
+        if sensory_config is None:
+            raise ValueError("Sensory configuration not found")
         self.sensory_canvas = tk.Canvas(
             self.left_frame,
             width=sensory_config['canvas_width'],
@@ -90,7 +98,7 @@ class MainWindow:
         # Register as state observer
         self.state_manager.add_observer(self)
 
-    def _create_control_buttons(self):
+    def _create_control_buttons(self: Self) -> None:
         """Create control buttons"""
         # Suspend button
         self.suspend_button = tk.Button(
@@ -148,7 +156,7 @@ class MainWindow:
         )
         self.config_button.pack(fill='x', padx=4, pady=6)
 
-    def _create_interval_slider(self):
+    def _create_interval_slider(self: Self) -> None:
         """Create update interval slider"""
         interval_frame = tk.Frame(self.right_frame, bg='#222222')
         interval_frame.pack(fill='x', padx=4, pady=6)
@@ -174,7 +182,7 @@ class MainWindow:
         self.interval_slider.set(self.config_manager.get_config('system', 'update_interval'))
         self.interval_slider.pack(side='left', fill='x', expand=True)
 
-    def _toggle_suspend(self):
+    def _toggle_suspend(self: Self) -> None:
         """Toggle system suspension"""
         if self.state_manager.toggle_suspend():
             self.suspend_button.config(
@@ -191,12 +199,12 @@ class MainWindow:
             )
             self.status_var.set("System resumed.")
 
-    def _pulse_energy(self):
+    def _pulse_energy(self: Self) -> None:
         """Pulse energy into the system"""
         # This will be implemented in the neural system
         self.status_var.set("Last pulse: +10 energy")
 
-    def _toggle_sensory(self):
+    def _toggle_sensory(self: Self) -> None:
         """Toggle sensory input"""
         if self.state_manager.toggle_sensory():
             self.sensory_button.config(
@@ -211,10 +219,10 @@ class MainWindow:
             )
             self.status_var.set("Sensory input disabled.")
 
-    def _open_config_panel(self):
+    def _open_config_panel(self: Self) -> None:
         """Open configuration panel"""
 
-    def _update_interval_changed(self, value):
+    def _update_interval_changed(self: Self, value: str) -> None:
         """Handle update interval change"""
         try:
             interval = int(float(value))
@@ -223,11 +231,11 @@ class MainWindow:
         except Exception as e:
             ErrorHandler.show_error("Config Error", f"Failed to update interval: {str(e)}")
 
-    def _on_resize(self, event):
+    def _on_resize(self: Self, event: tk.Event) -> None:
         """Handle window resize"""
         self.update_workspace_canvas()
 
-    def _on_closing(self):
+    def _on_closing(self: Self) -> None:
         """Handle window closing"""
         try:
             self.resource_manager.cleanup()
@@ -236,12 +244,14 @@ class MainWindow:
             ErrorHandler.show_error("Close Error", f"Error during cleanup: {str(e)}")
             self.window.destroy()
 
-    def update_workspace_canvas(self, workspace_data=None):
+    def update_workspace_canvas(self: Self, workspace_data: Optional[NDArray[Any]] = None) -> None:
         """Update workspace canvas with new data"""
         try:
             if workspace_data is None:
                 # Create empty workspace
                 workspace_config = self.config_manager.get_config('workspace')
+                if workspace_config is None:
+                    raise ValueError("Workspace configuration not found")
                 workspace_data = np.zeros((workspace_config['height'], workspace_config['width']))
 
             # Convert to image
@@ -255,7 +265,7 @@ class MainWindow:
             if canvas_w > 1 and canvas_h > 1:
                 img = Image.fromarray(arr_rgb, mode='RGB').resize(
                     (canvas_w, canvas_h),
-                    resample=Image.NEAREST
+                    resample=Resampling.NEAREST
                 )
             else:
                 img = Image.fromarray(arr_rgb, mode='RGB')
@@ -267,7 +277,7 @@ class MainWindow:
         except Exception as e:
             ErrorHandler.show_error("Canvas Error", f"Failed to update workspace: {str(e)}")
 
-    def update_sensory_canvas(self, sensory_data):
+    def update_sensory_canvas(self: Self, sensory_data: NDArray[Any]) -> None:
         """Update sensory canvas with new data"""
         try:
             # Convert to image
@@ -277,11 +287,13 @@ class MainWindow:
 
             # Get canvas size
             sensory_config = self.config_manager.get_config('sensory')
+            if sensory_config is None:
+                raise ValueError("Sensory configuration not found")
 
             # Create and resize image
             img = Image.fromarray(arr_rgb, mode='RGB').resize(
                 (sensory_config['canvas_width'], sensory_config['canvas_height']),
-                resample=Image.NEAREST
+                resample=Resampling.NEAREST
             )
 
             # Update canvas
@@ -291,26 +303,29 @@ class MainWindow:
         except Exception as e:
             ErrorHandler.show_error("Canvas Error", f"Failed to update sensory: {str(e)}")
 
-    def update_metrics_panel(self, metrics):
+    def update_metrics_panel(self: Self, metrics: Dict[str, Any]) -> None:
         """Update metrics panel with new data"""
         try:
+            if metrics is None:
+                self.metrics_label.config(text="Metrics not available")
+                return
             metrics_text = (
-                f"Total Energy: {metrics['total_energy']:.2f}\n"
-                f"Sensory Nodes: {metrics['sensory_node_count']}\n"
-                f"Dynamic Nodes: {metrics['dynamic_node_count']}\n"
-                f"Workspace Nodes: {metrics['workspace_node_count']}\n"
-                f"Avg Dynamic Energy: {metrics['avg_dynamic_energy']:.2f}\n"
-                f"Node Births: {metrics['node_births']} (total {metrics['total_node_births']}) | "
-                f"Node Deaths: {metrics['node_deaths']} (total {metrics['total_node_deaths']})\n"
-                f"Conn Births: {metrics['conn_births']} (total {metrics['total_conn_births']}) | "
-                f"Conn Deaths: {metrics['conn_deaths']} (total {metrics['total_conn_deaths']})\n"
-                f"Connections: {metrics['connection_count']}"
+                f"Total Energy: {metrics.get('total_energy', 0):.2f}\n"
+                f"Sensory Nodes: {metrics.get('sensory_node_count', 0)}\n"
+                f"Dynamic Nodes: {metrics.get('dynamic_node_count', 0)}\n"
+                f"Workspace Nodes: {metrics.get('workspace_node_count', 0)}\n"
+                f"Avg Dynamic Energy: {metrics.get('avg_dynamic_energy', 0):.2f}\n"
+                f"Node Births: {metrics.get('node_births', 0)} (total {metrics.get('total_node_births', 0)}) | "
+                f"Node Deaths: {metrics.get('node_deaths', 0)} (total {metrics.get('total_node_deaths', 0)})\n"
+                f"Conn Births: {metrics.get('conn_births', 0)} (total {metrics.get('total_conn_births', 0)}) | "
+                f"Conn Deaths: {metrics.get('conn_deaths', 0)} (total {metrics.get('total_conn_deaths', 0)})\n"
+                f"Connections: {metrics.get('connection_count', 0)}"
             )
             self.metrics_label.config(text=metrics_text)
         except Exception as e:
             ErrorHandler.show_error("Metrics Error", f"Failed to update metrics: {str(e)}")
 
-    def on_state_change(self, state):
+    def on_state_change(self: Self, state: Any) -> None:
         """Handle state changes"""
         try:
             # Update UI based on state
@@ -338,14 +353,14 @@ class MainWindow:
         except Exception as e:
             ErrorHandler.show_error("State Error", f"Failed to update UI state: {str(e)}")
 
-    def start_system(self, system, capture):
+    def start_system(self: Self, system: Any, capture: Any) -> None:
         """Start the system and capture components"""
         self.system = system
         self.capture = capture
         self.frame_counter = 0
         self.window.after(100, self.startup_loop)
 
-    def periodic_update(self):
+    def periodic_update(self: Self) -> None:
         """Periodic update function"""
         if not self.state_manager.get_state().suspended:
             try:
@@ -375,11 +390,12 @@ class MainWindow:
                 self.update_workspace_canvas()
                 metrics = self.system.get_metrics()
                 self.update_metrics_panel(metrics)
-                self.state_manager.update_metrics(
-                    metrics['total_energy'],
-                    metrics['dynamic_node_count'],
-                    metrics['connection_count']
-                )
+                if metrics is not None:
+                    self.state_manager.update_metrics(
+                        metrics.get('total_energy', 0),
+                        metrics.get('dynamic_node_count', 0),
+                        metrics.get('connection_count', 0)
+                    )
 
             except Exception as e:
                 logger.error(f"Error during update: {e}")
@@ -389,7 +405,7 @@ class MainWindow:
         update_interval = self.config_manager.get_config('system', 'update_interval')
         self.window.after(update_interval, self.periodic_update)
 
-    def startup_loop(self):
+    def startup_loop(self: Self) -> None:
         """Startup loop function"""
         try:
             # Set batch size for startup
@@ -403,6 +419,14 @@ class MainWindow:
 
             # Apply connection worker results
             self.system.apply_connection_worker_results()
+
+            # Update state manager with metrics if available
+            if metrics is not None:
+                self.state_manager.update_metrics(
+                    metrics.get('total_energy', 0),
+                    metrics.get('dynamic_node_count', 0),
+                    metrics.get('connection_count', 0)
+                )
 
             # Queue connection tasks
             self.frame_counter += 1
@@ -423,6 +447,6 @@ class MainWindow:
             logger.error(f"Error during startup: {e}")
             ErrorHandler.show_error("Startup Error", f"Error during startup: {str(e)}")
 
-    def run(self):
+    def run(self: Self) -> None:
         """Start the main window"""
-        self.window.mainloop() 
+        self.window.mainloop()

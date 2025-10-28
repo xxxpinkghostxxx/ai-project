@@ -2,12 +2,13 @@ import os
 import json
 import shutil
 from datetime import datetime
+from typing import Any, Dict, Optional, Union
 from .error_handler import ErrorHandler
 
 class ConfigManager:
-    def __init__(self, config_file='dgl_config.json'):
+    def __init__(self: 'ConfigManager', config_file: str = 'pyg_config.json') -> None:
         self.config_file = config_file
-        self.config = {
+        self.config: Dict[str, Any] = {
             'version': '1.0',
             'sensory': {
                 'enabled': True,
@@ -32,7 +33,7 @@ class ConfigManager:
         self.load_config()
 
     @staticmethod
-    def validate_config(config):
+    def validate_config(config: Dict[str, Any]) -> bool:
         """Validate configuration values"""
         try:
             # Validate version
@@ -68,7 +69,7 @@ class ConfigManager:
             ErrorHandler.show_error("Config Validation Error", str(e))
             return False
 
-    def create_backup(self):
+    def create_backup(self: 'ConfigManager') -> bool:
         """Create a backup of the current config file"""
         if os.path.exists(self.config_file):
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -82,7 +83,7 @@ class ConfigManager:
                 return False
         return True
 
-    def save_config(self):
+    def save_config(self: 'ConfigManager') -> bool:
         """Save configuration to file with backup"""
         try:
             if (
@@ -98,7 +99,7 @@ class ConfigManager:
             ErrorHandler.show_error("Config Save Error", f"Failed to save config: {str(e)}")
             return False
 
-    def load_config(self):
+    def load_config(self: 'ConfigManager') -> bool:
         """Load configuration from file"""
         try:
             if os.path.exists(self.config_file):
@@ -113,29 +114,33 @@ class ConfigManager:
             ErrorHandler.show_error("Config Load Error", f"Failed to load config: {str(e)}")
             return False
 
-    def update_config(self, section, key, value):
+    def update_config(self: 'ConfigManager', section: str, key: str, value: Any) -> bool:
         """Update a configuration value"""
         try:
-            if section in self.config and key in self.config[section]:
-                old_value = self.config[section][key]
-                self.config[section][key] = value
-                if not self.validate_config(self.config):
-                    self.config[section][key] = old_value
-                    return False
-                return self.save_config()
+            if section in self.config:
+                section_dict = self.config[section]
+                if isinstance(section_dict, dict) and key in section_dict:
+                    old_value = section_dict[key]
+                    section_dict[key] = value
+                    if not self.validate_config(self.config):
+                        section_dict[key] = old_value
+                        return False
+                    return self.save_config()
             return False
         except Exception as e:
             ErrorHandler.show_error("Config Update Error", f"Failed to update config: {str(e)}")
             return False
 
-    def get_config(self, section=None, key=None):
+    def get_config(self: 'ConfigManager', section: Optional[str] = None, key: Optional[str] = None) -> Any:
         """Get configuration value(s)"""
         try:
             if section is None:
                 return self.config
             if key is None:
-                return self.config.get(section, {})
-            return self.config.get(section, {}).get(key)
+                section_config = self.config.get(section, {})
+                return section_config
+            section_config = self.config.get(section, {})
+            return section_config.get(key) if isinstance(section_config, dict) else None
         except Exception as e:
             ErrorHandler.show_error("Config Get Error", f"Failed to get config value: {str(e)}")
-            return None 
+            return None

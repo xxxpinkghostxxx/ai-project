@@ -1,1 +1,1 @@
-"""System modules for the DGL Neural System.""" 
+"""System modules for the PyTorch Geometric Neural System."""

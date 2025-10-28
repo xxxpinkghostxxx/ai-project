@@ -2,20 +2,24 @@ import threading
 import numpy as np
 import cv2
 import mss
-from config import SENSOR_WIDTH, SENSOR_HEIGHT
+from project.config import SENSOR_WIDTH, SENSOR_HEIGHT
 import time
 import queue
-import config
+import project.config as config
 import logging
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple, Union, Any, Type
+from numpy.typing import NDArray
+import types
 
 logger = logging.getLogger(__name__)
 
 # Pillow import only if needed
 try:
     from PIL import ImageGrab
+    PIL_AVAILABLE = True
 except ImportError:
-    ImageGrab = None
+    ImageGrab = None  # type: ignore
+    PIL_AVAILABLE = False
     logger.warning("PIL.ImageGrab not available, falling back to mss")
 
 class ThreadedScreenCapture:
@@ -25,33 +29,33 @@ class ThreadedScreenCapture:
         # Use adaptive polling interval from config if not specified
         self.interval = interval if interval is not None else config.PERIODIC_UPDATE_MS / 1000.0
         self._frame_lock = threading.Lock()
-        self._latest_frame = np.zeros((height, width), dtype=np.uint8)
+        self._latest_frame: NDArray[Any] = np.zeros((height, width), dtype=np.uint8)
         self._stop_event = threading.Event()
         self._thread = threading.Thread(target=self._capture_loop, daemon=True)
         # Async queue for frames with size limit
-        self.frame_queue = queue.Queue(maxsize=config.SCREEN_CAPTURE_QUEUE_SIZE)
+        self.frame_queue: queue.Queue[NDArray[Any]] = queue.Queue(maxsize=int(config.SCREEN_CAPTURE_QUEUE_SIZE))
         self.frame_counter = 0
         self.drop_counter = 0
         self._error_count = 0
         self._max_retries = 3
         self._retry_delay = 1.0  # seconds
 
-    def __enter__(self):
+    def __enter__(self) -> 'ThreadedScreenCapture':
         """Context manager entry"""
         self.start()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[types.TracebackType]) -> None:
         """Context manager exit"""
         self.stop()
 
-    def start(self):
+    def start(self) -> None:
         """Start the capture thread"""
         if not self._thread.is_alive():
             self._thread.start()
             logger.info("Screen capture thread started")
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop the capture thread"""
         self._stop_event.set()
         if self._thread.is_alive():
@@ -60,7 +64,7 @@ class ThreadedScreenCapture:
                 logger.warning("Screen capture thread did not stop gracefully")
         logger.info("Screen capture thread stopped")
 
-    def _capture_loop(self):
+    def _capture_loop(self) -> None:
         """Main capture loop with error handling and recovery"""
         with mss.mss() as sct:
             while not self._stop_event.is_set():
@@ -73,8 +77,8 @@ class ThreadedScreenCapture:
 
                     monitor = sct.monitors[1]  # Primary monitor
                     img = np.array(sct.grab(monitor))
-                    img = cv2.cvtColor(img, cv2.COLOR_BGRA2GRAY)
-                    img = cv2.resize(img, (self.width, self.height), interpolation=cv2.INTER_AREA)
+                    img = cv2.cvtColor(img, cv2.COLOR_BGRA2GRAY)  # type: ignore[attr-defined]
+                    img = cv2.resize(img, (int(self.width), int(self.height)), interpolation=cv2.INTER_AREA)  # type: ignore[attr-defined]
 
                     # Update latest frame
                     with self._frame_lock:
@@ -102,7 +106,7 @@ class ThreadedScreenCapture:
                 # Wait for next capture interval
                 self._stop_event.wait(self.interval)
 
-    def _update_frame_queue(self, frame: np.ndarray):
+    def _update_frame_queue(self, frame: NDArray[Any]) -> None:
         """Update the frame queue with proper error handling"""
         try:
             # Clear old frames
@@ -123,12 +127,12 @@ class ThreadedScreenCapture:
         except Exception as e:
             logger.error(f"Error updating frame queue: {e}")
 
-    def get_latest(self) -> Optional[np.ndarray]:
+    def get_latest(self) -> Optional[NDArray[Any]]:
         """Get the latest frame with thread safety"""
         with self._frame_lock:
-            return self._latest_frame.copy()
+            return self._latest_frame.copy() if self._latest_frame is not None else None
 
-    def get_next_frame(self, timeout: float = 0.01) -> Optional[np.ndarray]:
+    def get_next_frame(self, timeout: float = 0.01) -> Optional[NDArray[Any]]:
         """Get the next frame from the queue with timeout"""
         try:
             return self.frame_queue.get(timeout=timeout)
@@ -145,17 +149,18 @@ class ThreadedScreenCapture:
         """Get the current error count"""
         return self._error_count
 
-def capture_screen(resolution: Tuple[int, int] = (SENSOR_WIDTH, SENSOR_HEIGHT)) -> np.ndarray:
+def capture_screen(resolution: Tuple[int, int] = (SENSOR_WIDTH, SENSOR_HEIGHT)) -> NDArray[Any]:
     """Capture screen with fallback options"""
+    # No self parameter needed for module-level function
     start = time.time()
-    img = None
+    img: NDArray[Any]
     backend = 'none'
 
     try:
-        if ImageGrab is not None:
-            img = ImageGrab.grab()
-            img = img.resize(resolution)
-            img = np.array(img)
+        if PIL_AVAILABLE and ImageGrab is not None:
+            pil_img = ImageGrab.grab()
+            pil_img = pil_img.resize(resolution)
+            img = np.array(pil_img)
             if img.shape[-1] == 4:
                 img = img[..., :3]  # RGBA to RGB
             backend = 'pillow'
@@ -169,29 +174,39 @@ def capture_screen(resolution: Tuple[int, int] = (SENSOR_WIDTH, SENSOR_HEIGHT)) 
                     screenshot = sct.grab(monitor)
                     img = np.array(screenshot)
                     img = img[..., :3]  # BGRA to BGR
-                    img = cv2.resize(img, resolution)
+                    img = cv2.resize(img, tuple(resolution))  # type: ignore[attr-defined]
             backend = 'mss'
     except Exception as e:
         logger.error(f"Screen capture failed: {e}")
-        img = np.zeros((resolution[1], resolution[0], 3), dtype=np.uint8)
-
-    if img is None:
         img = np.zeros((resolution[1], resolution[0], 3), dtype=np.uint8)
 
     end = time.time()
     logger.debug(f"capture_screen ({backend}): shape={img.shape}, min={img.min()}, max={img.max()}, duration={end-start:.3f}s")
     return img
 
-def preprocess_image(image: np.ndarray) -> np.ndarray:
+def preprocess_image(image: NDArray[Any]) -> NDArray[Any]:
     """Preprocess image with error handling"""
+    # No self parameter needed for module-level function
     try:
         if len(image.shape) == 3:
-            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)  # type: ignore[attr-defined]
         else:
             gray = image
-        resized = cv2.resize(gray, (SENSOR_WIDTH, SENSOR_HEIGHT))
+        resized = cv2.resize(gray, (int(SENSOR_WIDTH), int(SENSOR_HEIGHT)))  # type: ignore[attr-defined]
         logger.debug(f"preprocess_image: shape={resized.shape}, min={resized.min()}, max={resized.max()}")
         return resized
     except Exception as e:
         logger.error(f"Image preprocessing failed: {e}")
-        return np.zeros((SENSOR_HEIGHT, SENSOR_WIDTH), dtype=np.uint8) 
+        return np.zeros((int(SENSOR_HEIGHT), int(SENSOR_WIDTH)), dtype=np.uint8)
+    """Preprocess image with error handling"""
+    try:
+        if len(image.shape) == 3:
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)  # type: ignore[attr-defined]
+        else:
+            gray = image
+        resized = cv2.resize(gray, (int(SENSOR_WIDTH), int(SENSOR_HEIGHT)))  # type: ignore[attr-defined]
+        logger.debug(f"preprocess_image: shape={resized.shape}, min={resized.min()}, max={resized.max()}")
+        return resized
+    except Exception as e:
+        logger.error(f"Image preprocessing failed: {e}")
+        return np.zeros((int(SENSOR_HEIGHT), int(SENSOR_WIDTH)), dtype=np.uint8)

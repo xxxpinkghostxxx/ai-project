@@ -1,5 +1,6 @@
 {
     "recommendations": [
-        "deepsourcecorp.deepsource-vscode"
+        "deepsourcecorp.deepsource-vscode",
+        "ms-python.vscode-python-envs"
     ]
 }

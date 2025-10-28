@@ -1,0 +1,22 @@
+{
+    "version": "1.0",
+    "sensory": {
+        "enabled": true,
+        "width": 64,
+        "height": 64,
+        "canvas_width": 192,
+        "canvas_height": 108
+    },
+    "workspace": {
+        "width": 16,
+        "height": 16,
+        "canvas_width": 800,
+        "canvas_height": 600
+    },
+    "system": {
+        "update_interval": 740,
+        "energy_pulse": 10.0,
+        "max_energy": 100.0,
+        "min_energy": 0.0
+    }
+}

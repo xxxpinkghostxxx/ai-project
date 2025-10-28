@@ -1,1 +1,1 @@
-"""UI modules for the DGL Neural System.""" 
+"""UI modules for the PyTorch Geometric Neural System."""

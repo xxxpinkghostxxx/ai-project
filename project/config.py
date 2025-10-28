@@ -71,7 +71,7 @@ BASE_ENERGY_GEN = 0.1  # Base energy generated per tick
 BASE_ENERGY_CONSUMPTION = 0.05  # Base energy consumed per tick
 
 # Node energy parameters
-NODE_ENERGY_CAP = 100.0  # Maximum energy a node can hold
+NODE_ENERGY_CAP = 100  # Maximum energy a node can hold
 NODE_DEATH_THRESHOLD = -10.0  # Node dies if energy falls below this
 NODE_SPAWN_THRESHOLD = 20.0  # Node can spawn new connections when above this
 NODE_ENERGY_INIT = 10.0  # Initial energy for new nodes
