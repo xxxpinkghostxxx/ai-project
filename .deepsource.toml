@@ -2,7 +2,19 @@ version = 1
 
 [[analyzers]]
 name = "javascript"
+<<<<<<< HEAD
 enabled = true
+=======
+
+  [analyzers.meta]
+  environment = ["nodejs"]
+
+[[analyzers]]
+name = "java"
+
+  [analyzers.meta]
+  runtime_version = "11"
+>>>>>>> 111abec848d9204bbc3134e5a06c2508c0a3e522
 
 [[analyzers]]
 name = "shell"
