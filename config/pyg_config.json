@@ -4,12 +4,8 @@
         "enabled": true,
         "width": 64,
         "height": 64,
-        "canvas_width": 64,
-        "canvas_height": 64,
-        "energy_gain": 4.0,
-        "energy_bias": 2.0,
-        "fanout": 3,
-        "warmup_frames": 60
+        "canvas_width": 192,
+        "canvas_height": 108
     },
     "workspace": {
         "width": 16,
@@ -34,15 +30,11 @@
         "error_threshold": 0.1
     },
     "system": {
-        "update_interval": 16,
+        "update_interval": 543,
         "energy_pulse": 10.0,
-        "max_energy": 244.0,
+        "max_energy": 100.0,
         "min_energy": 0.0,
         "frame_throttling": true,
-        "detailed_logging": true,
-        "conn_transfer_capacity": 1.5,
-        "growth_interval_frames": 2,
-        "cull_interval_frames": 3,
-        "device": "cuda"
+        "detailed_logging": false
     }
 }

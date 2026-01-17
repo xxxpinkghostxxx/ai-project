@@ -1,0 +1,15 @@
+[MASTER]
+jobs=4
+enable=all
+
+disable=
+   
+[MESSAGES CONTROL]
+confidence= HIGH,INFERENCE,INFERENCE_FAILURE
+
+[FORMAT]
+max-line-length=88
+expected-line-ending-format=LF
+
+[BASIC]
+good-names=i,j,k,ex,Run,_,x,y,z,_,fp,_,e,_,id,_,T,_,q,_,b,_,d,_,n,_,m,_,s,_,t,_,v,_,a,_,p,_,r,_,g,_,h,_,w,_,c,_,u

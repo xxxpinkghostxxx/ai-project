@@ -1,0 +1,43 @@
+# Core ML/AI Dependencies
+torch>=2.0.0
+torchvision>=0.15.0
+torch-geometric>=2.3.0
+
+# Scientific Computing
+numpy>=1.21.0
+
+# System Monitoring
+psutil>=5.8.0
+
+# Computer Vision
+opencv-python>=4.5.0
+
+# Screen Capture
+mss>=6.1.0
+
+# Image Processing
+Pillow>=8.0.0
+
+# GUI Framework
+PyQt6>=6.4.0
+PyQt6-Qt6>=6.4.0
+PyQt6-stubs>=6.4.0
+
+# Development and Testing
+pytest>=6.0.0
+pytest-cov>=2.10.0
+
+# Type Checking
+mypy>=0.910
+types-psutil>=0.4.0
+typing_extensions>=4.5.0
+
+# Linting
+pylint>=2.8.0
+flake8>=3.9.0
+
+# Logging and Error Handling
+# Standard library modules: logging, traceback, sys, os
+
+# Machine Learning and Clustering (for optimization)
+scikit-learn>=1.0.0

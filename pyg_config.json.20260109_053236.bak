@@ -2,10 +2,10 @@
     "version": "1.0",
     "sensory": {
         "enabled": true,
-        "width": 64,
-        "height": 64,
-        "canvas_width": 64,
-        "canvas_height": 64,
+        "width": 248,
+        "height": 246,
+        "canvas_width": 246,
+        "canvas_height": 248,
         "energy_gain": 4.0,
         "energy_bias": 2.0,
         "fanout": 3,
@@ -34,7 +34,7 @@
         "error_threshold": 0.1
     },
     "system": {
-        "update_interval": 16,
+        "update_interval": 469,
         "energy_pulse": 10.0,
         "max_energy": 244.0,
         "min_energy": 0.0,
@@ -43,6 +43,6 @@
         "conn_transfer_capacity": 1.5,
         "growth_interval_frames": 2,
         "cull_interval_frames": 3,
-        "device": "cuda"
+        "device": "auto"
     }
 }
