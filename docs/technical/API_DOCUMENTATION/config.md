@@ -194,7 +194,6 @@ for key, value in PERFORMANCE_PROFILE.items():
 
 - `SENSORY_NODE_ENERGY_CAP = 122`: Sensory node energy capacity (50% of NODE_ENERGY_CAP)
 - `workspace_node_energy_cap = 170`: Workspace node energy capacity (70% of NODE_ENERGY_CAP)
-- `HIGHWAY_NODE_ENERGY_CAP = 244`: Highway node energy capacity (100% of NODE_ENERGY_CAP)
 
 #### Decay and Growth Parameters
 

@@ -29,7 +29,6 @@ The system supports multiple node types:
 - `NODE_TYPE_SENSORY = 0`: Sensory input nodes
 - `NODE_TYPE_DYNAMIC = 1`: Dynamic processing nodes
 - `NODE_TYPE_WORKSPACE = 2`: Workspace nodes
-- `NODE_TYPE_HIGHWAY = 3`: Highway nodes (special high-capacity nodes)
 
 ### Connection Types
 
@@ -142,7 +141,6 @@ The neural system follows a modular architecture:
 1. **Sensory Layer**: Input processing and feature extraction
 2. **Dynamic Layer**: Core processing with adaptive nodes
 3. **Workspace Layer**: Higher-level pattern recognition
-4. **Highway System**: Fast information routing between layers
 
 ### Performance Optimization
 

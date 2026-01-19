@@ -358,7 +358,7 @@ class EnergyCalculator:
         predicted: Dict[int, List[float]],
         actual: Dict[int, List[float]],
         tolerance: float = 0.1,
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, any]:
         """
         Compare predicted energy values with actual values.
         

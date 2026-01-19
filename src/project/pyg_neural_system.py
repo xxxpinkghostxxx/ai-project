@@ -33,8 +33,7 @@ from project.system.vector_engine import (  # type: ignore[import-not-found]
 NODE_TYPE_SENSORY = 0
 NODE_TYPE_DYNAMIC = 1
 NODE_TYPE_WORKSPACE = 2
-NODE_TYPE_HIGHWAY = 3
-NODE_TYPE_NAMES = ['Sensory', 'Dynamic', 'Workspace', 'Highway']
+NODE_TYPE_NAMES = ['Sensory', 'Dynamic', 'Workspace']
 
 # --- Dynamic Node Subtypes ---
 SUBTYPE_TRANSMITTER = 0
@@ -100,9 +99,6 @@ CONN_SUBTYPE3_ONE_WAY_OUT = 0
 CONN_SUBTYPE3_ONE_WAY_IN = 1
 CONN_SUBTYPE3_FREE_FLOW = 2
 CONN_SUBTYPE3_NAMES = ['OneWayOut', 'OneWayIn', 'FreeFlow']
-
-# --- Highway Node Constants ---
-HIGHWAY_CONNECTION_RADIUS = 25  # 25x25 area for highway node connections
 
 logger = logging.getLogger(__name__)
 
@@ -385,7 +381,7 @@ class PyGNeuralSystem:
     node creation/destruction, and manages connection growth and pruning.
 
     Key Features:
-    - Energy-based neural dynamics with multiple node types (sensory, dynamic, workspace, highway)
+    - Energy-based neural dynamics with multiple node types (sensory, dynamic, workspace)
     - Thread-safe graph operations with synchronization primitives
     - Tensor management and validation
     - Connection worker for background processing
@@ -400,7 +396,6 @@ class PyGNeuralSystem:
       Future: Will support multiple types (sound wave arrays, different vision types, VMs, etc.)
     - NODE_TYPE_DYNAMIC: Processing nodes that handle energy transfer and computation
     - NODE_TYPE_WORKSPACE: Output/interface nodes
-    - NODE_TYPE_HIGHWAY: High-capacity nodes for efficient energy transfer
 
     Connection Types:
     - CONN_TYPE_EXCITATORY: Positive energy transfer
@@ -3186,61 +3181,27 @@ class PyGNeuralSystem:
         else:
             parent_arr = torch.full((n,), -1, dtype=torch.int64, device=device)
 
-        # For dynamic nodes, give 1% chance to spawn as highway
         if node_type == NODE_TYPE_DYNAMIC:
-            # Randomly select 1% of nodes to be highway
-            highway_mask = torch.rand(n, device=device) < 0.01
-            n_highway = int(highway_mask.sum().item())
-            n_dynamic = n - n_highway
-
-            # Add dynamic nodes
-            if n_dynamic > 0:
-                dynamic_indices = torch.where(~highway_mask)[0]
-                subtypes = torch.randint(0, 3, (n_dynamic,), device=device)
-                subtypes2 = torch.randint(0, 3, (n_dynamic,), device=device)
-                subtypes3 = torch.randint(0, 3, (n_dynamic,), device=device)
-                subtype4 = torch.randint(0, 3, (n_dynamic,), device=device)
-                pos_new = torch.rand(n_dynamic, 2, device=device) * 100
-                max_conns = torch.randint(1, 6, (n_dynamic,), device=device)
-                phase_offset = torch.rand(n_dynamic, device=device) * 2 * np.pi
-                # Add dynamic nodes in PyG format
-                if g.energy is not None and g.node_type is not None and g.pos is not None and g.velocity is not None and g.dynamic_subtype is not None and g.dynamic_subtype2 is not None and g.dynamic_subtype3 is not None and g.dynamic_subtype4 is not None and g.max_connections is not None and g.phase_offset is not None and g.parent is not None:
-                    g.energy = torch.cat([g.energy, torch.zeros(n_dynamic, 1, device=device)])
-                    g.node_type = torch.cat([g.node_type, torch.full((n_dynamic,), NODE_TYPE_DYNAMIC, dtype=torch.int64, device=device)])
-                    g.pos = torch.cat([g.pos, pos_new])
-                    g.velocity = torch.cat([g.velocity, torch.zeros(n_dynamic, 2, device=device)])
-                    g.dynamic_subtype = torch.cat([g.dynamic_subtype, subtypes])
-                    g.dynamic_subtype2 = torch.cat([g.dynamic_subtype2, subtypes2])
-                    g.dynamic_subtype3 = torch.cat([g.dynamic_subtype3, subtypes3])
-                    g.dynamic_subtype4 = torch.cat([g.dynamic_subtype4, subtype4])
-                    g.max_connections = torch.cat([g.max_connections, max_conns])
-                    g.phase_offset = torch.cat([g.phase_offset, phase_offset])
-                    g.parent = torch.cat([g.parent, parent_arr[dynamic_indices]])
-
-            # Add highway nodes
-            if n_highway > 0:
-                highway_indices = torch.where(highway_mask)[0]
-                pos_new = torch.rand(n_highway, 2, device=device) * 100
-                # Add highway nodes in PyG format
-                # Highway nodes need to be added to ALL node tensors to maintain consistency
-                if g.energy is not None and g.node_type is not None and g.pos is not None and g.velocity is not None and g.max_connections is not None and g.parent is not None:
-                    g.energy = torch.cat([g.energy, torch.zeros(n_highway, 1, device=device)])
-                    g.node_type = torch.cat([g.node_type, torch.full((n_highway,), NODE_TYPE_HIGHWAY, dtype=torch.int64, device=device)])
-                    g.pos = torch.cat([g.pos, pos_new])
-                    g.velocity = torch.cat([g.velocity, torch.zeros(n_highway, 2, device=device)])
-                    g.max_connections = torch.cat([g.max_connections, torch.full((n_highway,), 1000, dtype=torch.int64, device=device)])
-                    g.parent = torch.cat([g.parent, parent_arr[highway_indices]])
-                    # Add highway nodes to dynamic subtype tensors with default values (0) to maintain tensor consistency
-                    if g.dynamic_subtype is not None:
-                        g.dynamic_subtype = torch.cat([g.dynamic_subtype, torch.zeros(n_highway, dtype=torch.int64, device=device)])
-                    if g.dynamic_subtype2 is not None:
-                        g.dynamic_subtype2 = torch.cat([g.dynamic_subtype2, torch.zeros(n_highway, dtype=torch.int64, device=device)])
-                    if g.dynamic_subtype3 is not None:
-                        g.dynamic_subtype3 = torch.cat([g.dynamic_subtype3, torch.zeros(n_highway, dtype=torch.int64, device=device)])
-                    if g.dynamic_subtype4 is not None:
-                        g.dynamic_subtype4 = torch.cat([g.dynamic_subtype4, torch.zeros(n_highway, dtype=torch.int64, device=device)])
-                    if g.phase_offset is not None:
-                        g.phase_offset = torch.cat([g.phase_offset, torch.zeros(n_highway, device=device)])
+            subtypes = torch.randint(0, 3, (n,), device=device)
+            subtypes2 = torch.randint(0, 3, (n,), device=device)
+            subtypes3 = torch.randint(0, 3, (n,), device=device)
+            subtype4 = torch.randint(0, 3, (n,), device=device)
+            pos_new = torch.rand(n, 2, device=device) * 100
+            max_conns = torch.randint(1, 6, (n,), device=device)
+            phase_offset = torch.rand(n, device=device) * 2 * np.pi
+            # Add dynamic nodes in PyG format
+            if g.energy is not None and g.node_type is not None and g.pos is not None and g.velocity is not None and g.dynamic_subtype is not None and g.dynamic_subtype2 is not None and g.dynamic_subtype3 is not None and g.dynamic_subtype4 is not None and g.max_connections is not None and g.phase_offset is not None and g.parent is not None:
+                g.energy = torch.cat([g.energy, torch.zeros(n, 1, device=device)])
+                g.node_type = torch.cat([g.node_type, torch.full((n,), NODE_TYPE_DYNAMIC, dtype=torch.int64, device=device)])
+                g.pos = torch.cat([g.pos, pos_new])
+                g.velocity = torch.cat([g.velocity, torch.zeros(n, 2, device=device)])
+                g.dynamic_subtype = torch.cat([g.dynamic_subtype, subtypes])
+                g.dynamic_subtype2 = torch.cat([g.dynamic_subtype2, subtypes2])
+                g.dynamic_subtype3 = torch.cat([g.dynamic_subtype3, subtypes3])
+                g.dynamic_subtype4 = torch.cat([g.dynamic_subtype4, subtype4])
+                g.max_connections = torch.cat([g.max_connections, max_conns])
+                g.phase_offset = torch.cat([g.phase_offset, phase_offset])
+                g.parent = torch.cat([g.parent, parent_arr])
         else:
             # Original node type handling
             pos_new = torch.rand(n, 2, device=device) * 100
@@ -3316,16 +3277,6 @@ class PyGNeuralSystem:
                 initial_std_energy = energy.std().item()
                 logger.debug("Energy transfer start - Total: %.2f, Avg: %.2f, Std: %.2f", float(initial_total_energy), float(initial_avg_energy), float(initial_std_energy))
 
-            # OPTIMIZED: Vectorized highway node normalization with batch processing
-            highway_mask = (node_type == NODE_TYPE_HIGHWAY)
-            if highway_mask.sum() > 0:
-                highway_energies = energy[highway_mask]
-                avg_highway_energy = highway_energies.mean()
-                energy_diff = avg_highway_energy - highway_energies
-                transfer_amount = energy_diff * 0.1
-                energy[highway_mask] += transfer_amount
-                logger.debug("Highway energy normalization: adjusted %d nodes", int(highway_mask.sum().item()))
-
             # OPTIMIZED: Batch process edge transfers with memory-efficient operations
             src, dst = g.edge_index
             src_type = node_type[src]
@@ -3343,40 +3294,11 @@ class PyGNeuralSystem:
             # OPTIMIZED: Apply transmission loss factor with in-place operation
             transfer.mul_(TRANSMISSION_LOSS)
 
-            # OPTIMIZED: Vectorized node type masks with pre-computation
-            highway_src = (src_type == NODE_TYPE_HIGHWAY)
-            highway_dst = (dst_type == NODE_TYPE_HIGHWAY)
-            dynamic_dst = (dst_type == NODE_TYPE_DYNAMIC)
-
-            # OPTIMIZED: Vectorized pull calculations with memory-efficient approach
-            pull_mask = highway_src & dynamic_dst
-            if pull_mask.any():
-                dst_energy_needed = NODE_ENERGY_CAP - dst_energy[pull_mask]
-                pull_amount = torch.minimum(
-                    src_energy[pull_mask] * 0.2,
-                    dst_energy_needed
-                )
-                # Use in-place operations for memory efficiency
-                energy[src[pull_mask]].sub_(pull_amount)
-                energy[dst[pull_mask]].add_(pull_amount)
-                logger.debug("Highway pull transfer: %d connections, avg pull: %.4f", int(pull_mask.sum().item()), float(pull_amount.mean().item()))
-
-            # OPTIMIZED: Vectorized normal transfer with batch processing
-            normal_mask = ~(highway_src | highway_dst)
-            if normal_mask.any():
-                # Use in-place operations for memory efficiency
-                energy[src[normal_mask]].sub_(transfer[normal_mask])
-                energy[dst[normal_mask]].add_(transfer[normal_mask])
-                logger.debug("Normal energy transfer: %d connections", int(normal_mask.sum().item()))
-
-            # OPTIMIZED: Vectorized highway transfer with batch processing
-            highway_mask = highway_src & highway_dst
-            if highway_mask.any():
-                transfer_amount = src_energy[highway_mask]
-                # Use in-place operations for memory efficiency
-                energy[src[highway_mask]].sub_(transfer_amount)
-                energy[dst[highway_mask]].add_(transfer_amount)
-                logger.debug("Highway-to-highway transfer: %d connections", int(highway_mask.sum().item()))
+            # OPTIMIZED: Vectorized transfer with batch processing
+            if transfer.numel() > 0:
+                energy[src].sub_(transfer)
+                energy[dst].add_(transfer)
+                logger.debug("Energy transfer: %d connections", int(transfer.numel()))
 
             # OPTIMIZED: Apply energy caps with in-place clamping
             energy.clamp_(NODE_DEATH_THRESHOLD, NODE_ENERGY_CAP)
@@ -3413,7 +3335,6 @@ class PyGNeuralSystem:
         sensory_mask = (node_type == NODE_TYPE_SENSORY)
         dynamic_mask = (node_type == NODE_TYPE_DYNAMIC)
         workspace_mask = (node_type == NODE_TYPE_WORKSPACE)
-        highway_mask = (node_type == NODE_TYPE_HIGHWAY)
 
         # Apply type-specific energy processing
         if sensory_mask.any():
@@ -3467,13 +3388,6 @@ class PyGNeuralSystem:
             if low_energy_mask.all():
                 energy[workspace_mask] = torch.clamp(energy[workspace_mask], min=0.0)
 
-        if highway_mask.any():
-            # Highway nodes: ensure high energy levels for efficient transfer
-            highway_energy = energy[highway_mask]
-            target_energy = NODE_ENERGY_CAP * 0.9  # Target 90% of capacity
-            # Faster adjustment towards target
-            adjustment = (target_energy - highway_energy) * 0.05
-            energy[highway_mask].add_(adjustment)
 
     def _remove_nodes(self, node_mask: torch.Tensor) -> None:
         """Remove nodes based on the given boolean mask with proper synchronization"""

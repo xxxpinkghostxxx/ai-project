@@ -25,9 +25,6 @@ The neural system follows a modular architecture with clear separation of concer
 │  │  Sensory    │  │  Dynamic    │  │ Workspace   │  │
 │  │  Layer      │  │  Layer      │  │  Layer      │  │
 │  └─────────────┘  └─────────────┘  └─────────────┘  │
-│          ┌─────────────────────────────────┐        │
-│          │       Highway System           │        │
-│          └─────────────────────────────────┘        │
 └───────────────────────────────────────────────────────┘
 ```
 
