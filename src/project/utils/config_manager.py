@@ -24,10 +24,26 @@ logger = logging.getLogger(__name__)
 class ConfigManager:
     """Configuration Manager class for handling system configuration."""
 
-    def __init__(self: 'ConfigManager', config_file: str = 'pyg_config.json') -> None:
-        """Initialize ConfigManager with default configuration."""
-        # Sanitize config file path for security
-        self.config_file = SecuritySanitizer.sanitize_filename(config_file)
+    def __init__(self: 'ConfigManager', config_file: str | None = None) -> None:
+        """Initialize ConfigManager with default configuration.
+        
+        Always uses src/project/pyg_config.json - never writes to root directory.
+        """
+        # Always use the config file in src/project/ directory
+        if config_file is None:
+            # Get the directory where this file is located (src/project/utils/)
+            # Then go up one level to src/project/
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            project_dir = os.path.dirname(current_dir)  # Go up from utils/ to project/
+            config_file = os.path.join(project_dir, 'pyg_config.json')
+        
+        # Normalize the path (resolve to absolute, handle separators correctly)
+        config_file = os.path.normpath(os.path.abspath(config_file))
+        
+        # DO NOT sanitize full paths - sanitize_filename removes path separators!
+        # Only sanitize the filename portion if needed
+        # For absolute paths, just use them as-is (they're already validated by os.path)
+        self.config_file = config_file
         self.config: dict[str, Any] = {
             'version': '1.0',
             'sensory': {

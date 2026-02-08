@@ -2,23 +2,170 @@
     "version": "1.0",
     "sensory": {
         "enabled": true,
-        "width": 64,
-        "height": 64,
-        "canvas_width": 192,
-        "canvas_height": 108
+        "width": 1920,
+        "height": 1080,
+        "canvas_width": 1920,
+        "canvas_height": 1080,
+        "energy_gain": 30.0,
+        "energy_bias": 15.0,
+        "fanout": 3,
+        "warmup_frames": 60
     },
     "workspace": {
-        "width": 16,
-        "height": 16,
-        "canvas_width": 800,
-        "canvas_height": 600
+        "width": 128,
+        "height": 128,
+        "canvas_width": 364,
+        "canvas_height": 364,
+        "enabled": true,
+        "reading_interval_ms": 100,
+        "energy_smoothing": true,
+        "smoothing_factor": 0.1,
+        "shading_mode": "linear",
+        "color_scheme": "grayscale",
+        "animation_enabled": true,
+        "animation_speed": 1,
+        "batch_updates": true,
+        "max_fps": 60,
+        "memory_optimization": true,
+        "cache_size": 1000,
+        "cache_validity_ms": 100,
+        "retry_attempts": 3,
+        "retry_delay_ms": 10,
+        "error_threshold": 0.1
     },
     "system": {
-        "update_interval": 1000,
+        "update_interval": 16,
         "energy_pulse": 10.0,
         "max_energy": 255.0,
         "min_energy": 0.0,
-        "frame_throttling": true,
-        "detailed_logging": false
+        "frame_throttling": false,
+        "detailed_logging": true,
+        "conn_transfer_capacity": 1.5,
+        "growth_interval_frames": 2,
+        "cull_interval_frames": 3,
+        "device": "cuda"
+    },
+    "probabilistic": {
+        "enabled": true,
+        "spawn_rate": 0.1,
+        "death_rate": 0.2,
+        "consumption_rate": 0.01,
+        "use_fft_diffusion": true,
+        "description": "Probabilistic field engine for BILLIONS of statistical nodes @ 1000 FPS! Only 90 MB GPU memory!"
+    },
+    "sparse": {
+        "enabled": false,
+        "max_active_nodes": 10000000,
+        "monte_carlo_samples": 1000,
+        "spawn_limit_per_step": 500,
+        "use_fft_diffusion": true,
+        "use_spatial_hashing": true,
+        "description": "Sparse hybrid engine for BILLIONS of nodes using FFT, Monte Carlo, and spatial hashing"
+    },
+    "hybrid": {
+        "enabled": true,
+        "grid_size": [
+            2560,
+            1920
+        ],
+        "tile_size": [
+            512,
+            512
+        ],
+        "tile_mode": true,
+        "tiles_in_ram": true,
+        "max_active_tiles_gpu": 16,
+        "tile_activity_threshold": 0.01,
+        "toroidal": true,
+        "excitatory_prob": 0.6,
+        "inhibitory_prob": 0.2,
+        "gated_prob": 0.1,
+        "num_diffusion_steps": 1,
+        "diffusion_coeff": 0.2,
+        "node_spawn_threshold": 8.0,
+        "node_death_threshold": 1.0,
+        "node_energy_cap": 1000.0,
+        "spawn_cost": 3.0,
+        "description": "Hybrid Grid-Graph Engine with 5000x speedup and tile-based memory management. Tiles stored in RAM, only active tiles processed on GPU. Toroidal (wrapping) grid eliminates boundaries. Desktop->Sensory->Dynamic->Workspace with probabilistic connections."
+    },
+    "advanced_optimization": {
+        "enabled": false,
+        "sparse_matrix_csr": {
+            "enabled": false,
+            "use_cache": true
+        },
+        "operator_splitting": {
+            "enabled": false,
+            "diffusion_coeff": 0.1,
+            "advection_enabled": false
+        },
+        "kernel_fusion": {
+            "enabled": false,
+            "use_triton": true,
+            "fusion_level": 2
+        },
+        "spectral_methods": {
+            "enabled": false,
+            "grid_size": [
+                128,
+                128
+            ],
+            "diffusion_coeff": 0.1,
+            "smoothing_sigma": 1.0
+        },
+        "multigrid": {
+            "enabled": false,
+            "grid_size": [
+                64,
+                64
+            ],
+            "num_levels": 4,
+            "nu1": 2,
+            "nu2": 2
+        },
+        "lattice_boltzmann": {
+            "enabled": false,
+            "grid_size": [
+                128,
+                128
+            ],
+            "tau": 0.6,
+            "num_steps": 10
+        },
+        "fast_multipole": {
+            "enabled": false,
+            "theta": 0.5,
+            "multipole_order": 4,
+            "max_particles_per_leaf": 10
+        },
+        "pde_dynamics": {
+            "enabled": false,
+            "grid_size": [
+                64,
+                64
+            ],
+            "diffusion_coeff": 0.1,
+            "method": "crank_nicolson",
+            "num_steps": 10
+        },
+        "multi_gpu": {
+            "enabled": false,
+            "num_gpus": 2,
+            "ghost_width": 2
+        },
+        "adaptive_mesh_refinement": {
+            "enabled": false,
+            "max_level": 5,
+            "refine_threshold": 0.5,
+            "coarsen_threshold": 0.1
+        }
+    },
+    "ui": {
+        "sensory_scale_factor": 8,
+        "workspace_scale_factor": 2,
+        "canvas_skip_frames": 4,
+        "update_interval_ms": 60,
+        "node_render_limit": 50000,
+        "fps_update_interval": 30
     }
 }

@@ -12,7 +12,6 @@ from project.pyg_neural_system import (
     NODE_TYPE_SENSORY,
     NODE_TYPE_DYNAMIC,
     NODE_TYPE_WORKSPACE,
-    NODE_TYPE_HIGHWAY,
     SUBTYPE_TRANSMITTER,
     SUBTYPE_RESONATOR,
     SUBTYPE_DAMPENER,
@@ -208,12 +207,6 @@ class EnergyCalculator:
             if current_energy + delta < 0.0:
                 delta = -current_energy
             
-            return delta
-        
-        # Highway nodes: no decay, transfers only
-        if node_type == NODE_TYPE_HIGHWAY:
-            delta += sum(incoming_transfers)
-            delta -= sum(outgoing_transfers)
             return delta
         
         # Unknown type: no change

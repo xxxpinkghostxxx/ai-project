@@ -13,10 +13,20 @@ import numpy as np
 
 # Import Qt for thread-safe UI updates
 try:
-    from PyQt6.QtCore import QTimer, QObject
+    from PyQt6.QtCore import QTimer, QObject, QMetaObject, Qt, Q_ARG
     PYQT_AVAILABLE = True
 except ImportError:
     PYQT_AVAILABLE = False
+    # Define dummy classes if Qt not available
+    class QObject:
+        pass
+    class QMetaObject:
+        @staticmethod
+        def invokeMethod(*args, **kwargs):
+            pass
+    class Qt:
+        class ConnectionType:
+            QueuedConnection = None
 
 from .workspace_node import WorkspaceNode
 from .config import EnergyReadingConfig
@@ -176,13 +186,14 @@ class WorkspaceNodeSystem:
                 self._notify_observers(energy_grid)
                 
                 # Debug: Log workspace energy stats periodically
-                flat = [e for row in energy_grid for e in row]
-                if flat:
-                    avg_e = sum(flat) / len(flat)
-                    max_e = max(flat)
-                    min_e = min(flat)
-                    if max_e > 0.1:  # Only log if there's significant energy
-                        logger.debug(f"Workspace energy: avg={avg_e:.2f}, max={max_e:.2f}, min={min_e:.2f}")
+                # DISABLED: Too much logging overhead (20x per second × 50ms = 1000ms wasted!)
+                # flat = [e for row in energy_grid for e in row]
+                # if flat:
+                #     avg_e = sum(flat) / len(flat)
+                #     max_e = max(flat)
+                #     min_e = min(flat)
+                #     if max_e > 0.1:
+                #         logger.debug(f"Workspace energy: avg={avg_e:.2f}, max={max_e:.2f}, min={min_e:.2f}")
                 
                 # Update cache timestamp
                 self.last_cache_update = time.time()
@@ -262,21 +273,43 @@ class WorkspaceNodeSystem:
     
     def _notify_observers(self, energy_grid: List[List[float]]):
         """Notify all observers of workspace updates in a thread-safe manner."""
+        if not hasattr(self, '_notify_counter'):
+            self._notify_counter = 0
+        self._notify_counter += 1
+        
+        # Log every 60 notifications (~2 seconds at 30 FPS)
+        should_log = (self._notify_counter % 60 == 0)
+        
         for observer in self.observers:
             try:
                 # Use Qt's thread-safe mechanism if observer is a Qt object
                 if PYQT_AVAILABLE and hasattr(observer, 'on_workspace_update'):
                     # Check if observer is a QObject (Qt widget/window)
                     if isinstance(observer, QObject):
-                        # Always use QTimer.singleShot for Qt objects when called from worker thread
-                        # This ensures UI updates happen on the main Qt thread's event loop
-                        # The lambda captures energy_grid by value, so it's safe
-                        QTimer.singleShot(0, lambda eg=energy_grid: observer.on_workspace_update(eg))
+                        # Use QMetaObject.invokeMethod for proper cross-thread communication
+                        # This is the CORRECT way to call methods on Qt objects from worker threads
+                        if should_log:
+                            logger.info(f"📤 NOTIFYING Qt observer via QMetaObject.invokeMethod | grid shape: {len(energy_grid)}x{len(energy_grid[0]) if energy_grid else 0}")
+                        
+                        # Store energy_grid in observer temporarily for the call
+                        # This avoids Q_ARG conversion issues with complex types
+                        observer._pending_workspace_grid = energy_grid
+                        
+                        # Call on_workspace_update on the main thread (Qt.QueuedConnection)
+                        QMetaObject.invokeMethod(
+                            observer,
+                            "_process_pending_workspace_update",
+                            Qt.ConnectionType.QueuedConnection
+                        )
                     else:
                         # Direct call if not a Qt object
+                        if should_log:
+                            logger.info(f"📤 NOTIFYING non-Qt observer directly")
                         observer.on_workspace_update(energy_grid)
                 else:
                     # Direct call for non-Qt observers
+                    if should_log:
+                        logger.info(f"📤 NOTIFYING observer without Qt check")
                     observer.on_workspace_update(energy_grid)
             except Exception as e:
                 logger.error(f"Observer notification failed: {e}")

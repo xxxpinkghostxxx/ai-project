@@ -13,7 +13,6 @@ from project.pyg_neural_system import (
     NODE_TYPE_SENSORY,
     NODE_TYPE_DYNAMIC,
     NODE_TYPE_WORKSPACE,
-    NODE_TYPE_HIGHWAY,
     SUBTYPE_TRANSMITTER,
     SUBTYPE_RESONATOR,
     SUBTYPE_DAMPENER,
@@ -276,7 +275,9 @@ class SimulationValidator:
 
     def _test_all_node_type_combinations(self) -> None:
         """Test all combinations of source and destination node types."""
-        node_types = [NODE_TYPE_SENSORY, NODE_TYPE_DYNAMIC, NODE_TYPE_WORKSPACE, NODE_TYPE_HIGHWAY]
+        # Current simulation supports 3 node classes (sensory/dynamic/workspace).
+        # Legacy "highway" nodes were removed from `project.pyg_neural_system`.
+        node_types = [NODE_TYPE_SENSORY, NODE_TYPE_DYNAMIC, NODE_TYPE_WORKSPACE]
         combinations_tested = 0
         valid_combinations = 0
         invalid_combinations = 0
@@ -465,7 +466,9 @@ class SimulationValidator:
 
     def _test_cross_combinations(self) -> None:
         """Test cross-combinations of node types × connection types."""
-        node_types = [NODE_TYPE_SENSORY, NODE_TYPE_DYNAMIC, NODE_TYPE_WORKSPACE, NODE_TYPE_HIGHWAY]
+        # Current simulation supports 3 node classes (sensory/dynamic/workspace).
+        # Legacy "highway" nodes were removed from `project.pyg_neural_system`.
+        node_types = [NODE_TYPE_SENSORY, NODE_TYPE_DYNAMIC, NODE_TYPE_WORKSPACE]
         conn_types = [CONN_TYPE_EXCITATORY, CONN_TYPE_INHIBITORY, CONN_TYPE_GATED, CONN_TYPE_PLASTIC]
         combinations_tested = 0
 

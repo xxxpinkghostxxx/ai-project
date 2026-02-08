@@ -18,6 +18,7 @@ import threading
 from typing import Any
 import numpy as np
 import numpy.typing as npt
+import torch  # For GPU direct capture support
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QFrame,
                             QLabel, QPushButton, QSlider, QGraphicsView,
                             QGraphicsScene, QStatusBar, QMessageBox, QTextEdit, QDialog)
@@ -224,9 +225,20 @@ class ModernMainWindow(QMainWindow):
 
         # Performance optimization: Set up frame throttling
         self.last_update_time = 0
-        self.min_update_interval = 0.016  # ~60 FPS max
+        self.last_sensory_canvas_update = 0  # Track sensory canvas updates
+        self.last_workspace_canvas_update = 0.0
+        self.last_dynamic_canvas_update = 0.0
+        self.sensory_canvas_update_interval = 0.5  # Update sensory canvas every 500ms (2 FPS)
+        self.workspace_canvas_update_interval = 0.1  # 10 FPS for responsive workspace!
+        self.dynamic_canvas_update_interval = 0.5  # 2 FPS
+        self.canvas_frame_counter = 0  # For skip-frame logic
+        self.min_update_interval = 0.001  # Allow up to 1000 FPS (GPU can handle it!)
         self.frame_skip_counter = 0
-        self.frame_skip_threshold = 2  # Skip every 2nd frame if falling behind
+        self.frame_skip_threshold = 100  # Basically disabled - let GPU run fast!
+        
+        # UI OPTIMIZATION: Skip frames for expensive node reads (HUGE speedup!)
+        self.node_read_skip_counter = 0  # Counter for node reading
+        self.node_read_interval = 2  # Read nodes every N frames (2 = 50% less overhead!)
 
         # Thread safety: Add lock for UI updates
         self._ui_update_lock = threading.Lock()
@@ -645,8 +657,14 @@ class ModernMainWindow(QMainWindow):
     def update_workspace_canvas(
         self, workspace_data: npt.NDArray[np.float64] | None = None
     ) -> None:
-        """Update workspace canvas with new data using thread-safe operations."""
+        """Update workspace canvas with new data using thread-safe operations (OPTIMIZED!)."""
         try:
+            # OPTIMIZATION: Skip frames for reduced canvas overhead
+            current_time = time.time()
+            if (current_time - self.last_workspace_canvas_update) < self.workspace_canvas_update_interval:
+                return  # Skip this update
+            self.last_workspace_canvas_update = current_time
+            
             # Thread-safe canvas update
             with self._ui_update_lock:
                 if workspace_data is None:
@@ -658,8 +676,37 @@ class ModernMainWindow(QMainWindow):
                         workspace_config['height'], workspace_config['width']
                     ))
 
+                # OPTIMIZATION: Downsample for faster rendering (WORKSPACE-SPECIFIC!)
+                ui_config = self.config_manager.get_config('ui')
+                scale_factor = 2  # Default 2× downsampling for workspace (better quality!)
+                if ui_config is not None:
+                    scale_factor = ui_config.get('workspace_scale_factor', 2)
+                
+                if scale_factor > 1 and workspace_data.shape[0] >= scale_factor and workspace_data.shape[1] >= scale_factor:
+                    # Downsample by taking every Nth pixel
+                    workspace_data = workspace_data[::scale_factor, ::scale_factor]
+                
                 # Convert to QImage with memory safety
-                arr = np.clip(workspace_data, 0, 244)
+                # Normalize energy values to 0-255 range for proper visualization
+                arr = workspace_data.copy()
+                
+                # CRITICAL FIX: Handle edge cases for proper visualization
+                # Workspace energies are clamped to [20.0, 200.0] in engine
+                # Map this range directly to [0, 255] for better visibility
+                arr_min = arr.min()
+                arr_max = arr.max()
+                
+                if arr_max > arr_min:
+                    # Scale to use full 0-255 range (better contrast!)
+                    arr = ((arr - arr_min) / (arr_max - arr_min) * 255.0)
+                elif arr_max > 0:
+                    # All same non-zero value - scale from 0 to that value
+                    arr = (arr / arr_max * 255.0)
+                else:
+                    # All zero - show as very dark grey (not pure black for visibility)
+                    arr = np.full_like(arr, 10.0)  # Very dark grey instead of black
+                
+                arr = np.clip(arr, 0, 255)
                 arr_rgb = np.repeat(arr[:, :, None], 3, axis=2).astype(np.uint8)
 
                 height, width = arr_rgb.shape[:2]
@@ -717,13 +764,27 @@ class ModernMainWindow(QMainWindow):
             self.status_bar.showMessage(f"✗ Workspace update failed: {str(e)}")
 
     @pyqtSlot(list)
+    @pyqtSlot()
+    def _process_pending_workspace_update(self) -> None:
+        """Process pending workspace update from worker thread (called on main thread via QMetaObject.invokeMethod)."""
+        if hasattr(self, '_pending_workspace_grid'):
+            energy_grid = self._pending_workspace_grid
+            delattr(self, '_pending_workspace_grid')  # Clean up
+            self.on_workspace_update(energy_grid)
+    
     def on_workspace_update(self, energy_grid: list[list[float]]) -> None:
         """Handle workspace system updates and render them to the canvas."""
+        if not hasattr(self, '_workspace_update_counter'):
+            self._workspace_update_counter = 0
+        self._workspace_update_counter += 1
+        
         try:
             # Convert energy grid to numpy array for the existing update method
             if energy_grid:
                 workspace_data = np.array(energy_grid, dtype=np.float64)
-                logger.debug(f"on_workspace_update received grid {workspace_data.shape}, calling update_workspace_canvas")
+                # Log every 60 updates
+                if self._workspace_update_counter % 60 == 0:
+                    logger.info(f"📥 on_workspace_update received grid {workspace_data.shape} | min={workspace_data.min():.2f} max={workspace_data.max():.2f} | calling update_workspace_canvas")
                 self.update_workspace_canvas(workspace_data)
 
                 # Update status bar with workspace information
@@ -743,10 +804,34 @@ class ModernMainWindow(QMainWindow):
             self.status_bar.showMessage(f"Workspace visualization error: {str(e)}")
 
     def update_sensory_canvas(self, sensory_data: npt.NDArray[np.float64]) -> None:
-        """Update sensory canvas with new data."""
+        """Update sensory canvas with new data (OPTIMIZED!)."""
         try:
+            # OPTIMIZATION: Downsample for faster rendering (SENSORY-SPECIFIC!)
+            ui_config = self.config_manager.get_config('ui')
+            scale_factor = 8  # Default 8× downsampling for sensory (performance!)
+            if ui_config is not None:
+                scale_factor = ui_config.get('sensory_scale_factor', 8)
+            if scale_factor > 1 and sensory_data.shape[0] >= scale_factor and sensory_data.shape[1] >= scale_factor:
+                # Downsample by taking every Nth pixel
+                sensory_data = sensory_data[::scale_factor, ::scale_factor]
+            
             # Convert to QImage
+            # CRITICAL FIX: Handle corrupted/invalid sensory data
+            # Check for NaN, Inf, or invalid values
+            if not np.isfinite(sensory_data).all():
+                logger.warning("Sensory data contains NaN/Inf values, replacing with zeros")
+                sensory_data = np.nan_to_num(sensory_data, nan=0.0, posinf=1.0, neginf=0.0)
+            
+            # Ensure data is in valid range [0, 1]
             arr = np.clip(sensory_data, 0, 1)
+            
+            # Check if data is all zeros or all same value (corrupted)
+            if arr.max() == arr.min() and arr.max() == 0:
+                logger.warning("Sensory data is all zeros - screen capture may be failing")
+                # Show a test pattern instead of pure black
+                h, w = arr.shape
+                arr = np.random.rand(h, w) * 0.1  # Very dim random noise for visibility
+            
             arr = (arr * 255).astype(np.uint8)
             arr_rgb = np.repeat(arr[:, :, None], 3, axis=2)
 
@@ -1070,23 +1155,22 @@ class ModernMainWindow(QMainWindow):
             logger.warning("Failed to stop simulation cleanly: %s", e)
 
     def _build_fresh_components(self) -> tuple[Any, Any, Any | None] | None:
-        """Recreate system, capture, and workspace components from config."""
+        """Recreate system, capture, and workspace components from config.
+        
+        This method now respects hybrid mode configuration and will create
+        either a hybrid or traditional system based on the config.
+        """
         try:
-            sensory_cfg = self.config_manager.get_config('sensory')
-            workspace_cfg = self.config_manager.get_config('workspace')
-            system_cfg = self.config_manager.get_config('system')
-            if not sensory_cfg or not workspace_cfg or not system_cfg:
-                raise ValueError("Missing configuration sections")
-            width = int(sensory_cfg.get('width', 64))
-            height = int(sensory_cfg.get('height', 64))
-            ws_w = int(workspace_cfg.get('width', 16))
-            ws_h = int(workspace_cfg.get('height', 16))
-            n_dynamic = max(1, width * height * 5)
-            system = PyGNeuralSystem(width, height, n_dynamic, workspace_size=(ws_w, ws_h))
-            capture = ThreadedScreenCapture(width, height)
-            workspace_system = None
-            if workspace_cfg.get('enabled', True):
-                workspace_system = WorkspaceNodeSystem(system, EnergyReadingConfig())
+            # Import the initialize_system function from pyg_main
+            # This ensures we use the SAME logic that creates systems at startup
+            from project.pyg_main import initialize_system
+            
+            logger.info("Rebuilding system components (respects hybrid mode)")
+            
+            # Use the centralized initialization logic
+            system, capture, workspace_system = initialize_system(self.config_manager)
+            
+            logger.info("System components rebuilt successfully")
             return system, capture, workspace_system
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error("Failed to build fresh components: %s", e)
@@ -1211,18 +1295,16 @@ class ModernMainWindow(QMainWindow):
         """Periodic update function with performance optimization and frame throttling."""
         if not self.state_manager.get_state().suspended:
             try:
+                update_start = time.time()
                 current_time = time.time()
                 time_since_last_update = current_time - self.last_update_time
 
-                # Frame throttling to maintain UI responsiveness
+                # Minimal frame throttling (GPU mode can handle high FPS)
+                # Only skip if updates are EXTREMELY fast (< 1ms)
                 if time_since_last_update < self.min_update_interval:
                     self.frame_skip_counter += 1
                     if self.frame_skip_counter < self.frame_skip_threshold:
-                        # Skip this frame to maintain performance
-                        fps = 1/time_since_last_update if time_since_last_update > 0 else 0
-                        self.status_bar.showMessage(
-                            f"Skipping frame to maintain performance (FPS: {fps:.1f})"
-                        )
+                        # Only skip if we're getting insane FPS
                         return
                     else:
                         self.frame_skip_counter = 0
@@ -1231,40 +1313,126 @@ class ModernMainWindow(QMainWindow):
 
                 self.last_update_time = current_time
 
-                # Sensory update with visual feedback
+                # Sensory update with visual feedback + DETAILED PROFILING
+                t_sensory_start = time.time()
+                t_capture = 0.0
+                t_canvas = 0.0
+                t_nodes = 0.0
+                t_convert = 0.0
+                frame = None
                 if self.state_manager.get_state().sensory_enabled and self.capture and self.system:
+                    t_capture_start = time.time()
                     frame = self.capture.get_latest()
-                    if frame is not None:
-                        sensory_input = frame.astype(np.float32) / 255.0
-                        self.update_sensory_canvas(sensory_input)
-                        self.system.update_sensory_nodes(sensory_input)
-                        self.status_bar.showMessage("Sensory input processed")
+                    t_capture = (time.time() - t_capture_start) * 1000
+                    
+                if frame is not None:
+                    t_convert_start = time.time()
+                    # OPTIMIZATION: Handle torch.Tensor frames (GPU, no CPU transfer!)
+                    if isinstance(frame, torch.Tensor):
+                        # GPU frame - keep on GPU! (NO CPU transfer!)
+                        # If uint8, convert to float32 only when needed (maintains precision)
+                        if frame.dtype == torch.uint8:
+                            sensory_input = frame.float() / 255.0  # Normalize 0-1 range
+                        else:
+                            sensory_input = frame  # Already float tensor
                     else:
-                        logger.warning("Received null frame from screen capture")
-                        self.status_bar.showMessage("Warning: Null frame received")
+                        # CPU frame (numpy) - convert to float
+                        sensory_input = frame.astype(np.float32) / 255.0
+                    t_convert = (time.time() - t_convert_start) * 1000
+                        
+                        # Update sensory CANVAS only every 500ms (not every frame!) - Huge performance boost!
+                    if (current_time - self.last_sensory_canvas_update) > self.sensory_canvas_update_interval:
+                        t_canvas_start = time.time()
+                        # For canvas update, convert to numpy if needed
+                        if isinstance(sensory_input, torch.Tensor):
+                            canvas_input = sensory_input.cpu().numpy()
+                            # Normalize to [0, 1] range if it's in [0, 255]
+                            if canvas_input.max() > 1.0:
+                                canvas_input = canvas_input / 255.0
+                        else:
+                            canvas_input = sensory_input
+                            # Normalize to [0, 1] range if needed
+                            if canvas_input.max() > 1.0:
+                                canvas_input = canvas_input / 255.0
+                        self.update_sensory_canvas(canvas_input)
+                        t_canvas = (time.time() - t_canvas_start) * 1000
+                        self.last_sensory_canvas_update = current_time
+                    
+                    # Update sensory NODES every frame (OPTIMIZED with GPU direct!)
+                    t_nodes_start = time.time()
+                    self.system.update_sensory_nodes(sensory_input)  # Can be torch.Tensor now!
+                    t_nodes = (time.time() - t_nodes_start) * 1000
+                    self.status_bar.showMessage("Sensory input processed")
+                else:
+                    logger.warning("Received null frame from screen capture")
+                    self.status_bar.showMessage("Warning: Null frame received")
+                t_sensory = (time.time() - t_sensory_start) * 1000
 
-                # System update with progress feedback
+                # System update with progress feedback + DETAILED PROFILING
+                t_system_start = time.time()
+                t_update = 0.0
+                t_update_step = 0.0
+                t_engine_step = 0.0
+                t_worker = 0.0
+                t_metrics = 0.0
                 metrics: dict[str, Any] | None = None
                 if self.system:
-                    self.system.update()
+                    t_update_start = time.time()
+                    # Break down update() into components
+                    if hasattr(self.system, 'update_step'):
+                        t_update_step_start = time.time()
+                        step_result = self.system.update_step()
+                        t_update_step = (time.time() - t_update_step_start) * 1000
+                        # Extract detailed timing if available
+                        if isinstance(step_result, dict):
+                            t_engine_step = step_result.get('total_time', 0) * 1000
+                            t_pre_sync = step_result.get('pre_sync_time', 0) * 1000
+                            t_engine_call = step_result.get('engine_call_time', 0) * 1000
+                            t_result_access = step_result.get('result_access_time', 0) * 1000
+                            t_gpu_sync = step_result.get('gpu_sync_time', 0) * 1000
+                            t_adapter = step_result.get('adapter_time', 0) * 1000
+                        else:
+                            t_pre_sync = 0.0
+                            t_engine_call = 0.0
+                            t_result_access = 0.0
+                            t_gpu_sync = 0.0
+                            t_adapter = 0.0
+                    else:
+                        self.system.update()
+                    t_update = (time.time() - t_update_start) * 1000
+                    
+                    t_worker_start = time.time()
                     self.system.apply_connection_worker_results()
+                    t_worker = (time.time() - t_worker_start) * 1000
+                    
                     self.status_bar.showMessage("System updated")
                     try:
+                        t_metrics_start = time.time()
                         metrics = self.system.get_metrics()
+                        t_metrics = (time.time() - t_metrics_start) * 1000
                         if metrics is not None:
+                            # CRITICAL: Clamp all values to prevent infinity conversion errors
+                            total_energy = float(max(-1e6, min(metrics.get('total_energy', 0.0), 1e9)))
+                            dyn_count = int(max(0, min(metrics.get('dynamic_node_count', 0), 1e9)))
+                            sens_count = int(max(0, min(metrics.get('sensory_node_count', 0), 1e9)))
+                            ws_count = int(max(0, min(metrics.get('workspace_node_count', 0), 1e9)))
+                            conn_count = int(max(0, min(metrics.get('connection_count', 0), 1e9)))
+                            births = int(max(0, min(metrics.get('node_births', 0), 1e9)))
+                            deaths = int(max(0, min(metrics.get('node_deaths', 0), 1e9)))
                             logger.debug(
                                 "Metrics snapshot | energy=%.2f dyn=%s sens=%s ws=%s edges=%s births=%s deaths=%s",
-                                float(metrics.get('total_energy', 0.0)),
-                                metrics.get('dynamic_node_count', 0),
-                                metrics.get('sensory_node_count', 0),
-                                metrics.get('workspace_node_count', 0),
-                                metrics.get('connection_count', 0),
-                                metrics.get('node_births', 0),
-                                metrics.get('node_deaths', 0),
+                                total_energy,
+                                dyn_count,
+                                sens_count,
+                                ws_count,
+                                conn_count,
+                                births,
+                                deaths,
                             )
                     except Exception as metric_error:  # pylint: disable=broad-exception-caught
                         logger.warning("Metrics retrieval failed: %s", metric_error)
                         metrics = None
+                t_system = (time.time() - t_system_start) * 1000
 
                 # Workspace system update with visual feedback
                 if self.workspace_system:
@@ -1296,14 +1464,17 @@ class ModernMainWindow(QMainWindow):
                     elif not safe_to_modify_edges:
                         logger.debug("Skipping cull; edge_count below safe minimum")
 
-                # Update UI with performance monitoring
+                # Update UI with performance monitoring (SKIP FRAMES FOR METRICS!)
                 start_ui_update = time.time()
                 # Note: Workspace canvas is updated via observer pattern (on_workspace_update)
                 # from WorkspaceNodeSystem, not here. Calling update_workspace_canvas() with
                 # no args would overwrite the observer data with an empty canvas.
                 if self.system:
-                    if metrics is None:
-                        metrics = self.system.get_metrics()
+                    # OPTIMIZATION: Only fetch metrics every N frames to reduce GPU→CPU transfers
+                    self.node_read_skip_counter += 1
+                    if metrics is None or self.node_read_skip_counter >= self.node_read_interval:
+                        metrics = self.system.get_metrics()  # Expensive GPU→CPU transfer!
+                        self.node_read_skip_counter = 0  # Reset counter
                     self.update_metrics_panel(metrics)
                     if metrics is not None:
                         self.state_manager.update_metrics(
@@ -1313,9 +1484,46 @@ class ModernMainWindow(QMainWindow):
                         )
                 ui_update_time = time.time() - start_ui_update
 
-                # Show performance stats periodically
-                if not self.frame_counter % 30:
+                # Show performance stats periodically + ULTRA-DETAILED PROFILING
+                if self.frame_counter % 90 == 0:  # Log every 90 frames (reduce overhead!)
+                    total_update_time = (time.time() - update_start) * 1000
                     fps = 1 / time_since_last_update if time_since_last_update > 0 else 0
+                    t_sensory_val = t_sensory if 't_sensory' in locals() else 0.0
+                    t_system_val = t_system if 't_system' in locals() else 0.0
+                    t_capture_val = t_capture if 't_capture' in locals() else 0.0
+                    t_convert_val = t_convert if 't_convert' in locals() else 0.0
+                    t_nodes_val = t_nodes if 't_nodes' in locals() else 0.0
+                    t_canvas_val = t_canvas if 't_canvas' in locals() else 0.0
+                    t_update_val = t_update if 't_update' in locals() else 0.0
+                    t_update_step_val = t_update_step if 't_update_step' in locals() else 0.0
+                    t_engine_step_val = t_engine_step if 't_engine_step' in locals() else 0.0
+                    t_engine_call_val = t_engine_call if 't_engine_call' in locals() else 0.0
+                    t_result_access_val = t_result_access if 't_result_access' in locals() else 0.0
+                    t_gpu_sync_val = t_gpu_sync if 't_gpu_sync' in locals() else 0.0
+                    t_adapter_val = t_adapter if 't_adapter' in locals() else 0.0
+                    t_worker_val = t_worker if 't_worker' in locals() else 0.0
+                    t_metrics_val = t_metrics if 't_metrics' in locals() else 0.0
+                    
+                    logger.info(f"🔍 ULTRA PROFILING | Total: {total_update_time:.1f}ms | "
+                               f"Capture: {t_capture_val:.1f}ms | Convert: {t_convert_val:.1f}ms | "
+                               f"Canvas: {t_canvas_val:.1f}ms | Nodes: {t_nodes_val:.1f}ms | "
+                               f"Update: {t_update_val:.1f}ms | UpdateStep: {t_update_step_val:.1f}ms | "
+                               f"EngineStep: {t_engine_step_val:.1f}ms | Worker: {t_worker_val:.1f}ms | "
+                               f"Metrics: {t_metrics_val:.1f}ms | UI: {ui_update_time*1000:.1f}ms | FPS: {fps:.1f}")
+                    t_pre_sync_val = t_pre_sync if 't_pre_sync' in locals() else 0.0
+                    # Extract GPU timing from step_result if available
+                    gpu_time_ms = 0.0
+                    if isinstance(step_result, dict):
+                        gpu_time_ms = step_result.get('gpu_time_ms', 0)
+                    
+                    logger.info(f"   🔬 GPU SYNC BREAKDOWN | PreSync: {t_pre_sync_val:.2f}ms | "
+                               f"EngineCall: {t_engine_call_val:.2f}ms | "
+                               f"ResultAccess: {t_result_access_val:.2f}ms | "
+                               f"GPUSync: {t_gpu_sync_val:.2f}ms | "
+                               f"Adapter: {t_adapter_val:.2f}ms")
+                    logger.info(f"   ⚡ CUDA EVENT TIMING | GPUExecution: {gpu_time_ms:.2f}ms | "
+                               f"CPUTime: {t_engine_step_val:.2f}ms | "
+                               f"Gap: {t_engine_call_val - gpu_time_ms:.2f}ms")
                     self.status_bar.showMessage(
                         f"Performance: {fps:.1f} FPS | "
                         f"UI Update: {ui_update_time*1000:.1f}ms"
