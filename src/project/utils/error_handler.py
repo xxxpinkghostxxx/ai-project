@@ -11,7 +11,7 @@ import threading
 import datetime
 import traceback
 import time
-from tkinter import messagebox
+from PyQt6.QtWidgets import QMessageBox
 from functools import wraps
 from typing import Any, Optional, Callable, Dict
 
@@ -114,8 +114,8 @@ class ErrorHandler:
             if severity == ERROR_SEVERITY_CRITICAL:
                 error_context[ERROR_CONTEXT_STACK_TRACE] = traceback.format_exc()
 
-            # Show error to user
-            messagebox.showerror(title, message)
+            # Show error to user via Qt6
+            QMessageBox.critical(None, title, message)
 
             # Log with enhanced context
             if log:

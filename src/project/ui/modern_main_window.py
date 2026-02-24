@@ -1282,7 +1282,7 @@ class ModernMainWindow(QMainWindow):
         either a hybrid or traditional system based on the config.
         """
         try:
-            # Import the initialize_system function from pyg_main
+            # Import the initialize_system function from main
             # This ensures we use the SAME logic that creates systems at startup
             from project.main import initialize_system
             
