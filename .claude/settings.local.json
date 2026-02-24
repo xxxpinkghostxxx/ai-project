@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh pr:*)",
+      "Bash(dir \"c:\\\\Users\\\\chris\\\\Documents\\\\ai-project\\\\ai-project\\\\src\\\\project\")"
+    ]
+  }
+}
