@@ -1,172 +1,78 @@
 """
-Project configuration parameters module.
+Project configuration constants.
 
-This module contains all configuration parameters for the Energy-Based Neural System,
-including sensory layer settings, processing parameters, workspace configuration,
-energy parameters, and various system thresholds.
+This module contains ONLY the compile-time constants that are imported by other
+modules.  All runtime-configurable values live in ``pyg_config.json`` and are
+managed by ``utils.config_manager.ConfigManager``.
 """
+import math
 
-# Sensory Layer (used for all sensory grid sizing)
+# =============================================================================
+# Screen Capture (used by vision.py)
+# =============================================================================
 SENSOR_WIDTH = 256
 SENSOR_HEIGHT = 144
-
-# Processing Layer
-INITIAL_PROCESSING_NODES = 30
-MAX_PROCESSING_NODES = 2_000_000
-
-# Workspace
-WORKSPACE_SIZE = (16, 16)
-
-# Monitoring
-ENERGY_HISTORY_LENGTH = 200
-
-# Visualization
-DRAW_GRID_SIZE = 16
-MAX_TOTAL_CONNECTIONS_VISUALIZATION = 2_000_000
-
-# Logging and UI config
-LOG_DIR = 'logs'
-DRAW_WINDOW_SIZE = 320
-DRAW_UPSCALE = 20
-DASH_EXPORT_PATH = 'live_data.pkl'
-
-# Screen capture configuration
 SCREEN_CAPTURE_QUEUE_SIZE = 100
 PERIODIC_UPDATE_MS = 200
 
-# Node and Connection Parameters
-MIN_PROCESSING_NODES = 10
-MAX_CONNECTIONS_PER_NODE = 14
-MIN_CONNECTION_WEIGHT = -1.0
-MAX_CONNECTION_WEIGHT = 1.0
-INITIAL_CONN_PER_NODE = 3
-INITIAL_SENSORY_TO_DYNAMIC_CONN = 3
-INITIAL_WORKSPACE_TO_DYNAMIC_CONN = 2
-INITIAL_DYNAMIC_TO_DYNAMIC_CONN = 2
-INITIAL_DYNAMIC_TO_SENSORY_CONN = 1
+# =============================================================================
+# Node / Connection Type Enums (used by taichi_engine, energy_calculator,
+# simulation_validator)
+# =============================================================================
+NODE_TYPE_SENSORY = 0
+NODE_TYPE_DYNAMIC = 1
+NODE_TYPE_WORKSPACE = 2
 
-# Base energy parameters
-BASE_ENERGY_GEN = 0.2
-BASE_ENERGY_CONSUMPTION = 0.05
+CONN_TYPE_EXCITATORY = 0
+CONN_TYPE_INHIBITORY = 1
+CONN_TYPE_GATED = 2
+CONN_TYPE_PLASTIC = 3
 
-# Connection parameters
-CONNECTION_FORMATION_COST = 5.0
-CONNECTION_ENERGY_TRANSFER = 0.2
+# Connection type → weight profile lookup table (index by CONN_TYPE 0..3)
+CONN_TYPE_WEIGHT_TABLE = (
+    (0.7, 0.1, 0.1, 0.1),  # 0: excitatory-dominant
+    (0.1, 0.7, 0.1, 0.1),  # 1: inhibitory-dominant
+    (0.1, 0.1, 0.7, 0.1),  # 2: gated-dominant
+    (0.1, 0.1, 0.1, 0.7),  # 3: plastic-dominant
+)
 
-# Growth parameters
-MAX_NODES_PER_UPDATE = 10
-MAX_CONNECTIONS_PER_UPDATE = 20
+# =============================================================================
+# Binary Node State Encoding (64-bit packed int64 per node)
+# Layout: [ALIVE:1][NODE_TYPE:2][CONN_TYPE:2][DNA[0..7]:8×5=40][ENERGY_Q:16][RSVD:3]
+# state == 0 means DEAD — all DNA wiped, disconnected from all math.
+# =============================================================================
+BINARY_ALIVE_BIT = 63
+BINARY_NODE_TYPE_SHIFT = 61
+BINARY_CONN_TYPE_SHIFT = 59
+BINARY_DNA_BASE_SHIFT = 19
+BINARY_DNA_BITS_PER_NEIGHBOR = 5
+BINARY_DNA_MAX_VALUE = 31          # 2^5 - 1
+BINARY_DNA_MASK = 0x1F             # 5 bits
+BINARY_TYPE_MASK = 0x3             # 2 bits
 
-# Safety parameters
-EMERGENCY_SHUTDOWN_THRESHOLD = 0.8
-MAX_TOTAL_NODES = 10000
-max_total_connections = 50000
+# =============================================================================
+# Spawn Rate Tiers (used by taichi_engine.py)
+# Controls how many nodes may be born per step based on current population.
+# =============================================================================
+SPAWN_TIER_1_THRESHOLD = 300_000
+SPAWN_TIER_2_THRESHOLD = 600_000
+SPAWN_TIER_3_THRESHOLD = 1_000_000
+SPAWN_TIER_1_LIMIT = 5_000
+SPAWN_TIER_2_LIMIT = 2_000
+SPAWN_TIER_3_LIMIT = 1_000
+SPAWN_TIER_4_LIMIT = 200
 
-# Update intervals
-UPDATE_INTERVAL_MS = 100
-ENERGY_UPDATE_INTERVAL_MS = 50
-CONNECTION_UPDATE_INTERVAL_MS = 200
-VISUALIZATION_UPDATE_INTERVAL_MS = 500
-
-# Debug parameters
-DEBUG_MODE = True
-DEBUG_ENERGY_DISTRIBUTION = True
-DEBUG_NODE_LIFECYCLE = True
-DEBUG_CONNECTION_CHANGES = True
-DEBUG_ON_ZERO_DYNAMIC_NODES = True
-DEBUG_ENERGY_TRANSFER = True
-DEBUG_MEMORY_USAGE = True
-
-# Performance parameters
-BATCH_SIZE = 1000
-USE_GPU = True
-GPU_MEMORY_FRACTION = 0.8
-
-# System state parameters
-INITIAL_SUSPENDED = False
-INITIAL_SENSORY_ENABLED = True
-INITIAL_WORKSPACE_ENABLED = True
-
-# Resource limits
-MAX_MEMORY_USAGE_MB = 1024
-MAX_CPU_USAGE_PERCENT = 80
-MAX_GPU_USAGE_PERCENT = 80
-
-# Logging parameters
-LOG_LEVEL = "INFO"
-LOG_FILE = "system.log"
-LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-
-# Derived parameters
-ENERGY_UPDATE_STEPS = UPDATE_INTERVAL_MS // ENERGY_UPDATE_INTERVAL_MS
-CONNECTION_UPDATE_STEPS = UPDATE_INTERVAL_MS // CONNECTION_UPDATE_INTERVAL_MS
-VISUALIZATION_UPDATE_STEPS = UPDATE_INTERVAL_MS // VISUALIZATION_UPDATE_INTERVAL_MS
-
-# Cost Scaling (percentages of cap)
-DYNAMIC_SPAWN_COST_PCT = 0.08
-DYNAMIC_CONN_COST_PCT = 0.008
-DYNAMIC_IDLE_COST_PCT = 0.0005
-DYNAMIC_GEN_RATE_PCT = 0.12
-CONN_MAINTENANCE_COST_PCT = 0.0005
-
-# Energy Caps (Unified)
+# =============================================================================
+# Legacy Energy Constants (used by energy_calculator.py, simulation_validator.py)
+# These are from the PyG connection-based system.  The Taichi engine reads its
+# thresholds from pyg_config.json → hybrid section instead.
+# =============================================================================
 NODE_ENERGY_CAP = 244
-SENSOR_NODE_ENERGY_CAP = 244
-workspace_node_energy_cap = 244
+NODE_DEATH_THRESHOLD = -10.0
+NODE_SPAWN_THRESHOLD = NODE_ENERGY_CAP * 0.09
+NODE_ENERGY_SPAWN_COST = NODE_ENERGY_CAP * 0.08
+MAX_NODE_BIRTHS_PER_STEP = 80
 
-# Derived absolute values (from cap)
-NODE_ENERGY_SPAWN_COST = NODE_ENERGY_CAP * DYNAMIC_SPAWN_COST_PCT      # 19.52
-NODE_ENERGY_CONN_COST = NODE_ENERGY_CAP * DYNAMIC_CONN_COST_PCT        # 1.952
-NODE_ENERGY_IDLE_COST = NODE_ENERGY_CAP * DYNAMIC_IDLE_COST_PCT        # 0.122
-NODE_ENERGY_GEN_RATE = NODE_ENERGY_CAP * DYNAMIC_GEN_RATE_PCT          # 29.28
-CONN_MAINTENANCE_COST = NODE_ENERGY_CAP * CONN_MAINTENANCE_COST_PCT    # 0.122
-
-# Growth/Pruning (relative to cap)
-NODE_SPAWN_THRESHOLD = NODE_ENERGY_CAP * 0.09      # 9% of cap
-NODE_DEATH_THRESHOLD = -10.0    # Nodes only die if very negative
-MAX_NODE_BIRTHS_PER_STEP = 80   # Allow healthy growth, but not runaway
-MAX_CONN_BIRTHS_PER_STEP = 40
-
-# Decay rates
 DYNAMIC_NODE_ENERGY_DECAY = 0.005
-SENSOR_NODE_ENERGY_DECAY = 0.005
-WORKSPACE_NODE_ENERGY_DECAY = 0.005
-
-# Connection parameters
 CONN_ENERGY_TRANSFER_CAPACITY = 0.3
-
-# Energy thresholds for different node types
-SENSORY_NODE_ENERGY_CAP = int(NODE_ENERGY_CAP * 0.5)
-workspace_node_energy_cap = int(NODE_ENERGY_CAP * 0.7)
-
-# Energy generation rates for different node types
-SENSORY_NODE_ENERGY_GEN = BASE_ENERGY_GEN * 0.5
-WORKSPACE_NODE_ENERGY_GEN = BASE_ENERGY_GEN * 0.7
-WORKSPACE_NODE_ENERGY_GEN_RATE = workspace_node_energy_cap * 0.18      # 43.92
-SENSORY_NODE_ENERGY_GEN_RATE = SENSOR_NODE_ENERGY_CAP * 0.18           # 43.92
-
-# Energy consumption rates for different node types
-SENSORY_NODE_ENERGY_CONSUMPTION = BASE_ENERGY_CONSUMPTION * 0.5
-WORKSPACE_NODE_ENERGY_CONSUMPTION = BASE_ENERGY_CONSUMPTION * 0.7
-
-# Connection weights for different node types
-SENSORY_TO_DYNAMIC_CONN_WEIGHT = 0.3
-WORKSPACE_TO_DYNAMIC_CONN_WEIGHT = 0.3
-DYNAMIC_TO_DYNAMIC_CONN_WEIGHT = 0.2
-
-# Growth parameters for different node types
-SENSORY_NODE_SPAWN_THRESHOLD = NODE_SPAWN_THRESHOLD * 0.5
-WORKSPACE_NODE_SPAWN_THRESHOLD = NODE_SPAWN_THRESHOLD * 0.7
-
-# Death thresholds for different node types
-SENSORY_NODE_DEATH_THRESHOLD = NODE_DEATH_THRESHOLD * 0.5
-WORKSPACE_NODE_DEATH_THRESHOLD = NODE_DEATH_THRESHOLD * 0.7
-
-# Pruning/Death
-MIN_NODE_ENERGY = 0.0
-MIN_CONN_WEIGHT = 0.01
-MAX_CONN_AGE = 10000
-
-# Additional parameters
-OPTIMAL_CONN = 10
-BASE_GEN = DYNAMIC_GEN_RATE_PCT
+CONN_MAINTENANCE_COST = NODE_ENERGY_CAP * 0.0005

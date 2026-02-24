@@ -24,9 +24,11 @@ class GlobalStorage:
     _initialized: bool = False
 
     def __init__(self, device: str = 'cpu') -> None:
-        """Initialize GlobalStorage with device configuration."""
-        # This is only for backwards compatibility - use class methods instead
-        logger.warning("GlobalStorage should not be instantiated. Use class methods instead.")
+        """Do not instantiate — use class methods directly."""
+        raise TypeError(
+            "GlobalStorage should not be instantiated. Use class methods directly "
+            "(e.g. GlobalStorage.store(), GlobalStorage.retrieve())."
+        )
 
     @classmethod
     def get_device(cls) -> str:

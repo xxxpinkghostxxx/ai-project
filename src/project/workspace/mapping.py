@@ -29,7 +29,7 @@ def map_sensory_to_workspace(sensory_width: int, sensory_height: int,
     
     for wx in range(workspace_size[0]):
         for wy in range(workspace_size[1]):
-            workspace_id = wx * workspace_size[1] + wy
+            workspace_id = wy * workspace_size[0] + wx
             
             # Calculate corresponding sensory region
             sensory_x_start = int(wx * x_ratio)
@@ -41,7 +41,7 @@ def map_sensory_to_workspace(sensory_width: int, sensory_height: int,
             associated_sensory = []
             for sx in range(sensory_x_start, min(sensory_x_end, sensory_width)):
                 for sy in range(sensory_y_start, min(sensory_y_end, sensory_height)):
-                    sensory_id = sx * sensory_height + sy
+                    sensory_id = sy * sensory_width + sx
                     associated_sensory.append(sensory_id)
             
             workspace_to_sensory[workspace_id] = associated_sensory
@@ -84,27 +84,13 @@ def calculate_energy_aggregation(sensory_energies: List[float], method: str = 'a
         raise ValueError(f"Unknown aggregation method: {method}")
 
 
-def create_adaptive_mapping(sensory_energies: np.ndarray, 
+def create_adaptive_mapping(sensory_energies: np.ndarray,
                           workspace_size: Tuple[int, int] = (16, 16)) -> Dict[int, List[int]]:
-    """
-    Create adaptive mapping based on energy distribution.
-    
-    Args:
-        sensory_energies: 2D array of sensory node energies
-        workspace_size: Target workspace grid size
-    
-    Returns:
-        Adaptive mapping dictionary
+    """Create adaptive mapping based on energy distribution.
+
+    NOTE: Currently delegates to the basic map_sensory_to_workspace().
+    The energy_density analysis is not yet used. Implement clustering-based
+    adaptive logic here when needed, or use map_sensory_to_workspace() directly.
     """
     sensory_height, sensory_width = sensory_energies.shape
-    
-    # Analyze energy distribution
-    energy_mean = np.mean(sensory_energies)
-    energy_std = np.std(sensory_energies)
-    
-    # Create energy density map
-    energy_density = sensory_energies > (energy_mean + 0.5 * energy_std)
-    
-    # Adaptive grid sizing based on energy concentration
-    # This is a simplified version - could be enhanced with clustering algorithms
     return map_sensory_to_workspace(sensory_width, sensory_height, workspace_size)

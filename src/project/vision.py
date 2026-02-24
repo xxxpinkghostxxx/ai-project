@@ -153,29 +153,24 @@ class ThreadedScreenCapture:
             frame: The frame to add to the queue
         """
         try:
-            # Clear old frames to make space for new ones
-            while not self.frame_queue.empty():
-                try:
-                    self.frame_queue.get_nowait()
-                except queue.Empty:
-                    break
-
-            # Add new frame to queue
+            self.frame_queue.put_nowait(frame)
+        except queue.Full:
+            # Drop oldest frame to make room for the new one
+            try:
+                self.frame_queue.get_nowait()
+            except queue.Empty:
+                pass
             try:
                 self.frame_queue.put_nowait(frame)
             except queue.Full:
                 self.drop_counter += 1
-                # Log every 100 dropped frames to avoid log spam
-                if not self.drop_counter % 100:
+                if self.drop_counter % 100 == 0:
                     logger.warning(
-                        f"Dropped {self.drop_counter} frames "
-                        f"due to queue full"
+                        "Dropped %d frames due to queue full",
+                        self.drop_counter,
                     )
-
         except Exception as queue_error:
-            logger.error(
-                f"Error updating frame queue: {queue_error}"
-            )
+            logger.error("Error updating frame queue: %s", queue_error)
 
     def get_latest(self) -> NDArray[Any]:
         """Get the latest frame with thread safety"""
@@ -200,18 +195,20 @@ class ThreadedScreenCapture:
         return self._error_count
 
 def capture_screen(
-    resolution: Tuple[int, int] = (SENSOR_WIDTH, SENSOR_HEIGHT)
+    resolution: Tuple[int, int] = (SENSOR_WIDTH, SENSOR_HEIGHT),
+    grayscale: bool = False,
 ) -> NDArray[Any]:
     """Capture screen with fallback options.
-    
+
     Attempts to capture screen using PIL first, falls back to mss.
-    Returns a properly sized RGB image or blank image on failure.
-    
+
     Args:
         resolution: Target resolution as (width, height) tuple
-        
+        grayscale: If True, return single-channel grayscale (like ThreadedScreenCapture).
+                   If False (default), return RGB for backward compatibility.
+
     Returns:
-        Captured screen image as numpy array in RGB format
+        Captured screen image as numpy array (RGB or grayscale)
     """
     start_time = time.time()
     img: NDArray[Any]
@@ -253,6 +250,9 @@ def capture_screen(
             (resolution[1], resolution[0], 3),
             dtype=np.uint8
         )
+
+    if grayscale and len(img.shape) == 3:
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)  # type: ignore[attr-defined]
 
     end_time = time.time()
     logger.debug(

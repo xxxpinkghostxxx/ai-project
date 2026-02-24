@@ -169,18 +169,15 @@ class WorkspaceVisualization:
     
     def _calculate_energy_trends(self, energy_grid: List[List[float]]) -> List[List[str]]:
         """Calculate energy trends for visual effects."""
-        trends = []
-        
-        for y in range(len(energy_grid)):
-            row_trends = []
-            for x in range(len(energy_grid[y])):
-                # Get node data for trend calculation
-                node_id = y * len(energy_grid[y]) + x
-                node_data = self.workspace_system.get_node_data(node_id)
-                trend = node_data.get('energy_trend', 'stable')
-                row_trends.append(trend)
-            trends.append(row_trends)
-        
+        rows = len(energy_grid)
+        cols = len(energy_grid[0]) if rows > 0 else 0
+        # Pre-fill with default; then overwrite from node objects directly,
+        # avoiding 256 separate get_node_data() dict constructions per frame.
+        trends = [['stable'] * cols for _ in range(rows)]
+        for node in self.workspace_system.workspace_nodes:
+            gx, gy = node.grid_position
+            if 0 <= gy < rows and 0 <= gx < cols:
+                trends[gy][gx] = node.get_energy_trend()
         return trends
     
     def _update_status_bar(self, energy_grid: List[List[float]]):
@@ -196,9 +193,7 @@ class WorkspaceVisualization:
                 f"Workspace: Avg={avg_energy:.1f}, "
                 f"Max={max_energy:.1f}, Min={min_energy:.1f}"
             )
-            
-            # Update status bar (this would need to be connected to the main window's status bar)
-            # self.main_window.status_bar.showMessage(status_text)
+            logger.debug(status_text)
     
     def set_shading_mode(self, mode: str):
         """Set the shading mode for visualization."""

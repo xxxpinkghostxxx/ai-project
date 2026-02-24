@@ -43,7 +43,11 @@ class TensorOperationCache:
     def get(self, key: str) -> Any | None:
         """Get cached value if available and not expired."""
         if key in self._cache:
-            value, _timestamp = self._cache[key]
+            value, expiry = self._cache[key]
+            if time.time() > expiry:
+                del self._cache[key]
+                self._access_times.pop(key, None)
+                return None
             self._access_times[key] = time.time()
             return value
         return None
@@ -261,6 +265,7 @@ class PerformanceProfiler:
     def __init__(self) -> None:
         """Initialize performance profiler."""
         self._profiling_data: dict[str, list[float]] = {}
+        self._pending_starts: dict[str, float] = {}
         self._memory_usage: dict[str, list[float]] = {}
         self._tensor_operations: dict[str, dict[str, Any]] = {}
         self._enabled = True
@@ -274,16 +279,15 @@ class PerformanceProfiler:
             self._profiling_data[section_name] = []
             self._memory_usage[section_name] = []
 
-        # Record start time and memory usage
-        start_time = time.time()
-        self._profiling_data[section_name].append(-start_time)  # Negative indicates start time
+        self._pending_starts[section_name] = time.time()
 
         try:
             import torch
             if torch.cuda.is_available():
                 memory_used = torch.cuda.memory_allocated() / (1024 * 1024)  # MB
                 self._memory_usage[section_name].append(memory_used)
-        except:
+        except Exception as e:
+            logger.debug("CUDA memory query failed for section '%s': %s", section_name, e)
             self._memory_usage[section_name].append(0.0)
 
     def end_profiling(self, section_name: str) -> None:
@@ -291,15 +295,10 @@ class PerformanceProfiler:
         if not self._enabled:
             return
 
-        if section_name not in self._profiling_data or not self._profiling_data[section_name]:
-            return
-
-        # Find the last start time (negative value)
-        last_index = len(self._profiling_data[section_name]) - 1
-        if self._profiling_data[section_name][last_index] < 0:
-            start_time = -self._profiling_data[section_name][last_index]
+        start_time = self._pending_starts.pop(section_name, None)
+        if start_time is not None:
             duration = time.time() - start_time
-            self._profiling_data[section_name][last_index] = duration  # Replace with duration
+            self._profiling_data[section_name].append(duration)
 
     def record_tensor_operation(self, operation_name: str, tensor_shape: tuple[int, ...], duration: float) -> None:
         """Record tensor operation details."""
@@ -333,15 +332,13 @@ class PerformanceProfiler:
         # Process profiling sections
         for section_name, times in self._profiling_data.items():
             if times:
-                valid_times = [t for t in times if t > 0]  # Filter out start markers
-                if valid_times:
-                    report['profiling_sections'][section_name] = {
-                        'count': len(valid_times),
-                        'total_time': sum(valid_times),
-                        'avg_time': sum(valid_times) / len(valid_times),
-                        'min_time': min(valid_times),
-                        'max_time': max(valid_times)
-                    }
+                report['profiling_sections'][section_name] = {
+                    'count': len(times),
+                    'total_time': sum(times),
+                    'avg_time': sum(times) / len(times),
+                    'min_time': min(times),
+                    'max_time': max(times)
+                }
 
         # Process memory usage
         for section_name, memory_values in self._memory_usage.items():
@@ -378,6 +375,7 @@ class PerformanceProfiler:
     def clear_profiling_data(self) -> None:
         """Clear all profiling data."""
         self._profiling_data.clear()
+        self._pending_starts.clear()
         self._memory_usage.clear()
         self._tensor_operations.clear()
 

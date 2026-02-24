@@ -8,7 +8,6 @@ configuration with advanced options and comprehensive error handling.
 
 import logging
 from functools import partial
-import logging
 from typing import Any, cast
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QTabWidget, QFrame, QLabel,
                             QLineEdit, QCheckBox, QPushButton, QScrollArea,
@@ -17,7 +16,7 @@ from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QTabWidget, QFrame, QLabel,
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QCloseEvent
 
-from project.utils.error_handler import ErrorHandler
+from project.utils.error_handler import ErrorHandler, ERROR_SEVERITY_MEDIUM, ERROR_SEVERITY_HIGH
 from project.utils.config_manager import ConfigManager
 
 logger = logging.getLogger(__name__)
@@ -113,6 +112,8 @@ class ModernConfigPanel(QDialog):
         self._create_sensory_tab()
         self._create_workspace_tab()
         self._create_system_tab()
+        self._create_hybrid_tab()
+        self._create_audio_tab()
         self._create_advanced_tab()
 
         # Create action buttons
@@ -310,6 +311,165 @@ class ModernConfigPanel(QDialog):
         system_layout.addWidget(scroll_area)
         self.tab_widget.addTab(system_frame, "System")
 
+    # ------------------------------------------------------------------
+    # Hybrid / Engine tab
+    # ------------------------------------------------------------------
+
+    _HYBRID_FIELD_INFO: dict[str, tuple[str, str]] = {
+        'grid_size': ('Grid Size [H, W]', 'restart'),
+        'node_spawn_threshold': ('Spawn Threshold', 'restart'),
+        'node_death_threshold': ('Death Threshold', 'restart'),
+        'node_energy_cap': ('Energy Cap', 'restart'),
+        'spawn_cost': ('Spawn Cost', 'restart'),
+        'diffusion_coeff': ('Diffusion Coefficient', 'restart'),
+        'num_diffusion_steps': ('Diffusion Steps', 'restart'),
+        'toroidal': ('Toroidal Edges', 'restart'),
+        'excitatory_prob': ('Excitatory Probability', 'restart'),
+        'inhibitory_prob': ('Inhibitory Probability', 'restart'),
+        'gated_prob': ('Gated Probability', 'restart'),
+    }
+
+    def _create_hybrid_tab(self) -> None:
+        """Create hybrid / engine configuration tab."""
+        frame = QFrame()
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(10)
+
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_content = QWidget()
+        scroll_layout = QFormLayout(scroll_content)
+        scroll_layout.setContentsMargins(10, 10, 10, 10)
+        scroll_layout.setSpacing(8)
+        scroll_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+
+        hybrid_config = cast(dict[str, Any], self.config_manager.get_config('hybrid') or {})
+
+        for key, value in hybrid_config.items():
+            info = self._HYBRID_FIELD_INFO.get(key)
+            display_name = info[0] if info else key.replace('_', ' ').title()
+            suffix = " (restart required)" if info and info[1] == 'restart' else ""
+
+            label = QLabel(f"{display_name}{suffix}:")
+            label.setStyleSheet("color: #e0e0e0; font-family: 'Segoe UI'; font-size: 11px;")
+
+            if key == 'enabled' or key == 'description':
+                continue  # skip meta fields
+
+            if isinstance(value, bool):
+                checkbox = QCheckBox()
+                checkbox.setChecked(value)
+                checkbox.stateChanged.connect(partial(self._update_hybrid_bool, key))
+                scroll_layout.addRow(label, checkbox)
+            elif isinstance(value, list):
+                line_edit = QLineEdit(str(value))
+                line_edit.setToolTip(f"JSON list, e.g. [2560, 1920]")
+                line_edit.setStyleSheet("color: #e0e0e0; background-color: #333333; border: 1px solid #444444;")
+                line_edit.editingFinished.connect(partial(self._update_hybrid_list, key, line_edit))
+                scroll_layout.addRow(label, line_edit)
+            else:
+                line_edit = QLineEdit(str(value))
+                line_edit.setStyleSheet("color: #e0e0e0; background-color: #333333; border: 1px solid #444444;")
+                line_edit.textChanged.connect(partial(self._update_hybrid_text, key))
+                scroll_layout.addRow(label, line_edit)
+
+        scroll_area.setWidget(scroll_content)
+        layout.addWidget(scroll_area)
+        self.tab_widget.addTab(frame, "Engine")
+
+    def _update_hybrid_bool(self, key: str, state: int) -> None:
+        self._update_config('hybrid', key, state == Qt.CheckState.Checked.value)
+
+    def _update_hybrid_text(self, key: str, text: str) -> None:
+        stripped = text.lstrip('-')
+        if stripped and stripped.replace('.', '', 1).isdigit():
+            self._update_config('hybrid', key, float(text) if '.' in text else int(text))
+
+    def _update_hybrid_list(self, key: str, line_edit: QLineEdit) -> None:
+        import json as _json
+        try:
+            val = _json.loads(line_edit.text())
+            if isinstance(val, list):
+                self._update_config('hybrid', key, val)
+        except Exception:
+            pass  # ignore parse errors while typing
+
+    # ------------------------------------------------------------------
+    # Audio tab
+    # ------------------------------------------------------------------
+
+    _AUDIO_FIELD_INFO: dict[str, tuple[str, str]] = {
+        'enabled': ('Audio Enabled', 'restart'),
+        'source': ('Default Source', 'live'),
+        'sample_rate': ('Sample Rate (Hz)', 'restart'),
+        'fft_size': ('FFT Size', 'restart'),
+        'fft_bins': ('FFT Bins', 'restart'),
+        'buffer_size': ('Buffer Size', 'restart'),
+        'min_freq': ('Min Frequency (Hz)', 'restart'),
+        'max_freq': ('Max Frequency (Hz)', 'restart'),
+        'master_volume': ('Master Volume (0-1)', 'live'),
+        'energy_gain': ('Energy Gain', 'live'),
+        'energy_bias': ('Energy Bias', 'live'),
+    }
+
+    def _create_audio_tab(self) -> None:
+        """Create audio configuration tab."""
+        frame = QFrame()
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(10)
+
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_content = QWidget()
+        scroll_layout = QFormLayout(scroll_content)
+        scroll_layout.setContentsMargins(10, 10, 10, 10)
+        scroll_layout.setSpacing(8)
+        scroll_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+
+        audio_config = cast(dict[str, Any], self.config_manager.get_config('audio') or {})
+
+        for key, value in audio_config.items():
+            info = self._AUDIO_FIELD_INFO.get(key)
+            display_name = info[0] if info else key.replace('_', ' ').title()
+            suffix = " (restart required)" if info and info[1] == 'restart' else ""
+
+            label = QLabel(f"{display_name}{suffix}:")
+            label.setStyleSheet("color: #e0e0e0; font-family: 'Segoe UI'; font-size: 11px;")
+
+            if isinstance(value, bool):
+                checkbox = QCheckBox()
+                checkbox.setChecked(value)
+                checkbox.stateChanged.connect(partial(self._update_audio_bool, key))
+                scroll_layout.addRow(label, checkbox)
+            elif isinstance(value, str):
+                line_edit = QLineEdit(value)
+                line_edit.setStyleSheet("color: #e0e0e0; background-color: #333333; border: 1px solid #444444;")
+                line_edit.textChanged.connect(partial(self._update_audio_str, key))
+                scroll_layout.addRow(label, line_edit)
+            else:
+                line_edit = QLineEdit(str(value))
+                line_edit.setStyleSheet("color: #e0e0e0; background-color: #333333; border: 1px solid #444444;")
+                line_edit.textChanged.connect(partial(self._update_audio_text, key))
+                scroll_layout.addRow(label, line_edit)
+
+        scroll_area.setWidget(scroll_content)
+        layout.addWidget(scroll_area)
+        self.tab_widget.addTab(frame, "Audio")
+
+    def _update_audio_bool(self, key: str, state: int) -> None:
+        self._update_config('audio', key, state == Qt.CheckState.Checked.value)
+
+    def _update_audio_str(self, key: str, text: str) -> None:
+        if text:
+            self._update_config('audio', key, text)
+
+    def _update_audio_text(self, key: str, text: str) -> None:
+        stripped = text.lstrip('-')
+        if stripped and stripped.replace('.', '', 1).isdigit():
+            self._update_config('audio', key, float(text) if '.' in text else int(text))
+
     def _create_advanced_tab(self) -> None:
         """Create advanced configuration tab with performance and resource options."""
         advanced_frame = QFrame()
@@ -499,23 +659,27 @@ class ModernConfigPanel(QDialog):
 
     def _update_sensory_bool(self, key: str, state: int) -> None:
         """Update sensory boolean configuration."""
-        self._update_config('sensory', key, state == 2)
+        self._update_config('sensory', key, state == Qt.CheckState.Checked.value)
 
     def _update_sensory_text(self, key: str, text: str) -> None:
-        """Update sensory text configuration."""
-        self._update_config('sensory', key, int(text) if text.isdigit() else 0)
+        """Update sensory text configuration. Skips empty or non-integer input."""
+        if text and text.isdigit():
+            self._update_config('sensory', key, int(text))
 
     def _update_workspace_text(self, key: str, text: str) -> None:
-        """Update workspace text configuration."""
-        self._update_config('workspace', key, int(text) if text.isdigit() else 0)
+        """Update workspace text configuration. Skips empty or non-integer input."""
+        if text and text.isdigit():
+            self._update_config('workspace', key, int(text))
 
     def _update_system_text(self, key: str, text: str) -> None:
-        """Update system text configuration."""
-        self._update_config('system', key, float(text) if text.replace('.', '', 1).isdigit() else 0.0)
+        """Update system text configuration. Skips empty or incomplete input."""
+        stripped = text.lstrip('-')  # allow negative numbers
+        if stripped and stripped.replace('.', '', 1).isdigit():
+            self._update_config('system', key, float(text))
 
     def _update_system_bool(self, key: str, state: int) -> None:
         """Update system boolean configuration."""
-        value = state == 2
+        value = (state == Qt.CheckState.Checked.value)
         self._update_config('system', key, value)
         if key == 'detailed_logging':
             try:
@@ -567,34 +731,42 @@ class ModernConfigPanel(QDialog):
 
             elif section == 'system':
                 if key == 'update_interval' and isinstance(value, int):
-                    if value < 16:  # Minimum reasonable update interval
+                    if value < 16:
                         raise ValueError("Update interval too small (minimum 16ms)")
-                    if value > 5000:  # Maximum reasonable update interval
+                    if value > 5000:
                         raise ValueError("Update interval too large (maximum 5000ms)")
                 elif key == 'max_images' and isinstance(value, int):
                     if value <= 0:
                         raise ValueError("Max images must be positive")
                     if value > 1000:
                         raise ValueError("Max images exceeds reasonable limit (1000)")
-                elif key in ['energy_decay', 'connection_strength'] and isinstance(value, (int, float)):
-                    if value < 0:
-                        raise ValueError(f"{key} cannot be negative")
+
+            elif section == 'hybrid':
+                if key == 'node_energy_cap' and isinstance(value, (int, float)) and value <= 0:
+                    raise ValueError("Energy cap must be positive")
+                if key == 'grid_size' and isinstance(value, list):
+                    if len(value) != 2 or not all(isinstance(v, int) and v > 0 for v in value):
+                        raise ValueError("Grid size must be [positive_int, positive_int]")
+
+            elif section == 'audio':
+                if key == 'master_volume' and isinstance(value, (int, float)):
+                    if value < 0 or value > 1:
+                        raise ValueError("Volume must be between 0 and 1")
+                if key == 'sample_rate' and isinstance(value, int):
+                    if value not in (22050, 44100, 48000, 96000):
+                        raise ValueError("Sample rate must be 22050, 44100, 48000, or 96000")
 
             # Update configuration with validated value
             logger.info(f"Attempting to update {section}.{key} to {value}")
-            print(f"Debug: Attempting to update {section}.{key} to {value}")
-            
+
             # Check if the key exists in the configuration
             current_config = self.config_manager.get_config(section)
-            logger.info(f"Current {section} config: {current_config}")
-            print(f"Debug: Current {section} config: {current_config}")
-            
+            logger.debug(f"Current {section} config: {current_config}")
+
             if self.config_manager.update_config(section, key, value):
                 logger.info(f"Updated {section}.{key} to {value}")
-                print(f"✓ Configuration updated: {section}.{key} = {value}")
             else:
                 logger.error(f"Configuration update failed for {section}.{key}")
-                print(f"Error: Configuration update failed for {section}.{key}")
                 raise RuntimeError(f"Configuration update failed for {section}.{key}")
 
         except ValueError as ve:
@@ -602,7 +774,7 @@ class ModernConfigPanel(QDialog):
                 "Validation Error",
                 f"Invalid value for {section}.{key}: {str(ve)}\n\n"
                 f"Please enter a valid value within the allowed range.",
-                severity="medium"
+                severity=ERROR_SEVERITY_MEDIUM
             )
         except TypeError as te:
             ErrorHandler.show_error(
@@ -610,7 +782,7 @@ class ModernConfigPanel(QDialog):
                 f"Invalid type for {section}.{key}: {str(te)}\n\n"
                 f"Expected: {self._get_expected_type(section, key)}\n"
                 f"Received: {type(value).__name__}",
-                severity="medium"
+                severity=ERROR_SEVERITY_MEDIUM
             )
         except Exception as e:
             ErrorHandler.show_error(
@@ -621,7 +793,7 @@ class ModernConfigPanel(QDialog):
                 f"- Configuration section exists\n"
                 f"- You have proper permissions\n"
                 f"- System has sufficient resources",
-                severity="medium"
+                severity=ERROR_SEVERITY_MEDIUM
             )
 
     def _get_expected_type(self, section: str, key: str) -> str:
@@ -685,7 +857,7 @@ class ModernConfigPanel(QDialog):
                 "Restart Error",
                 f"Failed to restart system: {str(e)}\n\n"
                 "Please try again or check system logs for details.",
-                severity="high"
+                severity=ERROR_SEVERITY_HIGH
             )
 
     def _reset_to_defaults(self) -> None:
@@ -716,23 +888,17 @@ class ModernConfigPanel(QDialog):
                     "Please restart the application for changes to take effect.",
                     QMessageBox.StandardButton.Ok
                 )
-                print("✓ Configuration reset requested")
         except Exception as e:
             ErrorHandler.show_error(
                 "Reset Error",
                 f"Failed to reset configuration: {str(e)}\n\n"
                 "Please check system logs for details.",
-                severity="high"
+                severity=ERROR_SEVERITY_HIGH
             )
 
     def _refresh_configuration_ui(self) -> None:
-        """Refresh the configuration UI to show current values."""
-        try:
-            logger.info("Refreshing configuration UI")
-            # For now, just log the refresh
-            print("✓ Configuration UI refreshed")
-        except Exception as e:
-            ErrorHandler.log_warning(f"Error refreshing configuration UI: {str(e)}")
+        """Refresh the configuration UI to show current values. Not yet implemented."""
+        logger.debug("_refresh_configuration_ui called but not yet implemented")
 
     def closeEvent(self, a0: QCloseEvent | None) -> None:
         """Handle dialog closing."""

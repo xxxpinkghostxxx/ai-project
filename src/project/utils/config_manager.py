@@ -51,7 +51,9 @@ class ConfigManager:
                 'width': 64,
                 'height': 64,
                 'canvas_width': 192,
-                'canvas_height': 108
+                'canvas_height': 108,
+                'energy_gain': 20.0,
+                'energy_bias': 10.0,
             },
             'workspace': {
                 'width': 16,
@@ -73,7 +75,7 @@ class ConfigManager:
                 'cache_validity_ms': 100,
                 'retry_attempts': 3,
                 'retry_delay_ms': 10,
-                'error_threshold': 0.1
+                'error_threshold': 0.1,
             },
             'system': {
                 'update_interval': 100,
@@ -81,8 +83,44 @@ class ConfigManager:
                 'max_energy': 100.0,
                 'min_energy': 0.0,
                 'frame_throttling': True,
-                'detailed_logging': False
-            }
+                'detailed_logging': False,
+                'device': 'auto',
+            },
+            'hybrid': {
+                'enabled': True,
+                'grid_size': [512, 512],
+                'toroidal': True,
+                'excitatory_prob': 0.6,
+                'inhibitory_prob': 0.2,
+                'gated_prob': 0.1,
+                'num_diffusion_steps': 1,
+                'diffusion_coeff': 0.2,
+                'node_spawn_threshold': 5.0,
+                'node_death_threshold': -50.0,
+                'node_energy_cap': 500.0,
+                'spawn_cost': 2.0,
+            },
+            'audio': {
+                'enabled': False,
+                'source': 'loopback',
+                'sample_rate': 44100,
+                'fft_size': 512,
+                'fft_bins': 256,
+                'buffer_size': 1024,
+                'min_freq': 80.0,
+                'max_freq': 8000.0,
+                'master_volume': 0.3,
+                'energy_gain': 50.0,
+                'energy_bias': 5.0,
+            },
+            'ui': {
+                'sensory_scale_factor': 8,
+                'workspace_scale_factor': 2,
+                'canvas_skip_frames': 4,
+                'update_interval_ms': 60,
+                'node_render_limit': 50000,
+                'fps_update_interval': 30,
+            },
         }
 
         # Backup rate limiting and error condition detection
@@ -208,25 +246,21 @@ class ConfigManager:
         """Update a configuration value with security validation and performance monitoring"""
         try:
             logger.info(f"ConfigManager: Attempting to update {section}.{key} to {value}")
-            print(f"Debug ConfigManager: Attempting to update {section}.{key} to {value}")
-            
+
             # Sanitize inputs
             section = SecuritySanitizer.sanitize_filename(section)
             key = SecuritySanitizer.sanitize_filename(key)
             # Validate configuration key-value pair for security constraint
             full_key = f"{section}_{key}"
             logger.info(f"ConfigManager: Security validation for key: {full_key}")
-            print(f"Debug ConfigManager: Security validation for key: {full_key}")
-            
+
             is_valid, error_msg = ConfigurationSecurityValidator.validate_config_value(full_key, value)
             if not is_valid:
                 SecureLogger.secure_error(logger, f"Security validation failed: {error_msg}")
-                print(f"Debug ConfigManager: Security validation failed: {error_msg}")
                 return False
-            
+
             logger.info(f"ConfigManager: Security validation passed for {full_key}")
-            print(f"Debug ConfigManager: Security validation passed for {full_key}")
-            
+
             if section in self.config:
                 section_dict = self.config[section]
                 if isinstance(section_dict, dict) and key in section_dict:
@@ -235,20 +269,16 @@ class ConfigManager:
                     if not self.validate_config(self.config):
                         section_dict[key] = old_value
                         logger.error(f"ConfigManager: Configuration validation failed for {section}.{key}")
-                        print(f"Debug ConfigManager: Configuration validation failed for {section}.{key}")
                         return False
                     return self.save_config()
                 else:
                     logger.error(f"ConfigManager: Key {key} not found in section {section}")
-                    print(f"Debug ConfigManager: Key {key} not found in section {section}")
                     return False
             else:
                 logger.error(f"ConfigManager: Section {section} not found")
-                print(f"Debug ConfigManager: Section {section} not found")
                 return False
         except Exception as e:
             SecureLogger.secure_error(logger, f"Config update error: {str(e)}")
-            print(f"Debug ConfigManager: Exception in update_config: {str(e)}")
             return False
     def validate_config(self: 'ConfigManager', config: dict[str, Any]) -> bool:
         """Enhanced config validation with security constraints and detailed error messages"""
@@ -344,6 +374,69 @@ class ConfigManager:
                 value_raw = system.get(key)
                 if value_raw is not None and not isinstance(value_raw, bool):
                     raise ValueError(f"System '{key}' must be boolean, got {type(value_raw).__name__}")
+
+            # Validate hybrid config (optional section)
+            hybrid_raw = config.get('hybrid')
+            if hybrid_raw is not None:
+                if not isinstance(hybrid_raw, dict):
+                    raise ValueError(f"Hybrid configuration must be a dictionary, got {type(hybrid_raw).__name__}")
+                hybrid = cast(dict[str, Any], hybrid_raw)
+
+                grid_size = hybrid.get('grid_size')
+                if grid_size is not None:
+                    if not isinstance(grid_size, list) or len(grid_size) != 2:
+                        raise ValueError("Hybrid 'grid_size' must be a list of 2 integers")
+                    if not all(isinstance(v, int) and v > 0 for v in grid_size):
+                        raise ValueError("Hybrid 'grid_size' values must be positive integers")
+
+                for key in ['node_spawn_threshold', 'node_death_threshold', 'node_energy_cap',
+                            'spawn_cost', 'diffusion_coeff']:
+                    val = hybrid.get(key)
+                    if val is not None and not isinstance(val, (int, float)):
+                        raise ValueError(f"Hybrid '{key}' must be a number, got {type(val).__name__}")
+
+                energy_cap = hybrid.get('node_energy_cap')
+                if isinstance(energy_cap, (int, float)) and energy_cap <= 0:
+                    raise ValueError(f"Hybrid 'node_energy_cap' must be positive, got {energy_cap}")
+
+            # Validate audio config (optional section)
+            audio_raw = config.get('audio')
+            if audio_raw is not None:
+                if not isinstance(audio_raw, dict):
+                    raise ValueError(f"Audio configuration must be a dictionary, got {type(audio_raw).__name__}")
+                audio = cast(dict[str, Any], audio_raw)
+
+                sr = audio.get('sample_rate')
+                if sr is not None and sr not in (22050, 44100, 48000, 96000):
+                    raise ValueError(f"Audio 'sample_rate' must be 22050/44100/48000/96000, got {sr}")
+
+                fft = audio.get('fft_size')
+                if fft is not None:
+                    if not isinstance(fft, int) or fft <= 0 or (fft & (fft - 1)) != 0:
+                        raise ValueError(f"Audio 'fft_size' must be a positive power of 2, got {fft}")
+
+                vol = audio.get('master_volume')
+                if vol is not None and isinstance(vol, (int, float)):
+                    if vol < 0.0 or vol > 1.0:
+                        raise ValueError(f"Audio 'master_volume' must be in [0, 1], got {vol}")
+
+                for key in ['min_freq', 'max_freq', 'energy_gain', 'energy_bias']:
+                    val = audio.get(key)
+                    if val is not None and isinstance(val, (int, float)) and val < 0:
+                        raise ValueError(f"Audio '{key}' must be non-negative, got {val}")
+
+            # Cross-section validation: sensory must fit within grid
+            hybrid_raw2 = config.get('hybrid', {})
+            if isinstance(hybrid_raw2, dict):
+                grid_sz = hybrid_raw2.get('grid_size')
+                if isinstance(grid_sz, list) and len(grid_sz) == 2:
+                    grid_h, grid_w = grid_sz
+                    sens_h = sensory.get('height', 0)
+                    sens_w = sensory.get('width', 0)
+                    if isinstance(grid_h, int) and isinstance(sens_h, int) and sens_h > grid_h:
+                        logger.warning("Sensory height (%d) exceeds grid height (%d); will be clamped", sens_h, grid_h)
+                    if isinstance(grid_w, int) and isinstance(sens_w, int) and sens_w > grid_w:
+                        logger.warning("Sensory width (%d) exceeds grid width (%d); will be clamped", sens_w, grid_w)
 
             logger.info("Configuration validation passed successfully")
             return True

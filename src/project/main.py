@@ -1,7 +1,7 @@
-"""Main module for the PyTorch Geometric Neural System.
+"""Main entry point for the Taichi Neural System.
 
 This module contains the main entry point and system initialization logic
-for the PyG neural system application.
+for the neural simulation application.
 
 Key Features:
 - System initialization and configuration management
@@ -11,13 +11,15 @@ Key Features:
 - Neural system and UI integration
 
 Usage:
-    python project/pyg_main.py [--log-level LEVEL]
+    python project/main.py [--log-level LEVEL]
 
     Where LEVEL can be: DEBUG, INFO, WARNING, ERROR, CRITICAL
 """
 
 import sys
 import os
+import time
+import threading
 
 # Add parent directory to path so we can import 'project' as a module
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -28,15 +30,14 @@ import contextlib
 import argparse
 from typing import Any, Tuple, Union
 from collections.abc import Generator
+import numpy as np
 import torch
 
 # Import Qt application components
 # pylint: disable=wrong-import-position
 from PyQt6.QtWidgets import QApplication  # type: ignore[import-untyped]  # pylint: disable=no-name-in-module
 
-from project.pyg_neural_system import PyGNeuralSystem  # type: ignore[import-untyped,import-not-found]  # pylint: disable=import-error
 from project.vision import ThreadedScreenCapture  # type: ignore[import-untyped,import-not-found]  # pylint: disable=import-error
-# Try to import optimized capture (3-12× faster!)
 try:
     from project.optimized_capture import create_best_capture  # type: ignore[import-untyped,import-not-found]  # pylint: disable=import-error
     OPTIMIZED_CAPTURE_AVAILABLE = True
@@ -49,10 +50,15 @@ from project.system.state_manager import StateManager  # type: ignore[import-unt
 from project.ui.modern_main_window import ModernMainWindow  # type: ignore[import-untyped,import-not-found]  # pylint: disable=import-error
 from project.workspace.workspace_system import WorkspaceNodeSystem  # type: ignore[import-untyped,import-not-found]  # pylint: disable=import-error
 from project.workspace.config import EnergyReadingConfig  # type: ignore[import-untyped,import-not-found]  # pylint: disable=import-error
-from project.system.hybrid_grid_engine import HybridGridGraphEngine  # type: ignore[import-untyped,import-not-found]  # pylint: disable=import-error
-from project.system.tiled_hybrid_engine import TiledHybridEngine  # type: ignore[import-untyped,import-not-found]  # pylint: disable=import-error
-from project.system.sparse_hybrid_engine import SparseHybridEngine  # type: ignore[import-untyped,import-not-found]  # pylint: disable=import-error
-from project.system.probabilistic_field_engine import ProbabilisticFieldEngine  # type: ignore[import-untyped,import-not-found]  # pylint: disable=import-error
+from project.system.taichi_engine import TaichiNeuralEngine  # type: ignore[import-untyped,import-not-found]  # pylint: disable=import-error
+
+# Audio modules (optional — graceful degradation if sounddevice missing)
+try:
+    from project.audio_capture import AudioCapture  # type: ignore[import-untyped,import-not-found]
+    from project.audio_output import AudioOutput    # type: ignore[import-untyped,import-not-found]
+    AUDIO_AVAILABLE = True
+except ImportError:
+    AUDIO_AVAILABLE = False
 
 # Configure logging
 logging.basicConfig(
@@ -69,52 +75,72 @@ logger = logging.getLogger(__name__)
 if OPTIMIZED_CAPTURE_AVAILABLE:
     logger.info("Optimized capture available (will auto-select best method)")
 else:
-    logger.info("Using standard capture (install mss for 3× speedup: pip install mss)")
+    logger.info("Using standard capture (install mss for faster capture: pip install mss)")
 
 
 class HybridNeuralSystemAdapter:
-    """
-    Adapter to make HybridGridGraphEngine compatible with PyGNeuralSystem interface.
-    
-    This enables seamless integration with existing UI and workspace code.
-    Provides 5,000x speedup while maintaining full compatibility.
-    """
+    """Adapter to make TaichiNeuralEngine compatible with the existing UI and workspace code."""
     
     def __init__(
         self,
-        engine: HybridGridGraphEngine,
+        engine: TaichiNeuralEngine,
         sensory_region: Tuple[int, int, int, int],
         workspace_region: Tuple[int, int, int, int],
         sensory_width: int = 64,
-        sensory_height: int = 64
+        sensory_height: int = 64,
+        energy_gain: float = 20.0,
+        energy_bias: float = 10.0,
+        audio_sensory_L: Tuple[int, int, int, int] | None = None,
+        audio_sensory_R: Tuple[int, int, int, int] | None = None,
+        audio_workspace_L: Tuple[int, int, int, int] | None = None,
+        audio_workspace_R: Tuple[int, int, int, int] | None = None,
+        audio_energy_gain: float = 50.0,
+        audio_energy_bias: float = 5.0,
     ):
         """Initialize the adapter.
-        
+
         Args:
-            engine: The hybrid grid engine
+            engine: The Taichi neural engine
             sensory_region: (y_start, y_end, x_start, x_end) for sensory nodes
             workspace_region: (y_start, y_end, x_start, x_end) for workspace nodes
             sensory_width: Width of sensory input
             sensory_height: Height of sensory input
+            energy_gain: Pixel-to-energy multiplier (pixel_float01 * gain + bias)
+            energy_bias: Energy floor added to every injected pixel
+            audio_sensory_L/R: Regions for left/right audio FFT input
+            audio_workspace_L/R: Regions for left/right audio oscillator output
+            audio_energy_gain/bias: Energy scaling for audio injection
         """
         self.engine = engine
         self.sensory_region = sensory_region
         self.workspace_region = workspace_region
         self.sensory_width = sensory_width
         self.sensory_height = sensory_height
+        self.energy_gain = energy_gain
+        self.energy_bias = energy_bias
         self.device = engine.device
-        
+
+        # Audio regions (None = audio disabled)
+        self.audio_sensory_L = audio_sensory_L
+        self.audio_sensory_R = audio_sensory_R
+        self.audio_workspace_L = audio_workspace_L
+        self.audio_workspace_R = audio_workspace_R
+        self.audio_energy_gain = audio_energy_gain
+        self.audio_energy_bias = audio_energy_bias
+
         # Track connection worker state (for compatibility)
         self._connection_worker_started = False
-        
-        logger.info("Hybrid adapter initialized (5000x speedup mode)")
+
+        self._step_count = 0  # Number of update_step() calls made
+        self._metrics_lock = threading.Lock()
+        logger.info("Hybrid adapter initialized")
     
     def process_frame(self, frame_data: Any) -> dict:
         """Process a screen capture frame (compatible with ThreadedScreenCapture).
         
         Optimized for real-time performance with GPU.
         """
-        # Convert frame to tensor (BYTE EFFICIENT!)
+        # Convert frame to tensor
         if isinstance(frame_data, torch.Tensor):
             pixels = frame_data
             # If uint8, convert to float32 only when needed (maintains precision)
@@ -135,15 +161,12 @@ class HybridNeuralSystemAdapter:
         # - Dynamic → Workspace: Bidirectional flow (in step())
         # The chain is: Sensory → Dynamic → Dynamic → ... → Workspace
         # Dynamic nodes form long Markov chains with Dirac-compressed connection probabilities
-        self.engine.inject_sensory_data(pixels, self.sensory_region)
-        
-        # Run simulation step with DNA-BASED transfer!
+        self.engine.inject_sensory_data(pixels, self.sensory_region,
+                                        self.energy_gain, self.energy_bias)
+
         return self.engine.step(
-            num_diffusion_steps=1,  # Reduced from 10 to 1 for real-time
-            use_dna_transfer=True,  # NEW: DNA-based connections!
-            use_probabilistic_transfer=False,  # Disable old method
-            excitatory_prob=0.6,
-            inhibitory_prob=0.2
+            num_diffusion_steps=1,
+            use_dna_transfer=True,
         )
     
     def update_step(self) -> dict:
@@ -153,84 +176,79 @@ class HybridNeuralSystemAdapter:
         - Reduced diffusion steps (1 instead of 5) for faster updates
         - Still maintains full simulation accuracy
         """
-        import time
-        import torch
-        
         t_step_start = time.time()
-        
-        # Pre-sync: Check if GPU queue is already empty
-        t_pre_sync_start = time.time()
-        if torch.cuda.is_available():
-            torch.cuda.synchronize()  # Clear any pending GPU work
-        t_pre_sync_done = time.time()
-        
-        # Call engine.step() (queues GPU operations, returns immediately)
+        self._step_count += 1
+
         t_engine_call_start = time.time()
         result = self.engine.step(
-            num_diffusion_steps=1,  # Reduced from 5 to 1 for real-time performance
-            use_dna_transfer=True,  # NEW: DNA-based connections!
-            use_probabilistic_transfer=False,  # Disable old method
-            excitatory_prob=0.6,
-            inhibitory_prob=0.2
+            num_diffusion_steps=1,
+            use_dna_transfer=True,
         )
         t_engine_call_done = time.time()
-        
-        # Check if GPU sync happens when accessing result
-        t_sync_start = time.time()
-        # Access result to force any potential sync
-        _ = result.get('total_time', 0)  # This might trigger sync
-        t_sync_done = time.time()
-        
+
         # Explicit GPU sync to measure actual GPU work time
         t_gpu_sync_start = time.time()
         if torch.cuda.is_available():
-            torch.cuda.synchronize()  # Wait for all GPU operations to complete
+            torch.cuda.synchronize()
         t_gpu_sync_done = time.time()
-        
+
         t_step_done = time.time()
-        
-        # Add detailed adapter-level timing
-        result['adapter_time'] = t_step_done - t_step_start
-        result['pre_sync_time'] = t_pre_sync_done - t_pre_sync_start
+
+        result['adapter_time']     = t_step_done - t_step_start
+        result['pre_sync_time']    = 0.0  # pre-sync removed (was always 0)
         result['engine_call_time'] = t_engine_call_done - t_engine_call_start
-        result['result_access_time'] = t_sync_done - t_sync_start
-        result['gpu_sync_time'] = t_gpu_sync_done - t_gpu_sync_start
+        result['gpu_sync_time']    = t_gpu_sync_done - t_gpu_sync_start
         return result
     
     def get_workspace_energies(self) -> torch.Tensor:
         """Get workspace energies for UI display."""
         return self.engine.read_workspace_energies(self.workspace_region)
     
-    def get_workspace_energies_grid(self) -> list[list[float]]:
-        """Get workspace energies as 2D list for UI display.
-        
-        This is the format expected by WorkspaceNodeSystem for visualization.
-        OPTIMIZED: Cache result and only sync every N frames to avoid blocking!
+    def get_workspace_energies_grid(self) -> 'np.ndarray':
+        """Get workspace energies as 2D (H, W) numpy array for UI display.
+
+        The returned array has shape (workspace_height, workspace_width) and
+        dtype float32, ready for direct colormap rendering.
+
+        OPTIMIZED: Result is cached for 8 ms (~120 Hz ceiling) so the GPU→CPU
+        transfer runs at most once per display frame even when called more often.
         """
-        # Cache for performance (avoid blocking GPU→CPU sync every frame!)
-        if not hasattr(self, '_workspace_energies_cache_frame'):
-            self._workspace_energies_cache_frame = 0
+        if not hasattr(self, '_workspace_energies_cache_time'):
+            self._workspace_energies_cache_time = 0.0
             self._workspace_energies_cache = None
-        
-        # Only sync every 10 frames (10 FPS update rate is fine for UI!)
-        if self._workspace_energies_cache_frame % 10 == 0:
+
+        now = time.monotonic()
+        if now - self._workspace_energies_cache_time >= 0.008 or self._workspace_energies_cache is None:
             energies_tensor = self.get_workspace_energies()
-            # BLOCKING: GPU→CPU sync (but only every 10 frames!)
-            energies_list = energies_tensor.cpu().tolist()
-            self._workspace_energies_cache = energies_list
-            self._workspace_energies_cache_frame += 1
-        else:
-            # Use cached value (NO blocking!)
-            self._workspace_energies_cache_frame += 1
-        
-        return self._workspace_energies_cache if self._workspace_energies_cache is not None else [[0.0] * 256 for _ in range(256)]
+            flat = energies_tensor.cpu().numpy().copy()  # shape: (H*W,) or (H*W, 1)
+            flat = flat.ravel()
+
+            # Reshape to 2D (height × width) matching the workspace region
+            ws_h = self.workspace_region[1] - self.workspace_region[0]
+            ws_w = self.workspace_region[3] - self.workspace_region[2]
+            if flat.size == ws_h * ws_w:
+                self._workspace_energies_cache = flat.reshape(ws_h, ws_w)
+            else:
+                logger.warning(
+                    "Workspace energy shape mismatch: got %d elements, expected %d×%d=%d; "
+                    "returning zeros. Check workspace_region vs engine grid.",
+                    flat.size, ws_h, ws_w, ws_h * ws_w,
+                )
+                self._workspace_energies_cache = np.zeros((ws_h, ws_w), dtype=np.float32)
+
+            self._workspace_energies_cache_time = now
+
+        return self._workspace_energies_cache  # type: ignore[return-value]
     
     def get_workspace_node_energy(self, node_id: int) -> float:
         """Get energy for a specific workspace node (compatibility method).
-        
+
+        DEPRECATED: Triggers a full GPU→CPU transfer for a single float.
+        Prefer get_workspace_energies_grid() for batch reads.
+
         Args:
             node_id: The ID of the workspace node (0-255 for 16x16 grid)
-            
+
         Returns:
             Energy value for that node
         """
@@ -254,8 +272,8 @@ class HybridNeuralSystemAdapter:
         return 0.0
     
     def get_node_count(self) -> int:
-        """Get current node count."""
-        return len(self.engine.node_ids)
+        """Get current alive node count (high-water mark, no GPU roundtrip)."""
+        return self.engine._count
     
     def get_energy_stats(self) -> dict:
         """Get energy statistics."""
@@ -264,93 +282,141 @@ class HybridNeuralSystemAdapter:
             'max_energy': float(self.engine.energy_field.max().item()),
             'min_energy': float(self.engine.energy_field.min().item()),
         }
-    
-    def get_metrics(self) -> dict:
-        """Get performance metrics (compatible with traditional system interface).
-        
-        OPTIMIZED: Cache expensive node count calculations for 100ms!
-        This reduces the 170-220ms UI bottleneck by 10x!
+
+    def pulse_energy(self) -> float:
+        """Add a burst of energy across the whole field. Returns amount added."""
+        amount = self.engine.energy_cap * 0.1  # 10% of cap
+        self.engine.energy_field.add_(amount)
+        self.engine.energy_field.clamp_(self.engine.death_threshold, self.engine.energy_cap)
+        return float(amount)
+
+    # ------------------------------------------------------------------
+    # Audio methods
+    # ------------------------------------------------------------------
+
+    def process_audio_frame(self, spectrum: 'np.ndarray') -> None:
+        """Inject stereo FFT spectrum into the audio sensory regions.
+
+        Parameters
+        ----------
+        spectrum : ndarray
+            Shape ``(2, fft_bins)`` — row 0 = left, row 1 = right.
+            Values in [0, 1].
         """
-        import time
+        if self.audio_sensory_L is None or self.audio_sensory_R is None:
+            return
+
+        y0, y1, x0, x1 = self.audio_sensory_L
+        rows = y1 - y0
+        cols = x1 - x0
+
+        for ch, region in enumerate([self.audio_sensory_L, self.audio_sensory_R]):
+            ch_data = spectrum[ch]  # (fft_bins,)
+            # Tile across rows for spatial redundancy
+            tiled = np.tile(ch_data, (rows, 1))[:rows, :cols]
+            tiled_t = torch.from_numpy(tiled.astype(np.float32))
+            self.engine.inject_audio_data(
+                tiled_t, region,
+                self.audio_energy_gain, self.audio_energy_bias,
+            )
+
+    def get_audio_workspace_energies(self) -> Tuple['np.ndarray', 'np.ndarray'] | None:
+        """Read energy from both audio workspace regions.
+
+        Returns ``(left_grid, right_grid)`` as numpy arrays, or ``None``
+        if audio regions are not configured. Each array has shape
+        ``(rows, cols)`` matching the audio workspace region size.
+        """
+        if self.audio_workspace_L is None or self.audio_workspace_R is None:
+            return None
+
+        if not hasattr(self, '_audio_ws_cache_time'):
+            self._audio_ws_cache_time = 0.0
+            self._audio_ws_cache: Tuple[np.ndarray, np.ndarray] | None = None
+
+        now = time.monotonic()
+        if now - self._audio_ws_cache_time >= 0.008 or self._audio_ws_cache is None:
+            left = self.engine.read_audio_workspace_energies(self.audio_workspace_L).numpy()
+            right = self.engine.read_audio_workspace_energies(self.audio_workspace_R).numpy()
+            self._audio_ws_cache = (left, right)
+            self._audio_ws_cache_time = now
+
+        return self._audio_ws_cache
+
+    def stop_connection_worker(self) -> None:
+        """No-op: Taichi engine has no connection worker thread."""
+
+    def wait_for_workers_idle(self) -> None:
+        """No-op: Taichi engine has no background workers."""
+
+    def get_metrics(self) -> dict:
+        """Return performance metrics. Caches expensive GPU reads for 100ms."""
         current_time = time.time()
-        
-        # Check cache validity (100ms = 10 FPS worth of caching)
-        if hasattr(self, '_last_metrics_time'):
-            cache_age = current_time - self._last_metrics_time
-            if cache_age < 0.1:  # Cache hit! Skip expensive GPU operations
-                return self._cached_metrics.copy()
-        
-        # Cache miss - recalculate (expensive but necessary)
-        # Check if this is a probabilistic field engine (no discrete nodes!)
-        if isinstance(self.engine, ProbabilisticFieldEngine):
-            # Probabilistic engine: Use engine's own metrics (field-based!)
-            engine_metrics = self.engine.get_metrics()
-            # CRITICAL: Clamp all values to prevent infinity conversion errors
-            dynamic_count = int(max(0, min(engine_metrics.get('dynamic_node_count', 0), 1e9)))
-            sensory_count = int(max(0, min(engine_metrics.get('sensory_node_count', 0), 1e9)))
-            workspace_count = int(max(0, min(engine_metrics.get('workspace_node_count', 0), 1e9)))
-            total_nodes = int(max(0, min(engine_metrics.get('total_nodes', 0), 1e9)))
-            total_energy = float(max(-1e6, min(engine_metrics.get('total_energy', 0.0), 1e9)))
-        else:
-            # Traditional engine: Count discrete nodes
-            # CRITICAL: Only count ALIVE nodes (filter by is_alive flag!)
-            alive_mask = (self.engine.node_is_alive == 1)
-            
-            # Count alive nodes by type
-            alive_types = self.engine.node_types[alive_mask]
-            dynamic_count = int((alive_types == 1).sum().item())
-            sensory_count = int((alive_types == 0).sum().item())
-            workspace_count = int((alive_types == 2).sum().item())
-            total_nodes = int(alive_mask.sum().item())  # Total alive nodes only!
-            
-            # Calculate total energy
-            total_energy = float(self.engine.energy_field.sum().item())
-        
-        # Build metrics dict
-        # For probabilistic engine, get additional workspace stats
-        if isinstance(self.engine, ProbabilisticFieldEngine):
-            engine_metrics = self.engine.get_metrics()
-            workspace_energy_avg = engine_metrics.get('workspace_energy_avg', 0.0)
-            workspace_energy_min = engine_metrics.get('workspace_energy_min', 0.0)
-            workspace_energy_max = engine_metrics.get('workspace_energy_max', 0.0)
-        else:
-            workspace_energy_avg = 0.0
-            workspace_energy_min = 0.0
-            workspace_energy_max = 0.0
-        
-        metrics = {
-            # Traditional keys (for UI compatibility)
-            'total_energy': total_energy,
-            'dynamic_node_count': dynamic_count,
-            'sensory_node_count': sensory_count,
-            'workspace_node_count': workspace_count,  # FIXED: Now shows 65,536 for probabilistic!
-            'edge_count': 0,  # Hybrid doesn't track explicit edges
-            'connection_count': 0,  # Hybrid doesn't track explicit edges
-            'total_spawns': self.engine.total_spawns,
-            'total_deaths': self.engine.total_deaths,
-            'node_births': self.engine.total_spawns,  # UI expects this key
-            'node_deaths': self.engine.total_deaths,  # UI expects this key
-            'total_node_births': self.engine.total_spawns,  # UI panel expects this
-            'total_node_deaths': self.engine.total_deaths,  # UI panel expects this
-            'total_conn_births': 0,  # Hybrid doesn't have connections
-            'total_conn_deaths': 0,  # Hybrid doesn't have connections
-            
-            # Additional hybrid-specific metrics
-            'total_nodes': total_nodes,
-            'operations_per_second': self.engine.grid_operations_per_step * 60,  # Assuming ~60 fps
-            
-            # Workspace energy stats (for UI display)
-            'workspace_energy_avg': workspace_energy_avg,
-            'workspace_energy_min': workspace_energy_min,
-            'workspace_energy_max': workspace_energy_max,
-            'avg_energy': total_energy / (self.engine.grid_size[0] * self.engine.grid_size[1]) if total_energy > 0 else 0,
-        }
-        
-        # Update cache
-        self._cached_metrics = metrics
-        self._last_metrics_time = current_time
-        
-        return metrics
+
+        with self._metrics_lock:
+            # Cache valid for 100ms — reduces GPU round-trips on high-frequency UI polls
+            if hasattr(self, '_last_metrics_time'):
+                if current_time - self._last_metrics_time < 0.1:
+                    return self._cached_metrics.copy()
+
+            # Reuse engine's get_metrics() (single GPU→CPU numpy read for node counts)
+            engine_m = self.engine.get_metrics()
+            dynamic_count   = engine_m['dynamic_count']
+            workspace_count = engine_m['workspace_count']
+
+            # Sensory count = area of sensory field region (not in _node_state)
+            sy0_m, sy1_m, sx0_m, sx1_m = self.sensory_region
+            sensory_count = (sy1_m - sy0_m) * (sx1_m - sx0_m)
+            total_nodes   = engine_m['alive_count'] + sensory_count
+
+            total_energy = engine_m['total_energy']
+
+            # Workspace energy stats — slice directly from GPU field (fast; no node scan)
+            wy0, wy1, wx0, wx1 = self.workspace_region
+            ws_field = self.engine.energy_field[wy0:wy1, wx0:wx1]
+            workspace_energy_avg = float(ws_field.mean().item())
+            workspace_energy_min = float(ws_field.min().item())
+            workspace_energy_max = float(ws_field.max().item())
+
+            # Sensory region energy stats (cheap slice, no per-node scan)
+            sy0, sy1, sx0, sx1 = self.sensory_region
+            sens_field = self.engine.energy_field[sy0:sy1, sx0:sx1]
+            sensory_energy_min = float(sens_field.min().item())
+            sensory_energy_max = float(sens_field.max().item())
+
+            grid_cells = self.engine.grid_size[0] * self.engine.grid_size[1]
+            avg_energy = total_energy / grid_cells if total_energy > 0 else 0.0
+            metrics = {
+                'total_energy':         total_energy,
+                'dynamic_node_count':   dynamic_count,
+                'sensory_node_count':   sensory_count,
+                'workspace_node_count': workspace_count,
+                'edge_count':           0,
+                'connection_count':     0,
+                'conns_per_dynamic':    0.0,  # DNA-based system; no discrete connections
+                'total_spawns':         self.engine.total_spawns,
+                'total_deaths':         self.engine.total_deaths,
+                'node_births':          self.engine.total_spawns,
+                'node_deaths':          self.engine.total_deaths,
+                'total_node_births':    self.engine.total_spawns,
+                'total_node_deaths':    self.engine.total_deaths,
+                'total_conn_births':    0,
+                'total_conn_deaths':    0,
+                'total_nodes':          total_nodes,
+                'step_count':           self._step_count,
+                'operations_per_second': self.engine.grid_operations_per_step * 60,
+                'workspace_energy_avg': workspace_energy_avg,
+                'workspace_energy_min': workspace_energy_min,
+                'workspace_energy_max': workspace_energy_max,
+                'avg_energy':           avg_energy,
+                'avg_dynamic_energy':   avg_energy,  # Field-wide proxy; no per-node-type scan
+                'sensory_energy_min':   sensory_energy_min,
+                'sensory_energy_max':   sensory_energy_max,
+            }
+
+            self._cached_metrics = metrics
+            self._last_metrics_time = current_time
+            return metrics
     
     def queue_cull(self) -> None:
         """Queue connection culling (compatibility method for UI).
@@ -375,27 +441,15 @@ class HybridNeuralSystemAdapter:
         self._connection_worker_started = True
         logger.info("Hybrid mode: connection worker not needed (using DNA-based transfer)")
     
-    def queue_connection_growth(self) -> None:
-        """Queue connection growth (compatibility method - not needed for hybrid).
-        
-        The hybrid engine handles connections via probabilistic neighborhood transfer,
-        so explicit connection growth is not required.
-        """
-        # Hybrid engine doesn't use explicit connection growth
-        pass
-    
     def update_sensory_nodes(self, sensory_input: Any) -> None:
         """Update sensory nodes with input (compatibility method).
         
-        This method provides compatibility with the traditional PyGNeuralSystem interface.
         It converts sensory input (pixels) to energy and injects it into the sensory region.
         
         Args:
             sensory_input: Sensory data (numpy array or torch tensor) with shape (height, width)
                           Values should be in range 0-255 (pixel intensities)
         """
-        import numpy as np
-        
         # Convert to tensor if needed
         if isinstance(sensory_input, np.ndarray):
             sensory_input = torch.tensor(sensory_input, device=self.device, dtype=torch.float32)
@@ -410,7 +464,8 @@ class HybridNeuralSystemAdapter:
                 return
         
         # Inject data using the hybrid engine's method
-        self.engine.inject_sensory_data(sensory_input, self.sensory_region)
+        self.engine.inject_sensory_data(sensory_input, self.sensory_region,
+                                        self.energy_gain, self.energy_bias)
     
     def update(self) -> None:
         """Run a single simulation step (compatibility method).
@@ -441,6 +496,18 @@ class HybridNeuralSystemAdapter:
     def stop(self) -> None:
         """Stop the system."""
         self.shutdown()
+
+
+def resolve_device(pref: str | None) -> str:
+    """Resolve device preference string to 'cuda' or 'cpu'."""
+    cuda = torch.cuda.is_available()
+    if isinstance(pref, str):
+        pref = pref.lower()
+    if pref in ('auto', None):
+        return 'cuda' if cuda else 'cpu'
+    if pref == 'cuda' and cuda:
+        return 'cuda'
+    return 'cpu'
 
 
 @contextlib.contextmanager
@@ -499,17 +566,7 @@ def create_hybrid_neural_system(
     sensory_width: int,
     sensory_height: int
 ) -> HybridNeuralSystemAdapter:
-    """
-    Create hybrid grid-graph engine with 5000x speedup.
-    
-    Args:
-        config_manager: Configuration manager
-        sensory_width: Width of sensory input
-        sensory_height: Height of sensory input
-        
-    Returns:
-        HybridNeuralSystemAdapter compatible with existing interface
-    """
+    """Create and initialize the Taichi neural engine and wrap it in the adapter."""
     # Get hybrid configuration
     system_config = config_manager.get_config('system')
     if system_config is None:
@@ -523,25 +580,15 @@ def create_hybrid_neural_system(
     grid_size = tuple(hybrid_config.get('grid_size', [512, 512]))
     
     # Device selection
-    device_pref = system_config.get('device', 'auto')
-    cuda_available = torch.cuda.is_available()
-    if device_pref == 'auto':
-        device = 'cuda' if cuda_available else 'cpu'
-    elif device_pref == 'cuda' and cuda_available:
-        device = 'cuda'
-    else:
-        device = 'cpu'
+    device = resolve_device(system_config.get('device', 'auto'))
     
     logger.info("="*60)
     logger.info("INITIALIZING HYBRID ENGINE MODE")
     logger.info("="*60)
     logger.info("Grid size: %dx%d = %d cells", grid_size[0], grid_size[1], grid_size[0]*grid_size[1])
     logger.info("Device: %s", device)
-    logger.info("Expected performance: BILLIONS of ops/second")
-    logger.info("Speedup vs traditional: 5000x+")
     
     # Get hybrid parameters from config
-    hybrid_config = config_manager.get_config('hybrid') or {}
     node_spawn_threshold = hybrid_config.get('node_spawn_threshold', 5.0)
     node_death_threshold = hybrid_config.get('node_death_threshold', -50.0)
     node_energy_cap = hybrid_config.get('node_energy_cap', 500.0)
@@ -552,71 +599,17 @@ def create_hybrid_neural_system(
                 f"death_threshold={node_death_threshold}, energy_cap={node_energy_cap}, "
                 f"spawn_cost={spawn_cost}, diffusion={diffusion_coeff}")
     
-    # Get probabilistic config (might be None)
-    try:
-        prob_config = config_manager.get_config('probabilistic')
-    except Exception:
-        prob_config = None
-    
-    # Check engine mode
-    tile_mode = hybrid_config.get('tile_mode', False)
-    prob_mode = prob_config and prob_config.get('enabled', False)
-    
-    if prob_mode:
-        # Use probabilistic field engine (BILLIONS @ 1000 FPS!)
-        logger.info("🌊 PROBABILISTIC FIELD MODE ENABLED!")
-        logger.info(f"   Grid: {grid_size[0]}×{grid_size[1]}")
-        logger.info(f"   Target: BILLIONS of statistical nodes!")
-        logger.info(f"   Expected FPS: 100-1000!")
-        logger.info(f"   GPU Memory: ~90 MB")
-        
-        # Get workspace size from config
-        workspace_config = config_manager.get_config('workspace') or {}
-        workspace_width = workspace_config.get('width', 364)
-        workspace_height = workspace_config.get('height', 364)
-        
-        engine = ProbabilisticFieldEngine(
-            grid_size=grid_size,
-            device=device,
-            workspace_width=workspace_width,
-            workspace_height=workspace_height
-        )
-    elif tile_mode:
-        # Use tiled hybrid engine (massive grids in RAM!)
-        logger.info("🔲 TILE MODE ENABLED!")
-        
-        tile_size = tuple(hybrid_config.get('tile_size', [512, 512]))
-        max_active_tiles_gpu = hybrid_config.get('max_active_tiles_gpu', 16)
-        tile_activity_threshold = hybrid_config.get('tile_activity_threshold', 0.01)
-        
-        logger.info(f"   Grid: {grid_size[0]}×{grid_size[1]} in RAM")
-        logger.info(f"   Tiles: {tile_size[0]}×{tile_size[1]} on GPU")
-        logger.info(f"   Max GPU tiles: {max_active_tiles_gpu}")
-        
-        engine = TiledHybridEngine(
-            grid_size=grid_size,
-            tile_size=tile_size,
-            max_active_tiles_gpu=max_active_tiles_gpu,
-            tile_activity_threshold=tile_activity_threshold,
-            node_spawn_threshold=node_spawn_threshold,
-            node_death_threshold=node_death_threshold,
-            node_energy_cap=node_energy_cap,
-            spawn_cost=spawn_cost,
-            diffusion_coeff=diffusion_coeff,
-            device=device
-        )
-    else:
-        # Use standard hybrid engine
-        logger.info("Using standard hybrid engine (full grid on GPU)")
-        engine = HybridGridGraphEngine(
-            grid_size=grid_size,
-            node_spawn_threshold=node_spawn_threshold,
-            node_death_threshold=node_death_threshold,
-            node_energy_cap=node_energy_cap,
-            spawn_cost=spawn_cost,
-            diffusion_coeff=diffusion_coeff,
-            device=device
-        )
+    # Create Taichi engine (single canonical engine, 4M node cap, CUDA)
+    logger.info("Creating TaichiNeuralEngine (4M node capacity, CUDA kernels)")
+    engine = TaichiNeuralEngine(
+        grid_size=grid_size,
+        node_spawn_threshold=node_spawn_threshold,
+        node_death_threshold=node_death_threshold,
+        node_energy_cap=node_energy_cap,
+        spawn_cost=spawn_cost,
+        diffusion_coeff=diffusion_coeff,
+        device=device
+    )
     
     # Define system regions (scaled to grid size)
     workspace_config = config_manager.get_config('workspace') or {}
@@ -632,15 +625,37 @@ def create_hybrid_neural_system(
     SENSORY_REGION = (0, sensory_region_y_end, 0, sensory_region_x_end)
     WORKSPACE_REGION = (grid_size[0] - workspace_height, grid_size[0], 0, workspace_width)
     
+    # ---------------------------------------------------------------
+    # Audio regions (placed in unused columns of the bottom strip)
+    # ---------------------------------------------------------------
+    audio_config = config_manager.get_config('audio') or {}
+    audio_enabled = audio_config.get('enabled', False) and AUDIO_AVAILABLE
+    fft_bins = audio_config.get('fft_bins', 256)
+    audio_rows = workspace_height  # Same row span as visual workspace
+
+    # Bottom strip Y range (same as workspace)
+    aw_y0 = grid_size[0] - audio_rows
+    aw_y1 = grid_size[0]
+
+    # Column offsets for the four audio regions
+    AUDIO_SENSORY_L_REGION  = (aw_y0, aw_y1, 256, 256 + fft_bins)
+    AUDIO_SENSORY_R_REGION  = (aw_y0, aw_y1, 512, 512 + fft_bins)
+    AUDIO_WORKSPACE_L_REGION = (aw_y0, aw_y1, 768, 768 + fft_bins)
+    AUDIO_WORKSPACE_R_REGION = (aw_y0, aw_y1, 1024, 1024 + fft_bins)
+
     logger.info("System layout:")
-    logger.info("  Sensory region:   [0:%d, 0:%d] = %d nodes (clamped to grid)", 
+    logger.info("  Sensory region:   [0:%d, 0:%d] = %d nodes (clamped to grid)",
                 sensory_region_y_end, sensory_region_x_end, sensory_region_y_end*sensory_region_x_end)
     logger.info("  Dynamic region:   [%d:%d, 0:%d]", sensory_region_y_end, grid_size[0]-workspace_height, grid_size[1])
     logger.info("  Workspace region: [%d:%d, 0:%d] = %d nodes", grid_size[0]-workspace_height, grid_size[0], workspace_width, workspace_height*workspace_width)
+    if audio_enabled:
+        logger.info("  Audio sensory L:  [%d:%d, 256:%d]", aw_y0, aw_y1, 256 + fft_bins)
+        logger.info("  Audio sensory R:  [%d:%d, 512:%d]", aw_y0, aw_y1, 512 + fft_bins)
+        logger.info("  Audio workspace L:[%d:%d, 768:%d]", aw_y0, aw_y1, 768 + fft_bins)
+        logger.info("  Audio workspace R:[%d:%d, 1024:%d]", aw_y0, aw_y1, 1024 + fft_bins)
     
     # Initialize ALL nodes at once for maximum speed
     logger.info("Initializing all node types...")
-    import time
     t_start = time.time()
     
     # ARCHITECTURE:
@@ -660,8 +675,10 @@ def create_hybrid_neural_system(
     initial_dynamic = 200000  # Start with 200k - will grow to millions!
     dyn_y_min = sensory_height + 40  # Buffer after sensory
     dyn_y_max = grid_size[0] - workspace_height - 40  # Buffer before workspace
-    dyn_ys = torch.randint(dyn_y_min, dyn_y_max, (initial_dynamic,), device='cuda').tolist()
-    dyn_xs = torch.randint(0, grid_size[1], (initial_dynamic,), device='cuda').tolist()
+    # Generate on CPU directly — positions are immediately converted to a Python list,
+    # so allocating on the GPU only to call .tolist() is a wasteful round-trip.
+    dyn_ys = torch.randint(dyn_y_min, dyn_y_max, (initial_dynamic,)).tolist()
+    dyn_xs = torch.randint(0, grid_size[1], (initial_dynamic,)).tolist()
     dynamic_positions = list(zip(dyn_ys, dyn_xs))
     dynamic_energies = [100.0] * initial_dynamic
     dynamic_types = [1] * initial_dynamic
@@ -682,38 +699,70 @@ def create_hybrid_neural_system(
     logger.info("  Workspace: %d nodes (type=2, immortal/infertile, at [%d:%d, 0:%d])", 
                 workspace_count, workspace_y_start, grid_size[0], workspace_width)
     
+    # Audio workspace nodes (immortal, type=2) — placed in L/R audio workspace regions
+    audio_ws_positions: list[Tuple[int, int]] = []
+    audio_ws_energies: list[float] = []
+    audio_ws_types: list[int] = []
+    if audio_enabled:
+        for region in [AUDIO_WORKSPACE_L_REGION, AUDIO_WORKSPACE_R_REGION]:
+            ry0, ry1, rx0, rx1 = region
+            for y in range(ry0, ry1):
+                for x in range(rx0, rx1):
+                    audio_ws_positions.append((y, x))
+                    audio_ws_energies.append(5.0)
+                    audio_ws_types.append(2)
+        logger.info("  Audio workspace: %d nodes (type=2, immortal, L+R)", len(audio_ws_positions))
+
     # Add ALL node types to the engine
-    all_positions = dynamic_positions + workspace_positions
-    all_energies = dynamic_energies + workspace_energies
-    all_types = dynamic_types + workspace_types
-    
+    all_positions = dynamic_positions + workspace_positions + audio_ws_positions
+    all_energies = dynamic_energies + workspace_energies + audio_ws_energies
+    all_types = dynamic_types + workspace_types + audio_ws_types
+
     engine.add_nodes_batch(all_positions, all_energies, all_types)
-    
+
     t_elapsed = time.time() - t_start
     logger.info("  Initialization complete in %.3fs", t_elapsed)
-    logger.info("  Total nodes: %d (dynamic=%d, workspace=%d)", 
-                len(engine.node_ids), initial_dynamic, workspace_count)
+    total_tracked = initial_dynamic + workspace_count + len(audio_ws_positions)
+    logger.info("  Total nodes: %d (dynamic=%d, workspace=%d, audio_ws=%d)",
+                total_tracked, initial_dynamic, workspace_count, len(audio_ws_positions))
     
+    # Sensory energy mapping (pixel float [0..1] → energy value)
+    sensory_cfg = config_manager.get_config('sensory') or {}
+    energy_gain = float(sensory_cfg.get('energy_gain', 20.0))
+    energy_bias = float(sensory_cfg.get('energy_bias', 10.0))
+
     logger.info("="*60)
     logger.info("HYBRID ENGINE READY")
     logger.info("Architecture: Hybrid field + tracked nodes")
     logger.info("  Sensory: %d cells (field region, energy injection)", sensory_count)
     logger.info("  Dynamic: %d nodes (type=1, can spawn/die)", initial_dynamic)
     logger.info("  Workspace: %d nodes (type=2, immortal/infertile)", workspace_count)
-    logger.info("  Total tracked: %d nodes", len(engine.node_ids))
-    logger.info("  Grid size: %d×%d = %d cells", grid_size[0], grid_size[1], 
+    logger.info("  Total tracked: %d nodes", total_tracked)
+    logger.info("  Grid size: %d×%d = %d cells", grid_size[0], grid_size[1],
                 grid_size[0] * grid_size[1])
+    logger.info("  Sensory energy: pixel*%.1f + %.1f", energy_gain, energy_bias)
     logger.info("="*60)
-    
+
+    # Audio energy scaling
+    audio_energy_gain = float(audio_config.get('energy_gain', 50.0))
+    audio_energy_bias = float(audio_config.get('energy_bias', 5.0))
+
     # Wrap in adapter for compatibility
     return HybridNeuralSystemAdapter(
-        engine, SENSORY_REGION, WORKSPACE_REGION, sensory_width, sensory_height
+        engine, SENSORY_REGION, WORKSPACE_REGION, sensory_width, sensory_height,
+        energy_gain=energy_gain, energy_bias=energy_bias,
+        audio_sensory_L=AUDIO_SENSORY_L_REGION if audio_enabled else None,
+        audio_sensory_R=AUDIO_SENSORY_R_REGION if audio_enabled else None,
+        audio_workspace_L=AUDIO_WORKSPACE_L_REGION if audio_enabled else None,
+        audio_workspace_R=AUDIO_WORKSPACE_R_REGION if audio_enabled else None,
+        audio_energy_gain=audio_energy_gain,
+        audio_energy_bias=audio_energy_bias,
     )
 
 
 def initialize_system(
     config_manager: ConfigManager
-) -> tuple[Union[PyGNeuralSystem, HybridNeuralSystemAdapter], ThreadedScreenCapture, WorkspaceNodeSystem | None]:
+) -> tuple[HybridNeuralSystemAdapter, ThreadedScreenCapture, WorkspaceNodeSystem | None]:
     """Initialize the neural system, screen capture, and workspace system
 
     Args:
@@ -759,18 +808,9 @@ def initialize_system(
             raise ValueError(f"Missing or invalid sensory configuration: {e}") from e
 
         # Resolve device preference (cpu/cuda/auto)
-        device_pref = system_config.get('device', 'auto')  # type: ignore
-        cuda_available = torch.cuda.is_available()
-        if isinstance(device_pref, str):
-            device_pref = device_pref.lower()
-        if device_pref in ('auto', None):
-            device = 'cuda' if cuda_available else 'cpu'
-        elif device_pref == 'cuda' and cuda_available:
-            device = 'cuda'
-        else:
-            device = 'cpu'
+        device = resolve_device(system_config.get('device', 'auto'))  # type: ignore
 
-        if cuda_available:
+        if torch.cuda.is_available():
             try:
                 gpu_name = torch.cuda.get_device_name(0)
             except Exception:  # pylint: disable=broad-exception-caught
@@ -779,60 +819,23 @@ def initialize_system(
         else:
             logger.info("CUDA not available, using CPU")
 
-        # Check if hybrid mode is enabled
-        hybrid_config = config_manager.get_config('hybrid')
-        hybrid_enabled = hybrid_config.get('enabled', False) if hybrid_config else False
-        
-        # DEBUG: Log hybrid mode status
+        # Initialize Taichi neural system
         logger.info("="*70)
-        logger.info("NEURAL SYSTEM INITIALIZATION")
+        logger.info("NEURAL SYSTEM INITIALIZATION (TaichiNeuralEngine)")
         logger.info("="*70)
-        logger.info("Hybrid config loaded: %s", hybrid_config is not None)
-        logger.info("Hybrid enabled: %s", hybrid_enabled)
-        if hybrid_enabled:
-            logger.info(">>> HYBRID MODE SELECTED <<<")
-        else:
-            logger.info(">>> TRADITIONAL MODE SELECTED <<<")
-        logger.info("="*70)
-        
-        # Initialize neural system with error handling
+
         try:
-            workspace_width = int(workspace_config['width'])  # type: ignore
+            workspace_width  = int(workspace_config['width'])   # type: ignore
             workspace_height = int(workspace_config['height'])  # type: ignore
-            
-            if hybrid_enabled:
-                # Use hybrid engine (5000x speedup)
-                logger.info("Creating hybrid neural system...")
-                try:
-                    system = create_hybrid_neural_system(
-                        config_manager,
-                        width,  # type: ignore
-                        height  # type: ignore
-                    )
-                    logger.info("="*70)
-                    logger.info(">>> HYBRID NEURAL SYSTEM INITIALIZED <<<")
-                    logger.info(">>> EXPECT 5000x SPEEDUP <<<")
-                    logger.info("="*70)
-                except Exception as hybrid_error:
-                    logger.error("="*70)
-                    logger.error("HYBRID SYSTEM CREATION FAILED!")
-                    logger.error("Error: %s", str(hybrid_error))
-                    logger.error("="*70)
-                    raise
-            else:
-                # Use traditional PyGNeuralSystem
-                logger.info("Creating traditional neural system...")
-                system = PyGNeuralSystem(
-                    width,  # type: ignore
-                    height,  # type: ignore
-                    n_dynamic,
-                    workspace_size=(workspace_width, workspace_height),
-                    device=device
-                )
-                logger.info("="*70)
-                logger.info(">>> TRADITIONAL NEURAL SYSTEM INITIALIZED <<<")
-                logger.info(">>> (Standard speed, no hybrid optimization) <<<")
-                logger.info("="*70)
+
+            system = create_hybrid_neural_system(
+                config_manager,
+                width,   # type: ignore
+                height   # type: ignore
+            )
+            logger.info("="*70)
+            logger.info(">>> TAICHI NEURAL ENGINE INITIALIZED <<<")
+            logger.info("="*70)
         except Exception as e:
             logger.error("Failed to initialize neural system: %s", str(e))
             raise RuntimeError(f"Neural system initialization failed: {str(e)}") from e
@@ -848,8 +851,7 @@ def initialize_system(
                 )
             else:
                 # Fallback to standard capture
-                logger.info("⚠️ Using standard capture (install mss for 3× speedup)")
-                logger.info("   Run: pip install mss")
+                logger.info("Using standard capture (install mss for faster capture: pip install mss)")
                 capture = ThreadedScreenCapture(width, height)
         except Exception as e:
             logger.error("Failed to initialize screen capture: %s", str(e))
@@ -896,12 +898,12 @@ def initialize_system(
         error_msg = f"System initialization failed: {str(e)}"
         logger.error(error_msg)
 
-        # Attempt recovery by validating system state
+        # Attempt recovery by validating system state (no recursive retry —
+        # if recovery succeeds the caller can retry at a higher level)
         try:
             recovery_success = _attempt_system_recovery()
             if recovery_success:
-                logger.info("System recovery successful, retrying initialization...")
-                return initialize_system(config_manager)  # Retry initialization
+                logger.info("Recovery cleared state; raising so caller can retry")
             else:
                 logger.error("System recovery failed")
         except Exception as recovery_error:  # pylint: disable=broad-exception-caught
@@ -1062,6 +1064,35 @@ def main() -> None:
                     )
                     raise
 
+                # Initialize audio subsystem if enabled
+                audio_capture_obj = None
+                audio_output_obj = None
+                if AUDIO_AVAILABLE and system.audio_sensory_L is not None:
+                    try:
+                        audio_cfg = config_manager.get_config('audio') or {}
+                        audio_capture_obj = AudioCapture(
+                            sample_rate=int(audio_cfg.get('sample_rate', 44100)),
+                            fft_size=int(audio_cfg.get('fft_size', 512)),
+                            buffer_size=int(audio_cfg.get('buffer_size', 1024)),
+                            source=str(audio_cfg.get('source', 'loopback')),
+                        )
+                        audio_output_obj = AudioOutput(
+                            n_bins=int(audio_cfg.get('fft_bins', 256)),
+                            sample_rate=int(audio_cfg.get('sample_rate', 44100)),
+                            buffer_size=int(audio_cfg.get('buffer_size', 1024)),
+                            min_freq=float(audio_cfg.get('min_freq', 80.0)),
+                            max_freq=float(audio_cfg.get('max_freq', 8000.0)),
+                            master_volume=float(audio_cfg.get('master_volume', 0.3)),
+                        )
+                        audio_capture_obj.start()
+                        audio_output_obj.start()
+                        resources.extend([audio_capture_obj, audio_output_obj])
+                        logger.info("Audio capture and output started")
+                    except Exception as audio_err:
+                        logger.warning("Audio init failed (non-fatal): %s", audio_err)
+                        audio_capture_obj = None
+                        audio_output_obj = None
+
                 # Create main window with error handling
                 try:
                     main_window = ModernMainWindow(config_manager, state_manager)
@@ -1076,7 +1107,11 @@ def main() -> None:
 
                 # Provide components to UI but let user explicitly start via button
                 try:
-                    main_window.set_components(system, capture, workspace_system)
+                    main_window.set_components(
+                        system, capture, workspace_system,
+                        audio_capture=audio_capture_obj,
+                        audio_output=audio_output_obj,
+                    )
                     main_window.show()  # Show the main window
                     logger.info("Entering Qt event loop - application will stay open")
                     app.exec()  # type: ignore[union-attr]

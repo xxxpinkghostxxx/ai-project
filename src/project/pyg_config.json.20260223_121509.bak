@@ -7,7 +7,9 @@
         "canvas_width": 1920,
         "canvas_height": 1080,
         "energy_gain": 30.0,
-        "energy_bias": 15.0
+        "energy_bias": 15.0,
+        "fanout": 3,
+        "warmup_frames": 60
     },
     "workspace": {
         "width": 128,
@@ -16,7 +18,7 @@
         "canvas_height": 364,
         "enabled": true,
         "reading_interval_ms": 100,
-        "energy_smoothing": 0,
+        "energy_smoothing": true,
         "smoothing_factor": 0.1,
         "shading_mode": "linear",
         "color_scheme": "grayscale",
@@ -38,6 +40,7 @@
         "min_energy": 0.0,
         "frame_throttling": false,
         "detailed_logging": false,
+        "conn_transfer_capacity": 1.5,
         "device": "cuda"
     },
     "hybrid": {
@@ -57,19 +60,6 @@
         "node_energy_cap": 1000.0,
         "spawn_cost": 3.0,
         "description": "Binary state HybridGridGraphEngine. Each node is int64 with packed DNA, type, energy. state==0 means DEAD and zeros out all math automatically."
-    },
-    "audio": {
-        "enabled":true ,
-        "source": "loopback",
-        "sample_rate": 44100,
-        "fft_size": 512,
-        "fft_bins": 256,
-        "buffer_size": 1024,
-        "min_freq": 80.0,
-        "max_freq": 8000.0,
-        "master_volume": 0.3,
-        "energy_gain": 50.0,
-        "energy_bias": 5.0
     },
     "ui": {
         "sensory_scale_factor": 8,

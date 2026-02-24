@@ -1,21 +1,30 @@
 """
-Optimized Screen Capture with Pinned Memory
-
-Optimized for GTX 1650 Max-Q! Uses MSS + CUDA pinned memory.
-NO DXcam (not supported on this GPU).
-
-Performance on GTX 1650 Max-Q:
-- Traditional MSS: 50-70ms (CPU → GPU transfer)
-- Pinned Memory:   15-25ms (3× faster!) ⭐ THIS IS WHAT YOU GET!
+Optimized screen capture using MSS with CUDA pinned memory for faster CPU→GPU transfer.
 """
 
 import logging
+import threading
 import numpy as np
 import torch
 from typing import Optional, Tuple
 import time
 
 logger = logging.getLogger(__name__)
+
+# Module-level grayscale weights (BGR channel order from MSS).
+# Precomputed to avoid recreating the array on every captured frame.
+# Luminosity formula: 0.299·R + 0.587·G + 0.114·B  → weights for [B, G, R]
+_GRAY_WEIGHTS = np.array([114, 587, 299], dtype=np.uint32)
+
+
+def _rgb_to_grayscale_float(frame_rgb_float: torch.Tensor) -> torch.Tensor:
+    """Convert float RGB tensor [..., H, W, 3] to grayscale [..., H, W] using luminosity weights."""
+    return (
+        frame_rgb_float[..., 0] * 0.299 +
+        frame_rgb_float[..., 1] * 0.587 +
+        frame_rgb_float[..., 2] * 0.114
+    )
+
 
 # Import MSS (cross-platform screen capture)
 try:
@@ -174,10 +183,10 @@ class PinnedMemoryCapture:
             if self.device.type == "cuda" and self.pinned_buffer_rgb is not None:
                 # CUDA PATH: Use pinned memory for FAST transfer + BYTE EFFICIENCY!
                 
-                # STEP 3: Copy to pinned RGB buffer (CPU → page-locked RAM)
-                # Use efficient numpy view to avoid copy if possible
-                frame_bgr_tensor = torch.from_numpy(frame_bgr)
-                self.pinned_buffer_rgb[:] = frame_bgr_tensor
+                # STEP 3: Copy directly into pinned RGB buffer (CPU → page-locked RAM)
+                # np.copyto avoids the intermediate torch.Tensor wrapper that
+                # torch.from_numpy() would create before the slice-assign.
+                np.copyto(self.pinned_buffer_rgb.numpy(), frame_bgr)
                 
                 # STEP 4: Transfer RGB to GPU first (needed for color conversion)
                 # Use non-blocking transfer for overlap (DMA from pinned memory!)
@@ -193,11 +202,7 @@ class PinnedMemoryCapture:
                 frame_rgb_float = self.gpu_tensor_rgb[..., [2, 1, 0]].float()  # BGR → RGB, to float
                 
                 # Convert to grayscale (weighted average)
-                frame_gray_float = (
-                    frame_rgb_float[..., 0] * 0.299 +
-                    frame_rgb_float[..., 1] * 0.587 +
-                    frame_rgb_float[..., 2] * 0.114
-                )
+                frame_gray_float = _rgb_to_grayscale_float(frame_rgb_float)
                 
                 # Convert to uint8 (maintains full 0-255 range, 1 byte per pixel!)
                 # Clamp to [0, 255] and convert
@@ -259,8 +264,8 @@ class PinnedMemoryCapture:
         """Destructor - ensure cleanup."""
         try:
             self.stop()
-        except:  # noqa: E722
-            pass  # Suppress cleanup errors
+        except Exception as e:
+            logger.warning("Cleanup error in %s.__del__: %s", self.__class__.__name__, e)
 
 
 class FastCPUCapture:
@@ -312,11 +317,7 @@ class FastCPUCapture:
             
             # Convert to grayscale in float (for precision), then to uint8
             frame_rgb_float = frame_rgb.float()
-            frame_gray_float = (
-                frame_rgb_float[..., 0] * 0.299 +
-                frame_rgb_float[..., 1] * 0.587 +
-                frame_rgb_float[..., 2] * 0.114
-            )
+            frame_gray_float = _rgb_to_grayscale_float(frame_rgb_float)
             
             # Convert to uint8 (1 byte per pixel, maintains full 0-255 range!)
             frame_gray_uint8 = torch.clamp(frame_gray_float, 0, 255).byte()
@@ -346,81 +347,158 @@ class FastCPUCapture:
         try:
             if hasattr(self, 'sct'):
                 self.sct.close()
-        except:  # noqa: E722
-            pass
-    
+        except Exception as e:
+            logger.warning("Cleanup error in %s.stop: %s", self.__class__.__name__, e)
+
     def __del__(self):
         """Destructor."""
         try:
             self.stop()
-        except:  # noqa: E722
-            pass
+        except Exception as e:
+            logger.warning("Cleanup error in %s.__del__: %s", self.__class__.__name__, e)
+
+
+class AsyncScreenCapture:
+    """
+    Screen capture that runs in a background thread at a target FPS.
+
+    The background thread does CPU-only work (MSS grab → numpy grayscale).
+    get_latest() returns the most recent frame without blocking — safe to call
+    from any thread including the CUDA simulation thread.
+
+    Decouples simulation speed from capture latency:
+        - Simulation runs as fast as the GPU allows (no blocking on sct.grab)
+        - Screen is captured at a controlled rate (default: 60 fps)
+    """
+
+    def __init__(
+        self,
+        region: Optional[Tuple[int, int, int, int]] = None,
+        device: str = "cuda",
+        target_fps: int = 60,
+    ):
+        if not HAS_MSS:
+            raise RuntimeError("MSS not available! Install with: pip install mss")
+        self._region = region
+        self._device = device
+        self._interval = 1.0 / max(1, target_fps)
+        self._latest_frame: Optional[np.ndarray] = None  # uint8 [H, W] grayscale
+        self._lock = threading.Lock()
+        self._running = False
+        self._thread: Optional[threading.Thread] = None
+        logger.info("AsyncScreenCapture: target_fps=%d, region=%s", target_fps, region)
+
+    def set_target_fps(self, fps: int) -> None:
+        """Adjust capture rate while running (called from main thread)."""
+        self._interval = 1.0 / max(1, fps)
+
+    def start(self) -> None:
+        """Start background capture thread."""
+        if self._running:
+            return
+        self._running = True
+        self._thread = threading.Thread(
+            target=self._capture_loop, daemon=True, name="async_screen_capture"
+        )
+        self._thread.start()
+        logger.info("AsyncScreenCapture background thread started")
+
+    def _capture_loop(self) -> None:
+        """Background thread: grab → CPU grayscale → store. No CUDA ops here."""
+        import mss as _mss  # local import so each thread gets its own instance
+        sct = _mss.mss()
+        if self._region:
+            left, top, right, bottom = self._region
+            monitor = {"left": left, "top": top,
+                       "width": right - left, "height": bottom - top}
+        else:
+            monitor = sct.monitors[1]
+
+        while self._running:
+            t0 = time.perf_counter()
+            try:
+                shot = sct.grab(monitor)
+                # BGR uint8 array from MSS
+                bgr = np.array(shot, dtype=np.uint8)[:, :, :3]
+                # Single matrix-multiply: (H,W,3)@(3,) → (H,W) uint32, then scale.
+                # One uint32 intermediate vs 3 separate uint16 channel allocations.
+                frame = (bgr @ _GRAY_WEIGHTS // 1000).astype(np.uint8)
+                with self._lock:
+                    self._latest_frame = frame
+            except Exception as e:
+                logger.debug("AsyncScreenCapture loop error: %s", e)
+
+            elapsed = time.perf_counter() - t0
+            sleep_s = self._interval - elapsed
+            if sleep_s > 0.0005:
+                time.sleep(sleep_s)
+
+        sct.close()
+
+    def get_latest(self) -> Optional[np.ndarray]:
+        """Non-blocking: return latest uint8 [H, W] grayscale numpy array, or None."""
+        with self._lock:
+            return self._latest_frame
+
+    def stop(self) -> None:
+        self._running = False
+        if self._thread:
+            self._thread.join(timeout=2.0)
+            self._thread = None
+
+    def __del__(self) -> None:
+        try:
+            self.stop()
+        except Exception as e:
+            logger.warning("Cleanup error in AsyncScreenCapture.__del__: %s", e)
 
 
 def create_best_capture(
     region: Optional[Tuple[int, int, int, int]] = None,
-    device: str = "cuda"
+    device: str = "cuda",
+    target_fps: int = 60,
 ):
     """
-    Create the BEST available capture for GTX 1650 Max-Q.
-    
-    Optimized for your GPU! Skips DXcam (not supported).
-    
-    Tries in order:
-    1. MSS + Pinned Memory - 15-25ms (3× faster!) ⭐ BEST FOR YOUR GPU!
-    2. MSS + Standard - 40-50ms (reliable fallback)
-    3. ThreadedScreenCapture - 50-70ms (last resort)
-    
+    Create the best available capture wrapped in AsyncScreenCapture.
+
+    The returned object runs capture in a background thread so the simulation
+    is never blocked waiting for sct.grab().  get_latest() is non-blocking.
+
     Args:
-        region: Capture region (left, top, right, bottom) or None
-        device: PyTorch device ("cuda" or "cpu")
-    
+        region: Capture region (left, top, right, bottom) or None for full screen
+        device: PyTorch device string
+        target_fps: Screen capture rate for the background thread (default 60)
+
     Returns:
-        Best available capture instance
+        AsyncScreenCapture instance (already started)
     """
-    # TIER 1: MSS + Pinned Memory (15-25ms, 3× faster!) - PERFECT FOR GTX 1650!
-    if HAS_MSS and device == "cuda":
+    if not HAS_MSS:
+        # Fallback: ThreadedScreenCapture (from vision module) — no async wrapper
         try:
-            capture = PinnedMemoryCapture(region=region, device=device)
-            logger.info("✅ MSS + Pinned Memory (15-25ms, 3× faster!)")
+            from project.vision import ThreadedScreenCapture  # type: ignore[import-not-found]
+            if region:
+                left, top, right, bottom = region
+                capture = ThreadedScreenCapture(right - left, bottom - top)
+            else:
+                capture = ThreadedScreenCapture(1920, 1080)
+            logger.info("Fallback: ThreadedScreenCapture (MSS unavailable)")
             return capture
         except Exception as e:
-            logger.warning(f"Pinned memory capture failed: {e}")
-            logger.info("Trying standard MSS...")
-    
-    # TIER 2: MSS Standard (40-50ms, reliable)
-    if HAS_MSS:
-        try:
-            capture = FastCPUCapture(region=region, device=device)
-            logger.info("✅ MSS Standard Capture (40-50ms)")
-            return capture
-        except Exception as e:
-            logger.warning(f"MSS capture failed: {e}")
-            logger.info("Trying ThreadedScreenCapture...")
-    
-    # TIER 3: Fallback to ThreadedScreenCapture (50-70ms)
-    try:
-        from project.vision import ThreadedScreenCapture  # type: ignore[import-not-found]
-        # Calculate dimensions from region
-        if region:
-            left, top, right, bottom = region
-            width = right - left
-            height = bottom - top
-        else:
-            width, height = 1920, 1080  # Default
-        capture = ThreadedScreenCapture(width, height)
-        logger.info("✅ ThreadedScreenCapture (50-70ms, reliable fallback)")
-        return capture
-    except Exception as e:
-        logger.error(f"All capture methods failed: {e}")
-        raise RuntimeError("No screen capture method available!")
+            logger.error("All capture methods failed: %s", e)
+            raise RuntimeError("No screen capture method available!")
+
+    capture = AsyncScreenCapture(region=region, device=device, target_fps=target_fps)
+    capture.start()
+    logger.info("AsyncScreenCapture ready (target %d fps, background thread)", target_fps)
+    return capture
 
 
 # Export for compatibility
 __all__ = [
-    'PinnedMemoryCapture', 
+    'PinnedMemoryCapture',
     'FastCPUCapture',
+    'AsyncScreenCapture',
     'create_best_capture',
     'HAS_DXCAM',
-    'HAS_MSS'
+    'HAS_MSS',
 ]

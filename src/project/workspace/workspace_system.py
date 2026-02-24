@@ -8,6 +8,7 @@ the 16x16 grid of workspace nodes and their energy reading operations.
 import time
 import threading
 import logging
+from collections import deque
 from typing import Any, Dict, List, Optional, Callable
 import numpy as np
 
@@ -56,7 +57,7 @@ class WorkspaceNodeSystem:
         self.last_cache_update = 0.0
         
         # Performance monitoring
-        self.update_times = []
+        self.update_times: deque[float] = deque(maxlen=100)
         self.error_count = 0
         self.last_error_time = 0.0
         
@@ -64,6 +65,7 @@ class WorkspaceNodeSystem:
         self._update_lock = threading.Lock()
         self._running = False
         self._update_thread = None
+        self._notify_counter = 0
         
         # Initialize system
         self._initialize_workspace_nodes()
@@ -141,12 +143,8 @@ class WorkspaceNodeSystem:
                 update_time = time.time() - start_time
                 self.update_times.append(update_time)
                 
-                # Keep only last 100 update times
-                if len(self.update_times) > 100:
-                    self.update_times.pop(0)
-                
-                # Sleep for configured interval
-                sleep_time = max(0, (self.config.reading_interval_ms / 1000.0) - update_time)
+                # Target 60 Hz regardless of reading_interval_ms config
+                sleep_time = max(0, (1.0 / 60.0) - update_time)
                 time.sleep(sleep_time)
                 
             except Exception as e:
@@ -159,50 +157,41 @@ class WorkspaceNodeSystem:
     
     def update(self):
         """Main update method for the workspace system.
-        
+
         Reads workspace node energies from the PyG graph and updates visualization.
         Workspace nodes are OUTPUT nodes - they receive energy from dynamic nodes.
         """
+        energy_grid = None
         with self._update_lock:
             try:
                 # Try optimized grid read first
                 if hasattr(self.neural_system, 'get_workspace_energies_grid'):
                     energy_grid = self.neural_system.get_workspace_energies_grid()
-                    
-                    # Also update workspace node objects for consistency
-                    for workspace_node in self.workspace_nodes:
-                        x, y = workspace_node.grid_position
-                        if y < len(energy_grid) and x < len(energy_grid[y]):
-                            workspace_node.update_energy(energy_grid[y][x])
+                    # energy_grid is a numpy 2D array; pass it directly to observers.
+                    # Skip the per-WorkspaceNode Python loop (16384 iters × lock + time.time())
+                    # to keep the workspace thread at 60 Hz.
                 else:
                     # Fallback: Read energy for each workspace node individually
                     for workspace_node in self.workspace_nodes:
                         self._read_energy_for_node(workspace_node)
-                    
+
                     # Calculate aggregated energy data
                     energy_grid = self._calculate_energy_grid()
-                
-                # Notify observers (UI will update canvas)
-                self._notify_observers(energy_grid)
-                
-                # Debug: Log workspace energy stats periodically
-                # DISABLED: Too much logging overhead (20x per second × 50ms = 1000ms wasted!)
-                # flat = [e for row in energy_grid for e in row]
-                # if flat:
-                #     avg_e = sum(flat) / len(flat)
-                #     max_e = max(flat)
-                #     min_e = min(flat)
-                #     if max_e > 0.1:
-                #         logger.debug(f"Workspace energy: avg={avg_e:.2f}, max={max_e:.2f}, min={min_e:.2f}")
-                
+
                 # Update cache timestamp
                 self.last_cache_update = time.time()
-                
+
             except Exception as e:
                 self.error_count += 1
                 self.last_error_time = time.time()
                 logger.error(f"Error updating workspace system: {e}")
                 raise
+
+        # Notify observers OUTSIDE the lock to avoid deadlock:
+        # _notify_observers() acquires _update_lock internally for the counter,
+        # which would deadlock if called while _update_lock is already held above.
+        if energy_grid is not None:
+            self._notify_observers(energy_grid)
     
     def _read_energy_for_node(self, workspace_node: WorkspaceNode):
         """Read energy from the workspace node itself in the PyG graph.
@@ -273,46 +262,32 @@ class WorkspaceNodeSystem:
     
     def _notify_observers(self, energy_grid: List[List[float]]):
         """Notify all observers of workspace updates in a thread-safe manner."""
-        if not hasattr(self, '_notify_counter'):
-            self._notify_counter = 0
+        # No lock needed here: counter is only mutated in this method, which is
+        # called from one place (update()), so there is no concurrent writer.
         self._notify_counter += 1
-        
-        # Log every 60 notifications (~2 seconds at 30 FPS)
-        should_log = (self._notify_counter % 60 == 0)
-        
+        _count = self._notify_counter
+
+        should_log = (_count % 60 == 0)
+
         for observer in self.observers:
             try:
-                # Use Qt's thread-safe mechanism if observer is a Qt object
-                if PYQT_AVAILABLE and hasattr(observer, 'on_workspace_update'):
-                    # Check if observer is a QObject (Qt widget/window)
-                    if isinstance(observer, QObject):
-                        # Use QMetaObject.invokeMethod for proper cross-thread communication
-                        # This is the CORRECT way to call methods on Qt objects from worker threads
-                        if should_log:
-                            logger.info(f"📤 NOTIFYING Qt observer via QMetaObject.invokeMethod | grid shape: {len(energy_grid)}x{len(energy_grid[0]) if energy_grid else 0}")
-                        
-                        # Store energy_grid in observer temporarily for the call
-                        # This avoids Q_ARG conversion issues with complex types
-                        observer._pending_workspace_grid = energy_grid
-                        
-                        # Call on_workspace_update on the main thread (Qt.QueuedConnection)
-                        QMetaObject.invokeMethod(
-                            observer,
-                            "_process_pending_workspace_update",
-                            Qt.ConnectionType.QueuedConnection
-                        )
-                    else:
-                        # Direct call if not a Qt object
-                        if should_log:
-                            logger.info(f"📤 NOTIFYING non-Qt observer directly")
-                        observer.on_workspace_update(energy_grid)
-                else:
-                    # Direct call for non-Qt observers
+                if PYQT_AVAILABLE and hasattr(observer, 'on_workspace_update') and isinstance(observer, QObject):
                     if should_log:
-                        logger.info(f"📤 NOTIFYING observer without Qt check")
+                        _shape = energy_grid.shape if hasattr(energy_grid, 'shape') else (len(energy_grid), '?')
+                        logger.info("Notifying Qt observer | grid shape: %s", _shape)
+                    # Store grid on observer temporarily; Qt delivers it on the main thread
+                    observer._pending_workspace_grid = energy_grid
+                    QMetaObject.invokeMethod(
+                        observer,
+                        "_process_pending_workspace_update",
+                        Qt.ConnectionType.QueuedConnection,
+                    )
+                else:
+                    if should_log:
+                        logger.info("Notifying observer directly")
                     observer.on_workspace_update(energy_grid)
             except Exception as e:
-                logger.error(f"Observer notification failed: {e}")
+                logger.error("Observer notification failed: %s", e)
     
     def get_node_data(self, node_id: int) -> Dict[str, Any]:
         """Get detailed data for a specific workspace node."""

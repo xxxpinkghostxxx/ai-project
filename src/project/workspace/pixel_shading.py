@@ -11,19 +11,35 @@ from typing import List, Tuple
 
 class PixelShadingSystem:
     """Handles energy-to-pixel conversion and visual effects."""
-    
-    def __init__(self, energy_min: float = 0.0, energy_max: float = 244.0):
+
+    def __init__(self, energy_min: float = -10.0, energy_max: float = 244.0):
         """
         Initialize pixel shading system.
-        
+
         Args:
             energy_min: Minimum energy value for scaling
             energy_max: Maximum energy value for scaling
         """
         self.energy_min = energy_min
         self.energy_max = energy_max
-        self.shading_mode = 'linear'  # 'linear', 'logarithmic', 'exponential'
-        self.color_scheme = 'grayscale'  # 'grayscale', 'heatmap', 'custom'
+
+        # Pre-built dispatch tables — avoids per-call string comparisons
+        self._shading_funcs = {
+            'linear': lambda n: int(n * 255),
+            'logarithmic': lambda n: int(math.log1p(n * 1000) / math.log1p(1000) * 255),
+            'exponential': lambda n: int((n ** 2) * 255),
+        }
+        self._color_funcs = {
+            'grayscale': self._color_grayscale,
+            'heatmap': self._color_heatmap,
+            'custom': self._color_custom,
+        }
+
+        # Cached function refs (updated when mode/scheme changes)
+        self.shading_mode = 'linear'
+        self.color_scheme = 'grayscale'
+        self._shading_func = self._shading_funcs['linear']
+        self._color_func = self._color_funcs['grayscale']
     
     def energy_to_pixel_value(self, energy: float) -> int:
         """
@@ -36,21 +52,12 @@ class PixelShadingSystem:
             Grayscale pixel value (0-255)
         """
         # Normalize energy to 0-1 range
-        normalized = (energy - self.energy_min) / (self.energy_max - self.energy_min)
+        energy_range = self.energy_max - self.energy_min
+        normalized = (energy - self.energy_min) / energy_range if energy_range != 0 else 0.0
         normalized = max(0.0, min(1.0, normalized))  # Clamp to 0-1
         
-        # Apply shading mode
-        if self.shading_mode == 'linear':
-            pixel_value = int(normalized * 255)
-        elif self.shading_mode == 'logarithmic':
-            # Logarithmic scaling for better low-energy visibility
-            pixel_value = int(math.log1p(normalized * 1000) / math.log1p(1000) * 255)
-        elif self.shading_mode == 'exponential':
-            # Exponential scaling to emphasize high-energy states
-            pixel_value = int((normalized ** 2) * 255)
-        else:
-            pixel_value = int(normalized * 255)
-        
+        # Apply shading via cached function reference (no per-call string dispatch)
+        pixel_value = self._shading_func(normalized)
         return max(0, min(255, pixel_value))
     
     def apply_visual_effects(self, pixel_value: int, energy_trend: str, 
@@ -88,40 +95,39 @@ class PixelShadingSystem:
         Returns:
             RGB color tuple
         """
-        if self.color_scheme == 'grayscale':
-            return (pixel_value, pixel_value, pixel_value)
-        
-        elif self.color_scheme == 'heatmap':
-            # Blue (low) -> Green -> Red (high)
-            if pixel_value < 85:
-                # Blue to Green
-                ratio = pixel_value / 85.0
-                return (int(255 * (1 - ratio)), int(255 * ratio), 0)
-            else:
-                # Green to Red
-                ratio = (pixel_value - 85) / 170.0
-                return (int(255 * ratio), int(255 * (1 - ratio)), 0)
-        
-        elif self.color_scheme == 'custom':
-            # Custom color mapping
-            # Implement custom color scheme here
-            return (pixel_value, 255 - pixel_value, pixel_value // 2)
-        
+        # Use cached function reference (no per-call string dispatch)
+        return self._color_func(pixel_value)
+
+    @staticmethod
+    def _color_grayscale(pv: int) -> Tuple[int, int, int]:
+        return (pv, pv, pv)
+
+    @staticmethod
+    def _color_heatmap(pv: int) -> Tuple[int, int, int]:
+        # Blue (low) -> Green -> Red (high)
+        if pv < 85:
+            ratio = pv / 85.0
+            return (0, int(255 * ratio), int(255 * (1 - ratio)))
+        elif pv < 170:
+            ratio = (pv - 85) / 85.0
+            return (int(255 * ratio), int(255 * (1 - ratio)), 0)
         else:
-            return (pixel_value, pixel_value, pixel_value)
+            return (255, 0, 0)
+
+    @staticmethod
+    def _color_custom(pv: int) -> Tuple[int, int, int]:
+        return (pv, 255 - pv, pv // 2)
     
     def set_shading_mode(self, mode: str):
-        """Set the shading mode."""
-        valid_modes = ['linear', 'logarithmic', 'exponential']
-        if mode in valid_modes:
-            self.shading_mode = mode
-        else:
+        """Set the shading mode and update cached function reference."""
+        if mode not in self._shading_funcs:
             raise ValueError(f"Invalid shading mode: {mode}")
-    
+        self.shading_mode = mode
+        self._shading_func = self._shading_funcs[mode]
+
     def set_color_scheme(self, scheme: str):
-        """Set the color scheme."""
-        valid_schemes = ['grayscale', 'heatmap', 'custom']
-        if scheme in valid_schemes:
-            self.color_scheme = scheme
-        else:
+        """Set the color scheme and update cached function reference."""
+        if scheme not in self._color_funcs:
             raise ValueError(f"Invalid color scheme: {scheme}")
+        self.color_scheme = scheme
+        self._color_func = self._color_funcs[scheme]

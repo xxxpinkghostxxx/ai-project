@@ -149,7 +149,7 @@ class WorkspaceVisualizationIntegration:
         """Get current visualization status."""
         return {
             'active': self.visualization_window is not None,
-            'dedicated_window': self.is_embedded,
+            'dedicated_window': not self.is_embedded,
             'config': self.config.copy(),
             'workspace_health': self.workspace_system.get_system_health() if self.workspace_system else {}
         }

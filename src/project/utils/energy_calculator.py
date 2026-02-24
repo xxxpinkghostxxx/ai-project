@@ -1,39 +1,41 @@
 """
 Energy Prediction Calculator for Simulation Validation
 
-This module provides a comprehensive energy calculator that predicts expected
-energy values for all node types, connection types, and combinations.
+LEGACY: This module models a connection-based energy transfer system that no
+longer exists in the Taichi engine. The Taichi engine uses DNA-based field
+transfer with no discrete connections. Kept for reference only.
 """
 
-from typing import Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Tuple, Optional
 import torch
 
-from project.pyg_neural_system import (
+from project.config import (
+    NODE_ENERGY_CAP,
+    NODE_DEATH_THRESHOLD,
+    CONN_MAINTENANCE_COST as CONNECTION_MAINTENANCE_COST,
+    DYNAMIC_NODE_ENERGY_DECAY as NODE_ENERGY_DECAY,
+    CONN_ENERGY_TRANSFER_CAPACITY,
+    CONN_MAINTENANCE_COST,
     NODE_TYPE_SENSORY,
     NODE_TYPE_DYNAMIC,
     NODE_TYPE_WORKSPACE,
-    SUBTYPE_TRANSMITTER,
-    SUBTYPE_RESONATOR,
-    SUBTYPE_DAMPENER,
     CONN_TYPE_EXCITATORY,
     CONN_TYPE_INHIBITORY,
     CONN_TYPE_GATED,
     CONN_TYPE_PLASTIC,
-    CONN_SUBTYPE3_ONE_WAY_OUT,
-    CONN_SUBTYPE3_ONE_WAY_IN,
-    CONN_SUBTYPE3_FREE_FLOW,
-    NODE_ENERGY_CAP,
-    NODE_DEATH_THRESHOLD,
-    GATE_THRESHOLD,
-    TRANSMISSION_LOSS,
-    CONNECTION_MAINTENANCE_COST,
-    NODE_ENERGY_DECAY,
 )
 
-from project.config import (
-    CONN_ENERGY_TRANSFER_CAPACITY,
-    CONN_MAINTENANCE_COST,
-)
+# Legacy sub-type constants (not used in Taichi engine; kept for API compatibility)
+SUBTYPE_TRANSMITTER       = 0
+SUBTYPE_RESONATOR         = 1
+SUBTYPE_DAMPENER          = 2
+CONN_SUBTYPE3_ONE_WAY_OUT = 0
+CONN_SUBTYPE3_ONE_WAY_IN  = 1
+CONN_SUBTYPE3_FREE_FLOW   = 2
+
+# Thresholds not in config.py
+GATE_THRESHOLD    = 0.5   # default from TaichiNeuralEngine
+TRANSMISSION_LOSS = 0.9   # legacy PyG value; kept for calculator formulas
 
 # Match runtime config behavior (transfer_capacity is read from ConfigManager in pyg_neural_system)
 try:
@@ -351,7 +353,7 @@ class EnergyCalculator:
         predicted: Dict[int, List[float]],
         actual: Dict[int, List[float]],
         tolerance: float = 0.1,
-    ) -> Dict[str, any]:
+    ) -> Dict[str, Any]:
         """
         Compare predicted energy values with actual values.
         

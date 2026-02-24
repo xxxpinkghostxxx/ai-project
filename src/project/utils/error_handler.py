@@ -16,8 +16,8 @@ from functools import wraps
 from typing import Any, Optional, Callable, Dict
 
 # Get logger (logging should be configured in main entry point)
-# Don't call basicConfig here - it only works once and should be in pyg_main.py
-logger = logging.getLogger('PyGSystem')
+# Don't call basicConfig here - it only works once and should be in main.py
+logger = logging.getLogger(__name__)
 
 # Error severity classification constants
 ERROR_SEVERITY_CRITICAL = 'CRITICAL'
@@ -129,7 +129,7 @@ class ErrorHandler:
 
         except Exception as e:
             logger.error("Error showing error message: %s", str(e))
-            print("Error showing error message: %s", str(e))
+            print(f"Error showing error message: {str(e)}")
 
     @staticmethod
     def safe_operation(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -206,7 +206,7 @@ class ErrorHandler:
                         if recovery_success:
                             logger.info(f"Recovery successful for {func.__name__}, retrying...")
                             retry_count += 1
-                            time.sleep(error_handler._retry_delay * (2 ** retry_count))  # Exponential backoff
+                            time.sleep(min(error_handler._retry_delay * (2 ** retry_count), 30.0))  # Exponential backoff, capped at 30 s
                             continue
 
                     # Show error to user
@@ -256,7 +256,7 @@ class ErrorHandler:
                                 'attempt': retry_count,
                                 'max_attempts': max_retries,
                                 'error': str(e),
-                                'retry_delay': retry_delay * (2 ** (retry_count - 1)) if backoff else retry_delay
+                                'retry_delay': min(retry_delay * (2 ** (retry_count - 1)), 30.0) if backoff else retry_delay
                             }
 
                             severity = self.classify_error_severity(str(e))
@@ -268,7 +268,7 @@ class ErrorHandler:
 
                             # Wait before retrying
                             if backoff:
-                                sleep_time = retry_delay * (2 ** (retry_count - 1))
+                                sleep_time = min(retry_delay * (2 ** (retry_count - 1)), 30.0)
                             else:
                                 sleep_time = retry_delay
 
@@ -415,69 +415,6 @@ class ErrorHandler:
         # Default to medium severity for uncategorized errors
         return ERROR_SEVERITY_MEDIUM
 
-    def get_severity_recommendations(self, severity: str) -> Dict[str, Any]:
-        """
-        Get recommendations based on error severity level.
-
-        Args:
-            severity: Error severity level
-
-        Returns:
-            Dictionary with action recommendations
-        """
-        recommendations = {
-            'actions': [],
-            'priority': '',
-            'notification_level': ''
-        }
-
-        if severity == ERROR_SEVERITY_CRITICAL:
-            recommendations['actions'] = [
-                "Immediate attention required",
-                "Notify system administrators",
-                "Attempt automatic recovery if possible",
-                "Log detailed diagnostic information",
-                "Consider system restart if safe"
-            ]
-            recommendations['priority'] = "HIGHEST"
-            recommendations['notification_level'] = "ALERT"
-        elif severity == ERROR_SEVERITY_HIGH:
-            recommendations['actions'] = [
-                "High priority attention required",
-                "Notify technical staff",
-                "Attempt automatic recovery",
-                "Monitor for recurrence",
-                "Log detailed error context"
-            ]
-            recommendations['priority'] = "HIGH"
-            recommendations['notification_level'] = "WARNING"
-        elif severity == ERROR_SEVERITY_MEDIUM:
-            recommendations['actions'] = [
-                "Investigate during next maintenance cycle",
-                "Log error for analysis",
-                "Monitor for patterns",
-                "Consider code improvements"
-            ]
-            recommendations['priority'] = "MEDIUM"
-            recommendations['notification_level'] = "NOTICE"
-        elif severity == ERROR_SEVERITY_LOW:
-            recommendations['actions'] = [
-                "Log for informational purposes",
-                "Monitor for recurrence",
-                "Consider optimization opportunities"
-            ]
-            recommendations['priority'] = "LOW"
-            recommendations['notification_level'] = "INFO"
-        else:
-            recommendations['actions'] = [
-                "Informational message only",
-                "No immediate action required"
-            ]
-            recommendations['priority'] = "MINIMAL"
-            recommendations['notification_level'] = "DEBUG"
-
-        return recommendations
-
     def _attempt_recovery(self, function_name: str, error_message: str, context: Dict[str, Any]) -> bool:
         """
         Attempt to recover from an error using available recovery mechanisms.
@@ -570,45 +507,19 @@ class ErrorHandler:
             return self._recover_via_tensor_synchronization
 
     def _recover_via_tensor_synchronization(self) -> bool:
-        """Attempt recovery by synchronizing all tensors."""
-        try:
-            logger.info("Attempting tensor synchronization recovery")
-            # This would be implemented with actual tensor synchronization logic
-            # For now, we'll simulate a successful recovery
-            return True
-        except Exception as e:
-            logger.error(f"Tensor synchronization recovery failed: {str(e)}")
-            return False
+        """Attempt recovery by synchronizing all tensors. Not yet implemented."""
+        logger.warning("Tensor synchronization recovery is not implemented; skipping")
+        return False
 
     def _recover_via_graph_validation(self) -> bool:
-        """Attempt recovery by validating and repairing graph state."""
-        try:
-            logger.info("Attempting graph validation recovery")
-            # This would be implemented with actual graph validation logic
-            return True
-        except Exception as e:
-            logger.error(f"Graph validation recovery failed: {str(e)}")
-            return False
+        """Attempt recovery by validating and repairing graph state. Not yet implemented."""
+        logger.warning("Graph validation recovery is not implemented; skipping")
+        return False
 
     def _recover_via_connection_repair(self) -> bool:
-        """Attempt recovery by repairing invalid connections."""
-        try:
-            logger.info("Attempting connection repair recovery")
-            # This would be implemented with actual connection repair logic
-            return True
-        except Exception as e:
-            logger.error(f"Connection repair recovery failed: {str(e)}")
-            return False
-
-    def get_error_summary(self) -> str:
-        """Get a summary of all errors"""
-        if not self.errors:
-            return "No errors recorded"
-        return f"Total errors: {len(self.errors)}. Last error: {self.errors[-1] if self.errors else 'None'}"
-
-    def clear_errors(self) -> None:
-        """Clear all stored errors"""
-        self.errors.clear()
+        """Attempt recovery by repairing invalid connections. Not yet implemented."""
+        logger.warning("Connection repair recovery is not implemented; skipping")
+        return False
 
     def get_recent_errors(self, count: int = 10) -> list[Dict[str, Any]]:
         """Get the most recent errors with full context"""
@@ -667,10 +578,9 @@ class ErrorHandler:
             last_error_time = datetime.datetime.fromisoformat(self.errors[-1]['timestamp'])
             time_diff_minutes = (last_error_time - first_error_time).total_seconds() / 60
 
-            if time_diff_minutes > 0:
+            if time_diff_minutes > 0.0:
                 return len(self.errors) / time_diff_minutes
-            else:
-                return len(self.errors)
+            return 0.0  # Errors all in same instant; rate undefined
         except Exception as e:
             logger.warning(f"Error calculating error rate: {str(e)}")
             return 0.0

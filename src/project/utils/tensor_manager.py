@@ -2,11 +2,10 @@
 """
 Enhanced Tensor Management System for PyTorch Geometric Neural System.
 
-This module provides comprehensive tensor validation, synchronization, and management
-capabilities to resolve tensor shape mismatches and edge tensor synchronization problems
-while preserving all simulation features and connection logic. It includes advanced error
-reporting, severity classification, recovery mechanisms, and thread-safe operations for
-tensor-related issues.
+LEGACY: This module was designed for the PyTorch Geometric (PyG) tensor
+management pipeline (edge tensors, connection integrity, tensor shape sync).
+The current Taichi engine does not use any of this — Taichi fields handle all
+node data. Kept for reference; not imported by any active module.
 """
 
 import torch
@@ -93,8 +92,6 @@ class TensorManager:
             neural_system: Reference to the neural system instance
         """
         self.neural_system = neural_system
-        self.tensor_history: Dict[str, List[Tuple[int, float]]] = defaultdict(list)
-        self.max_history = 100  # Keep last 100 tensor states for analysis
         self.error_counter = 0
         self.recovery_attempts = 0
         self.successful_recoveries = 0
@@ -488,8 +485,8 @@ class TensorManager:
             # Safely get node count
             try:
                 node_count = g.num_nodes if hasattr(g, 'num_nodes') and g.num_nodes is not None else len(g.energy)
-            except Exception:
-                logger.warning("Cannot determine node count for connection validation")
+            except Exception as e:
+                logger.warning("Cannot determine node count for connection validation: %s", e)
                 return False
 
             # Validate all source and destination indices with comprehensive error handling
@@ -790,8 +787,8 @@ class TensorManager:
                 if isinstance(attr, torch.Tensor) and attr.numel() > 0 and attr.numel() < small_tensor_threshold:
                     # For small tensors, consider consolidation
                     if len(attr.shape) == 1:
-                        # Convert to more efficient storage
-                        new_tensor = attr.clone().contiguous()
+                        # Ensure contiguous layout; .contiguous() only copies if needed
+                        new_tensor = attr.contiguous()
                         setattr(g, key, new_tensor)
                         consolidated_tensors += 1
 
@@ -897,8 +894,8 @@ class TensorManager:
                         'reserved_mb': torch.cuda.memory_reserved() / (1024 * 1024),
                         'cache_size_mb': torch.cuda.memory_reserved() / (1024 * 1024)
                     }
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("CUDA memory stats unavailable: %s", e)
 
             # Identify issues
             for key, is_valid in report['validation_results'].items():
@@ -1109,7 +1106,7 @@ class TensorManager:
 
     def _calculate_recovery_efficiency(self) -> float:
         """Calculate recovery efficiency score (0.0 to 1.0)."""
-        if not self.recovery_attempts:
+        if not self.recovery_attempts or self.recovery_attempts <= 0:
             return 0.0
         return min(1.0, self.successful_recoveries / self.recovery_attempts)
 
@@ -1140,10 +1137,11 @@ class TensorManager:
             if not isinstance(last_timestamp, (int, float)):
                 return 0.0
             time_window: float = time.time() - float(last_timestamp)
-            if time_window > 0:
+            if time_window > 0.0:
                 return float(total_errors) / (time_window / 60.0)
-            return float(total_errors)
-        except Exception:
+            return 0.0  # Errors all in same instant; rate undefined
+        except Exception as e:
+            logger.debug("Error rate calculation failed: %s", e)
             return 0.0
 
     def _identify_critical_issues(self) -> List[str]:

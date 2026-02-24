@@ -25,7 +25,7 @@ Before installing, ensure you have:
 ### Step 1: Clone the Repository
 
 ```bash
-git clone https://github.com/your-repo/ai-project.git
+git clone https://github.com/xxxpinkghostxxx/ai-project.git
 cd ai-project
 ```
 
@@ -47,43 +47,49 @@ source .venv/bin/activate
 pip install -r config/requirements.txt
 ```
 
-### Step 4: Activate Environment
-
-```bash
-# Windows
-activate_env.bat
-
-# Linux/Mac
-source activate_env.sh
-```
-
 ## Configuration
 
 ### Basic Configuration
 
-The system uses a JSON configuration file located at `project/pyg_config.json`. Here's a basic configuration:
+The system uses a JSON configuration file at `src/project/pyg_config.json`. Key sections:
 
 ```json
 {
-    "INITIAL_PROCESSING_NODES": 100,
-    "NODE_ENERGY_CAP": 100.0,
-    "NODE_DEATH_THRESHOLD": 10.0,
-    "NODE_SPAWN_THRESHOLD": 90.0,
-    "SENSOR_WIDTH": 64,
-    "SENSOR_HEIGHT": 64,
-    "CAPTURE_INTERVAL_MS": 100,
-    "MOTION_SENSITIVITY": 0.1,
-    "PERIODIC_UPDATE_MS": 50,
-    "MAX_NODES": 1000,
-    "ENERGY_DECAY_RATE": 0.01
+    "sensory": {
+        "enabled": true,
+        "width": 1920,
+        "height": 1080
+    },
+    "workspace": {
+        "width": 128,
+        "height": 128,
+        "shading_mode": "linear",
+        "color_scheme": "grayscale"
+    },
+    "system": {
+        "device": "cuda",
+        "update_interval": 16,
+        "max_energy": 255.0
+    },
+    "hybrid": {
+        "enabled": true,
+        "grid_size": [2560, 1920],
+        "tile_mode": true,
+        "node_spawn_threshold": 8.0,
+        "node_death_threshold": 1.0,
+        "excitatory_prob": 0.6
+    }
 }
 ```
 
+Static parameters (energy caps, decay rates, node limits) are defined in `src/project/config.py`.
+
 ### Configuration Options
 
-- **Neural System**: Control node behavior and energy dynamics
-- **Vision System**: Adjust screen capture resolution and sensitivity
-- **Performance**: Set update intervals and maximum node limits
+- **Sensory**: Screen capture resolution and energy injection settings
+- **Workspace**: Workspace grid size, shading, and color scheme
+- **System**: Device selection (cuda/cpu), update intervals, energy bounds
+- **Hybrid**: Grid dimensions, tile mode, spawn/death thresholds, connection probabilities
 
 ## Running the System
 
@@ -96,15 +102,13 @@ python -m project.pyg_main
 ### Command Line Options
 
 ```bash
-# Run with specific configuration
-python -m project.pyg_main --config custom_config.json
+# Run with a specific log level
+python -m project.pyg_main --log-level DEBUG
 
-# Run in debug mode
-python -m project.pyg_main --debug
-
-# Run with CPU only (no CUDA)
-python -m project.pyg_main --device cpu
+# Available log levels: DEBUG, INFO, WARNING, ERROR, CRITICAL
 ```
+
+To change the compute device or other settings, edit `src/project/pyg_config.json` (e.g., set `"device": "cpu"` under the `"system"` section).
 
 ### First Run Experience
 
@@ -124,10 +128,13 @@ python -m project.pyg_main --device cpu
 
 ### Common UI Actions
 
-- **Pause/Resume**: Temporarily stop neural processing
-- **Reset**: Clear the current network state
-- **Configuration**: Adjust parameters on-the-fly
-- **Export**: Save current network state
+- **Start/Stop Simulation**: Begin or halt neural processing
+- **Reset Map**: Clear the current workspace visualization
+- **Drain & Suspend**: Drain energy and suspend the system
+- **Pulse +10 Energy**: Inject an energy pulse into the system
+- **Disable/Enable Sensory Input**: Toggle screen capture input
+- **Config Panel**: Open the configuration panel to adjust parameters
+- **Test Rules**: Verify node interaction rules
 
 ## Next Steps
 

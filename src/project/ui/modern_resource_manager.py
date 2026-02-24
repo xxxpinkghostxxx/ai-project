@@ -17,7 +17,7 @@ from collections.abc import Callable as CallableABC
 from PyQt6.QtGui import QPixmap, QImage
 from PyQt6.QtCore import QObject, pyqtSignal
 
-from project.utils.error_handler import ErrorHandler
+from project.utils.error_handler import ErrorHandler, ERROR_SEVERITY_MEDIUM, ERROR_SEVERITY_HIGH
 from project.system.global_storage import GlobalStorage
 
 logger = logging.getLogger(__name__)
@@ -227,7 +227,8 @@ class ModernResourceManager(QObject):
         try:
             import sys
             size_bytes = sys.getsizeof(resource)
-        except Exception:
+        except Exception as e:
+            logger.debug("Could not determine resource size: %s", e)
             size_bytes = 0
 
         info = ResourceInfo(
@@ -271,7 +272,7 @@ class ModernResourceManager(QObject):
                 "Memory Error",
                 f"Failed to register image due to memory constraints: {str(e)}\n\n"
                 f"Try reducing image resolution or closing other applications.",
-                severity="high"
+                severity=ERROR_SEVERITY_HIGH
             )
             return None
         except Exception as e:
@@ -282,7 +283,7 @@ class ModernResourceManager(QObject):
                 f"- Ensure the image data is valid\n"
                 f"- Verify sufficient system resources are available\n"
                 f"- Check for file permission issues",
-                severity="medium"
+                severity=ERROR_SEVERITY_MEDIUM
             )
             return None
 
@@ -308,7 +309,7 @@ class ModernResourceManager(QObject):
                 "Window Registration Error",
                 f"Invalid window type: {str(e)}\n\n"
                 f"Please ensure you're passing a valid window object.",
-                severity="high"
+                severity=ERROR_SEVERITY_HIGH
             )
             return None
         except Exception as e:
@@ -319,7 +320,7 @@ class ModernResourceManager(QObject):
                 f"1. Check if the window object is valid\n"
                 f"2. Verify window limits are not exceeded\n"
                 f"3. Ensure proper window initialization",
-                severity="medium"
+                severity=ERROR_SEVERITY_MEDIUM
             )
             return None
 
@@ -416,15 +417,12 @@ class ModernResourceManager(QObject):
             # Close windows with graceful error handling
             for i, window in enumerate(self.windows):
                 try:
-                    if hasattr(window, 'close') and hasattr(window, 'winfo_exists'):
-                        if window.winfo_exists():  # Check if window still exists
-                            window.close()
-                            cleanup_report['windows_closed'] += 1
-                            logger.debug(f"Closed window {i+1}")
-                        else:
-                            logger.debug(f"Window {i+1} already destroyed, skipping")
+                    if hasattr(window, 'close'):
+                        window.close()
+                        cleanup_report['windows_closed'] += 1
+                        logger.debug(f"Closed window {i+1}")
                     else:
-                        logger.debug(f"Window {i+1} missing close method or winfo_exists, skipping")
+                        logger.debug(f"Window {i+1} missing close method, skipping")
                 except Exception as e:
                     cleanup_report['window_close_errors'] += 1
                     error_msg = f"Error closing window {i+1}: {str(e)}"
@@ -474,7 +472,7 @@ class ModernResourceManager(QObject):
                 f"Failed to clean up resources: {str(e)}\n\n"
                 f"Cleanup was partially completed. Some resources may still be active.\n"
                 f"Please restart the application to ensure complete cleanup.",
-                severity="high",
+                severity=ERROR_SEVERITY_HIGH,
                 context=error_context
             )
             return {'error': str(e), 'timestamp': time.time()}
@@ -529,7 +527,7 @@ class ModernResourceManager(QObject):
                 f"- Close other applications\n"
                 f"- Increase system memory\n"
                 f"- Enable aggressive memory optimization",
-                severity="high"
+                severity=ERROR_SEVERITY_HIGH
             )
             # Force garbage collection to free up memory
             gc.collect()
@@ -542,7 +540,7 @@ class ModernResourceManager(QObject):
                 f"- Verify image data format\n"
                 f"- Check memory availability\n"
                 f"- Validate image dimensions",
-                severity="medium"
+                severity=ERROR_SEVERITY_MEDIUM
             )
             return None
 
@@ -676,5 +674,5 @@ class ModernResourceManager(QObject):
         """Destructor to ensure cleanup."""
         try:
             self.shutdown()
-        except Exception:
-            pass  # Avoid exceptions in destructor
+        except Exception as e:
+            logger.debug("Cleanup error in ModernResourceManager.__del__: %s", e)

@@ -1,7 +1,7 @@
 # Core ML/AI Dependencies
 torch>=2.0.0
 torchvision>=0.15.0
-torch-geometric>=2.3.0
+taichi>=1.7.0
 
 # Scientific Computing
 numpy>=1.21.0
@@ -14,6 +14,9 @@ opencv-python>=4.5.0
 
 # Screen Capture
 mss>=6.1.0
+
+# Audio I/O
+sounddevice>=0.4.6
 
 # Image Processing
 Pillow>=8.0.0
