@@ -152,9 +152,13 @@ def _dna_transfer_kernel(
             nx = (px + _neighbor_dx[d] + W) % W
             dna_prob = float((state >> _dna_shifts[d]) & 31) / 31.0
             delta    = energy_field[ny, nx] - energy
-            total   += delta * dna_prob * combined * dt
+            contrib  = delta * dna_prob * combined * dt
+            total   += contrib
+            # Withdraw from neighbor to conserve energy
+            ti.atomic_sub(energy_field[ny, nx], contrib)
 
-        _node_energy[i] += total
+        # Write only to the shared field; _sync_energy_from_field will
+        # propagate the updated cell value back into _node_energy[i].
         ti.atomic_add(energy_field[py, px], total)
 
 
@@ -186,6 +190,7 @@ def _spawn_kernel(
     spawn_cost: float,
     child_energy: float,
     max_spawns: int,
+    n_existing: int,
 ):
     """
     Each live dynamic node (type == 1) with sufficient energy spawns one child.
@@ -195,8 +200,11 @@ def _spawn_kernel(
     Child DNA and connection type are random.
 
     Spawn count accumulated atomically in _spawns_count.
+
+    n_existing: snapshot of node count *before* this kernel — prevents newly
+    spawned children from being visited (and chain-spawning) in the same step.
     """
-    for i in range(_node_count[None]):
+    for i in range(n_existing):
         state = _node_state[i]
         if state == 0:
             continue
@@ -375,65 +383,75 @@ class TaichiNeuralEngine:
             )
         TaichiNeuralEngine._instance = self
 
-        self.grid_size = grid_size
-        self.H, self.W = grid_size
-        self.device = torch.device(device if torch.cuda.is_available() else "cpu")
+        try:
+            self.grid_size = grid_size
+            self.H, self.W = grid_size
+            self.device = torch.device(device if torch.cuda.is_available() else "cpu")
 
-        # Node lifecycle thresholds
-        self.spawn_threshold       = node_spawn_threshold
-        self.death_threshold       = node_death_threshold
-        self.energy_cap            = node_energy_cap
-        self.spawn_cost            = spawn_cost           # static fallback only
-        self.child_energy_fraction = child_energy_fraction
-        self.child_energy          = spawn_cost * child_energy_fraction
-        self.gate_threshold  = gate_threshold
-        self.transfer_dt     = transfer_dt
+            # Node lifecycle thresholds
+            self.spawn_threshold       = node_spawn_threshold
+            self.death_threshold       = node_death_threshold
+            self.energy_cap            = node_energy_cap
+            self.spawn_cost            = spawn_cost           # static fallback only
+            self.child_energy_fraction = child_energy_fraction
+            self.child_energy          = spawn_cost * child_energy_fraction
+            self.gate_threshold  = gate_threshold
+            self.transfer_dt     = transfer_dt
 
-        # Statistics
-        self.total_spawns  = 0
-        self.total_deaths  = 0
-        self.frame_counter = 0
-        # 20 ≈ 8 DNA neighbor reads + 8 energy_field reads + 4 field ops per cell
-        self.grid_operations_per_step = self.H * self.W * 20
+            # Statistics
+            self.total_spawns  = 0
+            self.total_deaths  = 0
+            self.frame_counter = 0
+            # 20 ≈ 8 DNA neighbor reads + 8 energy_field reads + 4 field ops per cell
+            self.grid_operations_per_step = self.H * self.W * 20
 
-        # ---------------------------------------------------------------
-        # PyTorch energy field (shared with Taichi kernels via ndarray)
-        # ---------------------------------------------------------------
-        self.energy_field = torch.zeros(
-            self.H, self.W, dtype=torch.float32, device=self.device
-        )
+            # ---------------------------------------------------------------
+            # PyTorch energy field (shared with Taichi kernels via ndarray)
+            # ---------------------------------------------------------------
+            self.energy_field = torch.zeros(
+                self.H, self.W, dtype=torch.float32, device=self.device
+            )
 
-        # Python-side count (mirrors _node_count Taichi field)
-        self._count = 0
+            # Python-side count (mirrors _node_count Taichi field)
+            self._count = 0
 
-        # Workspace read cache — built once on first call (workspace nodes are immortal)
-        self._workspace_local_y: Optional[torch.Tensor] = None
-        self._workspace_local_x: Optional[torch.Tensor] = None
-        self._workspace_cache_valid = False
-        self._workspace_cache_lock = threading.Lock()
+            # Workspace read cache — built once on first call (workspace nodes are immortal)
+            self._workspace_local_y: Optional[torch.Tensor] = None
+            self._workspace_local_x: Optional[torch.Tensor] = None
+            self._workspace_cache_valid = False
+            self._workspace_cached_region: Optional[Tuple[int, int, int, int]] = None
+            self._workspace_cache_lock = threading.Lock()
 
-        # Sensory injection counter
-        self._injection_counter = 0
+            # Sensory injection counter
+            self._injection_counter = 0
 
-        # ---------------------------------------------------------------
-        # Initialize constant lookup tables in module-level Taichi fields
-        # ---------------------------------------------------------------
-        for d, (dy, dx) in enumerate(_NEIGHBOR_OFFSETS):
-            _neighbor_dy[d] = dy
-            _neighbor_dx[d] = dx
-            _dna_shifts[d]  = _DNA_SHIFTS[d]
+            # ---------------------------------------------------------------
+            # Initialize constant lookup tables in module-level Taichi fields
+            # ---------------------------------------------------------------
+            for d, (dy, dx) in enumerate(_NEIGHBOR_OFFSETS):
+                _neighbor_dy[d] = dy
+                _neighbor_dx[d] = dx
+                _dna_shifts[d]  = _DNA_SHIFTS[d]
 
-        for i, row in enumerate(CONN_TYPE_WEIGHT_TABLE):
-            for j, val in enumerate(row):
-                _weight_table[i, j] = val
+            for i, row in enumerate(CONN_TYPE_WEIGHT_TABLE):
+                for j, val in enumerate(row):
+                    _weight_table[i, j] = val
 
-        logger.info(
-            "TaichiNeuralEngine initialized: grid=%s, MAX_NODES=%s, device=%s",
-            grid_size, f"{MAX_NODES:,}", self.device,
-        )
+            logger.info(
+                "TaichiNeuralEngine initialized: grid=%s, MAX_NODES=%s, device=%s",
+                grid_size, f"{MAX_NODES:,}", self.device,
+            )
+        except Exception:
+            TaichiNeuralEngine._instance = None
+            raise
 
     def __del__(self):
         TaichiNeuralEngine._instance = None
+
+    @property
+    def node_count(self) -> int:
+        """Current node count (high-water mark, no GPU roundtrip)."""
+        return self._count
 
     # -----------------------------------------------------------------------
     # Public API — simulation
@@ -507,6 +525,7 @@ class TaichiNeuralEngine:
                 self.H, self.W,
                 effective_spawn_threshold, effective_spawn_cost, effective_child_energy,
                 self._spawn_limit(),
+                self._count,   # snapshot before spawn — prevents chain-spawn
             )
 
         deaths = int(_deaths_count[None])
@@ -788,7 +807,7 @@ class TaichiNeuralEngine:
         h, w = y1 - y0, x1 - x0
 
         with self._workspace_cache_lock:
-            if not self._workspace_cache_valid:
+            if not self._workspace_cache_valid or self._workspace_cached_region != (y0, y1, x0, x1):
                 self._build_workspace_cache(y0, y1, x0, x1)
 
         if self._workspace_local_y is None or len(self._workspace_local_y) == 0:
@@ -829,6 +848,7 @@ class TaichiNeuralEngine:
             ws_x[in_r] - x0, dtype=torch.long, device=self.device
         )
         self._workspace_cache_valid = True
+        self._workspace_cached_region = (y0, y1, x0, x1)
 
         logger.info(
             "Workspace cache: %d nodes in region [%d:%d, %d:%d]",

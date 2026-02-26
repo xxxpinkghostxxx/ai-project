@@ -226,7 +226,10 @@ class ConfigurationSecurityValidator:
     @classmethod
     def validate_config_section(cls, config: dict[str, Any]) -> list[str]:
         """
-        Validate entire configuration section.
+        Validate entire configuration section, recursing into nested dicts.
+
+        Uses compound keys (e.g. "hybrid_node_energy_cap") to match
+        SECURITY_CONSTRAINTS entries.
 
         Args:
             config: Configuration dictionary to validate
@@ -237,9 +240,16 @@ class ConfigurationSecurityValidator:
         errors: list[str] = []
 
         for key, value in config.items():
-            is_valid, error_msg = cls.validate_config_value(key, value)
-            if not is_valid:
-                errors.append(f"Invalid configuration '{key}': {error_msg}")
+            if isinstance(value, dict):
+                for sub_key, sub_value in value.items():
+                    compound_key = f"{key}_{sub_key}"
+                    is_valid, error_msg = cls.validate_config_value(compound_key, sub_value)
+                    if not is_valid:
+                        errors.append(f"Invalid configuration '{compound_key}': {error_msg}")
+            else:
+                is_valid, error_msg = cls.validate_config_value(key, value)
+                if not is_valid:
+                    errors.append(f"Invalid configuration '{key}': {error_msg}")
 
         return errors
 

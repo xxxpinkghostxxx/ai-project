@@ -7,6 +7,7 @@ optimized backup strategy to prevent excessive backups during error conditions.
 """
 
 import os
+import re
 import json
 import shutil
 import time
@@ -92,7 +93,7 @@ class ConfigManager:
                 'inhibitory_prob': 0.2,
                 'gated_prob': 0.1,
                 'node_spawn_threshold': 5.0,
-                'node_death_threshold': -50.0,
+                'node_death_threshold': -10.0,
                 'node_energy_cap': 500.0,
                 'spawn_cost': 2.0,
             },
@@ -239,21 +240,23 @@ class ConfigManager:
     def update_config(self: 'ConfigManager', section: str, key: str, value: Any) -> bool:
         """Update a configuration value with security validation and performance monitoring"""
         try:
-            logger.info(f"ConfigManager: Attempting to update {section}.{key} to {value}")
+            logger.debug("ConfigManager: Attempting to update %s.%s", section, key)
 
-            # Sanitize inputs
-            section = SecuritySanitizer.sanitize_filename(section)
-            key = SecuritySanitizer.sanitize_filename(key)
+            # Validate config key names: alphanumeric, underscores, hyphens only
+            _config_key_re = re.compile(r'^[a-zA-Z0-9_\-]+$')
+            if not _config_key_re.match(section) or not _config_key_re.match(key):
+                logger.error("Invalid config key name: %s.%s", section, key)
+                return False
+
             # Validate configuration key-value pair for security constraint
             full_key = f"{section}_{key}"
-            logger.info(f"ConfigManager: Security validation for key: {full_key}")
 
             is_valid, error_msg = ConfigurationSecurityValidator.validate_config_value(full_key, value)
             if not is_valid:
                 SecureLogger.secure_error(logger, f"Security validation failed: {error_msg}")
                 return False
 
-            logger.info(f"ConfigManager: Security validation passed for {full_key}")
+            logger.debug("ConfigManager: Security validation passed for %s", full_key)
 
             if section in self.config:
                 section_dict = self.config[section]

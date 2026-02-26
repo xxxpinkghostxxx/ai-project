@@ -237,7 +237,7 @@ class HybridNeuralSystemAdapter:
     
     def get_node_count(self) -> int:
         """Get current alive node count (high-water mark, no GPU roundtrip)."""
-        return self.engine._count
+        return self.engine.node_count
     
     def get_energy_stats(self) -> dict:
         """Get energy statistics."""
