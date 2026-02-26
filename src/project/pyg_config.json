@@ -30,7 +30,7 @@
         "error_threshold": 0.1
     },
     "system": {
-        "update_interval": 16,
+        "update_interval": 1000,
         "energy_pulse": 10.0,
         "max_energy": 255.0,
         "min_energy": 0.0,
