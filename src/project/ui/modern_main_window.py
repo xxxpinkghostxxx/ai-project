@@ -1457,14 +1457,10 @@ class ModernMainWindow(QMainWindow):
                     # OPTIMIZATION: Handle torch.Tensor frames (GPU, no CPU transfer!)
                     if isinstance(frame, torch.Tensor):
                         # GPU frame - keep on GPU! (NO CPU transfer!)
-                        # If uint8, convert to float32 only when needed (maintains precision)
-                        if frame.dtype == torch.uint8:
-                            sensory_input = frame.float() / 255.0  # Normalize 0-1 range
-                        else:
-                            sensory_input = frame  # Already float tensor
+                        sensory_input = frame.float() if frame.dtype == torch.uint8 else frame
                     else:
-                        # CPU frame (numpy) - convert to float
-                        sensory_input = frame.astype(np.float32) / 255.0
+                        # CPU frame (numpy) - convert to float32, raw values as energy
+                        sensory_input = frame.astype(np.float32)
                     t_convert = (time.time() - t_convert_start) * 1000
                         
                         # Update sensory CANVAS only every 500ms (not every frame!) - Huge performance boost!

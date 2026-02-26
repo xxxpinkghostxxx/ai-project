@@ -265,7 +265,7 @@ class HybridNeuralSystemAdapter:
         ----------
         spectrum : ndarray
             Shape ``(2, fft_bins)`` — row 0 = left, row 1 = right.
-            Values in [0, 1].
+            Raw magnitude values written directly as energy.
         """
         if self.audio_sensory_L is None or self.audio_sensory_R is None:
             return

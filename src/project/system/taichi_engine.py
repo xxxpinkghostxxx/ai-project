@@ -337,7 +337,7 @@ class TaichiNeuralEngine:
     """
     GPU-accelerated neural simulation engine.
 
-    This class manages configuration, PyTorch state (energy_field, FFT kernels),
+    This class manages configuration, PyTorch state (energy_field),
     and the Python-side node count. All heavy GPU work is done by the module-level
     Taichi kernels above, which access module-level Taichi fields directly.
 
@@ -350,8 +350,8 @@ class TaichiNeuralEngine:
     contributes nothing automatically. No compaction needed: 4M slots give
     massive headroom.
 
-    FFT Diffusion
-    -------------
+    Energy Field
+    ------------
     `energy_field` is a PyTorch CUDA tensor. It is passed to Taichi kernels as
     a `ti.types.ndarray()` argument — zero-copy on CUDA.
 
@@ -654,7 +654,7 @@ class TaichiNeuralEngine:
         _node_count[None] = end
         self._count = end
 
-        # Stamp initial energy into the field so FFT sees it immediately
+        # Stamp initial energy into the field so DNA transfer sees it immediately
         self.energy_field[new_ys.long(), new_xs.long()] = torch.maximum(
             self.energy_field[new_ys.long(), new_xs.long()], new_e
         )
