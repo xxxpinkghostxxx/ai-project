@@ -96,6 +96,7 @@ class ConfigManager:
                 'node_death_threshold': -10.0,
                 'node_energy_cap': 500.0,
                 'spawn_cost': 2.0,
+                'transfer_strength': 0.7,
             },
             'audio': {
                 'enabled': False,

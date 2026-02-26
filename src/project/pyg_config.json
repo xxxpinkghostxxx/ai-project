@@ -30,7 +30,7 @@
         "error_threshold": 0.1
     },
     "system": {
-        "update_interval": 1000,
+        "update_interval": 16,
         "energy_pulse": 10.0,
         "max_energy": 255.0,
         "min_energy": 0.0,
@@ -52,6 +52,7 @@
         "node_death_threshold": -10.0,
         "node_energy_cap": 255.0,
         "spawn_cost": 3.0,
+        "transfer_strength": 0.7,
         "description": "Binary state HybridGridGraphEngine. Each node is int64 with packed DNA, type, energy. state==0 means DEAD and zeros out all math automatically."
     },
     "audio": {

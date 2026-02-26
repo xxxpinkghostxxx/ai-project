@@ -213,7 +213,7 @@ def _dna_transfer_kernel(
                     elif conn_type == 5:      # Damped
                         contrib = delta * dna_strength * strength * dt * damping
                     elif conn_type == 6:      # Resonant
-                        osc = ti.sin(float(frame) * dna_strength * 3.14159265)
+                        osc = ti.sin(float(frame) * dna_strength * ti.math.pi)
                         contrib = delta * osc * strength * dt
                     elif conn_type == 7:      # Capacitive
                         ti.atomic_add(_node_charge[i], ti.abs(delta) * dna_strength * dt)
@@ -253,6 +253,7 @@ def _death_kernel(death_threshold: float):
         if node_type == 1 and _node_energy[i] < death_threshold:
             _node_state[i]  = 0
             _node_energy[i] = 0.0
+            _node_charge[i] = 0.0
             ti.atomic_add(_deaths_count[None], 1)
 
 
@@ -456,6 +457,7 @@ class TaichiNeuralEngine:
         gate_threshold: float = 0.5,
         transfer_dt: float = 0.1,
         child_energy_fraction: float = 0.5,
+        transfer_strength: float = 0.7,
         device: str = "cuda",
     ):
         if TaichiNeuralEngine._instance is not None:
@@ -477,8 +479,9 @@ class TaichiNeuralEngine:
             self.spawn_cost            = spawn_cost           # static fallback only
             self.child_energy_fraction = child_energy_fraction
             self.child_energy          = spawn_cost * child_energy_fraction
-            self.gate_threshold  = gate_threshold
-            self.transfer_dt     = transfer_dt
+            self.gate_threshold      = gate_threshold
+            self.transfer_dt         = transfer_dt
+            self.transfer_strength   = transfer_strength
 
             # Statistics
             self.total_spawns  = 0
@@ -568,7 +571,7 @@ class TaichiNeuralEngine:
                 self.transfer_dt,
                 self.gate_threshold,
                 self.frame_counter,
-                0.7,  # strength constant
+                self.transfer_strength,
             )
         transfer_time = time.time() - t0
 

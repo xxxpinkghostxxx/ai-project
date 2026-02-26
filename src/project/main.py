@@ -553,10 +553,11 @@ def create_hybrid_neural_system(
     node_death_threshold = hybrid_config.get('node_death_threshold', -50.0)
     node_energy_cap = hybrid_config.get('node_energy_cap', 500.0)
     spawn_cost = hybrid_config.get('spawn_cost', 2.0)
+    transfer_strength = hybrid_config.get('transfer_strength', 0.7)
 
     logger.info(f"Hybrid params: spawn_threshold={node_spawn_threshold}, "
                 f"death_threshold={node_death_threshold}, energy_cap={node_energy_cap}, "
-                f"spawn_cost={spawn_cost}")
+                f"spawn_cost={spawn_cost}, transfer_strength={transfer_strength}")
     
     # Create Taichi engine (single canonical engine, 4M node cap, CUDA)
     logger.info("Creating TaichiNeuralEngine (4M node capacity, CUDA kernels)")
@@ -566,6 +567,7 @@ def create_hybrid_neural_system(
         node_death_threshold=node_death_threshold,
         node_energy_cap=node_energy_cap,
         spawn_cost=spawn_cost,
+        transfer_strength=transfer_strength,
         device=device
     )
     
