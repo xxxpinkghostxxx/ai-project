@@ -495,19 +495,13 @@ class TaichiNeuralEngine:
             _death_kernel(self.death_threshold)
 
             # Adaptive spawn threshold and cost, both derived from avg dynamic node energy.
-            #   spawn_threshold = avg_dyn_e + 10% of energy_cap
-            #     → self-regulating: rises when population is energy-rich (suppresses
-            #       over-spawning), falls when scarce (encourages recovery).
-            #   spawn_cost = 110% of avg_dyn_e
-            #     → ensures only well-above-average nodes can afford to spawn,
-            #       and the cost scales with current population health.
-            #   child_energy = spawn_cost × child_energy_fraction
-            #     → child starts with a proportional share of the spent cost.
+            #   birth_threshold = avg_dyn_e × 1.10
+            #     → only nodes with above-average energy can reproduce
+            #   birth_cost = birth_threshold × 0.75
+            #     → parent keeps 25% of the threshold surplus after spawning
+            #   child_energy = birth_cost × child_energy_fraction
             #
-            # PERFORMANCE: Taichi→CPU numpy read is expensive at large node counts.
-            # Spawn parameters change slowly, so recompute only every 10 steps;
-            # use the cached value on other steps. This cuts the CPU roundtrip
-            # overhead by ~10× without meaningfully affecting spawn behaviour.
+            # Recomputed every 10 steps (Taichi→CPU numpy read is expensive).
             if self.frame_counter % 10 == 0 or not hasattr(self, '_cached_avg_dyn_e'):
                 state_np  = _node_state.to_numpy()[:self._count]
                 energy_np = _node_energy.to_numpy()[:self._count]
@@ -517,8 +511,8 @@ class TaichiNeuralEngine:
                     float(dyn_e.mean()) if len(dyn_e) > 0 else self.spawn_threshold
                 )
             avg_dyn_e = self._cached_avg_dyn_e
-            effective_spawn_threshold = avg_dyn_e + 0.10 * self.energy_cap
-            effective_spawn_cost      = 1.10 * avg_dyn_e
+            effective_spawn_threshold = avg_dyn_e * 1.10
+            effective_spawn_cost      = effective_spawn_threshold * 0.75
             effective_child_energy    = effective_spawn_cost * self.child_energy_fraction
 
             _spawn_kernel(
