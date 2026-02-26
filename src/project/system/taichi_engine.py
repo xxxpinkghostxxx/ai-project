@@ -16,12 +16,12 @@ Architecture note (Taichi 1.7.x):
 Node capacity: pre-allocated at MAX_NODES (4 million) at startup.
 Dead nodes (state == 0) contribute zero energy automatically.
 
-Bit layout (64-bit int64 per node, unchanged from config.py):
+Bit layout (64-bit int64 per node, matches config.py):
     bit 63      : alive flag
     bits 62-61  : node_type  (0=sensory, 1=dynamic, 2=workspace)
-    bits 60-59  : conn_type  (0=excitatory, 1=inhibitory, 2=gated, 3=plastic)
-    bits 58-19  : DNA × 8 neighbors, 5 bits each
-    bits 18-0   : reserved
+    bits 60-58  : conn_type  (0-7, eight connection types)
+    bits 57-18  : DNA × 8 neighbors, 5 bits each [MODE:1][PARAM:4]
+    bits 17-0   : reserved
 """
 
 import logging
@@ -42,7 +42,10 @@ from project.config import (
     BINARY_DNA_MAX_VALUE,
     BINARY_DNA_MASK,
     BINARY_TYPE_MASK,
-    CONN_TYPE_WEIGHT_TABLE,
+    BINARY_CONN_TYPE_MASK,
+    CONN_TYPE_CAPACITIVE,
+    DNA_MUTATION_RATE,
+    REVERSE_DIRECTION,
     SPAWN_TIER_1_THRESHOLD,
     SPAWN_TIER_2_THRESHOLD,
     SPAWN_TIER_3_THRESHOLD,
@@ -86,46 +89,55 @@ _node_energy = ti.field(dtype=ti.f32, shape=MAX_NODES)  # working energy
 _node_pos_y  = ti.field(dtype=ti.i32, shape=MAX_NODES)  # Y grid coordinate
 _node_pos_x  = ti.field(dtype=ti.i32, shape=MAX_NODES)  # X grid coordinate
 _node_count  = ti.field(dtype=ti.i32, shape=())          # high-water mark
+_node_charge = ti.field(dtype=ti.f32, shape=MAX_NODES)   # capacitive charge accumulator
 
 # Per-step event counters (reset before each step)
 _deaths_count = ti.field(dtype=ti.i32, shape=())
 _spawns_count = ti.field(dtype=ti.i32, shape=())
 
 # Constant lookup tables (filled once at engine init)
-_neighbor_dy  = ti.field(dtype=ti.i32, shape=8)
-_neighbor_dx  = ti.field(dtype=ti.i32, shape=8)
-_dna_shifts   = ti.field(dtype=ti.i32, shape=8)
-_weight_table = ti.field(dtype=ti.f32, shape=(4, 4))   # conn_type × (exc, inh, gate, plastic)
+_neighbor_dy   = ti.field(dtype=ti.i32, shape=8)
+_neighbor_dx   = ti.field(dtype=ti.i32, shape=8)
+_dna_shifts    = ti.field(dtype=ti.i32, shape=8)
+_reverse_dir   = ti.field(dtype=ti.i32, shape=8)  # reverse direction for lock-and-key
 
 # =============================================================================
 # Taichi kernels (module-level — support ti.types.ndarray() for PyTorch tensors)
 # =============================================================================
 
 @ti.kernel
+def _clear_grid_map(grid_node_id: ti.types.ndarray()):
+    """Fill grid_node_id with -1 (no node)."""
+    for y, x in ti.ndrange(grid_node_id.shape[0], grid_node_id.shape[1]):
+        grid_node_id[y, x] = -1
+
+
+@ti.kernel
+def _build_grid_map(grid_node_id: ti.types.ndarray()):
+    """Scatter alive nodes into the grid map. Last-writer-wins for shared cells."""
+    for i in range(_node_count[None]):
+        if _node_state[i] != 0:
+            grid_node_id[_node_pos_y[i], _node_pos_x[i]] = i
+
+
+@ti.kernel
 def _dna_transfer_kernel(
-    energy_field: ti.types.ndarray(),   # PyTorch CUDA tensor, zero-copy
+    energy_field:  ti.types.ndarray(),   # PyTorch CUDA tensor, zero-copy
+    grid_node_id:  ti.types.ndarray(),   # [H, W] int32, node index at each cell
     H: int,
     W: int,
     dt: float,
     gate_threshold: float,
+    frame: int,
+    strength: float,
 ):
     """
+    Enhanced DNA transfer with lock-and-key compatibility, 8 connection types,
+    and DNA micro-instructions.
+
     For every live node: compute energy exchange with its 8 DNA-weighted neighbors.
-
-    Each of the 8 neighbor directions d has a 5-bit probability p_d packed into
-    the node's int64 state (bits 19-58, 5 bits each). Transfer formula:
-
-        transfer_d = (neighbor_energy - node_energy)
-                   × (p_d / 31.0)          ← DNA probability
-                   × combined_weight        ← connection type weighting
-                   × dt
-
-    combined_weight: excitatory adds flow, inhibitory subtracts, gated fires only
-    above threshold, plastic adds a constant baseline.
-
-    Dead nodes (state == 0) are skipped entirely.
-    ti.atomic_add handles multiple nodes sharing the same grid cell.
-    energy_field is the PyTorch CUDA tensor — accessed zero-copy.
+    Transfer depends on BOTH the sender's and receiver's DNA (lock-and-key).
+    DNA slot encoding: [MODE:1][PARAM:4] per 5-bit slot.
     """
     for i in range(_node_count[None]):
         state = _node_state[i]
@@ -135,31 +147,93 @@ def _dna_transfer_kernel(
         py = _node_pos_y[i]
         px = _node_pos_x[i]
         energy = _node_energy[i]
-
-        conn_type = int((state >> 59) & 3)
+        conn_type = int((state >> 58) & 7)
         gate_fire = 1.0 if energy > gate_threshold else 0.0
-
-        combined = (
-            _weight_table[conn_type, 0]                   # excitatory  (pull energy in)
-          - _weight_table[conn_type, 1]                   # inhibitory  (push energy away)
-          + _weight_table[conn_type, 2] * gate_fire       # gated       (only fires above threshold)
-          + _weight_table[conn_type, 3]                   # plastic     (constant baseline)
-        )
+        damping = ti.exp(-ti.abs(energy) / 50.0)
 
         total = 0.0
-        for d in ti.static(range(8)):   # unrolled at compile time — no loop overhead at runtime
+        for d in ti.static(range(8)):
             ny = (py + _neighbor_dy[d] + H) % H
             nx = (px + _neighbor_dx[d] + W) % W
-            dna_prob = float((state >> _dna_shifts[d]) & 31) / 31.0
-            delta    = energy_field[ny, nx] - energy
-            contrib  = delta * dna_prob * combined * dt
-            total   += contrib
-            # Withdraw from neighbor to conserve energy
-            ti.atomic_sub(energy_field[ny, nx], contrib)
 
-        # Write only to the shared field; _sync_energy_from_field will
-        # propagate the updated cell value back into _node_energy[i].
-        ti.atomic_add(energy_field[py, px], total)
+            # --- Extract my DNA for direction d ---
+            my_dna_raw = int((state >> _dna_shifts[d]) & 31)
+            my_mode  = (my_dna_raw >> 4) & 1
+            my_param = my_dna_raw & 15
+
+            # --- Lock-and-key: look up neighbor's DNA for reverse direction ---
+            # NOTE: Taichi 1.7 disallows `continue` in non-static if inside
+            # ti.static for. All logic must be guarded with nested ifs instead.
+            neighbor_id = grid_node_id[ny, nx]
+            compat = 0.0
+            if neighbor_id >= 0:
+                n_state = _node_state[neighbor_id]
+                if n_state != 0:
+                    rd = _reverse_dir[d]
+                    their_dna_raw = int((n_state >> _dna_shifts[rd]) & 31)
+                    their_param = their_dna_raw & 15
+                    compat = float(my_param & their_param) / 15.0
+
+            if compat > 0.0:
+                delta = energy_field[ny, nx] - energy
+
+                # --- Apply DNA micro-instruction mode ---
+                dna_strength = compat
+                skip = 0
+                if my_mode == 1:
+                    special = (my_param >> 2) & 3
+                    sparam  = my_param & 3
+                    if special == 0:      # THRESHOLD
+                        if ti.abs(delta) <= float(sparam) * 16.0:
+                            skip = 1
+                    elif special == 1:    # INVERT
+                        delta = -delta
+                        dna_strength = float(sparam) / 3.0
+                    elif special == 2:    # PULSE
+                        if frame % (sparam + 1) != 0:
+                            skip = 1
+                    elif special == 3:    # ABSORB
+                        if delta < 0.0:
+                            skip = 1
+                        dna_strength = float(sparam) / 3.0
+
+                if skip == 0:
+                    # --- Connection type determines transfer formula ---
+                    contrib = 0.0
+                    if conn_type == 0:        # Excitatory
+                        contrib = delta * dna_strength * strength * dt
+                    elif conn_type == 1:      # Inhibitory
+                        contrib = -delta * dna_strength * strength * dt
+                    elif conn_type == 2:      # Gated
+                        contrib = delta * dna_strength * strength * dt * gate_fire
+                    elif conn_type == 3:      # Plastic
+                        contrib = dna_strength * strength * dt
+                    elif conn_type == 4:      # Anti-Plastic
+                        contrib = -dna_strength * strength * dt
+                    elif conn_type == 5:      # Damped
+                        contrib = delta * dna_strength * strength * dt * damping
+                    elif conn_type == 6:      # Resonant
+                        osc = ti.sin(float(frame) * dna_strength * 3.14159265)
+                        contrib = delta * osc * strength * dt
+                    elif conn_type == 7:      # Capacitive
+                        ti.atomic_add(_node_charge[i], ti.abs(delta) * dna_strength * dt)
+                        contrib = 0.0         # no immediate transfer
+
+                    # Clamp individual contribution to prevent NaN propagation
+                    contrib = ti.min(ti.max(contrib, -100.0), 100.0)
+                    if contrib != 0.0:
+                        total += contrib
+                        ti.atomic_sub(energy_field[ny, nx], contrib)
+
+        # Capacitive burst discharge
+        if conn_type == 7 and _node_charge[i] > gate_threshold:
+            burst = _node_charge[i]
+            _node_charge[i] = 0.0
+            total += burst
+
+        # Write accumulated transfer to energy field
+        if total != 0.0:
+            ti.atomic_add(energy_field[py, px], total)
 
 
 @ti.kernel
@@ -197,7 +271,8 @@ def _spawn_kernel(
 
     Child slot is claimed by atomically incrementing _node_count. If the buffer
     is full the parent is skipped. Child position is parent ± 1 cell (toroidal).
-    Child DNA and connection type are random.
+    Child DNA is inherited from parent with 10% per-slot bit-flip mutation.
+    Connection type is random (8 types).
 
     Spawn count accumulated atomically in _spawns_count.
 
@@ -233,20 +308,22 @@ def _spawn_kernel(
         child_y  = (_node_pos_y[i] + offset_y + H) % H
         child_x  = (_node_pos_x[i] + offset_x + W) % W
 
-        # Random 5-bit DNA for all 8 neighbor directions, packed into 40 bits
+        # Hereditary DNA: inherit parent's DNA with 10% mutation per slot
         dna_packed = ti.i64(0)
         for d in ti.static(range(8)):
-            dna_val    = ti.min(int(ti.random() * 32.0), 31)   # 0..31
-            dna_packed |= ti.i64(dna_val) << (19 + d * 5)
+            parent_dna = int((state >> _dna_shifts[d]) & 31)
+            if ti.random() < 0.1:   # 10% mutation chance
+                bit = ti.min(int(ti.random() * 5.0), 4)
+                parent_dna = parent_dna ^ (1 << bit)
+            dna_packed |= ti.i64(parent_dna) << _dna_shifts[d]
 
-        conn_type = ti.min(int(ti.random() * 4.0), 3)
+        conn_type = ti.min(int(ti.random() * 8.0), 7)  # 8 connection types
 
-        # Pack child state: alive=1, type=1 (dynamic), random conn and DNA
-        # Bit shifts match config.py: BINARY_CONN_TYPE_SHIFT=59, BINARY_NODE_TYPE_SHIFT=61
+        # Pack child state: alive=1, type=1 (dynamic), inherited DNA
         new_state = (
             (ti.i64(1) << 63)           # alive bit
           | (ti.i64(1) << 61)           # node type = dynamic (1)
-          | (ti.i64(conn_type) << 59)   # connection type
+          | (ti.i64(conn_type) << 58)   # connection type (3 bits)
           | dna_packed
         )
 
@@ -324,8 +401,8 @@ def _pack_state_batch(alive: torch.Tensor, node_type: torch.Tensor,
 
 
 def _random_conn_type(n: int, device: torch.device) -> torch.Tensor:
-    """Uniformly random conn type: 25% each of excitatory/inhibitory/gated/plastic."""
-    return torch.randint(0, 4, (n,), device=device, dtype=torch.int64)
+    """Uniformly random conn type: 12.5% each of 8 types."""
+    return torch.randint(0, 8, (n,), device=device, dtype=torch.int64)
 
 
 def _random_dna(n: int, device: torch.device) -> torch.Tensor:
@@ -417,6 +494,11 @@ class TaichiNeuralEngine:
                 self.H, self.W, dtype=torch.float32, device=self.device
             )
 
+            # Grid-to-node mapping for DNA lock-and-key neighbor lookups
+            self.grid_node_id = torch.full(
+                (self.H, self.W), -1, dtype=torch.int32, device=self.device
+            )
+
             # Python-side count (mirrors _node_count Taichi field)
             self._count = 0
 
@@ -437,10 +519,7 @@ class TaichiNeuralEngine:
                 _neighbor_dy[d] = dy
                 _neighbor_dx[d] = dx
                 _dna_shifts[d]  = _DNA_SHIFTS[d]
-
-            for i, row in enumerate(CONN_TYPE_WEIGHT_TABLE):
-                for j, val in enumerate(row):
-                    _weight_table[i, j] = val
+                _reverse_dir[d] = REVERSE_DIRECTION[d]
 
             logger.info(
                 "TaichiNeuralEngine initialized: grid=%s, MAX_NODES=%s, device=%s",
@@ -465,22 +544,31 @@ class TaichiNeuralEngine:
     def step(self, **kwargs) -> Dict[str, Any]:
         """
         One full simulation step:
-            1. DNA-based neighborhood energy transfer  (Taichi kernel)
-            2. Sync node energies from field           (Taichi kernel)
-            3. Death                                   (Taichi kernel)
-            4. Spawn                                   (Taichi kernel)
-            5. Clamp energy field                      (Taichi kernel)
+            0. Rebuild grid-node map for lock-and-key   (Taichi kernel)
+            1. DNA-based neighborhood energy transfer   (Taichi kernel)
+            2. Sync node energies from field            (Taichi kernel)
+            3. Death                                    (Taichi kernel)
+            4. Spawn                                    (Taichi kernel)
+            5. Clamp energy field                       (Taichi kernel)
         """
         t_start = time.time()
+
+        # Step 0: Rebuild grid-node map for lock-and-key DNA lookups
+        _clear_grid_map(self.grid_node_id)
+        if self._count > 0:
+            _build_grid_map(self.grid_node_id)
 
         # Step 1: DNA-based energy transfer
         t0 = time.time()
         if self._count > 0:
             _dna_transfer_kernel(
                 self.energy_field,
+                self.grid_node_id,
                 self.H, self.W,
                 self.transfer_dt,
                 self.gate_threshold,
+                self.frame_counter,
+                0.7,  # strength constant
             )
         transfer_time = time.time() - t0
 
@@ -622,11 +710,12 @@ class TaichiNeuralEngine:
         new_conn   = _random_conn_type(n, dev)
         new_dna    = _random_dna(n, dev)
 
-        # Workspace nodes (type=2) are energy buckets: excitatory + max DNA
+        # Workspace nodes (type=2) are energy buckets: excitatory + max classic DNA
+        # MODE=0, PARAM=15 → classic probability 1.0 (value 0b0_1111 = 15)
         ws_mask = (new_types == 2)
         if ws_mask.any():
             new_conn[ws_mask] = 0                       # excitatory (absorb energy)
-            new_dna[ws_mask]  = BINARY_DNA_MAX_VALUE    # max probability all 8 directions
+            new_dna[ws_mask]  = 15                      # MODE=0, PARAM=15 = max compatibility
 
         alive_bits = torch.ones(n, device=dev, dtype=torch.int64)
 
@@ -861,11 +950,15 @@ class TaichiNeuralEngine:
         """
         Render [H, W, 3] uint8 RGB heatmap of node connection types.
 
-            Excitatory (0) → green
-            Inhibitory (1) → red
-            Gated      (2) → blue
-            Plastic    (3) → yellow (R + G)
-            Dead             → black
+            Excitatory   (0) → green
+            Inhibitory   (1) → red
+            Gated        (2) → blue
+            Plastic      (3) → yellow
+            Anti-Plastic (4) → magenta
+            Damped       (5) → cyan
+            Resonant     (6) → white
+            Capacitive   (7) → orange
+            Dead              → black
 
         Returns a CPU tensor.
         """
@@ -887,7 +980,7 @@ class TaichiNeuralEngine:
         alive_x     = torch.tensor(pos_x_np[alive_mask], dtype=torch.long, device=self.device)
 
         conn_type = torch.tensor(
-            ((alive_state >> BINARY_CONN_TYPE_SHIFT) & BINARY_TYPE_MASK),
+            ((alive_state >> BINARY_CONN_TYPE_SHIFT) & BINARY_CONN_TYPE_MASK),
             dtype=torch.long, device=self.device,
         )
         energy_t     = torch.tensor(alive_e, dtype=torch.float32, device=self.device)
@@ -896,12 +989,26 @@ class TaichiNeuralEngine:
                          - self.death_threshold) / energy_range
                         if energy_range > 0 else torch.zeros_like(energy_t))
 
-        m = conn_type == 0; heatmap[alive_y[m], alive_x[m], 1] = brightness[m]  # green
-        m = conn_type == 1; heatmap[alive_y[m], alive_x[m], 0] = brightness[m]  # red
-        m = conn_type == 2; heatmap[alive_y[m], alive_x[m], 2] = brightness[m]  # blue
-        m = conn_type == 3                                                         # yellow
+        # 8 connection type colors
+        m = conn_type == 0; heatmap[alive_y[m], alive_x[m], 1] = brightness[m]              # Excitatory: green
+        m = conn_type == 1; heatmap[alive_y[m], alive_x[m], 0] = brightness[m]              # Inhibitory: red
+        m = conn_type == 2; heatmap[alive_y[m], alive_x[m], 2] = brightness[m]              # Gated: blue
+        m = conn_type == 3                                                                    # Plastic: yellow
         heatmap[alive_y[m], alive_x[m], 0] = brightness[m]
         heatmap[alive_y[m], alive_x[m], 1] = brightness[m]
+        m = conn_type == 4                                                                    # Anti-Plastic: magenta
+        heatmap[alive_y[m], alive_x[m], 0] = brightness[m]
+        heatmap[alive_y[m], alive_x[m], 2] = brightness[m]
+        m = conn_type == 5                                                                    # Damped: cyan
+        heatmap[alive_y[m], alive_x[m], 1] = brightness[m]
+        heatmap[alive_y[m], alive_x[m], 2] = brightness[m]
+        m = conn_type == 6                                                                    # Resonant: white
+        heatmap[alive_y[m], alive_x[m], 0] = brightness[m]
+        heatmap[alive_y[m], alive_x[m], 1] = brightness[m]
+        heatmap[alive_y[m], alive_x[m], 2] = brightness[m]
+        m = conn_type == 7                                                                    # Capacitive: orange
+        heatmap[alive_y[m], alive_x[m], 0] = brightness[m]
+        heatmap[alive_y[m], alive_x[m], 1] = brightness[m] * 0.5
 
         return (heatmap * 255).to(torch.uint8).cpu()
 
