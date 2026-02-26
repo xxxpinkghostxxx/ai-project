@@ -52,8 +52,6 @@ class ConfigManager:
                 'height': 64,
                 'canvas_width': 192,
                 'canvas_height': 108,
-                'energy_gain': 20.0,
-                'energy_bias': 10.0,
             },
             'workspace': {
                 'width': 16,
@@ -93,8 +91,6 @@ class ConfigManager:
                 'excitatory_prob': 0.6,
                 'inhibitory_prob': 0.2,
                 'gated_prob': 0.1,
-                'num_diffusion_steps': 1,
-                'diffusion_coeff': 0.2,
                 'node_spawn_threshold': 5.0,
                 'node_death_threshold': -50.0,
                 'node_energy_cap': 500.0,
@@ -110,8 +106,6 @@ class ConfigManager:
                 'min_freq': 80.0,
                 'max_freq': 8000.0,
                 'master_volume': 0.3,
-                'energy_gain': 50.0,
-                'energy_bias': 5.0,
             },
             'ui': {
                 'sensory_scale_factor': 8,
@@ -390,7 +384,7 @@ class ConfigManager:
                         raise ValueError("Hybrid 'grid_size' values must be positive integers")
 
                 for key in ['node_spawn_threshold', 'node_death_threshold', 'node_energy_cap',
-                            'spawn_cost', 'diffusion_coeff']:
+                            'spawn_cost']:
                     val = hybrid.get(key)
                     if val is not None and not isinstance(val, (int, float)):
                         raise ValueError(f"Hybrid '{key}' must be a number, got {type(val).__name__}")
@@ -420,7 +414,7 @@ class ConfigManager:
                     if vol < 0.0 or vol > 1.0:
                         raise ValueError(f"Audio 'master_volume' must be in [0, 1], got {vol}")
 
-                for key in ['min_freq', 'max_freq', 'energy_gain', 'energy_bias']:
+                for key in ['min_freq', 'max_freq']:
                     val = audio.get(key)
                     if val is not None and isinstance(val, (int, float)) and val < 0:
                         raise ValueError(f"Audio '{key}' must be non-negative, got {val}")

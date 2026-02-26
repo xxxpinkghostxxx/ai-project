@@ -1,9 +1,8 @@
 """
 TaichiNeuralEngine — Probabilistic energy-field neural cellular automaton on GPU.
 
-Replaces HybridGridGraphEngine. Uses Taichi for explicit, readable GPU kernels
-and PyTorch for FFT diffusion (Taichi has no built-in FFT). Both share the same
-CUDA tensor for energy_field — zero-copy, no sync needed.
+Uses Taichi for explicit, readable GPU kernels and PyTorch for the shared
+CUDA energy_field tensor — zero-copy, no sync needed.
 
 Architecture note (Taichi 1.7.x):
     `@ti.data_oriented` class kernels do NOT support `ti.types.ndarray()` arguments.
@@ -25,7 +24,6 @@ Bit layout (64-bit int64 per node, unchanged from config.py):
     bits 18-0   : reserved
 """
 
-import math
 import logging
 import threading
 import time
@@ -261,22 +259,19 @@ def _clamp_kernel(energy_field: ti.types.ndarray(), lo: float, hi: float):
 @ti.kernel
 def _inject_sensory_kernel(
     energy_field: ti.types.ndarray(),
-    pixels:       ti.types.ndarray(),
+    data:         ti.types.ndarray(),
     y0: int, x0: int, h: int, w: int,
-    gain: float, bias: float, energy_cap: float,
 ):
-    """Write scaled pixel values into the sensory region of energy_field."""
+    """Write raw data values as energy into the sensory region of energy_field."""
     for dy, dx in ti.ndrange(h, w):
-        energy_field[y0 + dy, x0 + dx] = ti.min(
-            pixels[dy, dx] * gain + bias, energy_cap
-        )
+        energy_field[y0 + dy, x0 + dx] = data[dy, dx]
 
 
 @ti.kernel
 def _sync_energy_from_field(energy_field: ti.types.ndarray()):
     """
     Sync each live node's working energy from its position in energy_field.
-    Called after FFT diffusion so birth/death decisions see the smoothed values.
+    Called after DNA transfer so birth/death decisions see the current values.
     """
     for i in range(_node_count[None]):
         if _node_state[i] != 0:
@@ -352,7 +347,7 @@ class TaichiNeuralEngine:
     `energy_field` is a PyTorch CUDA tensor. It is passed to Taichi kernels as
     a `ti.types.ndarray()` argument — zero-copy on CUDA.
 
-    Public API (mirrors HybridGridGraphEngine)
+    Public API
     ------------------------------------------
     step(), inject_sensory_data(), add_node(), add_nodes_batch(),
     get_node_data(), get_energy_field(), add_energy_at(),
@@ -368,7 +363,6 @@ class TaichiNeuralEngine:
         node_death_threshold: float = -10.0,
         node_energy_cap: float = 244.0,
         spawn_cost: float = 19.52,
-        diffusion_coeff: float = 0.1,
         gate_threshold: float = 0.5,
         transfer_dt: float = 0.1,
         child_energy_fraction: float = 0.5,
@@ -392,7 +386,6 @@ class TaichiNeuralEngine:
         self.spawn_cost            = spawn_cost           # static fallback only
         self.child_energy_fraction = child_energy_fraction
         self.child_energy          = spawn_cost * child_energy_fraction
-        self.diffusion_coeff       = diffusion_coeff
         self.gate_threshold  = gate_threshold
         self.transfer_dt     = transfer_dt
 
@@ -410,13 +403,6 @@ class TaichiNeuralEngine:
             self.H, self.W, dtype=torch.float32, device=self.device
         )
 
-        # FFT diffusion kernel (pre-computed, cached per dt value)
-        ky = torch.fft.fftfreq(self.H, d=1.0, device=self.device) * 2 * math.pi
-        kx = torch.fft.fftfreq(self.W, d=1.0, device=self.device) * 2 * math.pi
-        KY, KX = torch.meshgrid(ky, kx, indexing='ij')
-        self._diffusion_kernel_base = KX ** 2 + KY ** 2
-        self._diffusion_kernel_cache: dict = {}
-
         # Python-side count (mirrors _node_count Taichi field)
         self._count = 0
 
@@ -426,10 +412,8 @@ class TaichiNeuralEngine:
         self._workspace_cache_valid = False
         self._workspace_cache_lock = threading.Lock()
 
-        # Sensory injection counters / caches
+        # Sensory injection counter
         self._injection_counter = 0
-        self._gradient_decay: Optional[torch.Tensor] = None
-        self._gradient_decay_len = 0
 
         # ---------------------------------------------------------------
         # Initialize constant lookup tables in module-level Taichi fields
@@ -452,85 +436,32 @@ class TaichiNeuralEngine:
         TaichiNeuralEngine._instance = None
 
     # -----------------------------------------------------------------------
-    # FFT Diffusion (PyTorch — Taichi has no FFT)
-    # -----------------------------------------------------------------------
-
-    def _fft_diffusion_step(self, dt: float = 1.0) -> None:
-        """
-        Apply Gaussian-style diffusion to energy_field via FFT.
-
-        Frequency-domain multiply: F *= exp(-coeff × K² × dt).
-        Higher spatial frequencies decay faster — equivalent to Laplacian
-        smoothing but O(HW log HW) instead of O(HW × stencil_size).
-
-        The energy_field PyTorch tensor is used directly — no copy to Taichi.
-        """
-        if dt not in self._diffusion_kernel_cache:
-            self._diffusion_kernel_cache[dt] = torch.exp(
-                -self.diffusion_coeff * self._diffusion_kernel_base * dt
-            )
-        kernel    = self._diffusion_kernel_cache[dt]
-        field_fft = torch.fft.rfft2(self.energy_field)
-        field_fft *= kernel[:, :field_fft.shape[1]]
-        # Use in-place copy to preserve the tensor's memory address.
-        # Reassigning self.energy_field would allocate a new tensor and break
-        # the zero-copy contract with any Taichi kernels holding the old reference.
-        self.energy_field.copy_(torch.fft.irfft2(field_fft, s=self.grid_size))
-
-    # -----------------------------------------------------------------------
     # Public API — simulation
     # -----------------------------------------------------------------------
 
-    def step(
-        self,
-        num_diffusion_steps: int = 10,
-        use_dna_transfer: bool = True,
-        **kwargs,
-    ) -> Dict[str, Any]:
+    def step(self, **kwargs) -> Dict[str, Any]:
         """
         One full simulation step:
             1. DNA-based neighborhood energy transfer  (Taichi kernel)
-            2. FFT diffusion                           (PyTorch)
-            3. Sync node energies from field           (Taichi kernel)
-            4. Death                                   (Taichi kernel)
-            5. Spawn                                   (Taichi kernel)
-            6. Clamp energy field                      (Taichi kernel)
-
-        Args:
-            num_diffusion_steps: Passes of DNA transfer per step.
-            use_dna_transfer: If False, skip DNA transfer (pure diffusion mode).
-            **kwargs: Accepted for backward compatibility.
+            2. Sync node energies from field           (Taichi kernel)
+            3. Death                                   (Taichi kernel)
+            4. Spawn                                   (Taichi kernel)
+            5. Clamp energy field                      (Taichi kernel)
         """
         t_start = time.time()
 
         # Step 1: DNA-based energy transfer
-        # When nodes are present, ALL energy transport is done by the DNA kernel.
-        # FFT diffusion is only used as a fallback when no nodes exist yet (cold start).
-        # Running diffusion alongside DNA transfer would smear the precise per-node
-        # energy values that the DNA math computes, and would then be written back into
-        # _node_energy by _sync_energy_from_field — corrupting the emergent dynamics.
         t0 = time.time()
-        if use_dna_transfer and self._count > 0:
-            for _ in range(num_diffusion_steps):
-                _dna_transfer_kernel(
-                    self.energy_field,
-                    self.H, self.W,
-                    self.transfer_dt,
-                    self.gate_threshold,
-                )
-        else:
-            # No nodes yet — use FFT diffusion to spread any pre-loaded energy so the
-            # field has a non-zero gradient when nodes begin spawning.
-            for _ in range(num_diffusion_steps):
-                self._fft_diffusion_step(dt=0.5)
-            # Restore sensory region after diffusion (freeze only matters here;
-            # DNA transfer does not touch cells without nodes).
-            if hasattr(self, '_sensory_frozen_vals') and self._sensory_frozen_vals is not None:
-                sy0, sy1, sx0, sx1 = self._sensory_frozen_slice
-                self.energy_field[sy0:sy1, sx0:sx1].copy_(self._sensory_frozen_vals)
-        diffusion_time = time.time() - t0
+        if self._count > 0:
+            _dna_transfer_kernel(
+                self.energy_field,
+                self.H, self.W,
+                self.transfer_dt,
+                self.gate_threshold,
+            )
+        transfer_time = time.time() - t0
 
-        # Step 3: Sync node energies from the field
+        # Step 2: Sync node energies from the field
         # After DNA transfer the field already holds the correct per-cell values;
         # this call propagates any field contributions (e.g. multiple nodes sharing
         # a cell) back into each node's working energy scalar.
@@ -606,16 +537,16 @@ class TaichiNeuralEngine:
             logger.info(
                 "STEP | Total: %.1fms | Transfer: %.1fms | Rules: %.1fms | "
                 "Nodes: %s | Spawns: %d | Deaths: %d",
-                total_time * 1000, diffusion_time * 1000, rules_time * 1000,
+                total_time * 1000, transfer_time * 1000, rules_time * 1000,
                 f"{self._count:,}", spawns, deaths,
             )
 
-        total_grid_ops = self.grid_operations_per_step * num_diffusion_steps
+        total_grid_ops = self.grid_operations_per_step
         ops_per_sec    = total_grid_ops / total_time if total_time > 0 else 0.0
 
         return {
             "total_time":            total_time,
-            "diffusion_time":        diffusion_time,
+            "transfer_time":         transfer_time,
             "rules_time":            rules_time,
             "spawns":                spawns,
             "deaths":                deaths,
@@ -672,6 +603,13 @@ class TaichiNeuralEngine:
         new_types  = torch.tensor(node_types, device=dev, dtype=torch.int64)
         new_conn   = _random_conn_type(n, dev)
         new_dna    = _random_dna(n, dev)
+
+        # Workspace nodes (type=2) are energy buckets: excitatory + max DNA
+        ws_mask = (new_types == 2)
+        if ws_mask.any():
+            new_conn[ws_mask] = 0                       # excitatory (absorb energy)
+            new_dna[ws_mask]  = BINARY_DNA_MAX_VALUE    # max probability all 8 directions
+
         alive_bits = torch.ones(n, device=dev, dtype=torch.int64)
 
         new_state = _pack_state_batch(alive_bits, new_types, new_conn, new_dna)
@@ -721,54 +659,31 @@ class TaichiNeuralEngine:
         self,
         pixel_data:  torch.Tensor,
         region:      Tuple[int, int, int, int],
-        energy_gain: float = 20.0,
-        energy_bias: float = 10.0,
     ) -> None:
         """
-        Write desktop/camera pixel data as energy into the sensory region.
+        Write pixel data as energy into the sensory region.
 
-        pixel_data: [H, W] float32 (0..1 or 0..255; auto-normalized).
+        Data values are written directly — no gain, bias, or normalization.
+        Sensory nodes are the inverse of workspace nodes: they output their
+        assigned data value as energy into attached dynamic nodes.
+
+        pixel_data: [H, W] float32.
         region:     (y0, y1, x0, x1) slice into energy_field.
         """
         y0, y1, x0, x1 = region
         h = min(y1 - y0, pixel_data.shape[0])
         w = min(x1 - x0, pixel_data.shape[1])
 
-        pixels = pixel_data[:h, :w]
-        if pixels.max() > 1.0:
-            pixels = pixels / 255.0
-        pixels = pixels.to(dtype=torch.float32, device=self.device).contiguous()
+        data = pixel_data[:h, :w].to(dtype=torch.float32, device=self.device).contiguous()
 
         _inject_sensory_kernel(
-            self.energy_field, pixels, y0, x0, h, w,
-            energy_gain, energy_bias, self.energy_cap,
+            self.energy_field, data, y0, x0, h, w,
         )
-
-        # Freeze the just-written sensory values so that FFT diffusion in step() cannot
-        # blur them.  step() restores this snapshot after _fft_diffusion_step(), keeping
-        # the sensory-to-node mapping 1-pixel = 1-cell with no inter-cell smearing.
-        self._sensory_frozen_vals = self.energy_field[y0:y0 + h, x0:x0 + w].clone()
-        self._sensory_frozen_slice = (y0, y0 + h, x0, x0 + w)
-
-        # Soft gradient below the sensory region (energy diffuses toward dynamic nodes)
-        buffer_height = min(200, self.H - y1)
-        if buffer_height > 0:
-            mean_energy = float(pixels.mean().item()) * energy_gain + energy_bias
-            # Cache the decay tensor — shape only changes if buffer_height changes
-            if self._gradient_decay is None or self._gradient_decay_len != buffer_height:
-                self._gradient_decay = 1.0 - torch.arange(
-                    buffer_height, device=self.device, dtype=torch.float32
-                ) / buffer_height
-                self._gradient_decay_len = buffer_height
-            self.energy_field[y1:y1 + buffer_height, x0:x1] += (
-                mean_energy * 0.3 * self._gradient_decay.unsqueeze(1)
-            )
-            self.energy_field[y1:y1 + buffer_height, x0:x1].clamp_(0, self.energy_cap)
 
         self._injection_counter += 1
         if self._injection_counter % 60 == 0:
             logger.info("SENSORY | %dx%d | mean=%.1f", h, w,
-                        float(pixels.mean().item()) * energy_gain + energy_bias)
+                        float(data.mean().item()))
 
     def add_energy_at(self, position: Tuple[int, int], amount: float) -> None:
         """Add energy at a single grid cell (clamped to grid bounds)."""
@@ -786,19 +701,17 @@ class TaichiNeuralEngine:
         self,
         spectrum_2d: torch.Tensor,
         region: Tuple[int, int, int, int],
-        energy_gain: float = 50.0,
-        energy_bias: float = 5.0,
     ) -> None:
         """Inject a 2-D audio spectrum into an audio sensory region.
+
+        Data values are written directly as energy — no gain or bias.
 
         Parameters
         ----------
         spectrum_2d : torch.Tensor
-            Shape ``(rows, cols)`` float32, values in [0, 1].
+            Shape ``(rows, cols)`` float32.
         region : tuple
             ``(y0, y1, x0, x1)`` slice into ``energy_field``.
-        energy_gain, energy_bias : float
-            ``energy = spectrum * gain + bias``, clamped to ``energy_cap``.
         """
         y0, y1, x0, x1 = region
         h = min(y1 - y0, spectrum_2d.shape[0])
@@ -807,7 +720,6 @@ class TaichiNeuralEngine:
         data = spectrum_2d[:h, :w].to(dtype=torch.float32, device=self.device).contiguous()
         _inject_sensory_kernel(
             self.energy_field, data, y0, x0, h, w,
-            energy_gain, energy_bias, self.energy_cap,
         )
 
     def read_audio_workspace_energies(

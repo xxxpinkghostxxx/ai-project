@@ -10,7 +10,7 @@ import numpy as np
 
 from PyQt6.QtWidgets import QGraphicsScene, QGraphicsView, QGraphicsRectItem
 from PyQt6.QtGui import QPixmap, QImage, QPainter, QColor, QBrush, QPen
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt
 
 from .pixel_shading import PixelShadingSystem
 

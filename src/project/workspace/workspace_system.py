@@ -14,7 +14,7 @@ import numpy as np
 
 # Import Qt for thread-safe UI updates
 try:
-    from PyQt6.QtCore import QTimer, QObject, QMetaObject, Qt, Q_ARG
+    from PyQt6.QtCore import QObject, QMetaObject, Qt
     PYQT_AVAILABLE = True
 except ImportError:
     PYQT_AVAILABLE = False

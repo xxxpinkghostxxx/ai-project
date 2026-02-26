@@ -321,8 +321,6 @@ class ModernConfigPanel(QDialog):
         'node_death_threshold': ('Death Threshold', 'restart'),
         'node_energy_cap': ('Energy Cap', 'restart'),
         'spawn_cost': ('Spawn Cost', 'restart'),
-        'diffusion_coeff': ('Diffusion Coefficient', 'restart'),
-        'num_diffusion_steps': ('Diffusion Steps', 'restart'),
         'toroidal': ('Toroidal Edges', 'restart'),
         'excitatory_prob': ('Excitatory Probability', 'restart'),
         'inhibitory_prob': ('Inhibitory Probability', 'restart'),
@@ -409,8 +407,6 @@ class ModernConfigPanel(QDialog):
         'min_freq': ('Min Frequency (Hz)', 'restart'),
         'max_freq': ('Max Frequency (Hz)', 'restart'),
         'master_volume': ('Master Volume (0-1)', 'live'),
-        'energy_gain': ('Energy Gain', 'live'),
-        'energy_bias': ('Energy Bias', 'live'),
     }
 
     def _create_audio_tab(self) -> None:

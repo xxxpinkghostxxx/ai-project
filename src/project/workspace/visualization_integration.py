@@ -169,8 +169,7 @@ class WorkspaceVisualizationIntegration:
                 logger.warning("No active visualization to export")
                 return False
             
-            # This would need to be implemented in the visualization window
-            # For now, just log the request
+            # TODO: Implement actual image export via visualization_window
             logger.info(f"Export visualization requested: {filename}")
             return True
             

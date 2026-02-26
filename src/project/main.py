@@ -88,14 +88,10 @@ class HybridNeuralSystemAdapter:
         workspace_region: Tuple[int, int, int, int],
         sensory_width: int = 64,
         sensory_height: int = 64,
-        energy_gain: float = 20.0,
-        energy_bias: float = 10.0,
         audio_sensory_L: Tuple[int, int, int, int] | None = None,
         audio_sensory_R: Tuple[int, int, int, int] | None = None,
         audio_workspace_L: Tuple[int, int, int, int] | None = None,
         audio_workspace_R: Tuple[int, int, int, int] | None = None,
-        audio_energy_gain: float = 50.0,
-        audio_energy_bias: float = 5.0,
     ):
         """Initialize the adapter.
 
@@ -105,19 +101,14 @@ class HybridNeuralSystemAdapter:
             workspace_region: (y_start, y_end, x_start, x_end) for workspace nodes
             sensory_width: Width of sensory input
             sensory_height: Height of sensory input
-            energy_gain: Pixel-to-energy multiplier (pixel_float01 * gain + bias)
-            energy_bias: Energy floor added to every injected pixel
             audio_sensory_L/R: Regions for left/right audio FFT input
             audio_workspace_L/R: Regions for left/right audio oscillator output
-            audio_energy_gain/bias: Energy scaling for audio injection
         """
         self.engine = engine
         self.sensory_region = sensory_region
         self.workspace_region = workspace_region
         self.sensory_width = sensory_width
         self.sensory_height = sensory_height
-        self.energy_gain = energy_gain
-        self.energy_bias = energy_bias
         self.device = engine.device
 
         # Audio regions (None = audio disabled)
@@ -125,8 +116,6 @@ class HybridNeuralSystemAdapter:
         self.audio_sensory_R = audio_sensory_R
         self.audio_workspace_L = audio_workspace_L
         self.audio_workspace_R = audio_workspace_R
-        self.audio_energy_gain = audio_energy_gain
-        self.audio_energy_bias = audio_energy_bias
 
         # Track connection worker state (for compatibility)
         self._connection_worker_started = False
@@ -140,50 +129,25 @@ class HybridNeuralSystemAdapter:
         
         Optimized for real-time performance with GPU.
         """
-        # Convert frame to tensor
+        # Convert frame to float32 tensor — raw values become energy directly
         if isinstance(frame_data, torch.Tensor):
-            pixels = frame_data
-            # If uint8, convert to float32 only when needed (maintains precision)
-            if pixels.dtype == torch.uint8:
-                pixels = pixels.float() / 255.0  # Normalize 0-1 range
+            pixels = frame_data.float()
         else:
-            # Convert numpy to tensor, keep as uint8 if possible
-            pixels = torch.tensor(frame_data, device=self.device)
-            if pixels.dtype == torch.uint8:
-                pixels = pixels.float() / 255.0  # Normalize 0-1 range
-            else:
-                pixels = pixels.float()
-        
-        # Inject sensory data into DYNAMIC field ONLY!
-        # CRITICAL ARCHITECTURE: Sensory and Workspace NEVER interact directly!
-        # - Sensory → Dynamic: Direct injection (this call)
-        # - Dynamic → Dynamic: Markov chains via convolution (in step())
-        # - Dynamic → Workspace: Bidirectional flow (in step())
-        # The chain is: Sensory → Dynamic → Dynamic → ... → Workspace
-        # Dynamic nodes form long Markov chains with Dirac-compressed connection probabilities
-        self.engine.inject_sensory_data(pixels, self.sensory_region,
-                                        self.energy_gain, self.energy_bias)
+            pixels = torch.tensor(frame_data, device=self.device).float()
 
-        return self.engine.step(
-            num_diffusion_steps=1,
-            use_dna_transfer=True,
-        )
-    
+        # Sensory nodes output their data value as energy into attached dynamic nodes.
+        # No gain, bias, or normalization — data IS energy.
+        self.engine.inject_sensory_data(pixels, self.sensory_region)
+
+        return self.engine.step()
+
     def update_step(self) -> dict:
-        """Single update step (compatible with UI update loop).
-        
-        Optimized for real-time performance with GPU:
-        - Reduced diffusion steps (1 instead of 5) for faster updates
-        - Still maintains full simulation accuracy
-        """
+        """Single update step (compatible with UI update loop)."""
         t_step_start = time.time()
         self._step_count += 1
 
         t_engine_call_start = time.time()
-        result = self.engine.step(
-            num_diffusion_steps=1,
-            use_dna_transfer=True,
-        )
+        result = self.engine.step()
         t_engine_call_done = time.time()
 
         # Explicit GPU sync to measure actual GPU work time
@@ -315,10 +279,7 @@ class HybridNeuralSystemAdapter:
             # Tile across rows for spatial redundancy
             tiled = np.tile(ch_data, (rows, 1))[:rows, :cols]
             tiled_t = torch.from_numpy(tiled.astype(np.float32))
-            self.engine.inject_audio_data(
-                tiled_t, region,
-                self.audio_energy_gain, self.audio_energy_bias,
-            )
+            self.engine.inject_audio_data(tiled_t, region)
 
     def get_audio_workspace_energies(self) -> Tuple['np.ndarray', 'np.ndarray'] | None:
         """Read energy from both audio workspace regions.
@@ -464,8 +425,7 @@ class HybridNeuralSystemAdapter:
                 return
         
         # Inject data using the hybrid engine's method
-        self.engine.inject_sensory_data(sensory_input, self.sensory_region,
-                                        self.energy_gain, self.energy_bias)
+        self.engine.inject_sensory_data(sensory_input, self.sensory_region)
     
     def update(self) -> None:
         """Run a single simulation step (compatibility method).
@@ -593,11 +553,10 @@ def create_hybrid_neural_system(
     node_death_threshold = hybrid_config.get('node_death_threshold', -50.0)
     node_energy_cap = hybrid_config.get('node_energy_cap', 500.0)
     spawn_cost = hybrid_config.get('spawn_cost', 2.0)
-    diffusion_coeff = hybrid_config.get('diffusion_coeff', 0.2)
-    
+
     logger.info(f"Hybrid params: spawn_threshold={node_spawn_threshold}, "
                 f"death_threshold={node_death_threshold}, energy_cap={node_energy_cap}, "
-                f"spawn_cost={spawn_cost}, diffusion={diffusion_coeff}")
+                f"spawn_cost={spawn_cost}")
     
     # Create Taichi engine (single canonical engine, 4M node cap, CUDA)
     logger.info("Creating TaichiNeuralEngine (4M node capacity, CUDA kernels)")
@@ -607,7 +566,6 @@ def create_hybrid_neural_system(
         node_death_threshold=node_death_threshold,
         node_energy_cap=node_energy_cap,
         spawn_cost=spawn_cost,
-        diffusion_coeff=diffusion_coeff,
         device=device
     )
     
@@ -672,18 +630,17 @@ def create_hybrid_neural_system(
                 sensory_region_y_end, sensory_region_x_end, sensory_count)
     
     # Dynamic nodes (can spawn/die, type=1)
-    initial_dynamic = 200000  # Start with 200k - will grow to millions!
-    dyn_y_min = sensory_height + 40  # Buffer after sensory
-    dyn_y_max = grid_size[0] - workspace_height - 40  # Buffer before workspace
-    # Generate on CPU directly — positions are immediately converted to a Python list,
-    # so allocating on the GPU only to call .tolist() is a wasteful round-trip.
-    dyn_ys = torch.randint(dyn_y_min, dyn_y_max, (initial_dynamic,)).tolist()
-    dyn_xs = torch.randint(0, grid_size[1], (initial_dynamic,)).tolist()
-    dynamic_positions = list(zip(dyn_ys, dyn_xs))
+    # Seed one dynamic node per sensory column along the bottom edge of the
+    # sensory region.  This gives a 1:1 sensory-to-dynamic seeding that will
+    # organically balloon outward toward the workspace via ±1 spawning.
+    seed_row = sensory_region_y_end  # First row just below sensory
+    dynamic_positions = [(seed_row, x) for x in range(sensory_region_x_end)]
+    initial_dynamic = len(dynamic_positions)
     dynamic_energies = [100.0] * initial_dynamic
     dynamic_types = [1] * initial_dynamic
-    
-    logger.info("  Dynamic: %d initial nodes (type=1, can spawn/die)", initial_dynamic)
+
+    logger.info("  Dynamic: %d initial nodes seeded at sensory border row %d (type=1, will grow via spawning)",
+                initial_dynamic, seed_row)
     
     # Workspace nodes (immortal, infertile, type=2)
     # Create a grid of workspace nodes that dynamic nodes can interact with
@@ -726,37 +683,24 @@ def create_hybrid_neural_system(
     logger.info("  Total nodes: %d (dynamic=%d, workspace=%d, audio_ws=%d)",
                 total_tracked, initial_dynamic, workspace_count, len(audio_ws_positions))
     
-    # Sensory energy mapping (pixel float [0..1] → energy value)
-    sensory_cfg = config_manager.get_config('sensory') or {}
-    energy_gain = float(sensory_cfg.get('energy_gain', 20.0))
-    energy_bias = float(sensory_cfg.get('energy_bias', 10.0))
-
     logger.info("="*60)
     logger.info("HYBRID ENGINE READY")
     logger.info("Architecture: Hybrid field + tracked nodes")
-    logger.info("  Sensory: %d cells (field region, energy injection)", sensory_count)
-    logger.info("  Dynamic: %d nodes (type=1, can spawn/die)", initial_dynamic)
+    logger.info("  Sensory: %d cells (field region, raw data = energy)", sensory_count)
+    logger.info("  Dynamic: %d seed nodes at sensory border (type=1, will grow via spawning)", initial_dynamic)
     logger.info("  Workspace: %d nodes (type=2, immortal/infertile)", workspace_count)
     logger.info("  Total tracked: %d nodes", total_tracked)
     logger.info("  Grid size: %d×%d = %d cells", grid_size[0], grid_size[1],
                 grid_size[0] * grid_size[1])
-    logger.info("  Sensory energy: pixel*%.1f + %.1f", energy_gain, energy_bias)
     logger.info("="*60)
-
-    # Audio energy scaling
-    audio_energy_gain = float(audio_config.get('energy_gain', 50.0))
-    audio_energy_bias = float(audio_config.get('energy_bias', 5.0))
 
     # Wrap in adapter for compatibility
     return HybridNeuralSystemAdapter(
         engine, SENSORY_REGION, WORKSPACE_REGION, sensory_width, sensory_height,
-        energy_gain=energy_gain, energy_bias=energy_bias,
         audio_sensory_L=AUDIO_SENSORY_L_REGION if audio_enabled else None,
         audio_sensory_R=AUDIO_SENSORY_R_REGION if audio_enabled else None,
         audio_workspace_L=AUDIO_WORKSPACE_L_REGION if audio_enabled else None,
         audio_workspace_R=AUDIO_WORKSPACE_R_REGION if audio_enabled else None,
-        audio_energy_gain=audio_energy_gain,
-        audio_energy_bias=audio_energy_bias,
     )
 
 

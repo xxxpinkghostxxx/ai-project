@@ -23,7 +23,7 @@ class GlobalStorage:
     _device: str = 'cpu'
     _initialized: bool = False
 
-    def __init__(self, device: str = 'cpu') -> None:
+    def __init__(self) -> None:
         """Do not instantiate — use class methods directly."""
         raise TypeError(
             "GlobalStorage should not be instantiated. Use class methods directly "
@@ -51,11 +51,6 @@ class GlobalStorage:
     @classmethod
     def retrieve(cls, key: str, default: Any = None) -> Any:
         """Retrieve a value from global storage."""
-        return cls._storage.get(key, default)
-
-    @classmethod
-    def get(cls, key: str, default: Any = None) -> Any:
-        """Get a value from global storage (alias for retrieve)."""
         return cls._storage.get(key, default)
 
     @classmethod
@@ -107,10 +102,12 @@ class GlobalStorage:
             'storage_size': len(cls._storage)
         }
 
-    def __str__(self) -> str:
+    @classmethod
+    def __str__(cls) -> str:
         """String representation of GlobalStorage."""
-        return f"GlobalStorage(device={self._device}, initialized={self._initialized}, items={len(self._storage)})"
+        return f"GlobalStorage(device={cls._device}, initialized={cls._initialized}, items={len(cls._storage)})"
 
-    def __repr__(self) -> str:
+    @classmethod
+    def __repr__(cls) -> str:
         """Detailed string representation of GlobalStorage."""
-        return self.__str__()
+        return cls.__str__()

@@ -5,9 +5,7 @@
         "width": 1920,
         "height": 1080,
         "canvas_width": 1920,
-        "canvas_height": 1080,
-        "energy_gain": 30.0,
-        "energy_bias": 15.0
+        "canvas_height": 1080
     },
     "workspace": {
         "width": 128,
@@ -15,9 +13,9 @@
         "canvas_width": 364,
         "canvas_height": 364,
         "enabled": true,
-        "reading_interval_ms": 100,
+        "reading_interval_ms": 10,
         "energy_smoothing": 0,
-        "smoothing_factor": 0.1,
+        "smoothing_factor": 0,
         "shading_mode": "linear",
         "color_scheme": "grayscale",
         "animation_enabled": true,
@@ -36,8 +34,8 @@
         "energy_pulse": 10.0,
         "max_energy": 255.0,
         "min_energy": 0.0,
-        "frame_throttling": false,
-        "detailed_logging": false,
+        "frame_throttling": true,
+        "detailed_logging": true,
         "device": "cuda"
     },
     "hybrid": {
@@ -47,19 +45,17 @@
             1920
         ],
         "toroidal": true,
-        "excitatory_prob": 0.6,
+        "excitatory_prob": 0.2,
         "inhibitory_prob": 0.2,
-        "gated_prob": 0.1,
-        "num_diffusion_steps": 1,
-        "diffusion_coeff": 0.2,
+        "gated_prob": 0.6,
         "node_spawn_threshold": 8.0,
-        "node_death_threshold": 1.0,
-        "node_energy_cap": 1000.0,
+        "node_death_threshold": 0.1,
+        "node_energy_cap": 255.0,
         "spawn_cost": 3.0,
         "description": "Binary state HybridGridGraphEngine. Each node is int64 with packed DNA, type, energy. state==0 means DEAD and zeros out all math automatically."
     },
     "audio": {
-        "enabled":true ,
+        "enabled": true,
         "source": "loopback",
         "sample_rate": 44100,
         "fft_size": 512,
@@ -67,9 +63,7 @@
         "buffer_size": 1024,
         "min_freq": 80.0,
         "max_freq": 8000.0,
-        "master_volume": 0.3,
-        "energy_gain": 50.0,
-        "energy_bias": 5.0
+        "master_volume": 0.3
     },
     "ui": {
         "sensory_scale_factor": 8,
