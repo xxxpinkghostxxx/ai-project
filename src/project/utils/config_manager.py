@@ -231,9 +231,15 @@ class ConfigManager:
                     self.config = loaded_config
                     ErrorHandler.log_info("Config loaded successfully")
                     return True
+                else:
+                    logger.warning(
+                        "Config file %s failed validation — using defaults. "
+                        "Check logs for specific validation errors.",
+                        self.config_file,
+                    )
             return False
         except Exception as e:
-            ErrorHandler.show_error("Config Load Error", f"Failed to load config: {str(e)}")
+            ErrorHandler.show_error("Config Load Error", "Failed to load config: %s" % e)
             return False
 
     @monitor_performance("config_update")

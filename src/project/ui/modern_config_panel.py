@@ -873,14 +873,16 @@ class ModernConfigPanel(QDialog):
             )
 
             if reply == QMessageBox.StandardButton.Yes:
-                # Simple reset by creating new config manager with defaults
-                # Note: This is a simplified approach - in production, you'd want
-                # to implement proper reset functionality in ConfigManager
-                logger.info("Configuration reset requested")
+                # Create a fresh ConfigManager to get defaults, then save over the current config
+                fresh_config = ConfigManager()
+                # The fresh instance already has defaults loaded — save them to disk
+                self.config_manager.config = fresh_config.config
+                self.config_manager.save_config()
+                logger.info("Configuration reset to defaults and saved to disk")
                 QMessageBox.information(
                     self,
                     "Reset Complete",
-                    "Configuration reset requested.\n"
+                    "Configuration has been reset to defaults.\n"
                     "Please restart the application for changes to take effect.",
                     QMessageBox.StandardButton.Ok
                 )

@@ -28,7 +28,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import logging
 import contextlib
 import argparse
-from typing import Any, Tuple, Union
+from typing import Any, Tuple
 from collections.abc import Generator
 import numpy as np
 import torch
@@ -596,6 +596,16 @@ def create_hybrid_neural_system(
     aw_y1 = grid_size[0]
 
     # Column offsets for the four audio regions
+    # Validate that audio regions fit within the grid width
+    audio_max_x = 1024 + fft_bins  # rightmost edge of AUDIO_WORKSPACE_R
+    if audio_enabled and grid_size[1] < audio_max_x:
+        logger.warning(
+            "Grid width %d is too narrow for audio regions (need %d). "
+            "Disabling audio to prevent out-of-bounds writes.",
+            grid_size[1], audio_max_x,
+        )
+        audio_enabled = False
+
     AUDIO_SENSORY_L_REGION  = (aw_y0, aw_y1, 256, 256 + fft_bins)
     AUDIO_SENSORY_R_REGION  = (aw_y0, aw_y1, 512, 512 + fft_bins)
     AUDIO_WORKSPACE_L_REGION = (aw_y0, aw_y1, 768, 768 + fft_bins)
@@ -948,8 +958,7 @@ def main() -> None:
                 logger.info("Using existing Qt application instance")
         except Exception as qt_error:  # pylint: disable=broad-exception-caught
             logger.error("Failed to initialize Qt application: %s", str(qt_error))
-            qt_error_msg = f"Failed to initialize Qt application: {str(qt_error)}"
-            ErrorHandler.show_error("Qt Error", qt_error_msg)  # type: ignore[arg-type]
+            # Cannot show QMessageBox — QApplication failed to initialize
             raise RuntimeError(f"Qt initialization failed: {str(qt_error)}") from qt_error
 
         # Initialize managers with error handling

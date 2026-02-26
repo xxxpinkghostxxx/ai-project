@@ -213,13 +213,18 @@ def _spawn_kernel(
             continue
         if _node_energy[i] < spawn_threshold:
             continue
-        if _spawns_count[None] >= max_spawns:
+
+        # Atomically claim a spawn slot BEFORE doing work — prevents overshoot
+        my_spawn = ti.atomic_add(_spawns_count[None], 1)
+        if my_spawn >= max_spawns:
+            ti.atomic_sub(_spawns_count[None], 1)  # undo — limit reached
             continue
 
-        # Claim next slot atomically — parallel-safe
+        # Claim next node slot atomically — parallel-safe
         slot = ti.atomic_add(_node_count[None], 1)
         if slot >= MAX_NODES:
-            ti.atomic_sub(_node_count[None], 1)   # undo — buffer full
+            ti.atomic_sub(_node_count[None], 1)    # undo — buffer full
+            ti.atomic_sub(_spawns_count[None], 1)  # undo spawn claim too
             continue
 
         # Random ±1 offset from parent (toroidal grid wrap)
@@ -237,6 +242,7 @@ def _spawn_kernel(
         conn_type = ti.min(int(ti.random() * 4.0), 3)
 
         # Pack child state: alive=1, type=1 (dynamic), random conn and DNA
+        # Bit shifts match config.py: BINARY_CONN_TYPE_SHIFT=59, BINARY_NODE_TYPE_SHIFT=61
         new_state = (
             (ti.i64(1) << 63)           # alive bit
           | (ti.i64(1) << 61)           # node type = dynamic (1)
@@ -250,7 +256,6 @@ def _spawn_kernel(
         _node_pos_x[slot]  = child_x
 
         _node_energy[i] -= spawn_cost
-        ti.atomic_add(_spawns_count[None], 1)
 
 
 @ti.kernel
@@ -824,6 +829,9 @@ class TaichiNeuralEngine:
             self._workspace_local_x = torch.tensor([], dtype=torch.long, device=self.device)
             self._workspace_cache_valid = True
             return
+
+        # Ensure all GPU kernels have finished before reading back to CPU
+        ti.sync()
 
         state_np = _node_state.to_numpy()[:n]
         pos_y_np = _node_pos_y.to_numpy()[:n]

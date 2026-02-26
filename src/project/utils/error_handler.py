@@ -11,7 +11,6 @@ import threading
 import datetime
 import traceback
 import time
-from PyQt6.QtWidgets import QMessageBox
 from functools import wraps
 from typing import Any, Optional, Callable, Dict
 
@@ -72,11 +71,14 @@ class ErrorHandler:
     - Comprehensive error reporting and analysis
     """
 
+    # Maximum number of stored errors to prevent unbounded memory growth
+    MAX_ERRORS = 1000
+
     def __init__(self) -> None:
         """Initialize ErrorHandler with empty error list and enhanced tracking."""
         self.errors: list[Dict[str, Any]] = []  # Store structured error information
         self.error_counter = 0
-        self._lock = threading.Lock()  # Thread-safe error handling
+        self._lock = threading.RLock()  # Reentrant lock for nested calls (e.g. get_error_statistics -> get_recent_errors)
         self._retry_logic_enabled = True
         self._max_retries = 3
         self._retry_delay = 1.0
@@ -89,7 +91,11 @@ class ErrorHandler:
     @staticmethod
     def show_error(title: str, message: str, log: bool = True, severity: str = ERROR_SEVERITY_MEDIUM, context: Optional[Dict[str, Any]] = None) -> None:
         """
-        Show error message to user with enhanced logging and error context.
+        Log error and optionally show a dialog to the user (main thread only).
+
+        This method is safe to call from any thread. The Qt dialog is only
+        shown when called from the main thread with an active QApplication;
+        otherwise the error is logged only.
 
         Args:
             title: Error title
@@ -99,37 +105,27 @@ class ErrorHandler:
             context: Additional error context information
         """
         try:
-            # Create comprehensive error context
-            error_context = {
-                ERROR_CONTEXT_TIMESTAMP: datetime.datetime.now().isoformat(),
-                ERROR_CONTEXT_MODULE: 'UI',
-                ERROR_CONTEXT_FUNCTION: 'show_error',
-                ERROR_CONTEXT_ERROR_TYPE: title,
-                ERROR_CONTEXT_ERROR_MESSAGE: message,
-                ERROR_CONTEXT_SEVERITY: severity,
-                ERROR_CONTEXT_ADDITIONAL_INFO: context or {}
-            }
-
-            # Add stack trace for critical errors
-            if severity == ERROR_SEVERITY_CRITICAL:
-                error_context[ERROR_CONTEXT_STACK_TRACE] = traceback.format_exc()
-
-            # Show error to user via Qt6
-            QMessageBox.critical(None, title, message)
-
-            # Log with enhanced context
+            # Log with enhanced context (always safe from any thread)
             if log:
-                log_message = f"{title}: {message} | Severity: {severity}"
+                log_message = "%s: %s | Severity: %s" % (title, message, severity)
                 if context:
-                    log_message += f" | Context: {context}"
+                    log_message += " | Context: %s" % context
                 logger.error(log_message)
 
-                # Log detailed error context
-                logger.debug(f"Error context: {error_context}")
+            # Only attempt Qt dialog from the main thread and if QApplication exists
+            try:
+                from PyQt6.QtWidgets import QApplication, QMessageBox
+                from PyQt6.QtCore import QThread
+                app = QApplication.instance()
+                if app is not None and QThread.currentThread() is app.thread():
+                    QMessageBox.critical(None, title, message)
+            except ImportError:
+                pass  # Qt not available — log-only mode
+            except RuntimeError:
+                pass  # Qt shutting down
 
         except Exception as e:
             logger.error("Error showing error message: %s", str(e))
-            print(f"Error showing error message: {str(e)}")
 
     @staticmethod
     def safe_operation(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -178,50 +174,24 @@ class ErrorHandler:
         """
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            error_handler = ErrorHandler()
-            retry_count = 0
-            error_msg = ""
-            error_context = {}
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                error_msg = "%s failed: %s" % (func.__name__, e)
+                error_context = {
+                    'function': func.__name__,
+                }
 
-            while retry_count <= error_handler._max_retries:
-                try:
-                    return func(*args, **kwargs)
-                except Exception as e:
-                    error_msg = f"{func.__name__} failed: {str(e)}"
-                    error_context = {
-                        'function': func.__name__,
-                        'args': str(args),
-                        'kwargs': str(kwargs),
-                        'retry_count': retry_count,
-                        'max_retries': error_handler._max_retries
-                    }
+                logger.error(error_msg, exc_info=True)
 
-                    # Log with enhanced context
-                    logger.error(error_msg, exc_info=True)
-                    logger.debug(f"Error context: {error_context}")
-
-                    # Attempt recovery if this is a recoverable error
-                    if retry_count < error_handler._max_retries:
-                        recovery_success = error_handler._attempt_recovery(func.__name__, str(e), error_context)
-                        if recovery_success:
-                            logger.info(f"Recovery successful for {func.__name__}, retrying...")
-                            retry_count += 1
-                            time.sleep(min(error_handler._retry_delay * (2 ** retry_count), 30.0))  # Exponential backoff, capped at 30 s
-                            continue
-
-                    # Show error to user
-                    ErrorHandler.show_error(
-                        "Operation Failed",
-                        error_msg,
-                        severity=ERROR_SEVERITY_HIGH,
-                        context=error_context
-                    )
-                    break
-
-            # Store error with comprehensive context
-            if error_msg and error_context:
-                error_handler.log_error(error_msg, severity=ERROR_SEVERITY_HIGH, context=error_context)
-            return None
+                # Show error to user (thread-safe — will only show dialog on main thread)
+                ErrorHandler.show_error(
+                    "Operation Failed",
+                    error_msg,
+                    severity=ERROR_SEVERITY_HIGH,
+                    context=error_context
+                )
+                return None
         return wrapper
 
     def with_retry(self, max_retries: int = 3, retry_delay: float = 1.0, backoff: bool = True):
@@ -339,6 +309,10 @@ class ErrorHandler:
 
             self.errors.append(error_entry)
             self.error_counter += 1
+
+            # Cap stored errors to prevent unbounded memory growth
+            if len(self.errors) > self.MAX_ERRORS:
+                self.errors = self.errors[-self.MAX_ERRORS:]
 
             # Log with severity and context
             log_message = f"[{severity}] {message}"
