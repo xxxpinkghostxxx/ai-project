@@ -107,17 +107,17 @@ _reverse_dir   = ti.field(dtype=ti.i32, shape=8)  # reverse direction for lock-a
 
 @ti.kernel
 def _clear_grid_map(grid_node_id: ti.types.ndarray()):
-    """Fill grid_node_id with -1 (no node)."""
+    """Fill grid_node_id with MAX_NODES (no valid node)."""
     for y, x in ti.ndrange(grid_node_id.shape[0], grid_node_id.shape[1]):
-        grid_node_id[y, x] = -1
+        grid_node_id[y, x] = MAX_NODES
 
 
 @ti.kernel
 def _build_grid_map(grid_node_id: ti.types.ndarray()):
-    """Scatter alive nodes into the grid map. Last-writer-wins for shared cells."""
+    """Scatter alive nodes into the grid map. Deterministic: lowest node ID wins."""
     for i in range(_node_count[None]):
         if _node_state[i] != 0:
-            grid_node_id[_node_pos_y[i], _node_pos_x[i]] = i
+            ti.atomic_min(grid_node_id[_node_pos_y[i], _node_pos_x[i]], i)
 
 
 @ti.kernel
@@ -166,7 +166,7 @@ def _dna_transfer_kernel(
             # ti.static for. All logic must be guarded with nested ifs instead.
             neighbor_id = grid_node_id[ny, nx]
             compat = 0.0
-            if neighbor_id >= 0:
+            if neighbor_id < MAX_NODES:
                 n_state = _node_state[neighbor_id]
                 if n_state != 0:
                     rd = _reverse_dir[d]
@@ -332,6 +332,7 @@ def _spawn_kernel(
         _node_energy[slot] = child_energy
         _node_pos_y[slot]  = child_y
         _node_pos_x[slot]  = child_x
+        _node_charge[slot] = 0.0  # Reset capacitive charge for new node
 
         _node_energy[i] -= spawn_cost
 
@@ -359,14 +360,22 @@ def _inject_sensory_kernel(
 
 
 @ti.kernel
-def _sync_energy_from_field(energy_field: ti.types.ndarray()):
+def _sync_energy_from_field(energy_field: ti.types.ndarray(), grid_node_id: ti.types.ndarray()):
     """
     Sync each live node's working energy from its position in energy_field.
     Called after DNA transfer so birth/death decisions see the current values.
+
+    Only the grid-map owner of each cell (lowest node ID) syncs from the field.
+    Non-owner nodes sharing a cell keep their previous energy, preventing
+    multiple nodes from getting identical energy and making synchronized
+    spawn/death decisions.
     """
     for i in range(_node_count[None]):
         if _node_state[i] != 0:
-            _node_energy[i] = energy_field[_node_pos_y[i], _node_pos_x[i]]
+            y = _node_pos_y[i]
+            x = _node_pos_x[i]
+            if grid_node_id[y, x] == i:
+                _node_energy[i] = energy_field[y, x]
 
 
 @ti.kernel
@@ -384,6 +393,7 @@ def _write_nodes_kernel(
         _node_energy[start + i] = energies[i]
         _node_pos_y[start + i]  = pos_y[i]
         _node_pos_x[start + i]  = pos_x[i]
+        _node_charge[start + i] = 0.0  # Reset capacitive charge for new node
 
 
 # =============================================================================
@@ -478,7 +488,6 @@ class TaichiNeuralEngine:
             self.energy_cap            = node_energy_cap
             self.spawn_cost            = spawn_cost           # static fallback only
             self.child_energy_fraction = child_energy_fraction
-            self.child_energy          = spawn_cost * child_energy_fraction
             self.gate_threshold      = gate_threshold
             self.transfer_dt         = transfer_dt
             self.transfer_strength   = transfer_strength
@@ -498,8 +507,9 @@ class TaichiNeuralEngine:
             )
 
             # Grid-to-node mapping for DNA lock-and-key neighbor lookups
+            # Sentinel = MAX_NODES (no valid node); used with ti.atomic_min for determinism
             self.grid_node_id = torch.full(
-                (self.H, self.W), -1, dtype=torch.int32, device=self.device
+                (self.H, self.W), MAX_NODES, dtype=torch.int32, device=self.device
             )
 
             # Python-side count (mirrors _node_count Taichi field)
@@ -541,6 +551,38 @@ class TaichiNeuralEngine:
         return self._count
 
     # -----------------------------------------------------------------------
+    # Public API — runtime parameter updates (hot-reload from config)
+    # -----------------------------------------------------------------------
+
+    def update_parameters(self, **kwargs) -> None:
+        """Update engine runtime parameters without restart.
+
+        Accepts any subset of: transfer_strength, transfer_dt, gate_threshold,
+        spawn_threshold, death_threshold, energy_cap, child_energy_fraction.
+        Unknown keys are silently ignored.
+
+        Thread safety: each parameter is a simple Python float assignment
+        (atomic under the GIL). However, a multi-parameter update is NOT
+        atomic — step() may observe a partially-applied set if called from
+        another thread between individual setattr() calls. In the Qt event
+        loop (single-threaded), this is not an issue.
+        """
+        _MUTABLE = {
+            'transfer_strength', 'transfer_dt', 'gate_threshold',
+            'spawn_threshold', 'death_threshold', 'energy_cap',
+            'child_energy_fraction',
+        }
+        changed = []
+        for key, value in kwargs.items():
+            if key in _MUTABLE and hasattr(self, key):
+                old = getattr(self, key)
+                if old != value:
+                    setattr(self, key, value)
+                    changed.append(f"{key}: {old} -> {value}")
+        if changed:
+            logger.info("Engine parameters updated: %s", "; ".join(changed))
+
+    # -----------------------------------------------------------------------
     # Public API — simulation
     # -----------------------------------------------------------------------
 
@@ -555,6 +597,10 @@ class TaichiNeuralEngine:
             5. Clamp energy field                       (Taichi kernel)
         """
         t_start = time.time()
+
+        # Ensure prior Taichi kernels (e.g. inject_sensory_data) have finished
+        # writing to energy_field before we read it in DNA transfer.
+        ti.sync()
 
         # Step 0: Rebuild grid-node map for lock-and-key DNA lookups
         _clear_grid_map(self.grid_node_id)
@@ -576,11 +622,10 @@ class TaichiNeuralEngine:
         transfer_time = time.time() - t0
 
         # Step 2: Sync node energies from the field
-        # After DNA transfer the field already holds the correct per-cell values;
-        # this call propagates any field contributions (e.g. multiple nodes sharing
-        # a cell) back into each node's working energy scalar.
+        # Only the grid-map owner of each cell syncs — prevents multi-occupancy
+        # nodes from getting identical energy and making synchronized decisions.
         if self._count > 0:
-            _sync_energy_from_field(self.energy_field)
+            _sync_energy_from_field(self.energy_field, self.grid_node_id)
 
         # Steps 4 & 5: Death + Spawn (reset per-step counters first)
         t0 = time.time()

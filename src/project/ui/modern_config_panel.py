@@ -761,6 +761,12 @@ class ModernConfigPanel(QDialog):
 
             if self.config_manager.update_config(section, key, value):
                 logger.info(f"Updated {section}.{key} to {value}")
+                # Propagate hybrid config changes to the running engine
+                if section == 'hybrid':
+                    parent = self.parent()
+                    if parent and hasattr(parent, 'system') and parent.system is not None:
+                        if hasattr(parent.system, 'apply_config'):
+                            parent.system.apply_config(self.config_manager)
             else:
                 logger.error(f"Configuration update failed for {section}.{key}")
                 raise RuntimeError(f"Configuration update failed for {section}.{key}")

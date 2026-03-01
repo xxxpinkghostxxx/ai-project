@@ -255,6 +255,27 @@ class HybridNeuralSystemAdapter:
         return float(amount)
 
     # ------------------------------------------------------------------
+    # Config hot-reload
+    # ------------------------------------------------------------------
+
+    def apply_config(self, config_manager: 'ConfigManager') -> None:
+        """Push current hybrid config values into the running engine.
+
+        Call this after ConfigManager.update_config() to apply changes
+        without restarting the application.
+        """
+        hybrid = config_manager.get_config('hybrid') or {}
+        self.engine.update_parameters(
+            transfer_strength=hybrid.get('transfer_strength', self.engine.transfer_strength),
+            transfer_dt=hybrid.get('transfer_dt', self.engine.transfer_dt),
+            gate_threshold=hybrid.get('gate_threshold', self.engine.gate_threshold),
+            spawn_threshold=hybrid.get('node_spawn_threshold', self.engine.spawn_threshold),
+            death_threshold=hybrid.get('node_death_threshold', self.engine.death_threshold),
+            energy_cap=hybrid.get('node_energy_cap', self.engine.energy_cap),
+            child_energy_fraction=hybrid.get('child_energy_fraction', self.engine.child_energy_fraction),
+        )
+
+    # ------------------------------------------------------------------
     # Audio methods
     # ------------------------------------------------------------------
 
