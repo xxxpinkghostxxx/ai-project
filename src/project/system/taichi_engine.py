@@ -21,7 +21,8 @@ Bit layout (64-bit int64 per node, matches config.py):
     bits 62-61  : node_type  (0=sensory, 1=dynamic, 2=workspace)
     bits 60-58  : conn_type  (0-7, eight connection types)
     bits 57-18  : DNA × 8 neighbors, 5 bits each [MODE:1][PARAM:4]
-    bits 17-0   : reserved
+    bits 17-3   : reserved
+    bits 2-0    : modality  (0=neutral, 1=visual, 2=audio_L, 3=audio_R)
 """
 
 import logging
@@ -43,6 +44,8 @@ from project.config import (
     BINARY_DNA_MASK,
     BINARY_TYPE_MASK,
     BINARY_CONN_TYPE_MASK,
+    MODALITY_SHIFT,
+    MODALITY_MASK,
     CONN_TYPE_CAPACITIVE,
     DNA_MUTATION_RATE,
     REVERSE_DIRECTION,
@@ -347,12 +350,14 @@ def _spawn_kernel(
 
         conn_type = ti.min(int(ti.random() * 8.0), 7)  # 8 connection types
 
-        # Pack child state: alive=1, type=1 (dynamic), inherited DNA
+        # Pack child state: alive=1, type=1 (dynamic), inherited DNA + parent modality
+        parent_modality = state & ti.i64(7)   # bits 2-0 of parent state
         new_state = (
             (ti.i64(1) << 63)           # alive bit
           | (ti.i64(1) << 61)           # node type = dynamic (1)
           | (ti.i64(conn_type) << 58)   # connection type (3 bits)
           | dna_packed
+          | parent_modality             # inherit parent modality (bits 2-0)
         )
 
         _node_state[slot]  = new_state
@@ -443,13 +448,15 @@ def _reduce_dynamic_energy():
 # =============================================================================
 
 def _pack_state_batch(alive: torch.Tensor, node_type: torch.Tensor,
-                      conn_type: torch.Tensor, dna_q: torch.Tensor) -> torch.Tensor:
+                      conn_type: torch.Tensor, dna_q: torch.Tensor,
+                      modality: torch.Tensor) -> torch.Tensor:
     """Pack N nodes into int64 binary states (vectorized, no Python loop)."""
     state = (alive.to(torch.int64) << BINARY_ALIVE_BIT)
     state |= (node_type.to(torch.int64) << BINARY_NODE_TYPE_SHIFT)
     state |= (conn_type.to(torch.int64) << BINARY_CONN_TYPE_SHIFT)
     shifts = torch.tensor(_DNA_SHIFTS, device=dna_q.device, dtype=torch.int64)
     state |= (dna_q.to(torch.int64) << shifts.unsqueeze(0)).sum(dim=1)
+    state |= modality.to(torch.int64)   # bits 2-0 = MODALITY (MODALITY_SHIFT == 0)
     return state
 
 
@@ -787,6 +794,7 @@ class TaichiNeuralEngine:
         positions:  List[Tuple[int, int]],
         energies:   List[float],
         node_types: List[int],
+        modalities: Optional[List[int]] = None,
     ) -> List[int]:
         """
         Add N nodes at once, packing each into a binary int64 state.
@@ -806,6 +814,11 @@ class TaichiNeuralEngine:
         new_conn   = _random_conn_type(n, dev)
         new_dna    = _random_dna(n, dev)
 
+        if modalities is not None:
+            new_modality = torch.tensor(modalities, device=dev, dtype=torch.int64)
+        else:
+            new_modality = torch.zeros(n, device=dev, dtype=torch.int64)
+
         # Workspace nodes (type=2) are energy buckets: excitatory + max classic DNA
         # MODE=0, PARAM=15 → classic probability 1.0 (value 0b0_1111 = 15)
         ws_mask = (new_types == 2)
@@ -815,7 +828,7 @@ class TaichiNeuralEngine:
 
         alive_bits = torch.ones(n, device=dev, dtype=torch.int64)
 
-        new_state = _pack_state_batch(alive_bits, new_types, new_conn, new_dna)
+        new_state = _pack_state_batch(alive_bits, new_types, new_conn, new_dna, new_modality)
 
         start = self._count
         end   = start + n

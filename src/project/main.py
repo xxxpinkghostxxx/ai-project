@@ -670,11 +670,29 @@ def create_hybrid_neural_system(
     workspace_count = workspace_height * workspace_width
     workspace_y_start = grid_size[0] - workspace_height
     # Create workspace nodes on a regular grid
-    workspace_positions = [(workspace_y_start + y, x) 
-                          for y in range(workspace_height) 
+    workspace_positions = [(workspace_y_start + y, x)
+                          for y in range(workspace_height)
                           for x in range(workspace_width)]
     workspace_energies = [10.0] * workspace_count  # Start with some energy
     workspace_types = [2] * workspace_count
+
+    # Workspace modality: column-split into thirds (AUDIO_LEFT | VISUAL | AUDIO_RIGHT)
+    from project.config import MODALITY_VISUAL, MODALITY_AUDIO_LEFT, MODALITY_AUDIO_RIGHT
+    ws_col_third = workspace_width // 3  # ~42 for 128-wide workspace
+
+    def _ws_modality(x: int) -> int:
+        if x < ws_col_third:
+            return MODALITY_AUDIO_LEFT
+        elif x < ws_col_third * 2:
+            return MODALITY_VISUAL
+        else:
+            return MODALITY_AUDIO_RIGHT
+
+    workspace_modalities = [
+        _ws_modality(x)
+        for y in range(workspace_height)
+        for x in range(workspace_width)
+    ]
     
     logger.info("  Workspace: %d nodes (type=2, immortal/infertile, at [%d:%d, 0:%d])", 
                 workspace_count, workspace_y_start, grid_size[0], workspace_width)
@@ -683,22 +701,32 @@ def create_hybrid_neural_system(
     audio_ws_positions: list[Tuple[int, int]] = []
     audio_ws_energies: list[float] = []
     audio_ws_types: list[int] = []
+    audio_ws_modalities: list[int] = []
     if audio_enabled:
-        for region in [AUDIO_WORKSPACE_L_REGION, AUDIO_WORKSPACE_R_REGION]:
+        for region, mod in [
+            (AUDIO_WORKSPACE_L_REGION, MODALITY_AUDIO_LEFT),
+            (AUDIO_WORKSPACE_R_REGION, MODALITY_AUDIO_RIGHT),
+        ]:
             ry0, ry1, rx0, rx1 = region
             for y in range(ry0, ry1):
                 for x in range(rx0, rx1):
                     audio_ws_positions.append((y, x))
                     audio_ws_energies.append(5.0)
                     audio_ws_types.append(2)
+                    audio_ws_modalities.append(mod)
         logger.info("  Audio workspace: %d nodes (type=2, immortal, L+R)", len(audio_ws_positions))
 
     # Add ALL node types to the engine
     all_positions = dynamic_positions + workspace_positions + audio_ws_positions
     all_energies = dynamic_energies + workspace_energies + audio_ws_energies
     all_types = dynamic_types + workspace_types + audio_ws_types
+    all_modalities = (
+        [0] * initial_dynamic           # dynamic: MODALITY_NEUTRAL
+        + workspace_modalities
+        + audio_ws_modalities
+    )
 
-    engine.add_nodes_batch(all_positions, all_energies, all_types)
+    engine.add_nodes_batch(all_positions, all_energies, all_types, all_modalities)
 
     t_elapsed = time.time() - t_start
     logger.info("  Initialization complete in %.3fs", t_elapsed)
