@@ -9,7 +9,6 @@ import re
 import html
 from typing import Any
 import logging
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -307,71 +306,6 @@ class SecureLogger:
         sanitized = cls.sanitize_log_message(message)
         logger_instance.error(sanitized)
 
-class SecurityAudit:
-    """
-    Security audit utilities to scan for potential vulnerabilities.
-    """
-
-    SECURITY_RISKS = [
-        ('hardcoded_credentials', re.compile(r'(password|api_key|secret|token)\s*=\s*["\'][^"\']+["\']', re.IGNORECASE)),
-        ('sql_injection', re.compile(r'(SELECT|INSERT|UPDATE|DELETE).*[\'"]\+', re.IGNORECASE)),
-        ('path_traversal', re.compile(r'\.\.[/\\]')),
-        ('eval_usage', re.compile(r'\beval\s*\(')),
-        ('exec_usage', re.compile(r'\bexec\s*\('))
-    ]
-
-    @classmethod
-    def scan_file_for_security_issues(cls, file_path: Path) -> list[dict[str, Any]]:
-        """
-        Scan file for potential security issues.
-
-        Args:
-            file_path: Path to file to scan
-
-        Returns:
-            List of security issues found
-        """
-        issues: list[dict[str, Any]] = []
-
-        try:
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                content = f.read()
-
-            lines = content.split('\n')
-
-            for line_num, line in enumerate(lines, 1):
-                for issue_type, pattern in cls.SECURITY_RISKS:
-                    if pattern.search(line):
-                        issues.append({
-                            'type': issue_type,
-                            'file': str(file_path),
-                            'line': line_num,
-                            'content': line.strip()
-                        })
-
-        except Exception as e:
-            logger.warning(f"Could not scan file {file_path}: {e}")
-
-        return issues
-
-    @classmethod
-    def scan_directory_for_security_issues(cls, directory: Path) -> list[dict[str, Any]]:
-        """
-        Scan directory for security issues in all files.
-
-        Args:
-            directory: Directory to scan
-
-        Returns:
-            List of all security issues found
-        """
-        all_issues: list[dict[str, Any]] = []
-
-        for file_path in directory.rglob('*.py'):
-            issues = cls.scan_file_for_security_issues(file_path)
-            all_issues.extend(issues)
-
-        return all_issues
 
 def validate_and_sanitize_input(input_value: Any, validation_type: str = 'safe_string',
                                sanitization_method: str | None = None) -> tuple[Any, list[str]]:
