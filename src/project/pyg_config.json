@@ -73,5 +73,13 @@
         "update_interval_ms": 60,
         "node_render_limit": 50000,
         "fps_update_interval": 30
+    },
+    "visualization": {
+        "workspace_window_enabled": false,
+        "full_ai_window_enabled": false,
+        "sensory_window_enabled": false,
+        "workspace_fps": 60,
+        "full_ai_fps": 30,
+        "sensory_fps": 30
     }
 }
