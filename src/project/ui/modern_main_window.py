@@ -1580,13 +1580,58 @@ class ModernMainWindow(QMainWindow):
         except Exception as audio_err:
             logger.debug("Audio processing error: %s", audio_err)
 
+    def _log_frame_profiling(self, update_start: float, time_since_last: float,
+                              sensory_t: dict[str, float], engine_t: dict[str, float],
+                              step_result: 'dict[str, Any] | None', ui_time: float) -> None:
+        """Log detailed profiling info every 90 frames."""
+        if self.frame_counter % 90 != 0:
+            return
+        total_ms = (time.time() - update_start) * 1000
+        fps = 1 / time_since_last if time_since_last > 0 else 0
+
+        t_engine_step_val = engine_t.get('t_engine_step', 0)
+        t_engine_call_val = engine_t.get('t_engine_call', 0)
+
+        logger.info(
+            "🔍 ULTRA PROFILING | Total: %.1fms | Capture: %.1fms | Convert: %.1fms | "
+            "Canvas: %.1fms | Nodes: %.1fms | Update: %.1fms | "
+            "UpdateStep: %.1fms | EngineStep: %.1fms | Worker: %.1fms | "
+            "Metrics: %.1fms | UI: %.1fms | FPS: %.1f",
+            total_ms,
+            sensory_t.get('t_capture', 0), sensory_t.get('t_convert', 0),
+            sensory_t.get('t_canvas', 0), sensory_t.get('t_nodes', 0),
+            engine_t.get('t_update', 0), engine_t.get('t_update_step', 0),
+            t_engine_step_val, engine_t.get('t_worker', 0),
+            engine_t.get('t_metrics', 0), ui_time * 1000, fps,
+        )
+
+        # Extract GPU timing from step_result if available
+        gpu_time_ms = 0.0
+        if isinstance(step_result, dict):
+            gpu_time_ms = step_result.get('gpu_time_ms', 0)
+
+        logger.info(
+            "   🔬 GPU SYNC BREAKDOWN | PreSync: %.2fms | EngineCall: %.2fms | "
+            "ResultAccess: %.2fms | GPUSync: %.2fms | Adapter: %.2fms",
+            engine_t.get('t_pre_sync', 0), t_engine_call_val,
+            engine_t.get('t_result_access', 0), engine_t.get('t_gpu_sync', 0),
+            engine_t.get('t_adapter', 0),
+        )
+        logger.info(
+            "   ⚡ CUDA EVENT TIMING | GPUExecution: %.2fms | CPUTime: %.2fms | Gap: %.2fms",
+            gpu_time_ms, t_engine_step_val, t_engine_call_val - gpu_time_ms,
+        )
+        self.status_bar.showMessage(
+            f"Performance: {fps:.1f} FPS | UI Update: {ui_time * 1000:.1f}ms"
+        )
+
     @pyqtSlot()
     def periodic_update(self) -> None:
         """Periodic update function with performance optimization and frame throttling."""
         if not self.state_manager.get_state().suspended:
             try:
-                update_start = time.time()
                 current_time = time.time()
+                update_start = current_time
                 time_since_last_update = current_time - self.last_update_time
 
                 # Minimal frame throttling (GPU mode can handle high FPS)
@@ -1605,11 +1650,9 @@ class ModernMainWindow(QMainWindow):
 
                 # Sensory update with visual feedback + DETAILED PROFILING
                 frame, sensory_t = self._update_sensory(current_time)
-                t_sensory = sensory_t['t_sensory']
 
                 # System update with progress feedback + DETAILED PROFILING
                 step_result, metrics, engine_t = self._update_engine()
-                t_system = engine_t['t_system']
 
                 # Workspace system update with visual feedback
                 if self.workspace_system:
@@ -1661,49 +1704,10 @@ class ModernMainWindow(QMainWindow):
                 ui_update_time = time.time() - start_ui_update
 
                 # Show performance stats periodically + ULTRA-DETAILED PROFILING
-                if self.frame_counter % 90 == 0:  # Log every 90 frames (reduce overhead!)
-                    total_update_time = (time.time() - update_start) * 1000
-                    fps = 1 / time_since_last_update if time_since_last_update > 0 else 0
-                    t_sensory_val = t_sensory
-                    t_system_val = t_system
-                    t_capture_val = t_capture
-                    t_convert_val = t_convert
-                    t_nodes_val = t_nodes
-                    t_canvas_val = t_canvas
-                    t_update_val = t_update
-                    t_update_step_val = t_update_step
-                    t_engine_step_val = t_engine_step
-                    t_engine_call_val = t_engine_call
-                    t_result_access_val = t_result_access
-                    t_gpu_sync_val = t_gpu_sync
-                    t_adapter_val = t_adapter
-                    t_worker_val = t_worker
-                    t_metrics_val = t_metrics
-                    
-                    logger.info(f"🔍 ULTRA PROFILING | Total: {total_update_time:.1f}ms | "
-                               f"Capture: {t_capture_val:.1f}ms | Convert: {t_convert_val:.1f}ms | "
-                               f"Canvas: {t_canvas_val:.1f}ms | Nodes: {t_nodes_val:.1f}ms | "
-                               f"Update: {t_update_val:.1f}ms | UpdateStep: {t_update_step_val:.1f}ms | "
-                               f"EngineStep: {t_engine_step_val:.1f}ms | Worker: {t_worker_val:.1f}ms | "
-                               f"Metrics: {t_metrics_val:.1f}ms | UI: {ui_update_time*1000:.1f}ms | FPS: {fps:.1f}")
-                    t_pre_sync_val = t_pre_sync
-                    # Extract GPU timing from step_result if available
-                    gpu_time_ms = 0.0
-                    if isinstance(step_result, dict):
-                        gpu_time_ms = step_result.get('gpu_time_ms', 0)
-                    
-                    logger.info(f"   🔬 GPU SYNC BREAKDOWN | PreSync: {t_pre_sync_val:.2f}ms | "
-                               f"EngineCall: {t_engine_call_val:.2f}ms | "
-                               f"ResultAccess: {t_result_access_val:.2f}ms | "
-                               f"GPUSync: {t_gpu_sync_val:.2f}ms | "
-                               f"Adapter: {t_adapter_val:.2f}ms")
-                    logger.info(f"   ⚡ CUDA EVENT TIMING | GPUExecution: {gpu_time_ms:.2f}ms | "
-                               f"CPUTime: {t_engine_step_val:.2f}ms | "
-                               f"Gap: {t_engine_call_val - gpu_time_ms:.2f}ms")
-                    self.status_bar.showMessage(
-                        f"Performance: {fps:.1f} FPS | "
-                        f"UI Update: {ui_update_time*1000:.1f}ms"
-                    )
+                self._log_frame_profiling(
+                    update_start, time_since_last_update,
+                    sensory_t, engine_t, step_result, ui_update_time,
+                )
 
             except Exception as e:
                 # Enhanced error reporting with detailed context
