@@ -132,6 +132,17 @@ class WorkspaceNodeSystem:
     
     def _update_loop(self):
         """Main update loop for the workspace system."""
+        # Make the CUDA primary context current in this thread so that
+        # Taichi's ti.sync() and .to_numpy() calls work cross-thread.
+        # (Taichi uses the CUDA primary context; torch.cuda.set_device
+        # makes it current in whatever thread calls it.)
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.set_device(torch.cuda.current_device())
+        except Exception:
+            pass  # CPU-only mode — no CUDA context needed
+
         while self._running:
             try:
                 start_time = time.time()
