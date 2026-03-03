@@ -118,209 +118,500 @@ class ModernMainWindow(QMainWindow):
         self.capture: Any | None = None
         self.workspace_system: Any | None = None
         self._workspace_observer_added = False
+        self._gui_manager: Any | None = None   # TaichiGUIManager, set by start_system()
 
-        # Set up main window
-        self.setWindowTitle('Neural Simulation Workspace')
-        self.setMinimumSize(1200, 800)
+        self.setWindowTitle("Neural Engine")
+        self.setMinimumSize(1400, 900)
         self.setStyleSheet(self._get_dark_theme_stylesheet())
 
-        # Create central widget and main layout
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        main_layout = QHBoxLayout(central_widget)
-        main_layout.setContentsMargins(10, 10, 10, 10)
-        main_layout.setSpacing(10)
+        # ── Root layout ──────────────────────────────────────────────
+        root = QWidget()
+        self.setCentralWidget(root)
+        root_layout = QVBoxLayout(root)
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setSpacing(0)
 
-        # Create left panel (visualization)
-        self.left_panel = QFrame()
-        self.left_panel.setFrameShape(QFrame.Shape.StyledPanel)
-        self.left_panel.setStyleSheet("background-color: #181818; border-radius: 8px;")
-        main_layout.addWidget(self.left_panel, stretch=3)
+        # ── Header bar ───────────────────────────────────────────────
+        self._header_bar = self._build_header_bar()
+        root_layout.addWidget(self._header_bar)
 
-        # Create right panel (controls)
-        self.right_panel = QFrame()
-        self.right_panel.setFrameShape(QFrame.Shape.StyledPanel)
-        self.right_panel.setStyleSheet("background-color: #222222; border-radius: 8px;")
-        self.right_panel.setMaximumWidth(350)
-        main_layout.addWidget(self.right_panel, stretch=1)
+        # ── 3-column body ────────────────────────────────────────────
+        body = QWidget()
+        body_layout = QHBoxLayout(body)
+        body_layout.setContentsMargins(8, 8, 8, 8)
+        body_layout.setSpacing(8)
+        root_layout.addWidget(body, stretch=1)
 
-        # Set up left panel layout
-        left_layout = QVBoxLayout(self.left_panel)
-        left_layout.setContentsMargins(10, 10, 10, 10)
-        left_layout.setSpacing(10)
+        # Left column (live views + metrics)
+        left_col = self._build_left_column()
+        body_layout.addWidget(left_col, stretch=3)
 
-        # Create workspace visualization
-        self.workspace_view = QGraphicsView()
-        self.workspace_view.setStyleSheet(
-            "background-color: #121212; border: 1px solid #333; border-radius: 6px;"
-        )
-        self.workspace_scene = QGraphicsScene()
-        self.workspace_view.setScene(self.workspace_scene)
-        # No smoothing — each pixel must map 1:1 to a grid cell (no bilinear blur)
-        self.workspace_view.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
-        left_layout.addWidget(self.workspace_view, stretch=2)
+        # Center column (Taichi windows + modality legend)
+        center_col = self._build_center_column()
+        body_layout.addWidget(center_col, stretch=2)
 
-        # Create sensory visualization
-        self.sensory_view = QGraphicsView()
-        self.sensory_view.setStyleSheet(
-            "background-color: #121212; border: 1px solid #333; border-radius: 6px;"
-        )
-        self.sensory_scene = QGraphicsScene()
-        self.sensory_view.setScene(self.sensory_scene)
-        self.sensory_view.setMaximumHeight(200)
-        self._sensory_pixmap_item = None
-        left_layout.addWidget(self.sensory_view, stretch=1)
+        # Right column (engine config + controls)
+        right_col = self._build_right_column()
+        body_layout.addWidget(right_col, stretch=2)
 
-        # Create audio spectrum visualization
-        self.audio_view = QGraphicsView()
-        self.audio_view.setStyleSheet(
-            "background-color: #121212; border: 1px solid #333; border-radius: 6px;"
-        )
-        self.audio_scene = QGraphicsScene()
-        self.audio_view.setScene(self.audio_scene)
-        self.audio_view.setMaximumHeight(120)
-        self.audio_view.setVisible(False)  # Hidden until audio is enabled
-        left_layout.addWidget(self.audio_view)
-
-        # Audio state
-        self.audio_capture: Any | None = None
-        self.audio_output: Any | None = None
-
-        # Create metrics panel
-        self.metrics_panel = QFrame()
-        self.metrics_panel.setStyleSheet("background-color: #181818; border-radius: 6px;")
-        self.metrics_panel.setMaximumHeight(180)
-        metrics_layout = QVBoxLayout(self.metrics_panel)
-        metrics_layout.setContentsMargins(10, 10, 10, 10)
-
-        self.metrics_label = QLabel()
-        self.metrics_label.setStyleSheet(
-            "color: #e0e0e0; font-family: 'Consolas'; font-size: 12px;"
-        )
-        self.metrics_label.setWordWrap(True)
-        metrics_layout.addWidget(self.metrics_label)
-        left_layout.addWidget(self.metrics_panel)
-
-        # Set up right panel layout
-        right_layout = QVBoxLayout(self.right_panel)
-        right_layout.setContentsMargins(10, 10, 10, 10)
-        right_layout.setSpacing(10)
-
-        # Create controls frame
-        self.controls_frame = QFrame()
-        self.controls_frame.setStyleSheet("background-color: #282828; border-radius: 6px;")
-        controls_layout = QVBoxLayout(self.controls_frame)
-        controls_layout.setContentsMargins(10, 10, 10, 10)
-        controls_layout.setSpacing(8)
-        right_layout.addWidget(self.controls_frame, stretch=2)
-        self.controls_layout = controls_layout
-
-        # Create status bar
+        # ── Status bar ───────────────────────────────────────────────
         self.status_bar = QStatusBar()
         self.status_bar.setStyleSheet(
-            "color: #bbbbbb; background-color: #181818; "
-            "font-family: 'Consolas'; font-size: 11px;"
+            "color: #9999bb; background-color: #0d0d0d; "
+            "font-family: 'Consolas'; font-size: 11px; border-top: 1px solid #2a2a4e;"
         )
         self.setStatusBar(self.status_bar)
 
-        # Create control buttons
-        self._create_control_buttons()
+        # ── Audio state ──────────────────────────────────────────────
+        self.audio_capture: Any | None = None
+        self.audio_output:  Any | None = None
 
-        # Create update interval slider
-        self._create_interval_slider()
-
-        # Register as state observer
-        self.state_manager.add_observer(self)
-
-        # Set up timers
+        # ── Timers ───────────────────────────────────────────────────
         self.update_timer = QTimer()
         self.update_timer.timeout.connect(self.periodic_update)
-        # resource_stats_timer wired but not started — implementation pending
         self.resource_stats_timer = QTimer()
         self.resource_stats_timer.timeout.connect(self._update_resource_stats_display)
 
-        # Initialize UI
-
-        # Performance optimization: Set up frame throttling
+        # ── Performance throttling (unchanged from original) ─────────
         self.last_update_time = 0
-        self.last_sensory_canvas_update = 0  # Track sensory canvas updates
+        self.last_sensory_canvas_update = 0
         self.last_workspace_canvas_update = 0.0
         self.last_dynamic_canvas_update = 0.0
-        self.sensory_canvas_update_interval = 0.5  # Update sensory canvas every 500ms (2 FPS)
-        self.dynamic_canvas_update_interval = 0.5  # 2 FPS
-        self.canvas_frame_counter = 0  # For skip-frame logic
-        self.min_update_interval = 0.001  # Allow up to 1000 FPS (GPU can handle it!)
+        self.sensory_canvas_update_interval = 0.5
+        self.dynamic_canvas_update_interval = 0.5
+        self.canvas_frame_counter = 0
+        self.min_update_interval = 0.001
         self.frame_skip_counter = 0
-        self.frame_skip_threshold = 100  # Basically disabled - let GPU run fast!
-        
-        # UI OPTIMIZATION: Skip frames for expensive node reads (HUGE speedup!)
-        self.node_read_skip_counter = 0  # Counter for node reading
-        self.node_read_interval = 2  # Read nodes every N frames (2 = 50% less overhead!)
+        self.frame_skip_threshold = 100
+        self.node_read_skip_counter = 0
+        self.node_read_interval = 2
 
-        # Thread safety: Add lock for UI updates
+        # ── Thread safety ─────────────────────────────────────────────
         self._ui_update_lock = threading.Lock()
         self._resource_access_lock = threading.Lock()
+
+        # ── State observer ───────────────────────────────────────────
+        self.state_manager.add_observer(self)
+
+    # ──────────────────────────────────────────────────────────────────
+    # Layout builders
+    # ──────────────────────────────────────────────────────────────────
+
+    def _build_header_bar(self) -> QFrame:
+        bar = QFrame()
+        bar.setFixedHeight(40)
+        bar.setStyleSheet(
+            "background-color: #12122a; border-bottom: 1px solid #2a2a4e;"
+        )
+        layout = QHBoxLayout(bar)
+        layout.setContentsMargins(12, 0, 12, 0)
+
+        title = QLabel("\u25cf NEURAL ENGINE")
+        title.setStyleSheet("color: #44ff88; font-weight: bold; font-family: 'Consolas';")
+        layout.addWidget(title)
+        layout.addStretch()
+
+        self._header_fps   = QLabel("FPS: \u2014")
+        self._header_nodes = QLabel("Nodes: \u2014")
+        self._header_energy = QLabel("Energy: \u2014")
+        self._header_status = QLabel("Idle")
+        for lbl in (self._header_fps, self._header_nodes, self._header_energy, self._header_status):
+            lbl.setStyleSheet("color: #9999cc; font-family: 'Consolas'; font-size: 12px; margin: 0 10px;")
+            layout.addWidget(lbl)
+        return bar
+
+    def _build_left_column(self) -> QFrame:
+        col = QFrame()
+        col.setStyleSheet("background-color: #1a1a2e; border-radius: 8px;")
+        layout = QVBoxLayout(col)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(6)
+
+        # Workspace canvas
+        self.workspace_view = QGraphicsView()
+        self.workspace_view.setStyleSheet(
+            "background-color: #0d0d0d; border: 1px solid #2a2a4e; border-radius: 4px;"
+        )
+        self.workspace_scene = QGraphicsScene()
+        self.workspace_view.setScene(self.workspace_scene)
+        self.workspace_view.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+        layout.addWidget(self.workspace_view, stretch=3)
+
+        # Sensory thumbnail
+        self.sensory_view = QGraphicsView()
+        self.sensory_view.setStyleSheet(
+            "background-color: #0d0d0d; border: 1px solid #2a2a4e; border-radius: 4px;"
+        )
+        self.sensory_scene = QGraphicsScene()
+        self.sensory_view.setScene(self.sensory_scene)
+        self.sensory_view.setMaximumHeight(150)
+        self._sensory_pixmap_item = None
+        layout.addWidget(self.sensory_view, stretch=1)
+
+        # Audio spectrum
+        self.audio_view = QGraphicsView()
+        self.audio_view.setStyleSheet(
+            "background-color: #0d0d0d; border: 1px solid #2a2a4e; border-radius: 4px;"
+        )
+        self.audio_scene = QGraphicsScene()
+        self.audio_view.setScene(self.audio_scene)
+        self.audio_view.setMaximumHeight(90)
+        self.audio_view.setVisible(False)
+        layout.addWidget(self.audio_view)
+
+        # Metrics
+        self.metrics_panel = QFrame()
+        self.metrics_panel.setStyleSheet(
+            "background-color: #12122a; border-radius: 4px; border: 1px solid #2a2a4e;"
+        )
+        self.metrics_panel.setMaximumHeight(160)
+        m_layout = QVBoxLayout(self.metrics_panel)
+        m_layout.setContentsMargins(8, 6, 8, 6)
+        self.metrics_label = QLabel()
+        self.metrics_label.setStyleSheet(
+            "color: #c0c0e0; font-family: 'Consolas'; font-size: 11px;"
+        )
+        self.metrics_label.setWordWrap(True)
+        m_layout.addWidget(self.metrics_label)
+        layout.addWidget(self.metrics_panel)
+
+        return col
+
+    def _build_center_column(self) -> QFrame:
+        col = QFrame()
+        col.setStyleSheet("background-color: #1a1a2e; border-radius: 8px;")
+        col.setMaximumWidth(280)
+        layout = QVBoxLayout(col)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(8)
+
+        # Section: Taichi Windows
+        sec_title = QLabel("TAICHI WINDOWS")
+        sec_title.setStyleSheet(
+            "color: #666699; font-family: 'Consolas'; font-size: 10px; letter-spacing: 1px;"
+        )
+        layout.addWidget(sec_title)
+
+        # Window toggle buttons + FPS labels
+        self._btn_workspace_win = QPushButton("\u25b6  Workspace Grid")
+        self._btn_workspace_win.setCheckable(True)
+        self._btn_workspace_win.setStyleSheet(self._window_toggle_style(False))
+        self._btn_workspace_win.clicked.connect(self._toggle_workspace_window)
+        layout.addWidget(self._btn_workspace_win)
+
+        self._lbl_workspace_fps = QLabel("  FPS: \u2014")
+        self._lbl_workspace_fps.setStyleSheet("color: #666699; font-family: 'Consolas'; font-size: 10px;")
+        layout.addWidget(self._lbl_workspace_fps)
+
+        self._btn_full_ai_win = QPushButton("\u25b6  Full AI Structure")
+        self._btn_full_ai_win.setCheckable(True)
+        self._btn_full_ai_win.setStyleSheet(self._window_toggle_style(False))
+        self._btn_full_ai_win.clicked.connect(self._toggle_full_ai_window)
+        layout.addWidget(self._btn_full_ai_win)
+
+        self._lbl_full_ai_fps = QLabel("  FPS: \u2014")
+        self._lbl_full_ai_fps.setStyleSheet("color: #666699; font-family: 'Consolas'; font-size: 10px;")
+        layout.addWidget(self._lbl_full_ai_fps)
+
+        self._btn_sensory_win = QPushButton("\u25b6  Sensory Input")
+        self._btn_sensory_win.setCheckable(True)
+        self._btn_sensory_win.setStyleSheet(self._window_toggle_style(False))
+        self._btn_sensory_win.clicked.connect(self._toggle_sensory_window)
+        layout.addWidget(self._btn_sensory_win)
+
+        self._lbl_sensory_fps = QLabel("  FPS: \u2014")
+        self._lbl_sensory_fps.setStyleSheet("color: #666699; font-family: 'Consolas'; font-size: 10px;")
+        layout.addWidget(self._lbl_sensory_fps)
+
+        # Divider
+        layout.addSpacing(8)
+        divider = QFrame()
+        divider.setFrameShape(QFrame.Shape.HLine)
+        divider.setStyleSheet("color: #2a2a4e;")
+        layout.addWidget(divider)
+        layout.addSpacing(4)
+
+        # Section: Modality Legend
+        legend_title = QLabel("MODALITY ZONES")
+        legend_title.setStyleSheet(
+            "color: #666699; font-family: 'Consolas'; font-size: 10px; letter-spacing: 1px;"
+        )
+        layout.addWidget(legend_title)
+
+        for dot_color, name, attr in [
+            ("#44ff88", "Visual",     "_lbl_visual_energy"),
+            ("#4488ff", "Audio Left", "_lbl_audio_l_energy"),
+            ("#ff4466", "Audio Right","_lbl_audio_r_energy"),
+            ("#888888", "Neutral",    "_lbl_neutral_energy"),
+        ]:
+            row = QWidget()
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            dot = QLabel("\u25cf")
+            dot.setStyleSheet(f"color: {dot_color}; font-size: 14px;")
+            row_layout.addWidget(dot)
+            label = QLabel(name)
+            label.setStyleSheet("color: #c0c0e0; font-family: 'Consolas'; font-size: 11px;")
+            row_layout.addWidget(label)
+            row_layout.addStretch()
+            energy_lbl = QLabel("\u2014")
+            energy_lbl.setStyleSheet("color: #666699; font-family: 'Consolas'; font-size: 10px;")
+            row_layout.addWidget(energy_lbl)
+            setattr(self, attr, energy_lbl)
+            layout.addWidget(row)
+
+        layout.addStretch()
+        return col
+
+    def _build_right_column(self) -> QFrame:
+        col = QFrame()
+        col.setStyleSheet("background-color: #1a1a2e; border-radius: 8px;")
+        col.setMaximumWidth(260)
+        layout = QVBoxLayout(col)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(6)
+
+        # ── Simulation controls ───────────────────────────────────────
+        self._section_label(layout, "SIMULATION")
+
+        self.start_button = QPushButton("\u25b6  Start")
+        self.start_button.setStyleSheet(self._button_style("#1a4d1a", "#22662a", "#0d330d"))
+        self.start_button.clicked.connect(self._handle_start)
+        layout.addWidget(self.start_button)
+
+        self.stop_button = QPushButton("\u25a0  Stop")
+        self.stop_button.setStyleSheet(self._button_style("#4d1a1a", "#662222", "#330d0d"))
+        self.stop_button.clicked.connect(self._handle_stop)
+        layout.addWidget(self.stop_button)
+
+        self.reset_button = QPushButton("\u21ba  Reset Map")
+        self.reset_button.setStyleSheet(self._button_style("#2a2a55", "#3a3a77", "#1a1a33"))
+        self.reset_button.clicked.connect(self._handle_reset)
+        layout.addWidget(self.reset_button)
+
+        layout.addSpacing(4)
+        self._section_label(layout, "ACTIONS")
+
+        self.suspend_button = QPushButton("Drain && Suspend")
+        self.suspend_button.setStyleSheet(self._button_style("#882222", "#993333", "#661111"))
+        self.suspend_button.clicked.connect(self._toggle_suspend)
+        layout.addWidget(self.suspend_button)
+
+        self.pulse_button = QPushButton("Pulse +10 Energy")
+        self.pulse_button.setStyleSheet(self._button_style("#225577", "#3377aa", "#113355"))
+        self.pulse_button.clicked.connect(self._pulse_energy)
+        layout.addWidget(self.pulse_button)
+
+        self.sensory_button = QPushButton("Disable Sensory")
+        self.sensory_button.setStyleSheet(self._button_style("#228822", "#33aa33", "#115511"))
+        self.sensory_button.clicked.connect(self._toggle_sensory)
+        layout.addWidget(self.sensory_button)
+
+        self.clear_log_button = QPushButton("Clear Log")
+        self.clear_log_button.setStyleSheet(self._button_style("#444444", "#555555", "#333333"))
+        self.clear_log_button.clicked.connect(self._handle_clear_log)
+        layout.addWidget(self.clear_log_button)
+
+        self.test_button = QPushButton("Test Rules")
+        self.test_button.setStyleSheet(self._button_style("#7744aa", "#9955cc", "#553388"))
+        self.test_button.clicked.connect(self._handle_test_rules)
+        layout.addWidget(self.test_button)
+
+        layout.addSpacing(4)
+        self._section_label(layout, "AUDIO")
+
+        self.audio_toggle_button = QPushButton("Enable Audio")
+        self.audio_toggle_button.setStyleSheet(self._button_style("#664488", "#8855aa", "#443366"))
+        self.audio_toggle_button.clicked.connect(self._toggle_audio)
+        layout.addWidget(self.audio_toggle_button)
+
+        self.audio_source_button = QPushButton("Source: Loopback")
+        self.audio_source_button.setStyleSheet(self._button_style("#446688", "#5577aa", "#334466"))
+        self.audio_source_button.clicked.connect(self._toggle_audio_source)
+        self.audio_source_button.setVisible(False)
+        layout.addWidget(self.audio_source_button)
+
+        # Audio volume slider (hidden until audio is enabled)
+        self._audio_volume_frame = QFrame()
+        self._audio_volume_frame.setStyleSheet("background-color: #12122a; border-radius: 4px;")
+        _avl = QVBoxLayout(self._audio_volume_frame)
+        _avl.setContentsMargins(8, 8, 8, 8)
+        _vol_label = QLabel("Audio Volume:")
+        _vol_label.setStyleSheet("color: #c0c0e0; font-family: 'Consolas'; font-size: 11px;")
+        _avl.addWidget(_vol_label)
+        self.audio_volume_slider = QSlider(Qt.Orientation.Horizontal)
+        self.audio_volume_slider.setRange(0, 100)
+        self.audio_volume_slider.setValue(30)
+        self.audio_volume_slider.valueChanged.connect(self._audio_volume_changed)
+        _avl.addWidget(self.audio_volume_slider)
+        self._audio_volume_frame.setVisible(False)
+        layout.addWidget(self._audio_volume_frame)
+
+        layout.addSpacing(4)
+        self._section_label(layout, "CONFIG")
+
+        self.config_button = QPushButton("Open Config Panel")
+        self.config_button.setStyleSheet(self._button_style("#888822", "#aaa933", "#666611"))
+        self.config_button.clicked.connect(self._open_config_panel)
+        layout.addWidget(self.config_button)
+
+        layout.addSpacing(4)
+        self._section_label(layout, "UPDATE INTERVAL")
+
+        # Re-use existing interval slider builder
+        self._create_interval_slider_in(layout)
+
+        layout.addStretch()
+        return col
+
+    @staticmethod
+    def _section_label(layout: QVBoxLayout, text: str) -> None:
+        lbl = QLabel(text)
+        lbl.setStyleSheet(
+            "color: #666699; font-family: 'Consolas'; font-size: 10px; "
+            "letter-spacing: 1px; margin-top: 2px;"
+        )
+        layout.addWidget(lbl)
+
+    @staticmethod
+    def _window_toggle_style(active: bool) -> str:
+        if active:
+            return (
+                "QPushButton { background-color: #1a3320; color: #44ff88; "
+                "border: 1px solid #44ff88; border-radius: 4px; padding: 6px; "
+                "font-family: 'Consolas'; font-size: 11px; text-align: left; }"
+                "QPushButton:hover { background-color: #224428; }"
+            )
+        return (
+            "QPushButton { background-color: #1a1a2e; color: #9999cc; "
+            "border: 1px solid #2a2a4e; border-radius: 4px; padding: 6px; "
+            "font-family: 'Consolas'; font-size: 11px; text-align: left; }"
+            "QPushButton:hover { background-color: #22223a; }"
+        )
+
+    def _create_interval_slider_in(self, layout: QVBoxLayout) -> None:
+        """Build the update interval slider into the given layout."""
+        self.interval_label = QLabel("Update: 16 ms")
+        self.interval_label.setStyleSheet(
+            "color: #9999cc; font-family: 'Consolas'; font-size: 11px;"
+        )
+        layout.addWidget(self.interval_label)
+
+        self.interval_slider = QSlider(Qt.Orientation.Horizontal)
+        self.interval_slider.setMinimum(1)
+        self.interval_slider.setMaximum(1000)
+        self.interval_slider.setValue(16)
+        self.interval_slider.valueChanged.connect(self._update_interval)
+        layout.addWidget(self.interval_slider)
+
+    def _update_interval(self, value: int) -> None:
+        """Handle update interval slider change."""
+        self.interval_label.setText(f"Update: {value} ms")
+        try:
+            self.config_manager.update_config('system', 'update_interval', value)
+            fps = max(1, 1000 // value)
+            if self.capture and hasattr(self.capture, 'set_target_fps'):
+                self.capture.set_target_fps(fps)
+            self.status_bar.showMessage(f"Capture interval: {value}ms (~{fps} fps)")
+        except Exception as e:
+            ErrorHandler.show_error("Config Error", f"Failed to update capture interval: {str(e)}")
+
+    # ── GGUI window toggle handlers ──────────────────────────────────
+
+    def _toggle_workspace_window(self) -> None:
+        if self._gui_manager is None:
+            return
+        if self._gui_manager.is_open("workspace"):
+            self._gui_manager.close_workspace_window()
+            self._btn_workspace_win.setText("\u25b6  Workspace Grid")
+            self._btn_workspace_win.setStyleSheet(self._window_toggle_style(False))
+        else:
+            self._gui_manager.open_workspace_window()
+            self._btn_workspace_win.setText("\u25a0  Workspace Grid")
+            self._btn_workspace_win.setStyleSheet(self._window_toggle_style(True))
+
+    def _toggle_full_ai_window(self) -> None:
+        if self._gui_manager is None:
+            return
+        if self._gui_manager.is_open("full_ai"):
+            self._gui_manager.close_full_ai_window()
+            self._btn_full_ai_win.setText("\u25b6  Full AI Structure")
+            self._btn_full_ai_win.setStyleSheet(self._window_toggle_style(False))
+        else:
+            self._gui_manager.open_full_ai_window()
+            self._btn_full_ai_win.setText("\u25a0  Full AI Structure")
+            self._btn_full_ai_win.setStyleSheet(self._window_toggle_style(True))
+
+    def _toggle_sensory_window(self) -> None:
+        if self._gui_manager is None:
+            return
+        if self._gui_manager.is_open("sensory"):
+            self._gui_manager.close_sensory_window()
+            self._btn_sensory_win.setText("\u25b6  Sensory Input")
+            self._btn_sensory_win.setStyleSheet(self._window_toggle_style(False))
+        else:
+            self._gui_manager.open_sensory_window()
+            self._btn_sensory_win.setText("\u25a0  Sensory Input")
+            self._btn_sensory_win.setStyleSheet(self._window_toggle_style(True))
 
     def _get_dark_theme_stylesheet(self) -> str:
         """Get dark theme stylesheet for the application."""
         return """
-        QMainWindow {
-            background-color: #121212;
+        QMainWindow, QWidget {
+            background-color: #0d0d0d;
+        }
+        QFrame {
+            background-color: #1a1a2e;
         }
         QPushButton {
-            background-color: #333333;
-            color: #e0e0e0;
-            border: 1px solid #444444;
+            background-color: #2a2a4e;
+            color: #c0c0e0;
+            border: 1px solid #3a3a5e;
             border-radius: 4px;
-            padding: 8px 12px;
+            padding: 7px 10px;
             font-family: 'Segoe UI';
-            font-size: 12px;
+            font-size: 11px;
         }
-        QPushButton:hover {
-            background-color: #444444;
-        }
-        QPushButton:pressed {
-            background-color: #222222;
-        }
+        QPushButton:hover { background-color: #3a3a5e; }
+        QPushButton:pressed { background-color: #1a1a3e; }
+        QPushButton:disabled { color: #555566; }
         QSlider::groove:horizontal {
-            height: 6px;
-            background: #444444;
-            border-radius: 3px;
+            height: 5px;
+            background: #2a2a4e;
+            border-radius: 2px;
         }
         QSlider::handle:horizontal {
-            width: 14px;
-            height: 14px;
-            margin: -4px 0;
-            border-radius: 7px;
-            background: #666666;
+            width: 12px; height: 12px;
+            margin: -3px 0;
+            border-radius: 6px;
+            background: #4488ff;
         }
-        QSlider::handle:horizontal:hover {
-            background: #888888;
-        }
+        QSlider::handle:horizontal:hover { background: #66aaff; }
+        QLabel { color: #c0c0e0; }
         QTabWidget::pane {
-            border: 1px solid #333333;
-            background: #282828;
+            border: 1px solid #2a2a4e;
+            background: #1a1a2e;
         }
         QTabBar::tab {
-            background: #333333;
-            color: #e0e0e0;
-            padding: 6px 12px;
-            border-top-left-radius: 4px;
-            border-top-right-radius: 4px;
+            background: #2a2a4e;
+            color: #c0c0e0;
+            padding: 5px 10px;
+            border-top-left-radius: 3px;
+            border-top-right-radius: 3px;
         }
-        QTabBar::tab:selected {
-            background: #444444;
-        }
+        QTabBar::tab:selected { background: #3a3a5e; }
         QLineEdit, QCheckBox {
-            color: #e0e0e0;
-            background-color: #333333;
-            border: 1px solid #444444;
-            padding: 4px 8px;
+            color: #c0c0e0;
+            background-color: #2a2a4e;
+            border: 1px solid #3a3a5e;
+            padding: 3px 6px;
             border-radius: 3px;
         }
-        QLabel {
-            color: #e0e0e0;
+        QStatusBar { color: #9999bb; background-color: #0d0d0d; }
+        QScrollBar:vertical {
+            background: #1a1a2e; width: 8px;
         }
+        QScrollBar::handle:vertical { background: #3a3a5e; border-radius: 4px; }
         """
 
     @staticmethod
@@ -1099,6 +1390,16 @@ class ModernMainWindow(QMainWindow):
                 logger.error(f"Failed to start workspace system: {e}")
                 ErrorHandler.show_error("Workspace Error", f"Failed to start workspace system: {str(e)}")
 
+        # Set up TaichiGUIManager so center column toggle buttons work
+        try:
+            from project.visualization.taichi_gui_manager import TaichiGUIManager
+            if hasattr(system, 'engine'):
+                self._gui_manager = TaichiGUIManager(system.engine)
+            elif hasattr(system, '_engine'):
+                self._gui_manager = TaichiGUIManager(system._engine)
+        except Exception as e:
+            logger.warning("TaichiGUIManager unavailable: %s", e)
+
         self.status_bar.showMessage("Simulation started")
         # Prime connection growth to avoid sparse graphs at startup
         if self.system:
@@ -1492,6 +1793,30 @@ class ModernMainWindow(QMainWindow):
                     self.frame_skip_counter = 0
 
                 self.last_update_time = current_time
+
+                # Update header bar
+                if hasattr(self, '_header_fps') and self.system is not None:
+                    try:
+                        metrics = self.system.get_metrics() if hasattr(self.system, 'get_metrics') else {}
+                        fps_val = getattr(self, '_last_fps', 0)
+                        nodes   = metrics.get('num_nodes', 0) if metrics else 0
+                        energy  = metrics.get('avg_energy', 0.0) if metrics else 0.0
+                        self._header_fps.setText(f"FPS: {fps_val:.0f}")
+                        self._header_nodes.setText(f"Nodes: {nodes:,}")
+                        self._header_energy.setText(f"Energy: {energy:.1f}")
+                        self._header_status.setText("Running")
+                    except Exception:
+                        pass
+
+                # Update GGUI FPS labels
+                if self._gui_manager is not None:
+                    for name, lbl in [
+                        ("workspace", self._lbl_workspace_fps),
+                        ("full_ai",   self._lbl_full_ai_fps),
+                        ("sensory",   self._lbl_sensory_fps),
+                    ]:
+                        fps = self._gui_manager.get_fps(name)
+                        lbl.setText(f"  FPS: {fps:.0f}" if fps > 0 else "  FPS: \u2014")
 
                 # Sensory update with visual feedback + DETAILED PROFILING
                 frame, sensory_t = self._update_sensory(current_time)
