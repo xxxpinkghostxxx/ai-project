@@ -118,6 +118,10 @@ _node_charge = ti.field(dtype=ti.f32, shape=MAX_NODES)   # capacitive charge acc
 _deaths_count = ti.field(dtype=ti.i32, shape=())
 _spawns_count = ti.field(dtype=ti.i32, shape=())
 
+# On-GPU reduction accumulators for dynamic-node energy (avoids ~48MB GPU→CPU transfer)
+_dyn_energy_sum = ti.field(dtype=ti.f64, shape=())   # sum of dynamic node energies
+_dyn_node_count = ti.field(dtype=ti.i32, shape=())   # count of alive dynamic nodes
+
 # Constant lookup tables (filled once at engine init)
 _neighbor_dy   = ti.field(dtype=ti.i32, shape=8)
 _neighbor_dx   = ti.field(dtype=ti.i32, shape=8)
@@ -419,6 +423,21 @@ def _write_nodes_kernel(
         _node_charge[start + i] = 0.0  # Reset capacitive charge for new node
 
 
+@ti.kernel
+def _reduce_dynamic_energy():
+    """Compute sum and count of alive dynamic nodes on-GPU (no CPU transfer)."""
+    _dyn_energy_sum[None] = 0.0
+    _dyn_node_count[None] = 0
+    ti.loop_config(block_dim=256)
+    for i in range(_node_count[None]):
+        state = _node_state[i]
+        if state != 0:
+            node_type = (state >> 61) & 3
+            if node_type == 1:  # dynamic
+                ti.atomic_add(_dyn_energy_sum[None], ti.cast(_node_energy[i], ti.f64))
+                ti.atomic_add(_dyn_node_count[None], 1)
+
+
 # =============================================================================
 # Module-level helpers (pure PyTorch, used by add_nodes_batch)
 # =============================================================================
@@ -672,15 +691,14 @@ class TaichiNeuralEngine:
                 #     → parent keeps 25% of the threshold surplus after spawning
                 #   child_energy = birth_cost × child_energy_fraction
                 #
-                # Recomputed every 10 steps (Taichi→CPU numpy read is expensive).
+                # Recomputed every 10 steps (on-GPU reduction — reads 2 scalars instead of ~48MB arrays).
                 if self.frame_counter % 10 == 0 or not hasattr(self, '_cached_avg_dyn_e'):
-                    state_np  = _node_state.to_numpy()[:self._count]
-                    energy_np = _node_energy.to_numpy()[:self._count]
-                    dyn_mask  = (state_np != 0) & (((state_np >> 61) & 3) == 1)
-                    dyn_e     = energy_np[dyn_mask]
-                    self._cached_avg_dyn_e = (
-                        float(dyn_e.mean()) if len(dyn_e) > 0 else self.spawn_threshold
-                    )
+                    _reduce_dynamic_energy()
+                    dyn_count = int(_dyn_node_count[None])
+                    if dyn_count > 0:
+                        self._cached_avg_dyn_e = float(_dyn_energy_sum[None]) / dyn_count
+                    else:
+                        self._cached_avg_dyn_e = self.spawn_threshold
                 avg_dyn_e = self._cached_avg_dyn_e
                 effective_spawn_threshold = avg_dyn_e * 1.10
                 effective_spawn_cost      = effective_spawn_threshold * 0.75
