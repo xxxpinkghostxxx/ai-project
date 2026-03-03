@@ -498,9 +498,6 @@ def managed_resources() -> Generator[list[Any], None, None]:
     Provides lifecycle management and recovery mechanisms for system resources.
     """
     resources: list[Any] = []
-    # Register shutdown cleanup for resource manager
-    from project.utils.shutdown_utils import ShutdownDetector  # type: ignore[import-untyped,import-not-found]  # pylint: disable=import-outside-toplevel,import-error
-    ShutdownDetector.register_resource_manager_cleanup()
     try:
         yield resources
     finally:
@@ -520,17 +517,6 @@ def managed_resources() -> Generator[list[Any], None, None]:
                 error_info = f"Error cleaning up resource {type(resource).__name__}: {str(e)}"
                 logger.error(error_info)
                 cleanup_errors.append(error_info)
-
-        # Force cleanup of resource manager if still available
-        try:
-            from project.system.global_storage import GlobalStorage  # type: ignore[import-untyped,import-not-found]  # pylint: disable=import-outside-toplevel,import-error
-            resource_manager = GlobalStorage.retrieve('ui_resource_manager')
-            if resource_manager and hasattr(resource_manager, 'force_cleanup'):
-                resource_manager.force_cleanup()
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            error_info = f"Error during final resource manager cleanup: {str(e)}"
-            logger.warning(error_info)
-            cleanup_errors.append(error_info)
 
         # Report cleanup summary
         if cleanup_errors:

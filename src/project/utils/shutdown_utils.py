@@ -9,7 +9,7 @@ import logging
 import threading
 import atexit
 from collections.abc import Callable
-from project.system.global_storage import GlobalStorage
+
 
 logger = logging.getLogger(__name__)
 
@@ -85,18 +85,6 @@ class ShutdownDetector:
         except Exception as e:
             logger.warning(f"Error during {name}: {str(e)}")
 
-    @classmethod
-    def register_resource_manager_cleanup(cls) -> None:
-        """Register resource manager cleanup for graceful shutdown."""
-        def cleanup_resources() -> None:
-            try:
-                resource_manager = GlobalStorage.retrieve('ui_resource_manager')
-                if resource_manager and hasattr(resource_manager, 'shutdown'):
-                    resource_manager.shutdown()
-            except Exception as e:
-                logger.warning(f"Error during resource manager cleanup: {str(e)}")
-
-        cls.register_cleanup_function(cleanup_resources, "Resource Manager")
 
 def is_python_shutting_down() -> bool:
     """Check if Python interpreter is shutting down."""
