@@ -1469,10 +1469,8 @@ class ModernMainWindow(QMainWindow):
             t_nodes_start = time.time()
             self.system.update_sensory_nodes(sensory_input)  # Can be torch.Tensor now!
             t['t_nodes'] = (time.time() - t_nodes_start) * 1000
-            self.status_bar.showMessage("Sensory input processed")
         else:
             logger.debug("Received null frame from screen capture")
-            self.status_bar.showMessage("Waiting for capture frame...")
 
         t['t_sensory'] = (time.time() - t_sensory_start) * 1000
         return frame, t
@@ -1484,7 +1482,7 @@ class ModernMainWindow(QMainWindow):
             (step_result, metrics, timing_dict)
         """
         t: dict[str, float] = {
-            't_system': 0.0, 't_update': 0.0, 't_update_step': 0.0, 't_engine_step': 0.0,
+            't_update': 0.0, 't_update_step': 0.0, 't_engine_step': 0.0,
             't_worker': 0.0, 't_metrics': 0.0, 't_pre_sync': 0.0, 't_engine_call': 0.0,
             't_result_access': 0.0, 't_gpu_sync': 0.0, 't_adapter': 0.0,
         }
@@ -1494,7 +1492,6 @@ class ModernMainWindow(QMainWindow):
         if not self.system:
             return step_result, metrics, t
 
-        t_system_start = time.time()
         t_update_start = time.time()
 
         # Break down update() into components
@@ -1524,35 +1521,22 @@ class ModernMainWindow(QMainWindow):
         self.system.apply_connection_worker_results()
         t['t_worker'] = (time.time() - t_worker_start) * 1000
 
-        self.status_bar.showMessage("System updated")
         try:
             t_metrics_start = time.time()
             metrics = self.system.get_metrics()
             t['t_metrics'] = (time.time() - t_metrics_start) * 1000
             if metrics is not None:
-                # CRITICAL: Clamp all values to prevent infinity conversion errors
-                total_energy = float(max(-1e6, min(metrics.get('total_energy', 0.0), 1e9)))
-                dyn_count = int(max(0, min(metrics.get('dynamic_node_count', 0), 1e9)))
-                sens_count = int(max(0, min(metrics.get('sensory_node_count', 0), 1e9)))
-                ws_count = int(max(0, min(metrics.get('workspace_node_count', 0), 1e9)))
-                conn_count = int(max(0, min(metrics.get('connection_count', 0), 1e9)))
-                births = int(max(0, min(metrics.get('node_births', 0), 1e9)))
-                deaths = int(max(0, min(metrics.get('node_deaths', 0), 1e9)))
                 logger.debug(
-                    "Metrics snapshot | energy=%.2f dyn=%s sens=%s ws=%s edges=%s births=%s deaths=%s",
-                    total_energy,
-                    dyn_count,
-                    sens_count,
-                    ws_count,
-                    conn_count,
-                    births,
-                    deaths,
+                    "Metrics snapshot: energy=%.1f dyn=%d sens=%d ws=%d conn=%d births=%d deaths=%d",
+                    metrics.get('total_energy', 0), metrics.get('dynamic_node_count', 0),
+                    metrics.get('sensory_node_count', 0), metrics.get('workspace_node_count', 0),
+                    metrics.get('connection_count', 0), metrics.get('node_births', 0),
+                    metrics.get('node_deaths', 0),
                 )
         except Exception as metric_error:  # pylint: disable=broad-exception-caught
             logger.warning("Metrics retrieval failed: %s", metric_error)
             metrics = None
 
-        t['t_system'] = (time.time() - t_system_start) * 1000
         return step_result, metrics, t
 
     def _update_audio(self, current_time: float) -> None:
