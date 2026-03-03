@@ -8,7 +8,6 @@ real-time visualization window, handling the connection and data flow.
 import logging
 from typing import Any, Optional
 
-from .realtime_visualization import RealTimeVisualizationWindow
 from .workspace_system import WorkspaceNodeSystem
 
 logger = logging.getLogger(__name__)
@@ -25,7 +24,7 @@ class WorkspaceVisualizationIntegration:
             workspace_system: The workspace system to visualize
         """
         self.workspace_system = workspace_system
-        self.visualization_window: Optional[RealTimeVisualizationWindow] = None
+        self.visualization_window = None
         self.is_embedded = False
         
         # Configuration

@@ -14,7 +14,6 @@ from PyQt6.QtCore import Qt
 
 from .renderer import WorkspaceRenderer
 from .config import EnergyReadingConfig
-from .realtime_visualization import RealTimeVisualizationWindow, VisualizationMode
 from .visualization_integration import WorkspaceVisualizationIntegration
 
 logger = logging.getLogger(__name__)
@@ -34,7 +33,7 @@ class WorkspaceVisualization:
         self.main_window = main_window
         self.workspace_system = workspace_system
         self.visualization_integration: Optional[WorkspaceVisualizationIntegration] = None
-        self.realtime_window: Optional[RealTimeVisualizationWindow] = None
+        self.realtime_window = None
         
         # Create workspace panel
         self._create_workspace_panel()
@@ -200,14 +199,7 @@ class WorkspaceVisualization:
         self.renderer.set_shading_mode(mode)
         if self.realtime_window:
             # Map string mode to enum
-            mode_map = {
-                'grid': VisualizationMode.GRID_VIEW,
-                'nodes': VisualizationMode.NODE_VIEW,
-                'connections': VisualizationMode.CONNECTION_VIEW,
-                'heatmap': VisualizationMode.HEATMAP_VIEW
-            }
-            enum_mode = mode_map.get(mode, VisualizationMode.GRID_VIEW)
-            self.realtime_window.renderer.set_visualization_mode(enum_mode)
+            pass
     
     def set_color_scheme(self, scheme: str):
         """Set the color scheme for visualization."""
@@ -226,7 +218,7 @@ class WorkspaceVisualization:
         """Get the visualization integration instance."""
         return self.visualization_integration
     
-    def get_realtime_window(self) -> Optional[RealTimeVisualizationWindow]:
+    def get_realtime_window(self):
         """Get the real-time visualization window."""
         return self.realtime_window
     
