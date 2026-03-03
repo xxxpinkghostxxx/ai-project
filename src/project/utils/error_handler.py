@@ -39,36 +39,14 @@ ERROR_CONTEXT_RECOVERY_ACTIONS = 'recovery_actions'
 
 class ErrorHandler:
     """
-    Enhanced error handling class with standardized patterns, severity classification, and comprehensive error context.
+    Enhanced error handling class with standardized patterns, severity classification,
+    and comprehensive error context.
 
-    This class provides comprehensive error handling capabilities including:
+    Provides:
     - Standardized error handling patterns across the application
     - Enhanced logging with detailed error context and severity classification
     - Thread-safe error management with locking mechanisms
-    - Automatic recovery mechanisms for common error scenarios
     - Comprehensive error tracking and statistics
-    - User notification and feedback systems
-
-    Recovery Mechanisms:
-    - Automatic retry logic with exponential backoff for transient failures
-    - Tensor synchronization recovery for tensor-related errors
-    - Graph validation recovery for graph structure issues
-    - Connection repair recovery for invalid connection problems
-    - Intelligent recovery mechanism selection based on error context
-    - Thread-safe recovery operations with proper error isolation
-
-    Thread Safety:
-    - Uses threading.Lock() for thread-safe error logging and statistics
-    - Implements fine-grained locking for critical error operations
-    - Ensures consistent error tracking across concurrent operations
-    - Provides thread-safe access to error collections and statistics
-
-    Usage Patterns:
-    - Decorator-based error handling for functions and methods
-    - Manual error logging with comprehensive context
-    - Automatic recovery attempts with retry logic
-    - Error severity classification and prioritization
-    - Comprehensive error reporting and analysis
     """
 
     # Maximum number of stored errors to prevent unbounded memory growth
@@ -82,11 +60,6 @@ class ErrorHandler:
         self._retry_logic_enabled = True
         self._max_retries = 3
         self._retry_delay = 1.0
-        self._recovery_mechanisms = {
-            'tensor_synchronization': self._recover_via_tensor_synchronization,
-            'graph_validation': self._recover_via_graph_validation,
-            'connection_repair': self._recover_via_connection_repair
-        }
 
     @staticmethod
     def show_error(title: str, message: str, log: bool = True, severity: str = ERROR_SEVERITY_MEDIUM, context: Optional[Dict[str, Any]] = None) -> None:
@@ -388,112 +361,6 @@ class ErrorHandler:
 
         # Default to medium severity for uncategorized errors
         return ERROR_SEVERITY_MEDIUM
-
-    def _attempt_recovery(self, function_name: str, error_message: str, context: Dict[str, Any]) -> bool:
-        """
-        Attempt to recover from an error using available recovery mechanisms.
-
-        This method implements the core recovery logic by:
-        1. Analyzing the error context to determine the most appropriate recovery strategy
-        2. Selecting the best recovery mechanism based on error patterns and function context
-        3. Executing the recovery mechanism with proper error handling
-        4. Logging detailed recovery attempts and outcomes
-        5. Maintaining thread safety throughout the recovery process
-
-        Recovery Strategy Selection:
-        - Uses pattern matching on error messages to identify error types
-        - Considers function names and execution context
-        - Falls back to tensor synchronization for unknown error types
-        - Implements intelligent recovery mechanism selection
-
-        Thread Safety:
-        - This method is thread-safe as it only reads shared data
-        - Recovery mechanisms are designed to be thread-safe
-        - Error logging maintains thread safety guarantees
-
-        Args:
-            function_name: Name of the function that failed
-            error_message: Error message describing the failure
-            context: Error context containing additional diagnostic information
-
-        Returns:
-            True if recovery was successful, False otherwise
-
-        Example:
-        ```python
-        # Attempt recovery after a function failure
-        recovery_success = error_handler._attempt_recovery(
-            function_name="process_tensor_data",
-            error_message="Tensor shape mismatch detected",
-            context={
-                'tensor_name': 'energy',
-                'expected_shape': (1000,),
-                'actual_shape': (950,),
-                'operation': 'synchronization'
-            }
-        )
-
-        if recovery_success:
-            logger.info("Recovery successful, retrying operation")
-        else:
-            logger.warning("Recovery failed, additional intervention needed")
-        ```
-        """
-        try:
-            logger.info(f"Attempting recovery for {function_name} after error: {error_message}")
-
-            # Determine appropriate recovery mechanism based on function name and error
-            recovery_mechanism = self._select_recovery_mechanism(function_name, error_message)
-
-            if recovery_mechanism:
-                logger.info(f"Selected recovery mechanism: {recovery_mechanism.__name__}")
-                return recovery_mechanism()
-            else:
-                logger.warning("No suitable recovery mechanism found")
-                return False
-
-        except Exception as e:
-            logger.error(f"Recovery attempt failed: {str(e)}")
-            return False
-
-    def _select_recovery_mechanism(self, function_name: str, error_message: str) -> Optional[Callable[[], bool]]:
-        """
-        Select the most appropriate recovery mechanism based on function name and error message.
-
-        Args:
-            function_name: Name of the function that failed
-            error_message: Error message
-
-        Returns:
-            Appropriate recovery function or None
-        """
-        # Check for tensor-related errors
-        if 'tensor' in error_message.lower() or 'shape' in error_message.lower():
-            return self._recover_via_tensor_synchronization
-        # Check for graph-related errors
-        elif 'graph' in error_message.lower() or 'node' in error_message.lower():
-            return self._recover_via_graph_validation
-        # Check for connection-related errors
-        elif 'connection' in error_message.lower() or 'edge' in error_message.lower():
-            return self._recover_via_connection_repair
-        # Default recovery for other cases
-        else:
-            return self._recover_via_tensor_synchronization
-
-    def _recover_via_tensor_synchronization(self) -> bool:
-        """Attempt recovery by synchronizing all tensors. Not yet implemented."""
-        logger.warning("Tensor synchronization recovery is not implemented; skipping")
-        return False
-
-    def _recover_via_graph_validation(self) -> bool:
-        """Attempt recovery by validating and repairing graph state. Not yet implemented."""
-        logger.warning("Graph validation recovery is not implemented; skipping")
-        return False
-
-    def _recover_via_connection_repair(self) -> bool:
-        """Attempt recovery by repairing invalid connections. Not yet implemented."""
-        logger.warning("Connection repair recovery is not implemented; skipping")
-        return False
 
     def get_recent_errors(self, count: int = 10) -> list[Dict[str, Any]]:
         """Get the most recent errors with full context"""
