@@ -323,13 +323,15 @@ class ModernMainWindow(QMainWindow):
         """
 
     @staticmethod
-    def _button_style(bg: str, hover: str, pressed: str) -> str:
-        """Generate a consistent QPushButton stylesheet from three color hex strings."""
+    def _button_style(bg: str, hover: str = '', pressed: str = '') -> str:
+        """Generate QPushButton stylesheet with consistent structure."""
+        hover = hover or bg
+        pressed = pressed or bg
         return (
-            f"QPushButton {{ background-color: {bg}; color: #e0e0e0; border: none;"
-            f" border-radius: 4px; padding: 10px; font-weight: bold; }}"
-            f" QPushButton:hover {{ background-color: {hover}; }}"
-            f" QPushButton:pressed {{ background-color: {pressed}; }}"
+            f"QPushButton {{ background-color: {bg}; color: #e0e0e0; "
+            f"border: none; border-radius: 4px; padding: 10px; font-weight: bold; }}"
+            f"QPushButton:hover {{ background-color: {hover}; }}"
+            f"QPushButton:pressed {{ background-color: {pressed}; }}"
         )
 
     def _create_control_buttons(self) -> None:
@@ -439,42 +441,12 @@ class ModernMainWindow(QMainWindow):
 
             if self.state_manager.toggle_suspend():
                 self.suspend_button.setText("Resume System")
-                self.suspend_button.setStyleSheet("""
-                    QPushButton {
-                        background-color: #225522;
-                        color: #e0e0e0;
-                        border: none;
-                        border-radius: 4px;
-                        padding: 10px;
-                        font-weight: bold;
-                    }
-                    QPushButton:hover {
-                        background-color: #337733;
-                    }
-                    QPushButton:pressed {
-                        background-color: #113311;
-                    }
-                """)
+                self.suspend_button.setStyleSheet(self._button_style("#225522", "#337733", "#113311"))
                 self.status_bar.showMessage("✓ System suspended and drained successfully")
                 logger.info("System suspended successfully")
             else:
                 self.suspend_button.setText("Drain && Suspend")
-                self.suspend_button.setStyleSheet("""
-                    QPushButton {
-                        background-color: #882222;
-                        color: #e0e0e0;
-                        border: none;
-                        border-radius: 4px;
-                        padding: 10px;
-                        font-weight: bold;
-                    }
-                    QPushButton:hover {
-                        background-color: #993333;
-                    }
-                    QPushButton:pressed {
-                        background-color: #661111;
-                    }
-                """)
+                self.suspend_button.setStyleSheet(self._button_style("#882222", "#993333", "#661111"))
                 self.status_bar.showMessage("✓ System resumed successfully")
                 logger.info("System resumed successfully")
 
@@ -511,16 +483,7 @@ class ModernMainWindow(QMainWindow):
 
             # Visual feedback - temporary highlight
             if hasattr(self, 'pulse_button') and self.pulse_button:
-                self.pulse_button.setStyleSheet("""
-                    QPushButton {
-                        background-color: #33aa33;
-                        color: #e0e0e0;
-                        border: none;
-                        border-radius: 4px;
-                        padding: 10px;
-                        font-weight: bold;
-                    }
-                """)
+                self.pulse_button.setStyleSheet(self._button_style("#33aa33"))
                 self.pulse_button.repaint()
 
         except Exception as e:
@@ -532,62 +495,17 @@ class ModernMainWindow(QMainWindow):
             if hasattr(self, 'pulse_button') and self.pulse_button:
                 self.pulse_button.setText(original_text)
                 self.pulse_button.setEnabled(True)
-                self.pulse_button.setStyleSheet("""
-                    QPushButton {
-                        background-color: #225577;
-                        color: #e0e0e0;
-                        border: none;
-                        border-radius: 4px;
-                        padding: 10px;
-                        font-weight: bold;
-                    }
-                    QPushButton:hover {
-                        background-color: #3377aa;
-                    }
-                    QPushButton:pressed {
-                        background-color: #113355;
-                    }
-                """)
+                self.pulse_button.setStyleSheet(self._button_style("#225577", "#3377aa", "#113355"))
 
     def _toggle_sensory(self) -> None:
         """Toggle sensory input."""
         if self.state_manager.toggle_sensory():
             self.sensory_button.setText("Disable Sensory Input")
-            self.sensory_button.setStyleSheet("""
-                QPushButton {
-                    background-color: #228822;
-                    color: #e0e0e0;
-                    border: none;
-                    border-radius: 4px;
-                    padding: 10px;
-                    font-weight: bold;
-                }
-                QPushButton:hover {
-                    background-color: #33aa33;
-                }
-                QPushButton:pressed {
-                    background-color: #115511;
-                }
-            """)
+            self.sensory_button.setStyleSheet(self._button_style("#228822", "#33aa33", "#115511"))
             self.status_bar.showMessage("Sensory input enabled.")
         else:
             self.sensory_button.setText("Enable Sensory Input")
-            self.sensory_button.setStyleSheet("""
-                QPushButton {
-                    background-color: #882222;
-                    color: #e0e0e0;
-                    border: none;
-                    border-radius: 4px;
-                    padding: 10px;
-                    font-weight: bold;
-                }
-                QPushButton:hover {
-                    background-color: #993333;
-                }
-                QPushButton:pressed {
-                    background-color: #661111;
-                }
-            """)
+            self.sensory_button.setStyleSheet(self._button_style("#882222", "#993333", "#661111"))
             self.status_bar.showMessage("Sensory input disabled.")
 
     # ------------------------------------------------------------------
@@ -1040,77 +958,17 @@ class ModernMainWindow(QMainWindow):
             # Update UI based on state
             if state.suspended:
                 self.suspend_button.setText("Resume System")
-                self.suspend_button.setStyleSheet("""
-                    QPushButton {
-                        background-color: #225522;
-                        color: #e0e0e0;
-                        border: none;
-                        border-radius: 4px;
-                        padding: 10px;
-                        font-weight: bold;
-                    }
-                    QPushButton:hover {
-                        background-color: #337733;
-                    }
-                    QPushButton:pressed {
-                        background-color: #113311;
-                    }
-                """)
+                self.suspend_button.setStyleSheet(self._button_style("#225522", "#337733", "#113311"))
             else:
                 self.suspend_button.setText("Drain && Suspend")
-                self.suspend_button.setStyleSheet("""
-                    QPushButton {
-                        background-color: #882222;
-                        color: #e0e0e0;
-                        border: none;
-                        border-radius: 4px;
-                        padding: 10px;
-                        font-weight: bold;
-                    }
-                    QPushButton:hover {
-                        background-color: #993333;
-                    }
-                    QPushButton:pressed {
-                        background-color: #661111;
-                    }
-                """)
+                self.suspend_button.setStyleSheet(self._button_style("#882222", "#993333", "#661111"))
 
             if state.sensory_enabled:
                 self.sensory_button.setText("Disable Sensory Input")
-                self.sensory_button.setStyleSheet("""
-                    QPushButton {
-                        background-color: #228822;
-                        color: #e0e0e0;
-                        border: none;
-                        border-radius: 4px;
-                        padding: 10px;
-                        font-weight: bold;
-                    }
-                    QPushButton:hover {
-                        background-color: #33aa33;
-                    }
-                    QPushButton:pressed {
-                        background-color: #115511;
-                    }
-                """)
+                self.sensory_button.setStyleSheet(self._button_style("#228822", "#33aa33", "#115511"))
             else:
                 self.sensory_button.setText("Enable Sensory Input")
-                self.sensory_button.setStyleSheet("""
-                    QPushButton {
-                        background-color: #882222;
-                        color: #e0e0e0;
-                        border: none;
-                        border-radius: 4px;
-                        padding: 10px;
-                        font-weight: bold;
-                    }
-                    QPushButton:hover {
-                        background-color: #993333;
-                    }
-                    QPushButton:pressed {
-                        background-color: #661111;
-                    }
-                """)
+                self.sensory_button.setStyleSheet(self._button_style("#882222", "#993333", "#661111"))
         except Exception as e:
             # Enhanced error reporting with detailed context
             error_context: dict[str, Any] = {
