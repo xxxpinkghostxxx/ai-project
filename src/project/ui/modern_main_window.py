@@ -1477,6 +1477,84 @@ class ModernMainWindow(QMainWindow):
         t['t_sensory'] = (time.time() - t_sensory_start) * 1000
         return frame, t
 
+    def _update_engine(self) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, float]]:
+        """Run one engine step and retrieve metrics.
+
+        Returns:
+            (step_result, metrics, timing_dict)
+        """
+        t: dict[str, float] = {
+            't_system': 0.0, 't_update': 0.0, 't_update_step': 0.0, 't_engine_step': 0.0,
+            't_worker': 0.0, 't_metrics': 0.0, 't_pre_sync': 0.0, 't_engine_call': 0.0,
+            't_result_access': 0.0, 't_gpu_sync': 0.0, 't_adapter': 0.0,
+        }
+        step_result: dict[str, Any] | None = None
+        metrics: dict[str, Any] | None = None
+
+        if not self.system:
+            return step_result, metrics, t
+
+        t_system_start = time.time()
+        t_update_start = time.time()
+
+        # Break down update() into components
+        if hasattr(self.system, 'update_step'):
+            t_update_step_start = time.time()
+            step_result = self.system.update_step()
+            t['t_update_step'] = (time.time() - t_update_step_start) * 1000
+            # Extract detailed timing if available
+            if isinstance(step_result, dict):
+                t['t_engine_step'] = step_result.get('total_time', 0) * 1000
+                t['t_pre_sync'] = step_result.get('pre_sync_time', 0) * 1000
+                t['t_engine_call'] = step_result.get('engine_call_time', 0) * 1000
+                t['t_result_access'] = step_result.get('result_access_time', 0) * 1000
+                t['t_gpu_sync'] = step_result.get('gpu_sync_time', 0) * 1000
+                t['t_adapter'] = step_result.get('adapter_time', 0) * 1000
+            else:
+                t['t_pre_sync'] = 0.0
+                t['t_engine_call'] = 0.0
+                t['t_result_access'] = 0.0
+                t['t_gpu_sync'] = 0.0
+                t['t_adapter'] = 0.0
+        else:
+            self.system.update()
+        t['t_update'] = (time.time() - t_update_start) * 1000
+
+        t_worker_start = time.time()
+        self.system.apply_connection_worker_results()
+        t['t_worker'] = (time.time() - t_worker_start) * 1000
+
+        self.status_bar.showMessage("System updated")
+        try:
+            t_metrics_start = time.time()
+            metrics = self.system.get_metrics()
+            t['t_metrics'] = (time.time() - t_metrics_start) * 1000
+            if metrics is not None:
+                # CRITICAL: Clamp all values to prevent infinity conversion errors
+                total_energy = float(max(-1e6, min(metrics.get('total_energy', 0.0), 1e9)))
+                dyn_count = int(max(0, min(metrics.get('dynamic_node_count', 0), 1e9)))
+                sens_count = int(max(0, min(metrics.get('sensory_node_count', 0), 1e9)))
+                ws_count = int(max(0, min(metrics.get('workspace_node_count', 0), 1e9)))
+                conn_count = int(max(0, min(metrics.get('connection_count', 0), 1e9)))
+                births = int(max(0, min(metrics.get('node_births', 0), 1e9)))
+                deaths = int(max(0, min(metrics.get('node_deaths', 0), 1e9)))
+                logger.debug(
+                    "Metrics snapshot | energy=%.2f dyn=%s sens=%s ws=%s edges=%s births=%s deaths=%s",
+                    total_energy,
+                    dyn_count,
+                    sens_count,
+                    ws_count,
+                    conn_count,
+                    births,
+                    deaths,
+                )
+        except Exception as metric_error:  # pylint: disable=broad-exception-caught
+            logger.warning("Metrics retrieval failed: %s", metric_error)
+            metrics = None
+
+        t['t_system'] = (time.time() - t_system_start) * 1000
+        return step_result, metrics, t
+
     @pyqtSlot()
     def periodic_update(self) -> None:
         """Periodic update function with performance optimization and frame throttling."""
@@ -1505,76 +1583,8 @@ class ModernMainWindow(QMainWindow):
                 t_sensory = sensory_t['t_sensory']
 
                 # System update with progress feedback + DETAILED PROFILING
-                t_system_start = time.time()
-                t_update = 0.0
-                t_update_step = 0.0
-                t_engine_step = 0.0
-                t_worker = 0.0
-                t_metrics = 0.0
-                t_pre_sync = 0.0
-                t_engine_call = 0.0
-                t_result_access = 0.0
-                t_gpu_sync = 0.0
-                t_adapter = 0.0
-                step_result: dict[str, Any] | None = None  # Set by update_step() branch; kept None if update() path taken
-                metrics: dict[str, Any] | None = None
-                if self.system:
-                    t_update_start = time.time()
-                    # Break down update() into components
-                    if hasattr(self.system, 'update_step'):
-                        t_update_step_start = time.time()
-                        step_result = self.system.update_step()
-                        t_update_step = (time.time() - t_update_step_start) * 1000
-                        # Extract detailed timing if available
-                        if isinstance(step_result, dict):
-                            t_engine_step = step_result.get('total_time', 0) * 1000
-                            t_pre_sync = step_result.get('pre_sync_time', 0) * 1000
-                            t_engine_call = step_result.get('engine_call_time', 0) * 1000
-                            t_result_access = step_result.get('result_access_time', 0) * 1000
-                            t_gpu_sync = step_result.get('gpu_sync_time', 0) * 1000
-                            t_adapter = step_result.get('adapter_time', 0) * 1000
-                        else:
-                            t_pre_sync = 0.0
-                            t_engine_call = 0.0
-                            t_result_access = 0.0
-                            t_gpu_sync = 0.0
-                            t_adapter = 0.0
-                    else:
-                        self.system.update()
-                    t_update = (time.time() - t_update_start) * 1000
-                    
-                    t_worker_start = time.time()
-                    self.system.apply_connection_worker_results()
-                    t_worker = (time.time() - t_worker_start) * 1000
-                    
-                    self.status_bar.showMessage("System updated")
-                    try:
-                        t_metrics_start = time.time()
-                        metrics = self.system.get_metrics()
-                        t_metrics = (time.time() - t_metrics_start) * 1000
-                        if metrics is not None:
-                            # CRITICAL: Clamp all values to prevent infinity conversion errors
-                            total_energy = float(max(-1e6, min(metrics.get('total_energy', 0.0), 1e9)))
-                            dyn_count = int(max(0, min(metrics.get('dynamic_node_count', 0), 1e9)))
-                            sens_count = int(max(0, min(metrics.get('sensory_node_count', 0), 1e9)))
-                            ws_count = int(max(0, min(metrics.get('workspace_node_count', 0), 1e9)))
-                            conn_count = int(max(0, min(metrics.get('connection_count', 0), 1e9)))
-                            births = int(max(0, min(metrics.get('node_births', 0), 1e9)))
-                            deaths = int(max(0, min(metrics.get('node_deaths', 0), 1e9)))
-                            logger.debug(
-                                "Metrics snapshot | energy=%.2f dyn=%s sens=%s ws=%s edges=%s births=%s deaths=%s",
-                                total_energy,
-                                dyn_count,
-                                sens_count,
-                                ws_count,
-                                conn_count,
-                                births,
-                                deaths,
-                            )
-                    except Exception as metric_error:  # pylint: disable=broad-exception-caught
-                        logger.warning("Metrics retrieval failed: %s", metric_error)
-                        metrics = None
-                t_system = (time.time() - t_system_start) * 1000
+                step_result, metrics, engine_t = self._update_engine()
+                t_system = engine_t['t_system']
 
                 # Workspace system update with visual feedback
                 if self.workspace_system:
