@@ -1417,6 +1417,66 @@ class ModernMainWindow(QMainWindow):
             self.test_button.setEnabled(True)
             self.test_button.setText("Test Rules")
 
+    def _update_sensory(self, current_time: float) -> tuple[Any, dict[str, float]]:
+        """Process screen capture and update sensory nodes.
+
+        Returns:
+            (frame_or_None, timing_dict) where timing_dict has keys:
+            t_sensory, t_capture, t_canvas, t_nodes, t_convert
+        """
+        t: dict[str, float] = {
+            't_sensory': 0.0, 't_capture': 0.0, 't_canvas': 0.0,
+            't_nodes': 0.0, 't_convert': 0.0,
+        }
+        t_sensory_start = time.time()
+        frame = None
+
+        if self.state_manager.get_state().sensory_enabled and self.capture and self.system:
+            t_capture_start = time.time()
+            frame = self.capture.get_latest()
+            t['t_capture'] = (time.time() - t_capture_start) * 1000
+
+        if frame is not None:
+            t_convert_start = time.time()
+            # OPTIMIZATION: Handle torch.Tensor frames (GPU, no CPU transfer!)
+            if isinstance(frame, torch.Tensor):
+                # GPU frame - keep on GPU! (NO CPU transfer!)
+                sensory_input = frame.float() if frame.dtype == torch.uint8 else frame
+            else:
+                # CPU frame (numpy) - convert to float32, raw values as energy
+                sensory_input = frame.astype(np.float32)
+            t['t_convert'] = (time.time() - t_convert_start) * 1000
+
+            # Update sensory CANVAS only every 500ms (not every frame!) - Huge performance boost!
+            if (current_time - self.last_sensory_canvas_update) > self.sensory_canvas_update_interval:
+                t_canvas_start = time.time()
+                # For canvas update, convert to numpy if needed
+                if isinstance(sensory_input, torch.Tensor):
+                    canvas_input = sensory_input.cpu().numpy()
+                    # Normalize to [0, 1] range if it's in [0, 255]
+                    if canvas_input.max() > 1.0:
+                        canvas_input = canvas_input / 255.0
+                else:
+                    canvas_input = sensory_input
+                    # Normalize to [0, 1] range if needed
+                    if canvas_input.max() > 1.0:
+                        canvas_input = canvas_input / 255.0
+                self.update_sensory_canvas(canvas_input)
+                t['t_canvas'] = (time.time() - t_canvas_start) * 1000
+                self.last_sensory_canvas_update = current_time
+
+            # Update sensory NODES every frame (OPTIMIZED with GPU direct!)
+            t_nodes_start = time.time()
+            self.system.update_sensory_nodes(sensory_input)  # Can be torch.Tensor now!
+            t['t_nodes'] = (time.time() - t_nodes_start) * 1000
+            self.status_bar.showMessage("Sensory input processed")
+        else:
+            logger.debug("Received null frame from screen capture")
+            self.status_bar.showMessage("Waiting for capture frame...")
+
+        t['t_sensory'] = (time.time() - t_sensory_start) * 1000
+        return frame, t
+
     @pyqtSlot()
     def periodic_update(self) -> None:
         """Periodic update function with performance optimization and frame throttling."""
@@ -1441,55 +1501,8 @@ class ModernMainWindow(QMainWindow):
                 self.last_update_time = current_time
 
                 # Sensory update with visual feedback + DETAILED PROFILING
-                t_sensory_start = time.time()
-                t_capture = 0.0
-                t_canvas = 0.0
-                t_nodes = 0.0
-                t_convert = 0.0
-                frame = None
-                if self.state_manager.get_state().sensory_enabled and self.capture and self.system:
-                    t_capture_start = time.time()
-                    frame = self.capture.get_latest()
-                    t_capture = (time.time() - t_capture_start) * 1000
-                    
-                if frame is not None:
-                    t_convert_start = time.time()
-                    # OPTIMIZATION: Handle torch.Tensor frames (GPU, no CPU transfer!)
-                    if isinstance(frame, torch.Tensor):
-                        # GPU frame - keep on GPU! (NO CPU transfer!)
-                        sensory_input = frame.float() if frame.dtype == torch.uint8 else frame
-                    else:
-                        # CPU frame (numpy) - convert to float32, raw values as energy
-                        sensory_input = frame.astype(np.float32)
-                    t_convert = (time.time() - t_convert_start) * 1000
-                        
-                        # Update sensory CANVAS only every 500ms (not every frame!) - Huge performance boost!
-                    if (current_time - self.last_sensory_canvas_update) > self.sensory_canvas_update_interval:
-                        t_canvas_start = time.time()
-                        # For canvas update, convert to numpy if needed
-                        if isinstance(sensory_input, torch.Tensor):
-                            canvas_input = sensory_input.cpu().numpy()
-                            # Normalize to [0, 1] range if it's in [0, 255]
-                            if canvas_input.max() > 1.0:
-                                canvas_input = canvas_input / 255.0
-                        else:
-                            canvas_input = sensory_input
-                            # Normalize to [0, 1] range if needed
-                            if canvas_input.max() > 1.0:
-                                canvas_input = canvas_input / 255.0
-                        self.update_sensory_canvas(canvas_input)
-                        t_canvas = (time.time() - t_canvas_start) * 1000
-                        self.last_sensory_canvas_update = current_time
-                    
-                    # Update sensory NODES every frame (OPTIMIZED with GPU direct!)
-                    t_nodes_start = time.time()
-                    self.system.update_sensory_nodes(sensory_input)  # Can be torch.Tensor now!
-                    t_nodes = (time.time() - t_nodes_start) * 1000
-                    self.status_bar.showMessage("Sensory input processed")
-                else:
-                    logger.debug("Received null frame from screen capture")
-                    self.status_bar.showMessage("Waiting for capture frame...")
-                t_sensory = (time.time() - t_sensory_start) * 1000
+                frame, sensory_t = self._update_sensory(current_time)
+                t_sensory = sensory_t['t_sensory']
 
                 # System update with progress feedback + DETAILED PROFILING
                 t_system_start = time.time()
