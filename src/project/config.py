@@ -36,7 +36,7 @@ NUM_CONN_TYPES = 8  # 3 bits required
 
 # =============================================================================
 # Binary Node State Encoding (64-bit packed int64 per node)
-# Layout: [ALIVE:1][NODE_TYPE:2][CONN_TYPE:3][DNA[0..7]:8×5=40][RSVD:18]
+# Layout: [ALIVE:1][NODE_TYPE:2][CONN_TYPE:3][DNA[0..7]:8×5=40][RSVD:15][MODALITY:3]
 # state == 0 means DEAD — all DNA wiped, disconnected from all math.
 # =============================================================================
 BINARY_ALIVE_BIT = 63
@@ -48,6 +48,18 @@ BINARY_DNA_MAX_VALUE = 31             # 2^5 - 1
 BINARY_DNA_MASK = 0x1F                # 5 bits
 BINARY_TYPE_MASK = 0x3                # 2 bits (node type)
 BINARY_CONN_TYPE_MASK = 0x7           # 3 bits (connection type)
+
+# =============================================================================
+# DNA Modality Keys (bits 2–0 of the reserved range bits 17–0)
+# These tag sensory/workspace nodes with a channel identity and are inherited
+# by dynamic children during spawn. The transfer kernel is NOT affected.
+# =============================================================================
+MODALITY_NEUTRAL     = 0   # dynamic nodes / unassigned
+MODALITY_VISUAL      = 1   # desktop sensory input / visual workspace output
+MODALITY_AUDIO_LEFT  = 2   # left audio channel sensory / workspace
+MODALITY_AUDIO_RIGHT = 3   # right audio channel sensory / workspace
+MODALITY_SHIFT       = 0   # bit position within the 64-bit node state
+MODALITY_MASK        = 0b111  # 3 bits → supports 8 modalities
 
 # DNA micro-instruction encoding: each 5-bit slot = [MODE:1][PARAM:4]
 DNA_MODE_CLASSIC = 0                  # MODE bit = 0: param/15 = probability
