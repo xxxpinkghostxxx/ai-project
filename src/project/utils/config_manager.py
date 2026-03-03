@@ -25,6 +25,15 @@ logger = logging.getLogger(__name__)
 class ConfigManager:
     """Configuration Manager class for handling system configuration."""
 
+    _instance: 'ConfigManager | None' = None
+
+    @classmethod
+    def shared(cls) -> 'ConfigManager':
+        """Return the shared ConfigManager instance (created on first call)."""
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+
     def __init__(self: 'ConfigManager', config_file: str | None = None) -> None:
         """Initialize ConfigManager with default configuration.
         

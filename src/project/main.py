@@ -907,7 +907,7 @@ def _attempt_system_recovery() -> bool:
         # Reset any cached configurations
         try:
             # Clear configuration cache by reinitializing
-            _ = ConfigManager()  # Reinitialize to clear any cached state
+            _ = ConfigManager.shared()  # Reinitialize to clear any cached state
             logger.info("Configuration cache reset")
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.warning("Error resetting configuration cache: %s", str(e))
@@ -976,7 +976,7 @@ def main() -> None:
 
         # Initialize managers with error handling
         try:
-            config_manager = ConfigManager()
+            config_manager = ConfigManager.shared()
             state_manager = StateManager()
             # Honor config flag for detailed logging at startup
             try:
