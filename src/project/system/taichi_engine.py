@@ -58,11 +58,30 @@ from project.config import (
 logger = logging.getLogger(__name__)
 
 # =============================================================================
-# Taichi initialization — must happen before any field/kernel definition
+# Taichi initialization — lazy, so config can override device/memory settings
 # =============================================================================
-_TAICHI_ARCH = ti.cuda if torch.cuda.is_available() else ti.cpu
-ti.init(arch=_TAICHI_ARCH, device_memory_fraction=0.6)
-logger.info("Taichi initialized: arch=%s", _TAICHI_ARCH)
+_taichi_initialized = False
+
+def init_taichi(device: str = 'auto', device_memory_fraction: float = 0.6) -> None:
+    """Initialize Taichi runtime. Must be called before creating TaichiNeuralEngine.
+
+    Args:
+        device: 'auto', 'cuda', or 'cpu'
+        device_memory_fraction: fraction of GPU VRAM to reserve (0.0-1.0)
+    """
+    global _taichi_initialized
+    if _taichi_initialized:
+        logger.warning("Taichi already initialized, skipping")
+        return
+    if device == 'auto':
+        arch = ti.cuda if torch.cuda.is_available() else ti.cpu
+    elif device == 'cuda':
+        arch = ti.cuda
+    else:
+        arch = ti.cpu
+    ti.init(arch=arch, device_memory_fraction=device_memory_fraction)
+    _taichi_initialized = True
+    logger.info("Taichi initialized: arch=%s, memory_fraction=%.2f", arch, device_memory_fraction)
 
 # =============================================================================
 # Constants
@@ -82,6 +101,10 @@ _DNA_SHIFTS = [BINARY_DNA_BASE_SHIFT + d * BINARY_DNA_BITS_PER_NEIGHBOR
 # Module-level Taichi fields
 # (globally accessible by all kernels below; one global engine per process)
 # =============================================================================
+
+# Ensure Taichi is initialized before defining fields (import-time fallback)
+if not _taichi_initialized:
+    init_taichi()
 
 # Node data
 _node_state  = ti.field(dtype=ti.i64, shape=MAX_NODES)  # packed binary state
@@ -478,6 +501,9 @@ class TaichiNeuralEngine:
         TaichiNeuralEngine._instance = self
 
         try:
+            if not _taichi_initialized:
+                init_taichi()  # fallback: init with defaults if caller forgot
+
             self.grid_size = grid_size
             self.H, self.W = grid_size
             self.device = torch.device(device if torch.cuda.is_available() else "cpu")

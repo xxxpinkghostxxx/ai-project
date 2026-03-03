@@ -50,7 +50,7 @@ from project.system.state_manager import StateManager  # type: ignore[import-unt
 from project.ui.modern_main_window import ModernMainWindow  # type: ignore[import-untyped,import-not-found]  # pylint: disable=import-error
 from project.workspace.workspace_system import WorkspaceNodeSystem  # type: ignore[import-untyped,import-not-found]  # pylint: disable=import-error
 from project.workspace.config import EnergyReadingConfig  # type: ignore[import-untyped,import-not-found]  # pylint: disable=import-error
-from project.system.taichi_engine import TaichiNeuralEngine  # type: ignore[import-untyped,import-not-found]  # pylint: disable=import-error
+from project.system.taichi_engine import TaichiNeuralEngine, init_taichi  # type: ignore[import-untyped,import-not-found]  # pylint: disable=import-error
 
 # Audio modules (optional — graceful degradation if sounddevice missing)
 try:
@@ -580,6 +580,10 @@ def create_hybrid_neural_system(
                 f"death_threshold={node_death_threshold}, energy_cap={node_energy_cap}, "
                 f"spawn_cost={spawn_cost}, transfer_strength={transfer_strength}")
     
+    # Initialize Taichi runtime with config-driven device/memory settings
+    device_for_taichi = system_config.get('device', 'auto') or 'auto'
+    init_taichi(device=device_for_taichi)
+
     # Create Taichi engine (single canonical engine, 4M node cap, CUDA)
     logger.info("Creating TaichiNeuralEngine (4M node capacity, CUDA kernels)")
     engine = TaichiNeuralEngine(
