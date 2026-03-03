@@ -522,6 +522,9 @@ class TaichiNeuralEngine:
             self._workspace_cached_region: Optional[Tuple[int, int, int, int]] = None
             self._workspace_cache_lock = threading.Lock()
 
+            # Lock to serialise step() and read_workspace_energies() across threads
+            self.step_lock = threading.Lock()
+
             # Sensory injection counter
             self._injection_counter = 0
 
@@ -596,123 +599,124 @@ class TaichiNeuralEngine:
             4. Spawn                                    (Taichi kernel)
             5. Clamp energy field                       (Taichi kernel)
         """
-        t_start = time.time()
+        with self.step_lock:
+            t_start = time.time()
 
-        # Ensure prior Taichi kernels (e.g. inject_sensory_data) have finished
-        # writing to energy_field before we read it in DNA transfer.
-        ti.sync()
+            # Ensure prior Taichi kernels (e.g. inject_sensory_data) have finished
+            # writing to energy_field before we read it in DNA transfer.
+            ti.sync()
 
-        # Step 0: Rebuild grid-node map for lock-and-key DNA lookups
-        _clear_grid_map(self.grid_node_id)
-        if self._count > 0:
-            _build_grid_map(self.grid_node_id)
+            # Step 0: Rebuild grid-node map for lock-and-key DNA lookups
+            _clear_grid_map(self.grid_node_id)
+            if self._count > 0:
+                _build_grid_map(self.grid_node_id)
 
-        # Step 1: DNA-based energy transfer
-        t0 = time.time()
-        if self._count > 0:
-            _dna_transfer_kernel(
-                self.energy_field,
-                self.grid_node_id,
-                self.H, self.W,
-                self.transfer_dt,
-                self.gate_threshold,
-                self.frame_counter,
-                self.transfer_strength,
-            )
-        transfer_time = time.time() - t0
-
-        # Step 2: Sync node energies from the field
-        # Only the grid-map owner of each cell syncs — prevents multi-occupancy
-        # nodes from getting identical energy and making synchronized decisions.
-        if self._count > 0:
-            _sync_energy_from_field(self.energy_field, self.grid_node_id)
-
-        # Steps 4 & 5: Death + Spawn (reset per-step counters first)
-        t0 = time.time()
-        _deaths_count[None] = 0
-        _spawns_count[None] = 0
-
-        if self._count > 0:
-            _death_kernel(self.death_threshold)
-
-            # Adaptive spawn threshold and cost, both derived from avg dynamic node energy.
-            #   birth_threshold = avg_dyn_e × 1.10
-            #     → only nodes with above-average energy can reproduce
-            #   birth_cost = birth_threshold × 0.75
-            #     → parent keeps 25% of the threshold surplus after spawning
-            #   child_energy = birth_cost × child_energy_fraction
-            #
-            # Recomputed every 10 steps (Taichi→CPU numpy read is expensive).
-            if self.frame_counter % 10 == 0 or not hasattr(self, '_cached_avg_dyn_e'):
-                state_np  = _node_state.to_numpy()[:self._count]
-                energy_np = _node_energy.to_numpy()[:self._count]
-                dyn_mask  = (state_np != 0) & (((state_np >> 61) & 3) == 1)
-                dyn_e     = energy_np[dyn_mask]
-                self._cached_avg_dyn_e = (
-                    float(dyn_e.mean()) if len(dyn_e) > 0 else self.spawn_threshold
+            # Step 1: DNA-based energy transfer
+            t0 = time.time()
+            if self._count > 0:
+                _dna_transfer_kernel(
+                    self.energy_field,
+                    self.grid_node_id,
+                    self.H, self.W,
+                    self.transfer_dt,
+                    self.gate_threshold,
+                    self.frame_counter,
+                    self.transfer_strength,
                 )
-            avg_dyn_e = self._cached_avg_dyn_e
-            effective_spawn_threshold = avg_dyn_e * 1.10
-            effective_spawn_cost      = effective_spawn_threshold * 0.75
-            effective_child_energy    = effective_spawn_cost * self.child_energy_fraction
+            transfer_time = time.time() - t0
 
-            _spawn_kernel(
-                self.H, self.W,
-                effective_spawn_threshold, effective_spawn_cost, effective_child_energy,
-                self._spawn_limit(),
-                self._count,   # snapshot before spawn — prevents chain-spawn
-            )
+            # Step 2: Sync node energies from the field
+            # Only the grid-map owner of each cell syncs — prevents multi-occupancy
+            # nodes from getting identical energy and making synchronized decisions.
+            if self._count > 0:
+                _sync_energy_from_field(self.energy_field, self.grid_node_id)
 
-        deaths = int(_deaths_count[None])
-        spawns = int(_spawns_count[None])
+            # Steps 4 & 5: Death + Spawn (reset per-step counters first)
+            t0 = time.time()
+            _deaths_count[None] = 0
+            _spawns_count[None] = 0
 
-        # Keep Python-side count in sync with the Taichi scalar field.
-        # Taichi field access (field[None]) automatically synchronizes the GPU.
-        self._count = int(_node_count[None])
-        rules_time = time.time() - t0
+            if self._count > 0:
+                _death_kernel(self.death_threshold)
 
-        # Step 6: Clamp field to valid energy range
-        _clamp_kernel(self.energy_field, self.death_threshold, self.energy_cap)
+                # Adaptive spawn threshold and cost, both derived from avg dynamic node energy.
+                #   birth_threshold = avg_dyn_e × 1.10
+                #     → only nodes with above-average energy can reproduce
+                #   birth_cost = birth_threshold × 0.75
+                #     → parent keeps 25% of the threshold surplus after spawning
+                #   child_energy = birth_cost × child_energy_fraction
+                #
+                # Recomputed every 10 steps (Taichi→CPU numpy read is expensive).
+                if self.frame_counter % 10 == 0 or not hasattr(self, '_cached_avg_dyn_e'):
+                    state_np  = _node_state.to_numpy()[:self._count]
+                    energy_np = _node_energy.to_numpy()[:self._count]
+                    dyn_mask  = (state_np != 0) & (((state_np >> 61) & 3) == 1)
+                    dyn_e     = energy_np[dyn_mask]
+                    self._cached_avg_dyn_e = (
+                        float(dyn_e.mean()) if len(dyn_e) > 0 else self.spawn_threshold
+                    )
+                avg_dyn_e = self._cached_avg_dyn_e
+                effective_spawn_threshold = avg_dyn_e * 1.10
+                effective_spawn_cost      = effective_spawn_threshold * 0.75
+                effective_child_energy    = effective_spawn_cost * self.child_energy_fraction
 
-        # Warn at 90% capacity: gives operators ~400k slots of headroom before hard stop
-        if self._count > MAX_NODES * 0.9:
-            logger.warning(
-                "Node buffer at %.0f%% capacity (%s / %s)",
-                100 * self._count / MAX_NODES, f"{self._count:,}", f"{MAX_NODES:,}",
-            )
+                _spawn_kernel(
+                    self.H, self.W,
+                    effective_spawn_threshold, effective_spawn_cost, effective_child_energy,
+                    self._spawn_limit(),
+                    self._count,   # snapshot before spawn — prevents chain-spawn
+                )
 
-        self.total_spawns += spawns
-        self.total_deaths += deaths
-        self.frame_counter += 1
+            deaths = int(_deaths_count[None])
+            spawns = int(_spawns_count[None])
 
-        total_time = time.time() - t_start
+            # Keep Python-side count in sync with the Taichi scalar field.
+            # Taichi field access (field[None]) automatically synchronizes the GPU.
+            self._count = int(_node_count[None])
+            rules_time = time.time() - t0
 
-        if self.frame_counter % 90 == 0:
-            logger.info(
-                "STEP | Total: %.1fms | Transfer: %.1fms | Rules: %.1fms | "
-                "Nodes: %s | Spawns: %d | Deaths: %d",
-                total_time * 1000, transfer_time * 1000, rules_time * 1000,
-                f"{self._count:,}", spawns, deaths,
-            )
+            # Step 6: Clamp field to valid energy range
+            _clamp_kernel(self.energy_field, self.death_threshold, self.energy_cap)
 
-        total_grid_ops = self.grid_operations_per_step
-        ops_per_sec    = total_grid_ops / total_time if total_time > 0 else 0.0
+            # Warn at 90% capacity: gives operators ~400k slots of headroom before hard stop
+            if self._count > MAX_NODES * 0.9:
+                logger.warning(
+                    "Node buffer at %.0f%% capacity (%s / %s)",
+                    100 * self._count / MAX_NODES, f"{self._count:,}", f"{MAX_NODES:,}",
+                )
 
-        return {
-            "total_time":            total_time,
-            "transfer_time":         transfer_time,
-            "rules_time":            rules_time,
-            "spawns":                spawns,
-            "deaths":                deaths,
-            "num_nodes":             self._count,
-            "total_spawns":          self.total_spawns,
-            "total_deaths":          self.total_deaths,
-            "grid_operations":       total_grid_ops,
-            "operations_per_second": ops_per_sec,
-            "avg_energy":            float(self.energy_field.mean().item()),
-            "max_energy":            float(self.energy_field.max().item()),
-            "transfer_mode":         "dna_taichi",
-        }
+            self.total_spawns += spawns
+            self.total_deaths += deaths
+            self.frame_counter += 1
+
+            total_time = time.time() - t_start
+
+            if self.frame_counter % 90 == 0:
+                logger.info(
+                    "STEP | Total: %.1fms | Transfer: %.1fms | Rules: %.1fms | "
+                    "Nodes: %s | Spawns: %d | Deaths: %d",
+                    total_time * 1000, transfer_time * 1000, rules_time * 1000,
+                    f"{self._count:,}", spawns, deaths,
+                )
+
+            total_grid_ops = self.grid_operations_per_step
+            ops_per_sec    = total_grid_ops / total_time if total_time > 0 else 0.0
+
+            return {
+                "total_time":            total_time,
+                "transfer_time":         transfer_time,
+                "rules_time":            rules_time,
+                "spawns":                spawns,
+                "deaths":                deaths,
+                "num_nodes":             self._count,
+                "total_spawns":          self.total_spawns,
+                "total_deaths":          self.total_deaths,
+                "grid_operations":       total_grid_ops,
+                "operations_per_second": ops_per_sec,
+                "avg_energy":            float(self.energy_field.mean().item()),
+                "max_energy":            float(self.energy_field.max().item()),
+                "transfer_mode":         "dna_taichi",
+            }
 
     def _spawn_limit(self) -> int:
         """Rate-limit spawning per step based on current node count.
@@ -939,24 +943,25 @@ class TaichiNeuralEngine:
 
         Returns: [h, w] float32 CPU tensor (zeros where no workspace node).
         """
-        y0, y1, x0, x1 = region
-        h, w = y1 - y0, x1 - x0
+        with self.step_lock:
+            y0, y1, x0, x1 = region
+            h, w = y1 - y0, x1 - x0
 
-        with self._workspace_cache_lock:
-            if not self._workspace_cache_valid or self._workspace_cached_region != (y0, y1, x0, x1):
-                self._build_workspace_cache(y0, y1, x0, x1)
+            with self._workspace_cache_lock:
+                if not self._workspace_cache_valid or self._workspace_cached_region != (y0, y1, x0, x1):
+                    self._build_workspace_cache(y0, y1, x0, x1)
 
-        if self._workspace_local_y is None or len(self._workspace_local_y) == 0:
-            return torch.zeros((h, w), dtype=torch.float32)
+            if self._workspace_local_y is None or len(self._workspace_local_y) == 0:
+                return torch.zeros((h, w), dtype=torch.float32)
 
-        energy_grid = torch.zeros((h, w), device=self.device, dtype=torch.float32)
-        energy_grid[self._workspace_local_y, self._workspace_local_x] = (
-            self.energy_field[
-                self._workspace_local_y + y0,
-                self._workspace_local_x + x0,
-            ]
-        )
-        return energy_grid.cpu()
+            energy_grid = torch.zeros((h, w), device=self.device, dtype=torch.float32)
+            energy_grid[self._workspace_local_y, self._workspace_local_x] = (
+                self.energy_field[
+                    self._workspace_local_y + y0,
+                    self._workspace_local_x + x0,
+                ]
+            )
+            return energy_grid.cpu()
 
     def _build_workspace_cache(self, y0: int, y1: int, x0: int, x1: int) -> None:
         """Scan Taichi fields once to find all workspace nodes in the region."""
