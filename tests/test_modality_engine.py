@@ -66,4 +66,5 @@ def test_modality_neutral_when_omitted():
         mod = (state >> MODALITY_SHIFT) & MODALITY_MASK
         assert mod == MODALITY_NEUTRAL
     finally:
+        TaichiNeuralEngine._instance = None
         del engine
