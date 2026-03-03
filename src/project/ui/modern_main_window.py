@@ -1555,6 +1555,31 @@ class ModernMainWindow(QMainWindow):
         t['t_system'] = (time.time() - t_system_start) * 1000
         return step_result, metrics, t
 
+    def _update_audio(self, current_time: float) -> None:
+        """Process audio input spectrum and update audio output."""
+        if (self.audio_capture is None
+                or not self.audio_capture.is_running
+                or self.system is None):
+            return
+        try:
+            spectrum = self.audio_capture.get_latest()  # (2, fft_bins)
+            self.system.process_audio_frame(spectrum)
+
+            # Update spectrum canvas (~10 FPS to save CPU)
+            if not hasattr(self, '_last_audio_canvas_t'):
+                self._last_audio_canvas_t = 0.0
+            if current_time - self._last_audio_canvas_t > 0.1:
+                self._update_audio_spectrum_canvas(spectrum)
+                self._last_audio_canvas_t = current_time
+
+            # Feed workspace energy back to audio output
+            if self.audio_output is not None and self.audio_output.is_running:
+                ws_data = self.system.get_audio_workspace_energies()
+                if ws_data is not None:
+                    self.audio_output.update_amplitudes(ws_data[0], ws_data[1])
+        except Exception as audio_err:
+            logger.debug("Audio processing error: %s", audio_err)
+
     @pyqtSlot()
     def periodic_update(self) -> None:
         """Periodic update function with performance optimization and frame throttling."""
@@ -1597,27 +1622,7 @@ class ModernMainWindow(QMainWindow):
                         self.status_bar.showMessage(f"Workspace error: {str(e)}")
 
                 # Audio processing (inject spectrum + read workspace + update output)
-                if (self.audio_capture is not None
-                        and self.audio_capture.is_running
-                        and self.system is not None):
-                    try:
-                        spectrum = self.audio_capture.get_latest()  # (2, fft_bins)
-                        self.system.process_audio_frame(spectrum)
-
-                        # Update spectrum canvas (~10 FPS to save CPU)
-                        if not hasattr(self, '_last_audio_canvas_t'):
-                            self._last_audio_canvas_t = 0.0
-                        if current_time - self._last_audio_canvas_t > 0.1:
-                            self._update_audio_spectrum_canvas(spectrum)
-                            self._last_audio_canvas_t = current_time
-
-                        # Feed workspace energy back to audio output
-                        if self.audio_output is not None and self.audio_output.is_running:
-                            ws_data = self.system.get_audio_workspace_energies()
-                            if ws_data is not None:
-                                self.audio_output.update_amplitudes(ws_data[0], ws_data[1])
-                    except Exception as audio_err:
-                        logger.debug("Audio processing error: %s", audio_err)
+                self._update_audio(current_time)
 
                 # Queue connection tasks with visual feedback
                 self.frame_counter += 1
