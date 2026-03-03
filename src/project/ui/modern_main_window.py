@@ -168,6 +168,7 @@ class ModernMainWindow(QMainWindow):
         self.sensory_scene = QGraphicsScene()
         self.sensory_view.setScene(self.sensory_scene)
         self.sensory_view.setMaximumHeight(200)
+        self._sensory_pixmap_item = None
         left_layout.addWidget(self.sensory_view, stretch=1)
 
         # Create audio spectrum visualization
@@ -852,8 +853,10 @@ class ModernMainWindow(QMainWindow):
 
             # Create QPixmap and display
             pixmap = QPixmap.fromImage(q_image)
-            self.sensory_scene.clear()
-            self.sensory_scene.addPixmap(pixmap)
+            if self._sensory_pixmap_item is None:
+                self._sensory_pixmap_item = self.sensory_scene.addPixmap(pixmap)
+            else:
+                self._sensory_pixmap_item.setPixmap(pixmap)
             self.sensory_view.fitInView(
                 self.sensory_scene.itemsBoundingRect(),
                 Qt.AspectRatioMode.KeepAspectRatio
