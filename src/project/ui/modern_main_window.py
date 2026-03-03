@@ -1390,13 +1390,16 @@ class ModernMainWindow(QMainWindow):
                 logger.error(f"Failed to start workspace system: {e}")
                 ErrorHandler.show_error("Workspace Error", f"Failed to start workspace system: {str(e)}")
 
-        # Set up TaichiGUIManager so center column toggle buttons work
+        # Set up TaichiGUIManager so center column toggle buttons work.
+        # Use self.system (not the local `system` param, which may be None
+        # when start_system() is called without arguments from _handle_start).
         try:
             from project.visualization.taichi_gui_manager import TaichiGUIManager
-            if hasattr(system, 'engine'):
-                self._gui_manager = TaichiGUIManager(system.engine)
-            elif hasattr(system, '_engine'):
-                self._gui_manager = TaichiGUIManager(system._engine)
+            sys = self.system
+            if hasattr(sys, 'engine'):
+                self._gui_manager = TaichiGUIManager(sys.engine)
+            elif hasattr(sys, '_engine'):
+                self._gui_manager = TaichiGUIManager(sys._engine)
         except Exception as e:
             logger.warning("TaichiGUIManager unavailable: %s", e)
 
