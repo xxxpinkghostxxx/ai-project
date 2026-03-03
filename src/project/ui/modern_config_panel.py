@@ -880,8 +880,8 @@ class ModernConfigPanel(QDialog):
 
             if reply == QMessageBox.StandardButton.Yes:
                 # Create a fresh ConfigManager to get defaults, then save over the current config
-                fresh_config = ConfigManager.shared()
-                # The shared instance already has defaults loaded — save them to disk
+                fresh_config = ConfigManager()
+                # Fresh instance has no loaded user config — its defaults are the reset target
                 self.config_manager.config = fresh_config.config
                 self.config_manager.save_config()
                 logger.info("Configuration reset to defaults and saved to disk")
