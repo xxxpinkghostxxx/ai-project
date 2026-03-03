@@ -1029,8 +1029,11 @@ class TaichiNeuralEngine:
             self._workspace_cache_valid = True
             return
 
-        # Ensure all GPU kernels have finished before reading back to CPU
-        ti.sync()
+        # Ensure all GPU kernels have finished before reading back to CPU.
+        # Use torch.cuda.synchronize() instead of ti.sync() because ti.sync()
+        # asserts main-thread-only in Taichi 1.7 and this path is called from
+        # the workspace background thread.
+        torch.cuda.synchronize()
 
         state_np = _node_state.to_numpy()[:n]
         pos_y_np = _node_pos_y.to_numpy()[:n]
