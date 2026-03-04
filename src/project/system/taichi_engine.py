@@ -13,16 +13,20 @@ Architecture note (Taichi 1.7.x):
     Module-level Taichi fields (node data) are accessed by name inside the kernels.
     Only one engine instance is supported per process.
 
-Node capacity: pre-allocated at MAX_NODES (4 million) at startup.
+Node capacity: pre-allocated at MAX_NODES (2 million) at startup.
 Dead nodes (state == 0) contribute zero energy automatically.
 
 Bit layout (64-bit int64 per node, matches config.py):
     bit 63      : alive flag
     bits 62-61  : node_type  (0=sensory, 1=dynamic, 2=workspace)
     bits 60-58  : conn_type  (0-7, eight connection types)
-    bits 57-18  : DNA × 8 neighbors, 5 bits each [MODE:1][PARAM:4]
-    bits 17-3   : reserved
+    bits 57-3   : reserved (DNA moved to _node_dna field)
     bits 2-0    : modality  (0=neutral, 1=visual, 2=audio_L, 3=audio_R)
+
+3D DNA layout (separate _node_dna field, 3 int64 words per node):
+    26 neighbor slots × 5 bits = 130 bits packed into 3 int64 words.
+    Word 0: slots 0-11 (bits 0-59), word 1: slots 12-23, word 2: slots 24-25.
+    Each 5-bit slot: [MODE:1][PARAM:4].
 """
 
 import logging
@@ -56,6 +60,11 @@ from project.config import (
     SPAWN_TIER_2_LIMIT,
     SPAWN_TIER_3_LIMIT,
     SPAWN_TIER_4_LIMIT,
+    NEIGHBOR_OFFSETS_3D,
+    REVERSE_DIRECTION_3D,
+    DNA_SLOT_WORD,
+    DNA_SLOT_BIT,
+    NUM_NEIGHBORS_3D,
 )
 
 logger = logging.getLogger(__name__)
@@ -90,13 +99,10 @@ def init_taichi(device: str = 'auto', device_memory_fraction: float = 0.6) -> No
 # Constants
 # =============================================================================
 
-MAX_NODES = 4_000_000   # Pre-allocated ceiling. ~144 MB VRAM for all 4 fields.
+MAX_NODES = 2_000_000   # [512, 512, 8] = 2.1M cells; reduced from 4M
 
-# Moore neighborhood offsets (8 directions): up, down, left, right, 4 diagonals
-_NEIGHBOR_OFFSETS = [(-1, 0), (1, 0), (0, -1), (0, 1),
-                     (-1, -1), (-1, 1), (1, -1), (1, 1)]
-
-# DNA bit shifts for each of the 8 neighbor directions
+# Legacy Python helper — still used by _pack_state_batch (updated in Task 5).
+# DNA bits in _node_state bits 57-18 are being phased out in favour of _node_dna.
 _DNA_SHIFTS = [BINARY_DNA_BASE_SHIFT + d * BINARY_DNA_BITS_PER_NEIGHBOR
                for d in range(8)]
 
@@ -110,26 +116,31 @@ if not _taichi_initialized:
     init_taichi()
 
 # Node data
-_node_state  = ti.field(dtype=ti.i64, shape=MAX_NODES)  # packed binary state
-_node_energy = ti.field(dtype=ti.f32, shape=MAX_NODES)  # working energy
-_node_pos_y  = ti.field(dtype=ti.i32, shape=MAX_NODES)  # Y grid coordinate
-_node_pos_x  = ti.field(dtype=ti.i32, shape=MAX_NODES)  # X grid coordinate
-_node_count  = ti.field(dtype=ti.i32, shape=())          # high-water mark
-_node_charge = ti.field(dtype=ti.f32, shape=MAX_NODES)   # capacitive charge accumulator
+_node_state  = ti.field(dtype=ti.i64, shape=MAX_NODES)       # packed binary (no DNA bits in slots 57-18)
+_node_energy = ti.field(dtype=ti.f32, shape=MAX_NODES)       # working energy
+_node_pos_y  = ti.field(dtype=ti.i32, shape=MAX_NODES)       # Y grid coordinate
+_node_pos_x  = ti.field(dtype=ti.i32, shape=MAX_NODES)       # X grid coordinate
+_node_pos_z  = ti.field(dtype=ti.i32, shape=MAX_NODES)       # Z grid coordinate (NEW)
+_node_count  = ti.field(dtype=ti.i32, shape=())               # high-water mark
+_node_charge = ti.field(dtype=ti.f32, shape=MAX_NODES)        # capacitive charge
+_node_dna    = ti.field(dtype=ti.i64, shape=(MAX_NODES, 3))  # 26×5=130 bits in 3 int64s (NEW)
 
 # Per-step event counters (reset before each step)
 _deaths_count = ti.field(dtype=ti.i32, shape=())
 _spawns_count = ti.field(dtype=ti.i32, shape=())
 
-# On-GPU reduction accumulators for dynamic-node energy (avoids ~48MB GPU→CPU transfer)
-_dyn_energy_sum = ti.field(dtype=ti.f64, shape=())   # sum of dynamic node energies
-_dyn_node_count = ti.field(dtype=ti.i32, shape=())   # count of alive dynamic nodes
+# On-GPU reduction accumulators
+_dyn_energy_sum = ti.field(dtype=ti.f64, shape=())
+_dyn_node_count = ti.field(dtype=ti.i32, shape=())
 
-# Constant lookup tables (filled once at engine init)
-_neighbor_dy   = ti.field(dtype=ti.i32, shape=8)
-_neighbor_dx   = ti.field(dtype=ti.i32, shape=8)
-_dna_shifts    = ti.field(dtype=ti.i32, shape=8)
-_reverse_dir   = ti.field(dtype=ti.i32, shape=8)  # reverse direction for lock-and-key
+# Constant lookup tables for 3D neighbour kernels — filled at engine init
+_neighbor_dz   = ti.field(dtype=ti.i32, shape=26)   # Z offsets (NEW)
+_neighbor_dy   = ti.field(dtype=ti.i32, shape=26)   # extended from 8 to 26
+_neighbor_dx   = ti.field(dtype=ti.i32, shape=26)   # extended from 8 to 26
+_reverse_dir   = ti.field(dtype=ti.i32, shape=26)   # extended from 8 to 26
+_dna_slot_word = ti.field(dtype=ti.i32, shape=26)   # which int64 word per slot (NEW)
+_dna_slot_bit  = ti.field(dtype=ti.i32, shape=26)   # bit offset within word (NEW)
+# Note: _dna_shifts removed (DNA no longer packed in _node_state)
 
 # =============================================================================
 # Taichi kernels (module-level — support ti.types.ndarray() for PyTorch tensors)
@@ -508,7 +519,7 @@ class TaichiNeuralEngine:
 
     def __init__(
         self,
-        grid_size: Tuple[int, int] = (512, 512),
+        grid_size: Tuple = (512, 512, 8),   # (H, W, D) — backward compat: 2-tuple → D=8
         node_spawn_threshold: float = 20.0,
         node_death_threshold: float = -10.0,
         node_energy_cap: float = 244.0,
@@ -530,8 +541,12 @@ class TaichiNeuralEngine:
             if not _taichi_initialized:
                 init_taichi()  # fallback: init with defaults if caller forgot
 
-            self.grid_size = grid_size
-            self.H, self.W = grid_size
+            if len(grid_size) == 2:
+                self.H, self.W = grid_size
+                self.D = 8
+            else:
+                self.H, self.W, self.D = grid_size
+            self.grid_size = (self.H, self.W, self.D)
             self.device = torch.device(device if torch.cuda.is_available() else "cpu")
 
             # Node lifecycle thresholds
@@ -548,20 +563,19 @@ class TaichiNeuralEngine:
             self.total_spawns  = 0
             self.total_deaths  = 0
             self.frame_counter = 0
-            # 20 ≈ 8 DNA neighbor reads + 8 energy_field reads + 4 field ops per cell
-            self.grid_operations_per_step = self.H * self.W * 20
+            self.grid_operations_per_step = self.H * self.W * self.D * 60
 
             # ---------------------------------------------------------------
             # PyTorch energy field (shared with Taichi kernels via ndarray)
             # ---------------------------------------------------------------
             self.energy_field = torch.zeros(
-                self.H, self.W, dtype=torch.float32, device=self.device
+                self.H, self.W, self.D, dtype=torch.float32, device=self.device
             )
 
             # Grid-to-node mapping for DNA lock-and-key neighbor lookups
             # Sentinel = MAX_NODES (no valid node); used with ti.atomic_min for determinism
             self.grid_node_id = torch.full(
-                (self.H, self.W), MAX_NODES, dtype=torch.int32, device=self.device
+                (self.H, self.W, self.D), MAX_NODES, dtype=torch.int32, device=self.device
             )
 
             # Python-side count (mirrors _node_count Taichi field)
@@ -583,11 +597,13 @@ class TaichiNeuralEngine:
             # ---------------------------------------------------------------
             # Initialize constant lookup tables in module-level Taichi fields
             # ---------------------------------------------------------------
-            for d, (dy, dx) in enumerate(_NEIGHBOR_OFFSETS):
-                _neighbor_dy[d] = dy
-                _neighbor_dx[d] = dx
-                _dna_shifts[d]  = _DNA_SHIFTS[d]
-                _reverse_dir[d] = REVERSE_DIRECTION[d]
+            for n, (dz, dy, dx) in enumerate(NEIGHBOR_OFFSETS_3D):
+                _neighbor_dz[n]   = dz
+                _neighbor_dy[n]   = dy
+                _neighbor_dx[n]   = dx
+                _reverse_dir[n]   = REVERSE_DIRECTION_3D[n]
+                _dna_slot_word[n] = DNA_SLOT_WORD[n]
+                _dna_slot_bit[n]  = DNA_SLOT_BIT[n]
 
             logger.info(
                 "TaichiNeuralEngine initialized: grid=%s, MAX_NODES=%s, device=%s",
@@ -851,9 +867,11 @@ class TaichiNeuralEngine:
         _node_count[None] = end
         self._count = end
 
-        # Stamp initial energy into the field so DNA transfer sees it immediately
-        self.energy_field[new_ys.long(), new_xs.long()] = torch.maximum(
-            self.energy_field[new_ys.long(), new_xs.long()], new_e
+        # Stamp initial energy into the field so DNA transfer sees it immediately.
+        # Energy field is now 3D (H, W, D); nodes without an explicit Z coordinate
+        # are placed at z=0 by default (updated to full 3D in Task 5).
+        self.energy_field[new_ys.long(), new_xs.long(), 0] = torch.maximum(
+            self.energy_field[new_ys.long(), new_xs.long(), 0], new_e
         )
 
         # Invalidate workspace cache if workspace nodes were added
