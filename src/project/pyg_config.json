@@ -41,8 +41,9 @@
     "hybrid": {
         "enabled": true,
         "grid_size": [
-            2560,
-            1920
+            512,
+            512,
+            8
         ],
         "toroidal": true,
         "excitatory_prob": 0.2,
@@ -81,5 +82,14 @@
         "workspace_fps": 60,
         "full_ai_fps": 30,
         "sensory_fps": 30
+    },
+    "clusters": {
+        "sensory_count": 10,
+        "sensory_nodes_each": 30,
+        "sensory_radius": 3,
+        "workspace_count": 8,
+        "workspace_nodes_each": 32,
+        "workspace_radius": 3,
+        "min_cluster_separation": 8
     }
 }

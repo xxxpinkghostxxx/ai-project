@@ -77,6 +77,36 @@ DNA_MUTATION_RATE = 0.1
 REVERSE_DIRECTION = (1, 0, 3, 2, 7, 6, 5, 4)
 
 # =============================================================================
+# 3D Neighbor Geometry (26-neighbor Moore neighbourhood)
+# =============================================================================
+NUM_NEIGHBORS_3D = 26   # all 27 cells in ±1 cube minus center
+
+# 3D neighbor offsets, ordered by (dz, dy, dx) ∈ {-1,0,1}³ \ {(0,0,0)}.
+# n = (dz+1)*9 + (dy+1)*3 + (dx+1) for the raw 3×3×3 index.
+# Center is at raw index 13, so slots 0-12 → raw 0-12, slots 13-25 → raw 14-26.
+_RAW_3D = [
+    (dz, dy, dx)
+    for dz in (-1, 0, 1)
+    for dy in (-1, 0, 1)
+    for dx in (-1, 0, 1)
+    if (dz, dy, dx) != (0, 0, 0)
+]
+NEIGHBOR_OFFSETS_3D = _RAW_3D   # list of (dz, dy, dx) tuples, length 26
+
+# Reverse direction: slot n points toward (dz, dy, dx), reverse points toward (-dz, -dy, -dx).
+def _compute_reverse_3d():
+    offsets = NEIGHBOR_OFFSETS_3D
+    lookup = {o: i for i, o in enumerate(offsets)}
+    return tuple(lookup[(-dz, -dy, -dx)] for dz, dy, dx in offsets)
+
+REVERSE_DIRECTION_3D = _compute_reverse_3d()
+
+# DNA packing: 26 slots × 5 bits = 130 bits → packed into 3 int64 words (192 bits).
+# Word 0 holds slots 0-11 (bits 0-59), word 1 holds slots 12-23, word 2 holds slots 24-25.
+DNA_SLOT_WORD = tuple(n // 12 for n in range(26))   # (0,0,...,0, 1,1,...,1, 2,2)
+DNA_SLOT_BIT  = tuple((n % 12) * 5 for n in range(26))  # bit offset within word
+
+# =============================================================================
 # Spawn Rate Tiers (used by taichi_engine.py)
 # Controls how many nodes may be born per step based on current population.
 # =============================================================================
