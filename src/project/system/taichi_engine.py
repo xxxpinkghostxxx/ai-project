@@ -193,6 +193,7 @@ def _dna_transfer_kernel(
         damping = ti.exp(-ti.abs(energy) / 50.0)
 
         total = 0.0
+        # TODO Task 5: replace with 26-neighbor _node_dna access; currently broken for 3D
         for d in ti.static(range(8)):
             ny = (py + _neighbor_dy[d] + H) % H
             nx = (px + _neighbor_dx[d] + W) % W
@@ -351,6 +352,7 @@ def _spawn_kernel(
         child_x  = (_node_pos_x[i] + offset_x + W) % W
 
         # Hereditary DNA: inherit parent's DNA with 10% mutation per slot
+        # TODO Task 6: replace DNA inheritance with _node_dna 26-slot version
         dna_packed = ti.i64(0)
         for d in ti.static(range(8)):
             parent_dna = int((state >> _dna_shifts[d]) & 31)
@@ -436,6 +438,7 @@ def _write_nodes_kernel(
         _node_energy[start + i] = energies[i]
         _node_pos_y[start + i]  = pos_y[i]
         _node_pos_x[start + i]  = pos_x[i]
+        # TODO Task 3: write _node_pos_z[start+i] and _node_dna once 3D API is ready
         _node_charge[start + i] = 0.0  # Reset capacitive charge for new node
 
 
@@ -500,7 +503,7 @@ class TaichiNeuralEngine:
     ---------
     Nodes occupy slots 0.._count-1 in the module-level Taichi fields.
     Dead nodes (state == 0) are simply skipped in every kernel — their energy
-    contributes nothing automatically. No compaction needed: 4M slots give
+    contributes nothing automatically. No compaction needed: 2M slots give
     massive headroom.
 
     Energy Field
