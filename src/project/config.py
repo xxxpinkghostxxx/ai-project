@@ -84,14 +84,13 @@ NUM_NEIGHBORS_3D = 26   # all 27 cells in ±1 cube minus center
 # 3D neighbor offsets, ordered by (dz, dy, dx) ∈ {-1,0,1}³ \ {(0,0,0)}.
 # n = (dz+1)*9 + (dy+1)*3 + (dx+1) for the raw 3×3×3 index.
 # Center is at raw index 13, so slots 0-12 → raw 0-12, slots 13-25 → raw 14-26.
-_RAW_3D = [
+NEIGHBOR_OFFSETS_3D = tuple(
     (dz, dy, dx)
     for dz in (-1, 0, 1)
     for dy in (-1, 0, 1)
     for dx in (-1, 0, 1)
     if (dz, dy, dx) != (0, 0, 0)
-]
-NEIGHBOR_OFFSETS_3D = _RAW_3D   # list of (dz, dy, dx) tuples, length 26
+)   # tuple of (dz, dy, dx) tuples, length 26
 
 # Reverse direction: slot n points toward (dz, dy, dx), reverse points toward (-dz, -dy, -dx).
 def _compute_reverse_3d():
