@@ -10,8 +10,8 @@
     "workspace": {
         "width": 128,
         "height": 128,
-        "canvas_width": 364,
-        "canvas_height": 364,
+        "canvas_width": 128,
+        "canvas_height": 128,
         "enabled": true,
         "reading_interval_ms": 10,
         "energy_smoothing": false,
@@ -30,7 +30,7 @@
         "error_threshold": 0.1
     },
     "system": {
-        "update_interval": 16,
+        "update_interval": 5,
         "energy_pulse": 10.0,
         "max_energy": 255.0,
         "min_energy": 0.0,
