@@ -3,4 +3,4 @@ __pycache__/
 venv
 nul
 *.bak
-pyg_system.log
+pyg_system.log.worktrees/
