@@ -148,17 +148,21 @@ _dna_slot_bit  = ti.field(dtype=ti.i32, shape=26)   # bit offset within word (NE
 
 @ti.kernel
 def _clear_grid_map(grid_node_id: ti.types.ndarray()):
-    """Fill grid_node_id with MAX_NODES (no valid node)."""
-    for y, x in ti.ndrange(grid_node_id.shape[0], grid_node_id.shape[1]):
-        grid_node_id[y, x] = MAX_NODES
+    """Fill 3D grid_node_id [H, W, D] with MAX_NODES (no valid node)."""
+    for y, x, z in ti.ndrange(
+        grid_node_id.shape[0], grid_node_id.shape[1], grid_node_id.shape[2]
+    ):
+        grid_node_id[y, x, z] = MAX_NODES
 
 
 @ti.kernel
 def _build_grid_map(grid_node_id: ti.types.ndarray()):
-    """Scatter alive nodes into the grid map. Deterministic: lowest node ID wins."""
+    """Scatter alive nodes into the 3D grid map. Lowest node ID wins per cell."""
     for i in range(_node_count[None]):
         if _node_state[i] != 0:
-            ti.atomic_min(grid_node_id[_node_pos_y[i], _node_pos_x[i]], i)
+            ti.atomic_min(
+                grid_node_id[_node_pos_y[i], _node_pos_x[i], _node_pos_z[i]], i
+            )
 
 
 @ti.kernel
@@ -429,6 +433,7 @@ def _write_nodes_kernel(
     energies: ti.types.ndarray(),
     pos_y:    ti.types.ndarray(),
     pos_x:    ti.types.ndarray(),
+    pos_z:    ti.types.ndarray(),   # NEW
     start:    int,
     n:        int,
 ):
@@ -438,8 +443,21 @@ def _write_nodes_kernel(
         _node_energy[start + i] = energies[i]
         _node_pos_y[start + i]  = pos_y[i]
         _node_pos_x[start + i]  = pos_x[i]
-        # TODO Task 3: write _node_pos_z[start+i] and _node_dna once 3D API is ready
+        _node_pos_z[start + i]  = pos_z[i]   # NEW
         _node_charge[start + i] = 0.0  # Reset capacitive charge for new node
+
+
+@ti.kernel
+def _write_dna_kernel(
+    dna_data: ti.types.ndarray(),   # [N, 3] int64
+    start: int,
+    n: int,
+):
+    """Write DNA words for N nodes starting at slot `start`."""
+    for i in range(n):
+        _node_dna[start + i, 0] = dna_data[i, 0]
+        _node_dna[start + i, 1] = dna_data[i, 1]
+        _node_dna[start + i, 2] = dna_data[i, 2]
 
 
 @ti.kernel
@@ -462,14 +480,12 @@ def _reduce_dynamic_energy():
 # =============================================================================
 
 def _pack_state_batch(alive: torch.Tensor, node_type: torch.Tensor,
-                      conn_type: torch.Tensor, dna_q: torch.Tensor,
+                      conn_type: torch.Tensor,
                       modality: torch.Tensor) -> torch.Tensor:
-    """Pack N nodes into int64 binary states (vectorized, no Python loop)."""
+    """Pack N nodes into int64 binary states — DNA is now in _node_dna field."""
     state = (alive.to(torch.int64) << BINARY_ALIVE_BIT)
     state |= (node_type.to(torch.int64) << BINARY_NODE_TYPE_SHIFT)
     state |= (conn_type.to(torch.int64) << BINARY_CONN_TYPE_SHIFT)
-    shifts = torch.tensor(_DNA_SHIFTS, device=dna_q.device, dtype=torch.int64)
-    state |= (dna_q.to(torch.int64) << shifts.unsqueeze(0)).sum(dim=1)
     state |= modality.to(torch.int64)   # bits 2-0 = MODALITY (MODALITY_SHIFT == 0)
     return state
 
@@ -483,6 +499,17 @@ def _random_dna(n: int, device: torch.device) -> torch.Tensor:
     """Random 5-bit DNA for 8 neighbors. Returns [N, 8] int64."""
     return torch.randint(0, BINARY_DNA_MAX_VALUE + 1, (n, 8),
                          device=device, dtype=torch.int64)
+
+
+def _random_dna_3d(n: int, device: torch.device) -> torch.Tensor:
+    """Random 5-bit DNA for 26 neighbours packed into [N, 3] int64 words."""
+    slots = torch.randint(0, 32, (n, NUM_NEIGHBORS_3D), device=device, dtype=torch.int64)
+    dna = torch.zeros(n, 3, device=device, dtype=torch.int64)
+    for slot_n in range(NUM_NEIGHBORS_3D):
+        word = DNA_SLOT_WORD[slot_n]
+        bit  = DNA_SLOT_BIT[slot_n]
+        dna[:, word] |= (slots[:, slot_n] << bit)
+    return dna  # shape [N, 3]
 
 
 # =============================================================================
@@ -810,44 +837,56 @@ class TaichiNeuralEngine:
 
     def add_nodes_batch(
         self,
-        positions:  List[Tuple[int, int]],
+        positions:  List[Tuple],
         energies:   List[float],
         node_types: List[int],
         modalities: Optional[List[int]] = None,
     ) -> List[int]:
         """
-        Add N nodes at once, packing each into a binary int64 state.
-        Writes directly into the module-level Taichi fields via bulk-write kernel.
+        Add N nodes at once with 3D positions (y, x, z).
+        DNA is written to _node_dna[slot, 0..2], not packed in _node_state.
+        2-tuple positions are backward-compatible (z defaults to 0).
         """
         n = len(positions)
         if n == 0:
             return []
 
-        ys, xs = zip(*positions)
+        # Unpack positions — support both (y, x) and (y, x, z)
+        ys, xs, zs = [], [], []
+        for p in positions:
+            if len(p) == 3:
+                ys.append(p[0]); xs.append(p[1]); zs.append(p[2])
+            else:
+                ys.append(p[0]); xs.append(p[1]); zs.append(0)
+
         dev = self.device
 
-        new_ys     = torch.tensor(ys, device=dev, dtype=torch.int32) % self.H
-        new_xs     = torch.tensor(xs, device=dev, dtype=torch.int32) % self.W
-        new_e      = torch.tensor(energies, device=dev, dtype=torch.float32)
-        new_types  = torch.tensor(node_types, device=dev, dtype=torch.int64)
-        new_conn   = _random_conn_type(n, dev)
-        new_dna    = _random_dna(n, dev)
+        new_ys    = torch.tensor(ys, device=dev, dtype=torch.int32) % self.H
+        new_xs    = torch.tensor(xs, device=dev, dtype=torch.int32) % self.W
+        new_zs    = torch.tensor(zs, device=dev, dtype=torch.int32) % self.D
+        new_e     = torch.tensor(energies, device=dev, dtype=torch.float32)
+        new_types = torch.tensor(node_types, device=dev, dtype=torch.int64)
+        new_conn  = _random_conn_type(n, dev)
+        new_dna   = _random_dna_3d(n, dev)    # [N, 3] int64
 
         if modalities is not None:
             new_modality = torch.tensor(modalities, device=dev, dtype=torch.int64)
         else:
             new_modality = torch.zeros(n, device=dev, dtype=torch.int64)
 
-        # Workspace nodes (type=2) are energy buckets: excitatory + max classic DNA
-        # MODE=0, PARAM=15 → classic probability 1.0 (value 0b0_1111 = 15)
+        # Workspace nodes: excitatory conn + max DNA compatibility (PARAM=15 all slots)
         ws_mask = (new_types == 2)
         if ws_mask.any():
-            new_conn[ws_mask] = 0                       # excitatory (absorb energy)
-            new_dna[ws_mask]  = 15                      # MODE=0, PARAM=15 = max compatibility
+            new_conn[ws_mask] = 0    # excitatory
+            ws_dna = torch.zeros(n, 3, device=dev, dtype=torch.int64)
+            for slot_n in range(NUM_NEIGHBORS_3D):
+                word = DNA_SLOT_WORD[slot_n]
+                bit  = DNA_SLOT_BIT[slot_n]
+                ws_dna[:, word] |= torch.tensor(15, dtype=torch.int64, device=dev) << bit
+            new_dna[ws_mask] = ws_dna[ws_mask]
 
         alive_bits = torch.ones(n, device=dev, dtype=torch.int64)
-
-        new_state = _pack_state_batch(alive_bits, new_types, new_conn, new_dna, new_modality)
+        new_state  = _pack_state_batch(alive_bits, new_types, new_conn, new_modality)
 
         start = self._count
         end   = start + n
@@ -855,36 +894,32 @@ class TaichiNeuralEngine:
             logger.error(
                 "add_nodes_batch: %d nodes would exceed MAX_NODES=%d; truncating", n, MAX_NODES
             )
-            n         = MAX_NODES - start
-            end       = MAX_NODES
+            n = MAX_NODES - start
+            end = MAX_NODES
             if n <= 0:
                 return []
-            new_state  = new_state[:n]
-            new_e      = new_e[:n]
-            new_ys     = new_ys[:n]
-            new_xs     = new_xs[:n]
+            new_state = new_state[:n]; new_e = new_e[:n]
+            new_ys = new_ys[:n]; new_xs = new_xs[:n]; new_zs = new_zs[:n]
+            new_dna = new_dna[:n]
 
-        _write_nodes_kernel(new_state, new_e, new_ys, new_xs, start, n)
+        _write_nodes_kernel(new_state, new_e, new_ys, new_xs, new_zs, start, n)
+        _write_dna_kernel(new_dna.contiguous(), start, n)
 
-        # Sync Taichi scalar and Python counter
         _node_count[None] = end
         self._count = end
 
-        # Stamp initial energy into the field so DNA transfer sees it immediately.
-        # Energy field is now 3D (H, W, D); nodes without an explicit Z coordinate
-        # are placed at z=0 by default (updated to full 3D in Task 5).
-        self.energy_field[new_ys.long(), new_xs.long(), 0] = torch.maximum(
-            self.energy_field[new_ys.long(), new_xs.long(), 0], new_e
+        # Stamp initial energy into 3D field
+        self.energy_field[new_ys.long(), new_xs.long(), new_zs.long()] = torch.maximum(
+            self.energy_field[new_ys.long(), new_xs.long(), new_zs.long()], new_e
         )
 
-        # Invalidate workspace cache if workspace nodes were added
         if 2 in node_types:
             with self._workspace_cache_lock:
                 self._workspace_cache_valid = False
 
         return list(range(start, end))
 
-    def add_node(self, position: Tuple[int, int], energy: float, node_type: int = 1) -> int:
+    def add_node(self, position: Tuple, energy: float, node_type: int = 1) -> int:
         """Add a single node. Prefer add_nodes_batch() for bulk adds."""
         return self.add_nodes_batch([position], [energy], [node_type])[0]
 
