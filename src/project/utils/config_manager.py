@@ -96,7 +96,7 @@ class ConfigManager:
             },
             'hybrid': {
                 'enabled': True,
-                'grid_size': [512, 512],
+                'grid_size': [512, 512, 8],
                 'toroidal': True,
                 'excitatory_prob': 0.6,
                 'inhibitory_prob': 0.2,
@@ -397,8 +397,8 @@ class ConfigManager:
 
                 grid_size = hybrid.get('grid_size')
                 if grid_size is not None:
-                    if not isinstance(grid_size, list) or len(grid_size) != 2:
-                        raise ValueError("Hybrid 'grid_size' must be a list of 2 integers")
+                    if not isinstance(grid_size, list) or len(grid_size) not in (2, 3):
+                        raise ValueError("Hybrid 'grid_size' must be a list of 2 or 3 integers")
                     if not all(isinstance(v, int) and v > 0 for v in grid_size):
                         raise ValueError("Hybrid 'grid_size' values must be positive integers")
 
@@ -442,8 +442,8 @@ class ConfigManager:
             hybrid_raw2 = config.get('hybrid', {})
             if isinstance(hybrid_raw2, dict):
                 grid_sz = hybrid_raw2.get('grid_size')
-                if isinstance(grid_sz, list) and len(grid_sz) == 2:
-                    grid_h, grid_w = grid_sz
+                if isinstance(grid_sz, list) and len(grid_sz) in (2, 3):
+                    grid_h, grid_w = grid_sz[0], grid_sz[1]
                     sens_h = sensory.get('height', 0)
                     sens_w = sensory.get('width', 0)
                     if isinstance(grid_h, int) and isinstance(sens_h, int) and sens_h > grid_h:

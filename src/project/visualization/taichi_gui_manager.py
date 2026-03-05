@@ -27,6 +27,8 @@ from typing import Optional
 import taichi as ti
 import torch
 
+from project.system.taichi_engine import project_energy_field_to_2d
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -250,9 +252,10 @@ class TaichiGUIManager:
             ws_x0  = 0
             while not stop.is_set() and window.running:
                 t0 = time.perf_counter()
-                e_lo = float(engine.energy_field[ws_y0:ws_y0+ws_h, ws_x0:ws_x0+ws_w].min())
-                e_hi = float(engine.energy_field[ws_y0:ws_y0+ws_h, ws_x0:ws_x0+ws_w].max()) + 1e-6
-                _fill_workspace_display(engine.energy_field, ws_y0, ws_x0, ws_h, ws_w, e_lo, e_hi)
+                ef2d = project_energy_field_to_2d(engine.energy_field)
+                e_lo = float(ef2d[ws_y0:ws_y0+ws_h, ws_x0:ws_x0+ws_w].min())
+                e_hi = float(ef2d[ws_y0:ws_y0+ws_h, ws_x0:ws_x0+ws_w].max()) + 1e-6
+                _fill_workspace_display(ef2d, ws_y0, ws_x0, ws_h, ws_w, e_lo, e_hi)
                 canvas.set_image(_display_workspace)
                 window.show()
                 elapsed = time.perf_counter() - t0
@@ -275,9 +278,10 @@ class TaichiGUIManager:
             engine = self._engine
             while not stop.is_set() and window.running:
                 t0 = time.perf_counter()
-                e_lo = float(engine.energy_field.min())
-                e_hi = float(engine.energy_field.max()) + 1e-6
-                _fill_full_ai_display(engine.energy_field, engine.H, engine.W, e_lo, e_hi)
+                ef2d = project_energy_field_to_2d(engine.energy_field)
+                e_lo = float(ef2d.min())
+                e_hi = float(ef2d.max()) + 1e-6
+                _fill_full_ai_display(ef2d, engine.H, engine.W, e_lo, e_hi)
                 canvas.set_image(_display_full_ai)
                 window.show()
                 elapsed = time.perf_counter() - t0
@@ -302,9 +306,10 @@ class TaichiGUIManager:
             sen_w  = min(1920, engine.W)
             while not stop.is_set() and window.running:
                 t0 = time.perf_counter()
-                e_lo = float(engine.energy_field[:sen_h, :sen_w].min())
-                e_hi = float(engine.energy_field[:sen_h, :sen_w].max()) + 1e-6
-                _fill_sensory_display(engine.energy_field, 0, 0, sen_h, sen_w, e_lo, e_hi)
+                ef2d = project_energy_field_to_2d(engine.energy_field)
+                e_lo = float(ef2d[:sen_h, :sen_w].min())
+                e_hi = float(ef2d[:sen_h, :sen_w].max()) + 1e-6
+                _fill_sensory_display(ef2d, 0, 0, sen_h, sen_w, e_lo, e_hi)
                 canvas.set_image(_display_sensory)
                 window.show()
                 elapsed = time.perf_counter() - t0

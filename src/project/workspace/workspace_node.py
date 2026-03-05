@@ -12,17 +12,19 @@ from typing import List
 class WorkspaceNode:
     """Represents a single workspace node in the 16x16 grid."""
     
-    def __init__(self, node_id: int, grid_x: int, grid_y: int):
+    def __init__(self, node_id: int, grid_x: int, grid_y: int, grid_z: int = 0):
         """
         Initialize a workspace node.
-        
+
         Args:
             node_id: Unique identifier for the node
-            grid_x: X coordinate in the 16x16 grid (0-15)
-            grid_y: Y coordinate in the 16x16 grid (0-15)
+            grid_x: X coordinate in the workspace grid
+            grid_y: Y coordinate in the workspace grid
+            grid_z: Z coordinate (depth layer, default 0)
         """
         self.node_id = node_id
         self.grid_position = (grid_x, grid_y)
+        self.z = grid_z
         self.associated_sensory_nodes = []  # List of sensory node IDs
         self.current_energy = 0.0
         self.energy_history = deque(maxlen=100)  # Time series data for smoothing

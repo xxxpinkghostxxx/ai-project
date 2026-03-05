@@ -13,16 +13,20 @@ Architecture note (Taichi 1.7.x):
     Module-level Taichi fields (node data) are accessed by name inside the kernels.
     Only one engine instance is supported per process.
 
-Node capacity: pre-allocated at MAX_NODES (4 million) at startup.
+Node capacity: pre-allocated at MAX_NODES (2 million) at startup.
 Dead nodes (state == 0) contribute zero energy automatically.
 
 Bit layout (64-bit int64 per node, matches config.py):
     bit 63      : alive flag
     bits 62-61  : node_type  (0=sensory, 1=dynamic, 2=workspace)
     bits 60-58  : conn_type  (0-7, eight connection types)
-    bits 57-18  : DNA × 8 neighbors, 5 bits each [MODE:1][PARAM:4]
-    bits 17-3   : reserved
+    bits 57-3   : reserved (DNA moved to _node_dna field)
     bits 2-0    : modality  (0=neutral, 1=visual, 2=audio_L, 3=audio_R)
+
+3D DNA layout (separate _node_dna field, 3 int64 words per node):
+    26 neighbor slots × 5 bits = 130 bits packed into 3 int64 words.
+    Word 0: slots 0-11 (bits 0-59), word 1: slots 12-23, word 2: slots 24-25.
+    Each 5-bit slot: [MODE:1][PARAM:4].
 """
 
 import logging
@@ -56,9 +60,25 @@ from project.config import (
     SPAWN_TIER_2_LIMIT,
     SPAWN_TIER_3_LIMIT,
     SPAWN_TIER_4_LIMIT,
+    NEIGHBOR_OFFSETS_3D,
+    REVERSE_DIRECTION_3D,
+    DNA_SLOT_WORD,
+    DNA_SLOT_BIT,
+    NUM_NEIGHBORS_3D,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def project_energy_field_to_2d(energy_field: torch.Tensor) -> torch.Tensor:
+    """Max-pool a 3D energy_field [H, W, D] to a 2D display image [H, W].
+
+    Each pixel shows the brightest Z layer.  2D inputs are returned unchanged.
+    """
+    if energy_field.dim() == 2:
+        return energy_field
+    return energy_field.max(dim=2).values
+
 
 # =============================================================================
 # Taichi initialization — lazy, so config can override device/memory settings
@@ -90,13 +110,10 @@ def init_taichi(device: str = 'auto', device_memory_fraction: float = 0.6) -> No
 # Constants
 # =============================================================================
 
-MAX_NODES = 4_000_000   # Pre-allocated ceiling. ~144 MB VRAM for all 4 fields.
+MAX_NODES = 2_000_000   # [512, 512, 8] = 2.1M cells; reduced from 4M
 
-# Moore neighborhood offsets (8 directions): up, down, left, right, 4 diagonals
-_NEIGHBOR_OFFSETS = [(-1, 0), (1, 0), (0, -1), (0, 1),
-                     (-1, -1), (-1, 1), (1, -1), (1, 1)]
-
-# DNA bit shifts for each of the 8 neighbor directions
+# Legacy Python helper — still used by _pack_state_batch (updated in Task 5).
+# DNA bits in _node_state bits 57-18 are being phased out in favour of _node_dna.
 _DNA_SHIFTS = [BINARY_DNA_BASE_SHIFT + d * BINARY_DNA_BITS_PER_NEIGHBOR
                for d in range(8)]
 
@@ -110,26 +127,31 @@ if not _taichi_initialized:
     init_taichi()
 
 # Node data
-_node_state  = ti.field(dtype=ti.i64, shape=MAX_NODES)  # packed binary state
-_node_energy = ti.field(dtype=ti.f32, shape=MAX_NODES)  # working energy
-_node_pos_y  = ti.field(dtype=ti.i32, shape=MAX_NODES)  # Y grid coordinate
-_node_pos_x  = ti.field(dtype=ti.i32, shape=MAX_NODES)  # X grid coordinate
-_node_count  = ti.field(dtype=ti.i32, shape=())          # high-water mark
-_node_charge = ti.field(dtype=ti.f32, shape=MAX_NODES)   # capacitive charge accumulator
+_node_state  = ti.field(dtype=ti.i64, shape=MAX_NODES)       # packed binary (no DNA bits in slots 57-18)
+_node_energy = ti.field(dtype=ti.f32, shape=MAX_NODES)       # working energy
+_node_pos_y  = ti.field(dtype=ti.i32, shape=MAX_NODES)       # Y grid coordinate
+_node_pos_x  = ti.field(dtype=ti.i32, shape=MAX_NODES)       # X grid coordinate
+_node_pos_z  = ti.field(dtype=ti.i32, shape=MAX_NODES)       # Z grid coordinate (NEW)
+_node_count  = ti.field(dtype=ti.i32, shape=())               # high-water mark
+_node_charge = ti.field(dtype=ti.f32, shape=MAX_NODES)        # capacitive charge
+_node_dna    = ti.field(dtype=ti.i64, shape=(MAX_NODES, 3))  # 26×5=130 bits in 3 int64s (NEW)
 
 # Per-step event counters (reset before each step)
 _deaths_count = ti.field(dtype=ti.i32, shape=())
 _spawns_count = ti.field(dtype=ti.i32, shape=())
 
-# On-GPU reduction accumulators for dynamic-node energy (avoids ~48MB GPU→CPU transfer)
-_dyn_energy_sum = ti.field(dtype=ti.f64, shape=())   # sum of dynamic node energies
-_dyn_node_count = ti.field(dtype=ti.i32, shape=())   # count of alive dynamic nodes
+# On-GPU reduction accumulators
+_dyn_energy_sum = ti.field(dtype=ti.f64, shape=())
+_dyn_node_count = ti.field(dtype=ti.i32, shape=())
 
-# Constant lookup tables (filled once at engine init)
-_neighbor_dy   = ti.field(dtype=ti.i32, shape=8)
-_neighbor_dx   = ti.field(dtype=ti.i32, shape=8)
-_dna_shifts    = ti.field(dtype=ti.i32, shape=8)
-_reverse_dir   = ti.field(dtype=ti.i32, shape=8)  # reverse direction for lock-and-key
+# Constant lookup tables for 3D neighbour kernels — filled at engine init
+_neighbor_dz   = ti.field(dtype=ti.i32, shape=26)   # Z offsets (NEW)
+_neighbor_dy   = ti.field(dtype=ti.i32, shape=26)   # extended from 8 to 26
+_neighbor_dx   = ti.field(dtype=ti.i32, shape=26)   # extended from 8 to 26
+_reverse_dir   = ti.field(dtype=ti.i32, shape=26)   # extended from 8 to 26
+_dna_slot_word = ti.field(dtype=ti.i32, shape=26)   # which int64 word per slot (NEW)
+_dna_slot_bit  = ti.field(dtype=ti.i32, shape=26)   # bit offset within word (NEW)
+# Note: _dna_shifts removed (DNA no longer packed in _node_state)
 
 # =============================================================================
 # Taichi kernels (module-level — support ti.types.ndarray() for PyTorch tensors)
@@ -137,37 +159,43 @@ _reverse_dir   = ti.field(dtype=ti.i32, shape=8)  # reverse direction for lock-a
 
 @ti.kernel
 def _clear_grid_map(grid_node_id: ti.types.ndarray()):
-    """Fill grid_node_id with MAX_NODES (no valid node)."""
-    for y, x in ti.ndrange(grid_node_id.shape[0], grid_node_id.shape[1]):
-        grid_node_id[y, x] = MAX_NODES
+    """Fill 3D grid_node_id [H, W, D] with MAX_NODES (no valid node)."""
+    for y, x, z in ti.ndrange(
+        grid_node_id.shape[0], grid_node_id.shape[1], grid_node_id.shape[2]
+    ):
+        grid_node_id[y, x, z] = MAX_NODES
 
 
 @ti.kernel
 def _build_grid_map(grid_node_id: ti.types.ndarray()):
-    """Scatter alive nodes into the grid map. Deterministic: lowest node ID wins."""
+    """Scatter alive nodes into the 3D grid map. Lowest node ID wins per cell."""
     for i in range(_node_count[None]):
         if _node_state[i] != 0:
-            ti.atomic_min(grid_node_id[_node_pos_y[i], _node_pos_x[i]], i)
+            ti.atomic_min(
+                grid_node_id[_node_pos_y[i], _node_pos_x[i], _node_pos_z[i]], i
+            )
 
 
 @ti.kernel
 def _dna_transfer_kernel(
-    energy_field:  ti.types.ndarray(),   # PyTorch CUDA tensor, zero-copy
-    grid_node_id:  ti.types.ndarray(),   # [H, W] int32, node index at each cell
+    energy_field:  ti.types.ndarray(),   # PyTorch CUDA tensor [H, W, D], zero-copy
+    grid_node_id:  ti.types.ndarray(),   # [H, W, D] int32, node index at each cell
     H: int,
     W: int,
+    D: int,
     dt: float,
     gate_threshold: float,
     frame: int,
     strength: float,
 ):
     """
-    Enhanced DNA transfer with lock-and-key compatibility, 8 connection types,
-    and DNA micro-instructions.
+    3D DNA transfer with lock-and-key compatibility, 26 neighbours, 8 connection
+    types, and DNA micro-instructions.
 
-    For every live node: compute energy exchange with its 8 DNA-weighted neighbors.
+    For every live node: compute energy exchange with its 26 DNA-weighted neighbors.
     Transfer depends on BOTH the sender's and receiver's DNA (lock-and-key).
-    DNA slot encoding: [MODE:1][PARAM:4] per 5-bit slot.
+    DNA is read from _node_dna[node, word] using _dna_slot_word / _dna_slot_bit
+    lookup tables. Each 5-bit slot: [MODE:1][PARAM:4].
     """
     for i in range(_node_count[None]):
         state = _node_state[i]
@@ -176,36 +204,38 @@ def _dna_transfer_kernel(
 
         py = _node_pos_y[i]
         px = _node_pos_x[i]
+        pz = _node_pos_z[i]
         energy = _node_energy[i]
         conn_type = int((state >> 58) & 7)
         gate_fire = 1.0 if energy > gate_threshold else 0.0
         damping = ti.exp(-ti.abs(energy) / 50.0)
 
         total = 0.0
-        for d in ti.static(range(8)):
+        for d in ti.static(range(26)):
             ny = (py + _neighbor_dy[d] + H) % H
             nx = (px + _neighbor_dx[d] + W) % W
+            nz = (pz + _neighbor_dz[d] + D) % D
 
-            # --- Extract my DNA for direction d ---
-            my_dna_raw = int((state >> _dna_shifts[d]) & 31)
+            # --- Extract my DNA for direction d from _node_dna ---
+            my_dna_raw = int((_node_dna[i, _dna_slot_word[d]] >> _dna_slot_bit[d]) & 31)
             my_mode  = (my_dna_raw >> 4) & 1
             my_param = my_dna_raw & 15
 
             # --- Lock-and-key: look up neighbor's DNA for reverse direction ---
             # NOTE: Taichi 1.7 disallows `continue` in non-static if inside
             # ti.static for. All logic must be guarded with nested ifs instead.
-            neighbor_id = grid_node_id[ny, nx]
+            neighbor_id = grid_node_id[ny, nx, nz]
             compat = 0.0
             if neighbor_id < MAX_NODES:
                 n_state = _node_state[neighbor_id]
                 if n_state != 0:
                     rd = _reverse_dir[d]
-                    their_dna_raw = int((n_state >> _dna_shifts[rd]) & 31)
+                    their_dna_raw = int((_node_dna[neighbor_id, _dna_slot_word[rd]] >> _dna_slot_bit[rd]) & 31)
                     their_param = their_dna_raw & 15
                     compat = float(my_param & their_param) / 15.0
 
             if compat > 0.0:
-                delta = energy_field[ny, nx] - energy
+                delta = energy_field[ny, nx, nz] - energy
 
                 # --- Apply DNA micro-instruction mode ---
                 dna_strength = compat
@@ -253,7 +283,7 @@ def _dna_transfer_kernel(
                     contrib = ti.min(ti.max(contrib, -100.0), 100.0)
                     if contrib != 0.0:
                         total += contrib
-                        ti.atomic_sub(energy_field[ny, nx], contrib)
+                        ti.atomic_sub(energy_field[ny, nx, nz], contrib)
 
         # Capacitive burst discharge
         if conn_type == 7 and _node_charge[i] > gate_threshold:
@@ -263,7 +293,7 @@ def _dna_transfer_kernel(
 
         # Write accumulated transfer to energy field
         if total != 0.0:
-            ti.atomic_add(energy_field[py, px], total)
+            ti.atomic_add(energy_field[py, px, pz], total)
 
 
 @ti.kernel
@@ -272,7 +302,8 @@ def _death_kernel(death_threshold: float):
     Kill dynamic nodes (type == 1) whose energy falls below threshold.
 
     Workspace nodes (type == 2) are immortal — never killed here.
-    Zeroing the state wipes alive, DNA, type, and conn fields in one operation.
+    Zeroing the state wipes alive, type, and conn fields in one operation.
+    DNA words in _node_dna are also cleared on death.
     Death count is accumulated atomically in _deaths_count.
     """
     for i in range(_node_count[None]):
@@ -284,6 +315,9 @@ def _death_kernel(death_threshold: float):
             _node_state[i]  = 0
             _node_energy[i] = 0.0
             _node_charge[i] = 0.0
+            _node_dna[i, 0] = 0
+            _node_dna[i, 1] = 0
+            _node_dna[i, 2] = 0
             ti.atomic_add(_deaths_count[None], 1)
 
 
@@ -291,6 +325,7 @@ def _death_kernel(death_threshold: float):
 def _spawn_kernel(
     H: int,
     W: int,
+    D: int,
     spawn_threshold: float,
     spawn_cost: float,
     child_energy: float,
@@ -301,13 +336,14 @@ def _spawn_kernel(
     Each live dynamic node (type == 1) with sufficient energy spawns one child.
 
     Child slot is claimed by atomically incrementing _node_count. If the buffer
-    is full the parent is skipped. Child position is parent ± 1 cell (toroidal).
-    Child DNA is inherited from parent with 10% per-slot bit-flip mutation.
-    Connection type is random (8 types).
+    is full the parent is skipped. Child position is parent +/- 1 cell (toroidal
+    in Y, X, and Z). Child DNA is inherited from _node_dna (26 slots, 3 int64
+    words) with 10% per-slot bit-flip mutation. Connection type is random (8
+    types).
 
     Spawn count accumulated atomically in _spawns_count.
 
-    n_existing: snapshot of node count *before* this kernel — prevents newly
+    n_existing: snapshot of node count *before* this kernel -- prevents newly
     spawned children from being visited (and chain-spawning) in the same step.
     """
     for i in range(n_existing):
@@ -333,30 +369,38 @@ def _spawn_kernel(
             ti.atomic_sub(_spawns_count[None], 1)  # undo spawn claim too
             continue
 
-        # Random ±1 offset from parent (toroidal grid wrap)
+        # Random ±1 offset from parent (toroidal grid wrap in Y, X, Z)
         offset_y = int(ti.random() * 3.0) - 1
         offset_x = int(ti.random() * 3.0) - 1
+        offset_z = int(ti.random() * 3.0) - 1
         child_y  = (_node_pos_y[i] + offset_y + H) % H
         child_x  = (_node_pos_x[i] + offset_x + W) % W
+        child_z  = (_node_pos_z[i] + offset_z + D) % D
 
-        # Hereditary DNA: inherit parent's DNA with 10% mutation per slot
-        dna_packed = ti.i64(0)
-        for d in ti.static(range(8)):
-            parent_dna = int((state >> _dna_shifts[d]) & 31)
-            if ti.random() < 0.1:   # 10% mutation chance
-                bit = ti.min(int(ti.random() * 5.0), 4)
-                parent_dna = parent_dna ^ (1 << bit)
-            dna_packed |= ti.i64(parent_dna) << _dna_shifts[d]
+        # Hereditary DNA: inherit parent's 26-slot DNA with 10% mutation per slot
+        # Clear child DNA words first
+        _node_dna[slot, 0] = ti.i64(0)
+        _node_dna[slot, 1] = ti.i64(0)
+        _node_dna[slot, 2] = ti.i64(0)
+
+        for d in ti.static(range(26)):
+            word = _dna_slot_word[d]
+            bit  = _dna_slot_bit[d]
+            parent_dna = int((_node_dna[i, word] >> bit) & 31)
+            if ti.random() < 0.1:
+                flip_bit = ti.min(int(ti.random() * 5.0), 4)
+                parent_dna = parent_dna ^ (1 << flip_bit)
+            _node_dna[slot, word] = _node_dna[slot, word] | (ti.i64(parent_dna) << bit)
 
         conn_type = ti.min(int(ti.random() * 8.0), 7)  # 8 connection types
 
-        # Pack child state: alive=1, type=1 (dynamic), inherited DNA + parent modality
+        # Pack child state: alive=1, type=1 (dynamic), conn_type + parent modality
+        # DNA is stored separately in _node_dna — NOT packed in _node_state
         parent_modality = state & ti.i64(7)   # bits 2-0 of parent state
         new_state = (
             (ti.i64(1) << 63)           # alive bit
           | (ti.i64(1) << 61)           # node type = dynamic (1)
           | (ti.i64(conn_type) << 58)   # connection type (3 bits)
-          | dna_packed
           | parent_modality             # inherit parent modality (bits 2-0)
         )
 
@@ -364,6 +408,7 @@ def _spawn_kernel(
         _node_energy[slot] = child_energy
         _node_pos_y[slot]  = child_y
         _node_pos_x[slot]  = child_x
+        _node_pos_z[slot]  = child_z
         _node_charge[slot] = 0.0  # Reset capacitive charge for new node
 
         _node_energy[i] -= spawn_cost
@@ -371,13 +416,15 @@ def _spawn_kernel(
 
 @ti.kernel
 def _clamp_kernel(energy_field: ti.types.ndarray(), lo: float, hi: float):
-    """Clamp every cell of energy_field to [lo, hi]. Parallel over all H×W cells."""
-    for y, x in ti.ndrange(energy_field.shape[0], energy_field.shape[1]):
-        v = energy_field[y, x]
+    """Clamp every cell of energy_field to [lo, hi]. Parallel over all H×W×D cells."""
+    for y, x, z in ti.ndrange(
+        energy_field.shape[0], energy_field.shape[1], energy_field.shape[2]
+    ):
+        v = energy_field[y, x, z]
         if v < lo:
-            energy_field[y, x] = lo
+            energy_field[y, x, z] = lo
         elif v > hi:
-            energy_field[y, x] = hi
+            energy_field[y, x, z] = hi
 
 
 @ti.kernel
@@ -385,16 +432,17 @@ def _inject_sensory_kernel(
     energy_field: ti.types.ndarray(),
     data:         ti.types.ndarray(),
     y0: int, x0: int, h: int, w: int,
+    z: int,
 ):
-    """Write raw data values as energy into the sensory region of energy_field."""
+    """Write raw data values as energy into a specific Z layer of energy_field."""
     for dy, dx in ti.ndrange(h, w):
-        energy_field[y0 + dy, x0 + dx] = data[dy, dx]
+        energy_field[y0 + dy, x0 + dx, z] = data[dy, dx]
 
 
 @ti.kernel
 def _sync_energy_from_field(energy_field: ti.types.ndarray(), grid_node_id: ti.types.ndarray()):
     """
-    Sync each live node's working energy from its position in energy_field.
+    Sync each live node's working energy from its 3D position in energy_field.
     Called after DNA transfer so birth/death decisions see the current values.
 
     Only the grid-map owner of each cell (lowest node ID) syncs from the field.
@@ -406,8 +454,9 @@ def _sync_energy_from_field(energy_field: ti.types.ndarray(), grid_node_id: ti.t
         if _node_state[i] != 0:
             y = _node_pos_y[i]
             x = _node_pos_x[i]
-            if grid_node_id[y, x] == i:
-                _node_energy[i] = energy_field[y, x]
+            z = _node_pos_z[i]
+            if grid_node_id[y, x, z] == i:
+                _node_energy[i] = energy_field[y, x, z]
 
 
 @ti.kernel
@@ -416,6 +465,7 @@ def _write_nodes_kernel(
     energies: ti.types.ndarray(),
     pos_y:    ti.types.ndarray(),
     pos_x:    ti.types.ndarray(),
+    pos_z:    ti.types.ndarray(),   # NEW
     start:    int,
     n:        int,
 ):
@@ -425,7 +475,21 @@ def _write_nodes_kernel(
         _node_energy[start + i] = energies[i]
         _node_pos_y[start + i]  = pos_y[i]
         _node_pos_x[start + i]  = pos_x[i]
+        _node_pos_z[start + i]  = pos_z[i]   # NEW
         _node_charge[start + i] = 0.0  # Reset capacitive charge for new node
+
+
+@ti.kernel
+def _write_dna_kernel(
+    dna_data: ti.types.ndarray(),   # [N, 3] int64
+    start: int,
+    n: int,
+):
+    """Write DNA words for N nodes starting at slot `start`."""
+    for i in range(n):
+        _node_dna[start + i, 0] = dna_data[i, 0]
+        _node_dna[start + i, 1] = dna_data[i, 1]
+        _node_dna[start + i, 2] = dna_data[i, 2]
 
 
 @ti.kernel
@@ -448,14 +512,12 @@ def _reduce_dynamic_energy():
 # =============================================================================
 
 def _pack_state_batch(alive: torch.Tensor, node_type: torch.Tensor,
-                      conn_type: torch.Tensor, dna_q: torch.Tensor,
+                      conn_type: torch.Tensor,
                       modality: torch.Tensor) -> torch.Tensor:
-    """Pack N nodes into int64 binary states (vectorized, no Python loop)."""
+    """Pack N nodes into int64 binary states — DNA is now in _node_dna field."""
     state = (alive.to(torch.int64) << BINARY_ALIVE_BIT)
     state |= (node_type.to(torch.int64) << BINARY_NODE_TYPE_SHIFT)
     state |= (conn_type.to(torch.int64) << BINARY_CONN_TYPE_SHIFT)
-    shifts = torch.tensor(_DNA_SHIFTS, device=dna_q.device, dtype=torch.int64)
-    state |= (dna_q.to(torch.int64) << shifts.unsqueeze(0)).sum(dim=1)
     state |= modality.to(torch.int64)   # bits 2-0 = MODALITY (MODALITY_SHIFT == 0)
     return state
 
@@ -469,6 +531,17 @@ def _random_dna(n: int, device: torch.device) -> torch.Tensor:
     """Random 5-bit DNA for 8 neighbors. Returns [N, 8] int64."""
     return torch.randint(0, BINARY_DNA_MAX_VALUE + 1, (n, 8),
                          device=device, dtype=torch.int64)
+
+
+def _random_dna_3d(n: int, device: torch.device) -> torch.Tensor:
+    """Random 5-bit DNA for 26 neighbours packed into [N, 3] int64 words."""
+    slots = torch.randint(0, 32, (n, NUM_NEIGHBORS_3D), device=device, dtype=torch.int64)
+    dna = torch.zeros(n, 3, device=device, dtype=torch.int64)
+    for slot_n in range(NUM_NEIGHBORS_3D):
+        word = DNA_SLOT_WORD[slot_n]
+        bit  = DNA_SLOT_BIT[slot_n]
+        dna[:, word] |= (slots[:, slot_n] << bit)
+    return dna  # shape [N, 3]
 
 
 # =============================================================================
@@ -489,7 +562,7 @@ class TaichiNeuralEngine:
     ---------
     Nodes occupy slots 0.._count-1 in the module-level Taichi fields.
     Dead nodes (state == 0) are simply skipped in every kernel — their energy
-    contributes nothing automatically. No compaction needed: 4M slots give
+    contributes nothing automatically. No compaction needed: 2M slots give
     massive headroom.
 
     Energy Field
@@ -508,7 +581,7 @@ class TaichiNeuralEngine:
 
     def __init__(
         self,
-        grid_size: Tuple[int, int] = (512, 512),
+        grid_size: Tuple = (512, 512, 8),   # (H, W, D) — backward compat: 2-tuple → D=8
         node_spawn_threshold: float = 20.0,
         node_death_threshold: float = -10.0,
         node_energy_cap: float = 244.0,
@@ -530,8 +603,12 @@ class TaichiNeuralEngine:
             if not _taichi_initialized:
                 init_taichi()  # fallback: init with defaults if caller forgot
 
-            self.grid_size = grid_size
-            self.H, self.W = grid_size
+            if len(grid_size) == 2:
+                self.H, self.W = grid_size
+                self.D = 8
+            else:
+                self.H, self.W, self.D = grid_size
+            self.grid_size = (self.H, self.W, self.D)
             self.device = torch.device(device if torch.cuda.is_available() else "cpu")
 
             # Node lifecycle thresholds
@@ -548,20 +625,19 @@ class TaichiNeuralEngine:
             self.total_spawns  = 0
             self.total_deaths  = 0
             self.frame_counter = 0
-            # 20 ≈ 8 DNA neighbor reads + 8 energy_field reads + 4 field ops per cell
-            self.grid_operations_per_step = self.H * self.W * 20
+            self.grid_operations_per_step = self.H * self.W * self.D * 60
 
             # ---------------------------------------------------------------
             # PyTorch energy field (shared with Taichi kernels via ndarray)
             # ---------------------------------------------------------------
             self.energy_field = torch.zeros(
-                self.H, self.W, dtype=torch.float32, device=self.device
+                self.H, self.W, self.D, dtype=torch.float32, device=self.device
             )
 
             # Grid-to-node mapping for DNA lock-and-key neighbor lookups
             # Sentinel = MAX_NODES (no valid node); used with ti.atomic_min for determinism
             self.grid_node_id = torch.full(
-                (self.H, self.W), MAX_NODES, dtype=torch.int32, device=self.device
+                (self.H, self.W, self.D), MAX_NODES, dtype=torch.int32, device=self.device
             )
 
             # Python-side count (mirrors _node_count Taichi field)
@@ -583,11 +659,13 @@ class TaichiNeuralEngine:
             # ---------------------------------------------------------------
             # Initialize constant lookup tables in module-level Taichi fields
             # ---------------------------------------------------------------
-            for d, (dy, dx) in enumerate(_NEIGHBOR_OFFSETS):
-                _neighbor_dy[d] = dy
-                _neighbor_dx[d] = dx
-                _dna_shifts[d]  = _DNA_SHIFTS[d]
-                _reverse_dir[d] = REVERSE_DIRECTION[d]
+            for n, (dz, dy, dx) in enumerate(NEIGHBOR_OFFSETS_3D):
+                _neighbor_dz[n]   = dz
+                _neighbor_dy[n]   = dy
+                _neighbor_dx[n]   = dx
+                _reverse_dir[n]   = REVERSE_DIRECTION_3D[n]
+                _dna_slot_word[n] = DNA_SLOT_WORD[n]
+                _dna_slot_bit[n]  = DNA_SLOT_BIT[n]
 
             logger.info(
                 "TaichiNeuralEngine initialized: grid=%s, MAX_NODES=%s, device=%s",
@@ -669,7 +747,7 @@ class TaichiNeuralEngine:
                 _dna_transfer_kernel(
                     self.energy_field,
                     self.grid_node_id,
-                    self.H, self.W,
+                    self.H, self.W, self.D,
                     self.transfer_dt,
                     self.gate_threshold,
                     self.frame_counter,
@@ -712,7 +790,7 @@ class TaichiNeuralEngine:
                 effective_child_energy    = effective_spawn_cost * self.child_energy_fraction
 
                 _spawn_kernel(
-                    self.H, self.W,
+                    self.H, self.W, self.D,
                     effective_spawn_threshold, effective_spawn_cost, effective_child_energy,
                     self._spawn_limit(),
                     self._count,   # snapshot before spawn — prevents chain-spawn
@@ -791,44 +869,56 @@ class TaichiNeuralEngine:
 
     def add_nodes_batch(
         self,
-        positions:  List[Tuple[int, int]],
+        positions:  List[Tuple],
         energies:   List[float],
         node_types: List[int],
         modalities: Optional[List[int]] = None,
     ) -> List[int]:
         """
-        Add N nodes at once, packing each into a binary int64 state.
-        Writes directly into the module-level Taichi fields via bulk-write kernel.
+        Add N nodes at once with 3D positions (y, x, z).
+        DNA is written to _node_dna[slot, 0..2], not packed in _node_state.
+        2-tuple positions are backward-compatible (z defaults to 0).
         """
         n = len(positions)
         if n == 0:
             return []
 
-        ys, xs = zip(*positions)
+        # Unpack positions — support both (y, x) and (y, x, z)
+        ys, xs, zs = [], [], []
+        for p in positions:
+            if len(p) == 3:
+                ys.append(p[0]); xs.append(p[1]); zs.append(p[2])
+            else:
+                ys.append(p[0]); xs.append(p[1]); zs.append(0)
+
         dev = self.device
 
-        new_ys     = torch.tensor(ys, device=dev, dtype=torch.int32) % self.H
-        new_xs     = torch.tensor(xs, device=dev, dtype=torch.int32) % self.W
-        new_e      = torch.tensor(energies, device=dev, dtype=torch.float32)
-        new_types  = torch.tensor(node_types, device=dev, dtype=torch.int64)
-        new_conn   = _random_conn_type(n, dev)
-        new_dna    = _random_dna(n, dev)
+        new_ys    = torch.tensor(ys, device=dev, dtype=torch.int32) % self.H
+        new_xs    = torch.tensor(xs, device=dev, dtype=torch.int32) % self.W
+        new_zs    = torch.tensor(zs, device=dev, dtype=torch.int32) % self.D
+        new_e     = torch.tensor(energies, device=dev, dtype=torch.float32)
+        new_types = torch.tensor(node_types, device=dev, dtype=torch.int64)
+        new_conn  = _random_conn_type(n, dev)
+        new_dna   = _random_dna_3d(n, dev)    # [N, 3] int64
 
         if modalities is not None:
             new_modality = torch.tensor(modalities, device=dev, dtype=torch.int64)
         else:
             new_modality = torch.zeros(n, device=dev, dtype=torch.int64)
 
-        # Workspace nodes (type=2) are energy buckets: excitatory + max classic DNA
-        # MODE=0, PARAM=15 → classic probability 1.0 (value 0b0_1111 = 15)
+        # Workspace nodes: excitatory conn + max DNA compatibility (PARAM=15 all slots)
         ws_mask = (new_types == 2)
         if ws_mask.any():
-            new_conn[ws_mask] = 0                       # excitatory (absorb energy)
-            new_dna[ws_mask]  = 15                      # MODE=0, PARAM=15 = max compatibility
+            new_conn[ws_mask] = 0    # excitatory
+            ws_dna = torch.zeros(n, 3, device=dev, dtype=torch.int64)
+            for slot_n in range(NUM_NEIGHBORS_3D):
+                word = DNA_SLOT_WORD[slot_n]
+                bit  = DNA_SLOT_BIT[slot_n]
+                ws_dna[:, word] |= torch.tensor(15, dtype=torch.int64, device=dev) << bit
+            new_dna[ws_mask] = ws_dna[ws_mask]
 
         alive_bits = torch.ones(n, device=dev, dtype=torch.int64)
-
-        new_state = _pack_state_batch(alive_bits, new_types, new_conn, new_dna, new_modality)
+        new_state  = _pack_state_batch(alive_bits, new_types, new_conn, new_modality)
 
         start = self._count
         end   = start + n
@@ -836,34 +926,32 @@ class TaichiNeuralEngine:
             logger.error(
                 "add_nodes_batch: %d nodes would exceed MAX_NODES=%d; truncating", n, MAX_NODES
             )
-            n         = MAX_NODES - start
-            end       = MAX_NODES
+            n = MAX_NODES - start
+            end = MAX_NODES
             if n <= 0:
                 return []
-            new_state  = new_state[:n]
-            new_e      = new_e[:n]
-            new_ys     = new_ys[:n]
-            new_xs     = new_xs[:n]
+            new_state = new_state[:n]; new_e = new_e[:n]
+            new_ys = new_ys[:n]; new_xs = new_xs[:n]; new_zs = new_zs[:n]
+            new_dna = new_dna[:n]
 
-        _write_nodes_kernel(new_state, new_e, new_ys, new_xs, start, n)
+        _write_nodes_kernel(new_state, new_e, new_ys, new_xs, new_zs, start, n)
+        _write_dna_kernel(new_dna.contiguous(), start, n)
 
-        # Sync Taichi scalar and Python counter
         _node_count[None] = end
         self._count = end
 
-        # Stamp initial energy into the field so DNA transfer sees it immediately
-        self.energy_field[new_ys.long(), new_xs.long()] = torch.maximum(
-            self.energy_field[new_ys.long(), new_xs.long()], new_e
+        # Stamp initial energy into 3D field
+        self.energy_field[new_ys.long(), new_xs.long(), new_zs.long()] = torch.maximum(
+            self.energy_field[new_ys.long(), new_xs.long(), new_zs.long()], new_e
         )
 
-        # Invalidate workspace cache if workspace nodes were added
         if 2 in node_types:
             with self._workspace_cache_lock:
                 self._workspace_cache_valid = False
 
         return list(range(start, end))
 
-    def add_node(self, position: Tuple[int, int], energy: float, node_type: int = 1) -> int:
+    def add_node(self, position: Tuple, energy: float, node_type: int = 1) -> int:
         """Add a single node. Prefer add_nodes_batch() for bulk adds."""
         return self.add_nodes_batch([position], [energy], [node_type])[0]
 
@@ -875,9 +963,10 @@ class TaichiNeuralEngine:
         self,
         pixel_data:  torch.Tensor,
         region:      Tuple[int, int, int, int],
+        z:           int = 0,
     ) -> None:
         """
-        Write pixel data as energy into the sensory region.
+        Write pixel data as energy into a specific Z layer of the sensory region.
 
         Data values are written directly — no gain, bias, or normalization.
         Sensory nodes are the inverse of workspace nodes: they output their
@@ -885,6 +974,7 @@ class TaichiNeuralEngine:
 
         pixel_data: [H, W] float32.
         region:     (y0, y1, x0, x1) slice into energy_field.
+        z:          Z layer index (default 0).
         """
         y0, y1, x0, x1 = region
         h = min(y1 - y0, pixel_data.shape[0])
@@ -893,20 +983,25 @@ class TaichiNeuralEngine:
         data = pixel_data[:h, :w].to(dtype=torch.float32, device=self.device).contiguous()
 
         _inject_sensory_kernel(
-            self.energy_field, data, y0, x0, h, w,
+            self.energy_field, data, y0, x0, h, w, z,
         )
 
         self._injection_counter += 1
         if self._injection_counter % 60 == 0:
-            logger.info("SENSORY | %dx%d | mean=%.1f", h, w,
+            logger.info("SENSORY | %dx%d z=%d | mean=%.1f", h, w, z,
                         float(data.mean().item()))
 
-    def add_energy_at(self, position: Tuple[int, int], amount: float) -> None:
-        """Add energy at a single grid cell (clamped to grid bounds)."""
+    def add_energy_at(self, position, amount: float) -> None:
+        """Add energy at a single grid cell (clamped to grid bounds).
+
+        *position* may be a 2-tuple ``(y, x)`` (backward compat, z defaults
+        to 0) or a 3-tuple ``(y, x, z)``.
+        """
         y = max(0, min(self.H - 1, position[0]))
         x = max(0, min(self.W - 1, position[1]))
-        self.energy_field[y, x] = min(
-            float(self.energy_field[y, x].item()) + amount, self.energy_cap
+        z = max(0, min(self.D - 1, position[2])) if len(position) > 2 else 0
+        self.energy_field[y, x, z] = min(
+            float(self.energy_field[y, x, z].item()) + amount, self.energy_cap
         )
 
     # -----------------------------------------------------------------------
@@ -935,7 +1030,7 @@ class TaichiNeuralEngine:
 
         data = spectrum_2d[:h, :w].to(dtype=torch.float32, device=self.device).contiguous()
         _inject_sensory_kernel(
-            self.energy_field, data, y0, x0, h, w,
+            self.energy_field, data, y0, x0, h, w, 0,
         )
 
     def read_audio_workspace_energies(
@@ -950,7 +1045,7 @@ class TaichiNeuralEngine:
         dense regular grid.
         """
         y0, y1, x0, x1 = region
-        return self.energy_field[y0:y1, x0:x1].cpu()
+        return self.energy_field[y0:y1, x0:x1, :].sum(dim=-1).cpu()
 
     # -----------------------------------------------------------------------
     # Public API — data access
@@ -1016,6 +1111,7 @@ class TaichiNeuralEngine:
                 self.energy_field[
                     self._workspace_local_y + y0,
                     self._workspace_local_x + x0,
+                    self._workspace_local_z,
                 ]
             )
             return energy_grid.cpu()
@@ -1026,6 +1122,7 @@ class TaichiNeuralEngine:
         if n == 0:
             self._workspace_local_y = torch.tensor([], dtype=torch.long, device=self.device)
             self._workspace_local_x = torch.tensor([], dtype=torch.long, device=self.device)
+            self._workspace_local_z = torch.tensor([], dtype=torch.long, device=self.device)
             self._workspace_cache_valid = True
             return
 
@@ -1038,11 +1135,13 @@ class TaichiNeuralEngine:
         state_np = _node_state.to_numpy()[:n]
         pos_y_np = _node_pos_y.to_numpy()[:n]
         pos_x_np = _node_pos_x.to_numpy()[:n]
+        pos_z_np = _node_pos_z.to_numpy()[:n]
 
         is_ws = ((state_np != 0) &
                  (((state_np >> BINARY_NODE_TYPE_SHIFT) & BINARY_TYPE_MASK) == 2))
         ws_y  = pos_y_np[is_ws]
         ws_x  = pos_x_np[is_ws]
+        ws_z  = pos_z_np[is_ws]
         in_r  = (ws_y >= y0) & (ws_y < y1) & (ws_x >= x0) & (ws_x < x1)
 
         self._workspace_local_y = torch.tensor(
@@ -1050,6 +1149,9 @@ class TaichiNeuralEngine:
         )
         self._workspace_local_x = torch.tensor(
             ws_x[in_r] - x0, dtype=torch.long, device=self.device
+        )
+        self._workspace_local_z = torch.tensor(
+            ws_z[in_r], dtype=torch.long, device=self.device
         )
         self._workspace_cache_valid = True
         self._workspace_cached_region = (y0, y1, x0, x1)
