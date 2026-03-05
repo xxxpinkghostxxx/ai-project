@@ -167,22 +167,24 @@ def _build_grid_map(grid_node_id: ti.types.ndarray()):
 
 @ti.kernel
 def _dna_transfer_kernel(
-    energy_field:  ti.types.ndarray(),   # PyTorch CUDA tensor, zero-copy
-    grid_node_id:  ti.types.ndarray(),   # [H, W] int32, node index at each cell
+    energy_field:  ti.types.ndarray(),   # PyTorch CUDA tensor [H, W, D], zero-copy
+    grid_node_id:  ti.types.ndarray(),   # [H, W, D] int32, node index at each cell
     H: int,
     W: int,
+    D: int,
     dt: float,
     gate_threshold: float,
     frame: int,
     strength: float,
 ):
     """
-    Enhanced DNA transfer with lock-and-key compatibility, 8 connection types,
-    and DNA micro-instructions.
+    3D DNA transfer with lock-and-key compatibility, 26 neighbours, 8 connection
+    types, and DNA micro-instructions.
 
-    For every live node: compute energy exchange with its 8 DNA-weighted neighbors.
+    For every live node: compute energy exchange with its 26 DNA-weighted neighbors.
     Transfer depends on BOTH the sender's and receiver's DNA (lock-and-key).
-    DNA slot encoding: [MODE:1][PARAM:4] per 5-bit slot.
+    DNA is read from _node_dna[node, word] using _dna_slot_word / _dna_slot_bit
+    lookup tables. Each 5-bit slot: [MODE:1][PARAM:4].
     """
     for i in range(_node_count[None]):
         state = _node_state[i]
@@ -191,37 +193,38 @@ def _dna_transfer_kernel(
 
         py = _node_pos_y[i]
         px = _node_pos_x[i]
+        pz = _node_pos_z[i]
         energy = _node_energy[i]
         conn_type = int((state >> 58) & 7)
         gate_fire = 1.0 if energy > gate_threshold else 0.0
         damping = ti.exp(-ti.abs(energy) / 50.0)
 
         total = 0.0
-        # TODO Task 5: replace with 26-neighbor _node_dna access; currently broken for 3D
-        for d in ti.static(range(8)):
+        for d in ti.static(range(26)):
             ny = (py + _neighbor_dy[d] + H) % H
             nx = (px + _neighbor_dx[d] + W) % W
+            nz = (pz + _neighbor_dz[d] + D) % D
 
-            # --- Extract my DNA for direction d ---
-            my_dna_raw = int((state >> _dna_shifts[d]) & 31)
+            # --- Extract my DNA for direction d from _node_dna ---
+            my_dna_raw = int((_node_dna[i, _dna_slot_word[d]] >> _dna_slot_bit[d]) & 31)
             my_mode  = (my_dna_raw >> 4) & 1
             my_param = my_dna_raw & 15
 
             # --- Lock-and-key: look up neighbor's DNA for reverse direction ---
             # NOTE: Taichi 1.7 disallows `continue` in non-static if inside
             # ti.static for. All logic must be guarded with nested ifs instead.
-            neighbor_id = grid_node_id[ny, nx]
+            neighbor_id = grid_node_id[ny, nx, nz]
             compat = 0.0
             if neighbor_id < MAX_NODES:
                 n_state = _node_state[neighbor_id]
                 if n_state != 0:
                     rd = _reverse_dir[d]
-                    their_dna_raw = int((n_state >> _dna_shifts[rd]) & 31)
+                    their_dna_raw = int((_node_dna[neighbor_id, _dna_slot_word[rd]] >> _dna_slot_bit[rd]) & 31)
                     their_param = their_dna_raw & 15
                     compat = float(my_param & their_param) / 15.0
 
             if compat > 0.0:
-                delta = energy_field[ny, nx] - energy
+                delta = energy_field[ny, nx, nz] - energy
 
                 # --- Apply DNA micro-instruction mode ---
                 dna_strength = compat
@@ -269,7 +272,7 @@ def _dna_transfer_kernel(
                     contrib = ti.min(ti.max(contrib, -100.0), 100.0)
                     if contrib != 0.0:
                         total += contrib
-                        ti.atomic_sub(energy_field[ny, nx], contrib)
+                        ti.atomic_sub(energy_field[ny, nx, nz], contrib)
 
         # Capacitive burst discharge
         if conn_type == 7 and _node_charge[i] > gate_threshold:
@@ -279,7 +282,7 @@ def _dna_transfer_kernel(
 
         # Write accumulated transfer to energy field
         if total != 0.0:
-            ti.atomic_add(energy_field[py, px], total)
+            ti.atomic_add(energy_field[py, px, pz], total)
 
 
 @ti.kernel
@@ -288,7 +291,8 @@ def _death_kernel(death_threshold: float):
     Kill dynamic nodes (type == 1) whose energy falls below threshold.
 
     Workspace nodes (type == 2) are immortal — never killed here.
-    Zeroing the state wipes alive, DNA, type, and conn fields in one operation.
+    Zeroing the state wipes alive, type, and conn fields in one operation.
+    DNA words in _node_dna are also cleared on death.
     Death count is accumulated atomically in _deaths_count.
     """
     for i in range(_node_count[None]):
@@ -300,6 +304,9 @@ def _death_kernel(death_threshold: float):
             _node_state[i]  = 0
             _node_energy[i] = 0.0
             _node_charge[i] = 0.0
+            _node_dna[i, 0] = 0
+            _node_dna[i, 1] = 0
+            _node_dna[i, 2] = 0
             ti.atomic_add(_deaths_count[None], 1)
 
 
@@ -307,6 +314,7 @@ def _death_kernel(death_threshold: float):
 def _spawn_kernel(
     H: int,
     W: int,
+    D: int,
     spawn_threshold: float,
     spawn_cost: float,
     child_energy: float,
@@ -317,13 +325,14 @@ def _spawn_kernel(
     Each live dynamic node (type == 1) with sufficient energy spawns one child.
 
     Child slot is claimed by atomically incrementing _node_count. If the buffer
-    is full the parent is skipped. Child position is parent ± 1 cell (toroidal).
-    Child DNA is inherited from parent with 10% per-slot bit-flip mutation.
-    Connection type is random (8 types).
+    is full the parent is skipped. Child position is parent +/- 1 cell (toroidal
+    in Y, X, and Z). Child DNA is inherited from _node_dna (26 slots, 3 int64
+    words) with 10% per-slot bit-flip mutation. Connection type is random (8
+    types).
 
     Spawn count accumulated atomically in _spawns_count.
 
-    n_existing: snapshot of node count *before* this kernel — prevents newly
+    n_existing: snapshot of node count *before* this kernel -- prevents newly
     spawned children from being visited (and chain-spawning) in the same step.
     """
     for i in range(n_existing):
@@ -349,31 +358,38 @@ def _spawn_kernel(
             ti.atomic_sub(_spawns_count[None], 1)  # undo spawn claim too
             continue
 
-        # Random ±1 offset from parent (toroidal grid wrap)
+        # Random ±1 offset from parent (toroidal grid wrap in Y, X, Z)
         offset_y = int(ti.random() * 3.0) - 1
         offset_x = int(ti.random() * 3.0) - 1
+        offset_z = int(ti.random() * 3.0) - 1
         child_y  = (_node_pos_y[i] + offset_y + H) % H
         child_x  = (_node_pos_x[i] + offset_x + W) % W
+        child_z  = (_node_pos_z[i] + offset_z + D) % D
 
-        # Hereditary DNA: inherit parent's DNA with 10% mutation per slot
-        # TODO Task 6: replace DNA inheritance with _node_dna 26-slot version
-        dna_packed = ti.i64(0)
-        for d in ti.static(range(8)):
-            parent_dna = int((state >> _dna_shifts[d]) & 31)
-            if ti.random() < 0.1:   # 10% mutation chance
-                bit = ti.min(int(ti.random() * 5.0), 4)
-                parent_dna = parent_dna ^ (1 << bit)
-            dna_packed |= ti.i64(parent_dna) << _dna_shifts[d]
+        # Hereditary DNA: inherit parent's 26-slot DNA with 10% mutation per slot
+        # Clear child DNA words first
+        _node_dna[slot, 0] = ti.i64(0)
+        _node_dna[slot, 1] = ti.i64(0)
+        _node_dna[slot, 2] = ti.i64(0)
+
+        for d in ti.static(range(26)):
+            word = _dna_slot_word[d]
+            bit  = _dna_slot_bit[d]
+            parent_dna = int((_node_dna[i, word] >> bit) & 31)
+            if ti.random() < 0.1:
+                flip_bit = ti.min(int(ti.random() * 5.0), 4)
+                parent_dna = parent_dna ^ (1 << flip_bit)
+            _node_dna[slot, word] = _node_dna[slot, word] | (ti.i64(parent_dna) << bit)
 
         conn_type = ti.min(int(ti.random() * 8.0), 7)  # 8 connection types
 
-        # Pack child state: alive=1, type=1 (dynamic), inherited DNA + parent modality
+        # Pack child state: alive=1, type=1 (dynamic), conn_type + parent modality
+        # DNA is stored separately in _node_dna — NOT packed in _node_state
         parent_modality = state & ti.i64(7)   # bits 2-0 of parent state
         new_state = (
             (ti.i64(1) << 63)           # alive bit
           | (ti.i64(1) << 61)           # node type = dynamic (1)
           | (ti.i64(conn_type) << 58)   # connection type (3 bits)
-          | dna_packed
           | parent_modality             # inherit parent modality (bits 2-0)
         )
 
@@ -381,6 +397,7 @@ def _spawn_kernel(
         _node_energy[slot] = child_energy
         _node_pos_y[slot]  = child_y
         _node_pos_x[slot]  = child_x
+        _node_pos_z[slot]  = child_z
         _node_charge[slot] = 0.0  # Reset capacitive charge for new node
 
         _node_energy[i] -= spawn_cost
@@ -388,13 +405,15 @@ def _spawn_kernel(
 
 @ti.kernel
 def _clamp_kernel(energy_field: ti.types.ndarray(), lo: float, hi: float):
-    """Clamp every cell of energy_field to [lo, hi]. Parallel over all H×W cells."""
-    for y, x in ti.ndrange(energy_field.shape[0], energy_field.shape[1]):
-        v = energy_field[y, x]
+    """Clamp every cell of energy_field to [lo, hi]. Parallel over all H×W×D cells."""
+    for y, x, z in ti.ndrange(
+        energy_field.shape[0], energy_field.shape[1], energy_field.shape[2]
+    ):
+        v = energy_field[y, x, z]
         if v < lo:
-            energy_field[y, x] = lo
+            energy_field[y, x, z] = lo
         elif v > hi:
-            energy_field[y, x] = hi
+            energy_field[y, x, z] = hi
 
 
 @ti.kernel
@@ -402,16 +421,17 @@ def _inject_sensory_kernel(
     energy_field: ti.types.ndarray(),
     data:         ti.types.ndarray(),
     y0: int, x0: int, h: int, w: int,
+    z: int,
 ):
-    """Write raw data values as energy into the sensory region of energy_field."""
+    """Write raw data values as energy into a specific Z layer of energy_field."""
     for dy, dx in ti.ndrange(h, w):
-        energy_field[y0 + dy, x0 + dx] = data[dy, dx]
+        energy_field[y0 + dy, x0 + dx, z] = data[dy, dx]
 
 
 @ti.kernel
 def _sync_energy_from_field(energy_field: ti.types.ndarray(), grid_node_id: ti.types.ndarray()):
     """
-    Sync each live node's working energy from its position in energy_field.
+    Sync each live node's working energy from its 3D position in energy_field.
     Called after DNA transfer so birth/death decisions see the current values.
 
     Only the grid-map owner of each cell (lowest node ID) syncs from the field.
@@ -423,8 +443,9 @@ def _sync_energy_from_field(energy_field: ti.types.ndarray(), grid_node_id: ti.t
         if _node_state[i] != 0:
             y = _node_pos_y[i]
             x = _node_pos_x[i]
-            if grid_node_id[y, x] == i:
-                _node_energy[i] = energy_field[y, x]
+            z = _node_pos_z[i]
+            if grid_node_id[y, x, z] == i:
+                _node_energy[i] = energy_field[y, x, z]
 
 
 @ti.kernel
@@ -715,7 +736,7 @@ class TaichiNeuralEngine:
                 _dna_transfer_kernel(
                     self.energy_field,
                     self.grid_node_id,
-                    self.H, self.W,
+                    self.H, self.W, self.D,
                     self.transfer_dt,
                     self.gate_threshold,
                     self.frame_counter,
@@ -758,7 +779,7 @@ class TaichiNeuralEngine:
                 effective_child_energy    = effective_spawn_cost * self.child_energy_fraction
 
                 _spawn_kernel(
-                    self.H, self.W,
+                    self.H, self.W, self.D,
                     effective_spawn_threshold, effective_spawn_cost, effective_child_energy,
                     self._spawn_limit(),
                     self._count,   # snapshot before spawn — prevents chain-spawn
@@ -931,9 +952,10 @@ class TaichiNeuralEngine:
         self,
         pixel_data:  torch.Tensor,
         region:      Tuple[int, int, int, int],
+        z:           int = 0,
     ) -> None:
         """
-        Write pixel data as energy into the sensory region.
+        Write pixel data as energy into a specific Z layer of the sensory region.
 
         Data values are written directly — no gain, bias, or normalization.
         Sensory nodes are the inverse of workspace nodes: they output their
@@ -941,6 +963,7 @@ class TaichiNeuralEngine:
 
         pixel_data: [H, W] float32.
         region:     (y0, y1, x0, x1) slice into energy_field.
+        z:          Z layer index (default 0).
         """
         y0, y1, x0, x1 = region
         h = min(y1 - y0, pixel_data.shape[0])
@@ -949,12 +972,12 @@ class TaichiNeuralEngine:
         data = pixel_data[:h, :w].to(dtype=torch.float32, device=self.device).contiguous()
 
         _inject_sensory_kernel(
-            self.energy_field, data, y0, x0, h, w,
+            self.energy_field, data, y0, x0, h, w, z,
         )
 
         self._injection_counter += 1
         if self._injection_counter % 60 == 0:
-            logger.info("SENSORY | %dx%d | mean=%.1f", h, w,
+            logger.info("SENSORY | %dx%d z=%d | mean=%.1f", h, w, z,
                         float(data.mean().item()))
 
     def add_energy_at(self, position: Tuple[int, int], amount: float) -> None:
@@ -991,7 +1014,7 @@ class TaichiNeuralEngine:
 
         data = spectrum_2d[:h, :w].to(dtype=torch.float32, device=self.device).contiguous()
         _inject_sensory_kernel(
-            self.energy_field, data, y0, x0, h, w,
+            self.energy_field, data, y0, x0, h, w, 0,
         )
 
     def read_audio_workspace_energies(
