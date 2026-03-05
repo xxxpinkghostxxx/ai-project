@@ -20,6 +20,8 @@ import sys
 import os
 import time
 import threading
+import random
+import math
 
 # Add parent directory to path so we can import 'project' as a module
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -78,9 +80,52 @@ else:
     logger.info("Using standard capture (install mss for faster capture: pip install mss)")
 
 
+def _place_clusters(
+    grid_H: int, grid_W: int, grid_D: int,
+    count: int, nodes_each: int, radius: int, min_separation: int,
+) -> list:
+    """Place *count* node clusters scattered through a [H, W, D] 3D volume.
+
+    Each cluster has *nodes_each* nodes within a sphere of *radius* cells.
+    Centers are chosen at random with a minimum pairwise distance of
+    *min_separation* cells.  Returns a flat list of ``(y, x, z)`` tuples.
+    """
+    centers = []
+    attempts = 0
+    while len(centers) < count and attempts < count * 1000:
+        attempts += 1
+        cy = random.randint(0, grid_H - 1)
+        cx = random.randint(0, grid_W - 1)
+        cz = random.randint(0, grid_D - 1)
+        too_close = any(
+            math.sqrt((cy - oy)**2 + (cx - ox)**2 + (cz - oz)**2) < min_separation
+            for oy, ox, oz in centers
+        )
+        if not too_close:
+            centers.append((cy, cx, cz))
+
+    positions = []
+    for cy, cx, cz in centers:
+        placed = 0
+        node_attempts = 0
+        while placed < nodes_each and node_attempts < nodes_each * 100:
+            node_attempts += 1
+            dy = random.randint(-radius, radius)
+            dx = random.randint(-radius, radius)
+            dz = random.randint(-radius, radius)
+            if dy**2 + dx**2 + dz**2 <= radius**2:
+                ny = max(0, min(grid_H - 1, cy + dy))
+                nx = max(0, min(grid_W - 1, cx + dx))
+                nz = max(0, min(grid_D - 1, cz + dz))
+                positions.append((ny, nx, nz))
+                placed += 1
+
+    return positions
+
+
 class HybridNeuralSystemAdapter:
     """Adapter to make TaichiNeuralEngine compatible with the existing UI and workspace code."""
-    
+
     def __init__(
         self,
         engine: TaichiNeuralEngine,
@@ -582,40 +627,39 @@ def create_hybrid_neural_system(
         device=device
     )
     
+    # Unpack 3D grid dimensions
+    H, W = grid_size[0], grid_size[1]
+    D = grid_size[2] if len(grid_size) > 2 else 8
+
     # Define system regions (scaled to grid size)
     workspace_config = config_manager.get_config('workspace') or {}
     workspace_height = workspace_config.get('height', 16)
     workspace_width = workspace_config.get('width', 16)
-    
-    # CRITICAL: Clamp sensory region to fit within grid!
-    # Sensory input is 1920×1080, grid is now 2560×1920 (accommodates full sensory!)
-    # Clamp sensory region to grid boundaries to prevent tensor size mismatch
-    sensory_region_y_end = min(sensory_height, grid_size[0])
-    sensory_region_x_end = min(sensory_width, grid_size[1])  # Should be 1920 with new grid size
-    
+
+    # Sensory region: clamp to grid (used for field-level energy injection)
+    sensory_region_y_end = min(sensory_height, H)
+    sensory_region_x_end = min(sensory_width, W)
+
     SENSORY_REGION = (0, sensory_region_y_end, 0, sensory_region_x_end)
-    WORKSPACE_REGION = (grid_size[0] - workspace_height, grid_size[0], 0, workspace_width)
-    
+    WORKSPACE_REGION = (H - workspace_height, H, 0, workspace_width)
+
     # ---------------------------------------------------------------
-    # Audio regions (placed in unused columns of the bottom strip)
+    # Audio regions (disabled when grid too narrow)
     # ---------------------------------------------------------------
     audio_config = config_manager.get_config('audio') or {}
     audio_enabled = audio_config.get('enabled', False) and AUDIO_AVAILABLE
     fft_bins = audio_config.get('fft_bins', 256)
-    audio_rows = workspace_height  # Same row span as visual workspace
+    audio_rows = workspace_height
 
-    # Bottom strip Y range (same as workspace)
-    aw_y0 = grid_size[0] - audio_rows
-    aw_y1 = grid_size[0]
+    aw_y0 = H - audio_rows
+    aw_y1 = H
 
-    # Column offsets for the four audio regions
-    # Validate that audio regions fit within the grid width
-    audio_max_x = 1024 + fft_bins  # rightmost edge of AUDIO_WORKSPACE_R
-    if audio_enabled and grid_size[1] < audio_max_x:
+    audio_max_x = 1024 + fft_bins
+    if audio_enabled and W < audio_max_x:
         logger.warning(
             "Grid width %d is too narrow for audio regions (need %d). "
             "Disabling audio to prevent out-of-bounds writes.",
-            grid_size[1], audio_max_x,
+            W, audio_max_x,
         )
         audio_enabled = False
 
@@ -624,126 +668,76 @@ def create_hybrid_neural_system(
     AUDIO_WORKSPACE_L_REGION = (aw_y0, aw_y1, 768, 768 + fft_bins)
     AUDIO_WORKSPACE_R_REGION = (aw_y0, aw_y1, 1024, 1024 + fft_bins)
 
-    logger.info("System layout:")
-    logger.info("  Sensory region:   [0:%d, 0:%d] = %d nodes (clamped to grid)",
-                sensory_region_y_end, sensory_region_x_end, sensory_region_y_end*sensory_region_x_end)
-    logger.info("  Dynamic region:   [%d:%d, 0:%d]", sensory_region_y_end, grid_size[0]-workspace_height, grid_size[1])
-    logger.info("  Workspace region: [%d:%d, 0:%d] = %d nodes", grid_size[0]-workspace_height, grid_size[0], workspace_width, workspace_height*workspace_width)
-    if audio_enabled:
-        logger.info("  Audio sensory L:  [%d:%d, 256:%d]", aw_y0, aw_y1, 256 + fft_bins)
-        logger.info("  Audio sensory R:  [%d:%d, 512:%d]", aw_y0, aw_y1, 512 + fft_bins)
-        logger.info("  Audio workspace L:[%d:%d, 768:%d]", aw_y0, aw_y1, 768 + fft_bins)
-        logger.info("  Audio workspace R:[%d:%d, 1024:%d]", aw_y0, aw_y1, 1024 + fft_bins)
-    
-    # Initialize ALL nodes at once for maximum speed
-    logger.info("Initializing all node types...")
+    # ---------------------------------------------------------------
+    # 3D cluster-based node initialization
+    # ---------------------------------------------------------------
+    from project.config import (
+        NODE_TYPE_SENSORY, NODE_TYPE_DYNAMIC, NODE_TYPE_WORKSPACE,
+        MODALITY_VISUAL, MODALITY_AUDIO_LEFT, MODALITY_AUDIO_RIGHT,
+    )
+
+    clusters_cfg = config_manager.get('clusters', {})
+    s_count   = clusters_cfg.get('sensory_count', 10)
+    s_each    = clusters_cfg.get('sensory_nodes_each', 30)
+    s_radius  = clusters_cfg.get('sensory_radius', 3)
+    ws_count  = clusters_cfg.get('workspace_count', 8)
+    ws_each   = clusters_cfg.get('workspace_nodes_each', 32)
+    ws_radius = clusters_cfg.get('workspace_radius', 3)
+    min_sep   = clusters_cfg.get('min_cluster_separation', 8)
+
+    logger.info("Initializing 3D island clusters...")
     t_start = time.time()
-    
-    # ARCHITECTURE:
-    # - Sensory: Field region only (energy injected, no nodes needed)
-    # - Dynamic: Tracked nodes (can spawn/die, type=1)
-    # - Workspace: Tracked nodes (immortal/infertile, type=2, can be drained by dynamic)
-    
-    # Sensory region: [0:sensory_region_y_end, 0:sensory_region_x_end] (clamped to grid!)
-    # - Energy injected directly into field each frame
-    # - No individual nodes (just a field region)
-    # - Input is 1920×1080, but region is clamped to grid size (e.g., 1536×1080)
-    sensory_count = sensory_region_y_end * sensory_region_x_end
-    logger.info("  Sensory: [0:%d, 0:%d] = %d cells (field region, energy source, clamped to grid)", 
-                sensory_region_y_end, sensory_region_x_end, sensory_count)
-    
-    # Dynamic nodes (can spawn/die, type=1)
-    # Seed one dynamic node per sensory column along the bottom edge of the
-    # sensory region.  This gives a 1:1 sensory-to-dynamic seeding that will
-    # organically balloon outward toward the workspace via ±1 spawning.
-    seed_row = sensory_region_y_end  # First row just below sensory
-    dynamic_positions = [(seed_row, x) for x in range(sensory_region_x_end)]
+
+    # Place sensory clusters
+    sensory_positions = _place_clusters(H, W, D, s_count, s_each, s_radius, min_sep)
+    logger.info("  Sensory: %d nodes in %d clusters (type=%d)",
+                len(sensory_positions), s_count, NODE_TYPE_SENSORY)
+
+    # Place workspace clusters
+    ws_positions = _place_clusters(H, W, D, ws_count, ws_each, ws_radius, min_sep)
+    logger.info("  Workspace: %d nodes in %d clusters (type=%d)",
+                len(ws_positions), ws_count, NODE_TYPE_WORKSPACE)
+
+    # Seed dynamic nodes: one per (x, z) column at mid-Y
+    mid_y = H // 2
+    dynamic_positions = [(mid_y, x, z) for z in range(D) for x in range(W)]
+    dynamic_positions = dynamic_positions[:min(len(dynamic_positions), 10_000)]
     initial_dynamic = len(dynamic_positions)
-    dynamic_energies = [100.0] * initial_dynamic
-    dynamic_types = [1] * initial_dynamic
+    logger.info("  Dynamic: %d seed nodes at mid-Y=%d (type=%d)",
+                initial_dynamic, mid_y, NODE_TYPE_DYNAMIC)
 
-    logger.info("  Dynamic: %d initial nodes seeded at sensory border row %d (type=1, will grow via spawning)",
-                initial_dynamic, seed_row)
-    
-    # Workspace nodes (immortal, infertile, type=2)
-    # Create a grid of workspace nodes that dynamic nodes can interact with
-    workspace_count = workspace_height * workspace_width
-    workspace_y_start = grid_size[0] - workspace_height
-    # Create workspace nodes on a regular grid
-    workspace_positions = [(workspace_y_start + y, x)
-                          for y in range(workspace_height)
-                          for x in range(workspace_width)]
-    workspace_energies = [10.0] * workspace_count  # Start with some energy
-    workspace_types = [2] * workspace_count
-
-    # Workspace modality: column-split into thirds (AUDIO_LEFT | VISUAL | AUDIO_RIGHT)
-    from project.config import MODALITY_VISUAL, MODALITY_AUDIO_LEFT, MODALITY_AUDIO_RIGHT
-    ws_col_third = workspace_width // 3  # ~42 for 128-wide workspace
-
-    def _ws_modality(x: int) -> int:
-        if x < ws_col_third:
-            return MODALITY_AUDIO_LEFT
-        elif x < ws_col_third * 2:
-            return MODALITY_VISUAL
-        else:
-            return MODALITY_AUDIO_RIGHT
-
-    workspace_modalities = [
-        _ws_modality(x)
-        for y in range(workspace_height)
-        for x in range(workspace_width)
-    ]
-    
-    logger.info("  Workspace: %d nodes (type=2, immortal/infertile, at [%d:%d, 0:%d])", 
-                workspace_count, workspace_y_start, grid_size[0], workspace_width)
-    
-    # Audio workspace nodes (immortal, type=2) — placed in L/R audio workspace regions
-    audio_ws_positions: list[Tuple[int, int]] = []
-    audio_ws_energies: list[float] = []
-    audio_ws_types: list[int] = []
-    audio_ws_modalities: list[int] = []
-    if audio_enabled:
-        for region, mod in [
-            (AUDIO_WORKSPACE_L_REGION, MODALITY_AUDIO_LEFT),
-            (AUDIO_WORKSPACE_R_REGION, MODALITY_AUDIO_RIGHT),
-        ]:
-            ry0, ry1, rx0, rx1 = region
-            for y in range(ry0, ry1):
-                for x in range(rx0, rx1):
-                    audio_ws_positions.append((y, x))
-                    audio_ws_energies.append(5.0)
-                    audio_ws_types.append(2)
-                    audio_ws_modalities.append(mod)
-        logger.info("  Audio workspace: %d nodes (type=2, immortal, L+R)", len(audio_ws_positions))
-
-    # Add ALL node types to the engine
-    all_positions = dynamic_positions + workspace_positions + audio_ws_positions
-    all_energies = dynamic_energies + workspace_energies + audio_ws_energies
-    all_types = dynamic_types + workspace_types + audio_ws_types
+    # Build combined batch
+    all_positions = sensory_positions + ws_positions + dynamic_positions
+    all_energies = (
+        [10.0] * len(sensory_positions)
+        + [5.0] * len(ws_positions)
+        + [15.0] * initial_dynamic
+    )
+    all_types = (
+        [NODE_TYPE_SENSORY] * len(sensory_positions)
+        + [NODE_TYPE_WORKSPACE] * len(ws_positions)
+        + [NODE_TYPE_DYNAMIC] * initial_dynamic
+    )
     all_modalities = (
-        [0] * initial_dynamic           # dynamic: MODALITY_NEUTRAL
-        + workspace_modalities
-        + audio_ws_modalities
+        [MODALITY_VISUAL] * len(sensory_positions)
+        + [MODALITY_VISUAL] * len(ws_positions)
+        + [0] * initial_dynamic
     )
 
     engine.add_nodes_batch(all_positions, all_energies, all_types, all_modalities)
 
     t_elapsed = time.time() - t_start
+    total_tracked = len(all_positions)
     logger.info("  Initialization complete in %.3fs", t_elapsed)
-    total_tracked = initial_dynamic + workspace_count + len(audio_ws_positions)
-    logger.info("  Total nodes: %d (dynamic=%d, workspace=%d, audio_ws=%d)",
-                total_tracked, initial_dynamic, workspace_count, len(audio_ws_positions))
-    
-    logger.info("="*60)
-    logger.info("HYBRID ENGINE READY")
-    logger.info("Architecture: Hybrid field + tracked nodes")
-    logger.info("  Sensory: %d cells (field region, raw data = energy)", sensory_count)
-    logger.info("  Dynamic: %d seed nodes at sensory border (type=1, will grow via spawning)", initial_dynamic)
-    logger.info("  Workspace: %d nodes (type=2, immortal/infertile)", workspace_count)
+
+    logger.info("=" * 60)
+    logger.info("HYBRID ENGINE READY (3D clusters)")
+    logger.info("  Grid: %d×%d×%d = %d cells", H, W, D, H * W * D)
+    logger.info("  Sensory: %d nodes in %d clusters", len(sensory_positions), s_count)
+    logger.info("  Workspace: %d nodes in %d clusters", len(ws_positions), ws_count)
+    logger.info("  Dynamic: %d seed nodes", initial_dynamic)
     logger.info("  Total tracked: %d nodes", total_tracked)
-    logger.info("  Grid size: %d×%d = %d cells", grid_size[0], grid_size[1],
-                grid_size[0] * grid_size[1])
-    logger.info("="*60)
+    logger.info("=" * 60)
 
     # Wrap in adapter for compatibility
     return HybridNeuralSystemAdapter(
