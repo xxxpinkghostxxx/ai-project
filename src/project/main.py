@@ -83,12 +83,14 @@ else:
 def _place_clusters(
     grid_H: int, grid_W: int, grid_D: int,
     count: int, nodes_each: int, radius: int, min_separation: int,
-) -> list:
+) -> tuple:
     """Place *count* node clusters scattered through a [H, W, D] 3D volume.
 
     Each cluster has *nodes_each* nodes within a sphere of *radius* cells.
     Centers are chosen at random with a minimum pairwise distance of
-    *min_separation* cells.  Returns a flat list of ``(y, x, z)`` tuples.
+    *min_separation* cells.  Returns ``(centers, positions)`` where *centers*
+    is a list of ``(cy, cx, cz)`` and *positions* is a flat list of
+    ``(y, x, z)`` tuples.
     """
     centers = []
     attempts = 0
@@ -120,7 +122,7 @@ def _place_clusters(
                 positions.append((ny, nx, nz))
                 placed += 1
 
-    return positions
+    return centers, positions
 
 
 class HybridNeuralSystemAdapter:
@@ -137,6 +139,8 @@ class HybridNeuralSystemAdapter:
         audio_sensory_R: Tuple[int, int, int, int] | None = None,
         audio_workspace_L: Tuple[int, int, int, int] | None = None,
         audio_workspace_R: Tuple[int, int, int, int] | None = None,
+        sensory_cluster_centers: list | None = None,
+        sensory_cluster_radius: int = 3,
     ):
         """Initialize the adapter.
 
@@ -148,6 +152,8 @@ class HybridNeuralSystemAdapter:
             sensory_height: Height of sensory input
             audio_sensory_L/R: Regions for left/right audio FFT input
             audio_workspace_L/R: Regions for left/right audio oscillator output
+            sensory_cluster_centers: List of (cy, cx, cz) cluster centers
+            sensory_cluster_radius: Radius around each center for injection
         """
         self.engine = engine
         self.sensory_region = sensory_region
@@ -162,6 +168,10 @@ class HybridNeuralSystemAdapter:
         self.audio_workspace_L = audio_workspace_L
         self.audio_workspace_R = audio_workspace_R
 
+        # 3D cluster injection
+        self._sensory_cluster_centers = sensory_cluster_centers or []
+        self._sensory_cluster_radius = sensory_cluster_radius
+
         # Track connection worker state (for compatibility)
         self._connection_worker_started = False
 
@@ -171,7 +181,7 @@ class HybridNeuralSystemAdapter:
     
     def process_frame(self, frame_data: Any) -> dict:
         """Process a screen capture frame (compatible with ThreadedScreenCapture).
-        
+
         Optimized for real-time performance with GPU.
         """
         # Convert frame to float32 tensor — raw values become energy directly
@@ -180,9 +190,24 @@ class HybridNeuralSystemAdapter:
         else:
             pixels = torch.tensor(frame_data, device=self.device).float()
 
-        # Sensory nodes output their data value as energy into attached dynamic nodes.
-        # No gain, bias, or normalization — data IS energy.
-        self.engine.inject_sensory_data(pixels, self.sensory_region)
+        # Per-cluster sensory injection: downsample frame to grid size, then
+        # inject a small patch at each cluster center's Z layer.
+        if self._sensory_cluster_centers:
+            import torch.nn.functional as F
+            small = F.interpolate(
+                pixels.unsqueeze(0).unsqueeze(0),
+                size=(self.engine.H, self.engine.W),
+                mode='bilinear', align_corners=False,
+            ).squeeze()
+            r = self._sensory_cluster_radius
+            for cy, cx, cz in self._sensory_cluster_centers:
+                y0, y1 = max(0, cy - r), min(self.engine.H, cy + r + 1)
+                x0, x1 = max(0, cx - r), min(self.engine.W, cx + r + 1)
+                patch = small[y0:y1, x0:x1]
+                self.engine.inject_sensory_data(patch, region=(y0, y1, x0, x1), z=cz)
+        else:
+            # Fallback: full-region injection at z=0
+            self.engine.inject_sensory_data(pixels, self.sensory_region)
 
         return self.engine.step()
 
@@ -689,12 +714,12 @@ def create_hybrid_neural_system(
     t_start = time.time()
 
     # Place sensory clusters
-    sensory_positions = _place_clusters(H, W, D, s_count, s_each, s_radius, min_sep)
+    sensory_centers, sensory_positions = _place_clusters(H, W, D, s_count, s_each, s_radius, min_sep)
     logger.info("  Sensory: %d nodes in %d clusters (type=%d)",
                 len(sensory_positions), s_count, NODE_TYPE_SENSORY)
 
     # Place workspace clusters
-    ws_positions = _place_clusters(H, W, D, ws_count, ws_each, ws_radius, min_sep)
+    _, ws_positions = _place_clusters(H, W, D, ws_count, ws_each, ws_radius, min_sep)
     logger.info("  Workspace: %d nodes in %d clusters (type=%d)",
                 len(ws_positions), ws_count, NODE_TYPE_WORKSPACE)
 
@@ -746,6 +771,8 @@ def create_hybrid_neural_system(
         audio_sensory_R=AUDIO_SENSORY_R_REGION if audio_enabled else None,
         audio_workspace_L=AUDIO_WORKSPACE_L_REGION if audio_enabled else None,
         audio_workspace_R=AUDIO_WORKSPACE_R_REGION if audio_enabled else None,
+        sensory_cluster_centers=sensory_centers,
+        sensory_cluster_radius=s_radius,
     )
 
 

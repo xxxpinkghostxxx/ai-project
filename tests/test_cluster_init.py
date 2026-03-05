@@ -10,11 +10,12 @@ def test_clusters_produce_nodes_at_scattered_positions():
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
     from project.main import _place_clusters
 
-    positions = _place_clusters(
+    centers, positions = _place_clusters(
         grid_H=32, grid_W=32, grid_D=4,
         count=4, nodes_each=5, radius=2, min_separation=6,
     )
-    # Should have 4 clusters × 5 nodes = 20 positions (approximately)
+    # Should have 4 centers and ~20 positions
+    assert len(centers) > 0
     assert len(positions) > 0
     # All positions in bounds
     for y, x, z in positions:
