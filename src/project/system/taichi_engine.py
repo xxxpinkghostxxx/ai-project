@@ -69,6 +69,17 @@ from project.config import (
 
 logger = logging.getLogger(__name__)
 
+
+def project_energy_field_to_2d(energy_field: torch.Tensor) -> torch.Tensor:
+    """Max-pool a 3D energy_field [H, W, D] to a 2D display image [H, W].
+
+    Each pixel shows the brightest Z layer.  2D inputs are returned unchanged.
+    """
+    if energy_field.dim() == 2:
+        return energy_field
+    return energy_field.max(dim=2).values
+
+
 # =============================================================================
 # Taichi initialization — lazy, so config can override device/memory settings
 # =============================================================================
@@ -1100,6 +1111,7 @@ class TaichiNeuralEngine:
                 self.energy_field[
                     self._workspace_local_y + y0,
                     self._workspace_local_x + x0,
+                    self._workspace_local_z,
                 ]
             )
             return energy_grid.cpu()
@@ -1110,6 +1122,7 @@ class TaichiNeuralEngine:
         if n == 0:
             self._workspace_local_y = torch.tensor([], dtype=torch.long, device=self.device)
             self._workspace_local_x = torch.tensor([], dtype=torch.long, device=self.device)
+            self._workspace_local_z = torch.tensor([], dtype=torch.long, device=self.device)
             self._workspace_cache_valid = True
             return
 
@@ -1122,11 +1135,13 @@ class TaichiNeuralEngine:
         state_np = _node_state.to_numpy()[:n]
         pos_y_np = _node_pos_y.to_numpy()[:n]
         pos_x_np = _node_pos_x.to_numpy()[:n]
+        pos_z_np = _node_pos_z.to_numpy()[:n]
 
         is_ws = ((state_np != 0) &
                  (((state_np >> BINARY_NODE_TYPE_SHIFT) & BINARY_TYPE_MASK) == 2))
         ws_y  = pos_y_np[is_ws]
         ws_x  = pos_x_np[is_ws]
+        ws_z  = pos_z_np[is_ws]
         in_r  = (ws_y >= y0) & (ws_y < y1) & (ws_x >= x0) & (ws_x < x1)
 
         self._workspace_local_y = torch.tensor(
@@ -1134,6 +1149,9 @@ class TaichiNeuralEngine:
         )
         self._workspace_local_x = torch.tensor(
             ws_x[in_r] - x0, dtype=torch.long, device=self.device
+        )
+        self._workspace_local_z = torch.tensor(
+            ws_z[in_r], dtype=torch.long, device=self.device
         )
         self._workspace_cache_valid = True
         self._workspace_cached_region = (y0, y1, x0, x1)
