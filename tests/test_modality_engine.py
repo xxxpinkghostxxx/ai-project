@@ -24,7 +24,7 @@ def test_pack_state_includes_modality():
     try:
         # Add 2 workspace nodes: one VISUAL, one AUDIO_LEFT
         ids = engine.add_nodes_batch(
-            positions=[(60, 10), (60, 20)],
+            positions=[(60, 10, 0), (60, 20, 0)],
             energies=[10.0, 10.0],
             node_types=[2, 2],
             modalities=[MODALITY_VISUAL, MODALITY_AUDIO_LEFT],
@@ -58,7 +58,7 @@ def test_modality_neutral_when_omitted():
     engine = TaichiNeuralEngine(grid_size=(64, 64))
     try:
         ids = engine.add_nodes_batch(
-            positions=[(30, 30)],
+            positions=[(30, 30, 0)],
             energies=[50.0],
             node_types=[1],
         )

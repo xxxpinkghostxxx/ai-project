@@ -980,12 +980,17 @@ class TaichiNeuralEngine:
             logger.info("SENSORY | %dx%d z=%d | mean=%.1f", h, w, z,
                         float(data.mean().item()))
 
-    def add_energy_at(self, position: Tuple[int, int], amount: float) -> None:
-        """Add energy at a single grid cell (clamped to grid bounds)."""
+    def add_energy_at(self, position, amount: float) -> None:
+        """Add energy at a single grid cell (clamped to grid bounds).
+
+        *position* may be a 2-tuple ``(y, x)`` (backward compat, z defaults
+        to 0) or a 3-tuple ``(y, x, z)``.
+        """
         y = max(0, min(self.H - 1, position[0]))
         x = max(0, min(self.W - 1, position[1]))
-        self.energy_field[y, x] = min(
-            float(self.energy_field[y, x].item()) + amount, self.energy_cap
+        z = max(0, min(self.D - 1, position[2])) if len(position) > 2 else 0
+        self.energy_field[y, x, z] = min(
+            float(self.energy_field[y, x, z].item()) + amount, self.energy_cap
         )
 
     # -----------------------------------------------------------------------
@@ -1029,7 +1034,7 @@ class TaichiNeuralEngine:
         dense regular grid.
         """
         y0, y1, x0, x1 = region
-        return self.energy_field[y0:y1, x0:x1].cpu()
+        return self.energy_field[y0:y1, x0:x1, :].sum(dim=-1).cpu()
 
     # -----------------------------------------------------------------------
     # Public API — data access
