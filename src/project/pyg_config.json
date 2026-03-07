@@ -41,9 +41,9 @@
     "hybrid": {
         "enabled": true,
         "grid_size": [
-            512,
-            512,
-            8
+            2048,
+            2048,
+            16
         ],
         "toroidal": true,
         "excitatory_prob": 0.2,

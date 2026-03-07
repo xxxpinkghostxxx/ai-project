@@ -513,8 +513,7 @@ def _inject_sensory_kernel(
 ):
     """Write raw data values as energy into a specific Z layer of energy_field.
 
-    Used for audio injection (direct overwrite — no node gating needed).
-    Visual sensory injection uses _inject_sensory_delta_kernel instead.
+    Used for audio injection (direct overwrite).
     """
     for dy, dx in ti.ndrange(h, w):
         energy_field[y0 + dy, x0 + dx, z] = data[dy, dx]
@@ -528,36 +527,30 @@ def _inject_sensory_delta_kernel(
     y0: int, x0: int, h: int, w: int,
     z: int,
 ):
-    """Node-gated delta injection for visual sensory regions (ADR-001).
+    """Node-targeted sensory injection.
 
-    For each pixel position in [y0:y0+h, x0:x0+w] at depth z:
-      - If a live node occupies that cell: add (pixel_value − node_energy)
-        to the field.  This drives the node's energy toward the pixel value
-        as a natural gradient signal rather than a hard overwrite.
-      - If the cell is empty or holds a dead node: no injection.  Field
-        energy there drains to zero through DNA transfer and clamping,
-        producing black pixels in the workspace display or silence in audio.
+    For each pixel in [y0:y0+h, x0:x0+w] at depth z, if a live node
+    occupies that cell, drive its energy toward the pixel value:
 
-    Physics:
-        delta = pixel_bw − node_energy
-        energy_field[y, x, z] += delta
+        delta = pixel_value − node_energy
+        _node_energy[id] += delta × 0.5
+        energy_field[y, x, z] = _node_energy[id]   (keep field in sync)
 
-    Because _sync_energy_from_field sets node_energy ← energy_field after
-    each DNA transfer step, this converges the node toward the pixel value
-    over consecutive frames.  Spatial resolution of the sensory signal
-    therefore matches the live-node density in the region — sparser nodes
-    mean lower effective resolution, which is the intended behaviour.
+    Only nodes receive energy — the field is a mirror of node state,
+    never an independent energy source.  Empty cells are untouched.
     """
     for dy, dx in ti.ndrange(h, w):
         py = y0 + dy
         px = x0 + dx
         node_id = grid_node_id[py, px, z]
-        if node_id < MAX_NODES:            # a node occupies this cell
+        if node_id < MAX_NODES:
             state = _node_state[node_id]
-            if state != 0:                 # node is alive
+            if state != 0:
                 pixel_val = data[dy, dx]
                 node_e    = _node_energy[node_id]
-                energy_field[py, px, z] = energy_field[py, px, z] + (pixel_val - node_e)
+                new_e     = node_e + (pixel_val - node_e) * 0.5
+                _node_energy[node_id] = new_e
+                energy_field[py, px, z] = new_e
 
 
 @ti.kernel
@@ -1086,11 +1079,15 @@ class TaichiNeuralEngine:
         energies:   List[float],
         node_types: List[int],
         modalities: Optional[List[int]] = None,
+        dna: Optional[torch.Tensor] = None,
     ) -> List[int]:
         """
         Add N nodes at once with 3D positions (y, x, z).
         DNA is written to _node_dna[slot, 0..2], not packed in _node_state.
         2-tuple positions are backward-compatible (z defaults to 0).
+
+        If *dna* is provided it must be an [N, 3] int64 tensor on the correct
+        device; otherwise random DNA is generated.
         """
         n = len(positions)
         if n == 0:
@@ -1112,7 +1109,7 @@ class TaichiNeuralEngine:
         new_e     = torch.tensor(energies, device=dev, dtype=torch.float32)
         new_types = torch.tensor(node_types, device=dev, dtype=torch.int64)
         new_conn  = _random_conn_type(n, dev)
-        new_dna   = _random_dna_3d(n, dev)    # [N, 3] int64
+        new_dna   = dna if dna is not None else _random_dna_3d(n, dev)  # [N, 3] int64
 
         if modalities is not None:
             new_modality = torch.tensor(modalities, device=dev, dtype=torch.int64)

@@ -125,6 +125,22 @@ def _place_clusters(
     return centers, positions
 
 
+def _build_neutral_dna(n: int, device) -> 'torch.Tensor':
+    """Build neutral DNA: MODE=0, PARAM=1111 (15) for all 26 neighbor slots.
+
+    Returns an [n, 3] int64 tensor.  Each 5-bit slot is 0b01111 = 15, meaning
+    max lock-and-key compatibility with any other DNA.
+    """
+    import torch
+    from project.system.taichi_engine import DNA_SLOT_WORD, DNA_SLOT_BIT, NUM_NEIGHBORS_3D
+    dna = torch.zeros(n, 3, device=device, dtype=torch.int64)
+    for s in range(NUM_NEIGHBORS_3D):
+        word = DNA_SLOT_WORD[s]
+        bit  = DNA_SLOT_BIT[s]
+        dna[:, word] |= (15 << bit)   # 0b01111 = MODE 0 + PARAM 1111
+    return dna
+
+
 class HybridNeuralSystemAdapter:
     """Adapter to make TaichiNeuralEngine compatible with the existing UI and workspace code."""
 
@@ -660,57 +676,40 @@ def create_hybrid_neural_system(
     H, W = grid_size[0], grid_size[1]
     D = grid_size[2] if len(grid_size) > 2 else 8
 
-    # Define system regions (scaled to grid size)
+    # Define workspace read-back area
     workspace_config = config_manager.get_config('workspace') or {}
-    workspace_height = workspace_config.get('height', 16)
-    workspace_width = workspace_config.get('width', 16)
+    workspace_height = min(workspace_config.get('height', 16), H // 4)
+    workspace_width = min(workspace_config.get('width', 16), W)
 
-    # Sensory region: clamp to grid (used for field-level energy injection)
+    # ---------------------------------------------------------------
+    # Region layout (ADR-001 revised).
+    #
+    # ONE region covers the entire grid: dynamic, spawn=True.
+    # Every node can spawn, die, and transfer energy everywhere.
+    #
+    # SENSORY_REGION and WORKSPACE_REGION are just coordinate rectangles
+    # that tell the adapter WHERE to inject screen-capture energy and
+    # WHERE to read output energy.  They are NOT separate node types —
+    # all nodes are dynamic.  The sensory box is just an energy input
+    # overlay inside the one big dynamic grid.
+    # ---------------------------------------------------------------
     sensory_region_y_end = min(sensory_height, H)
     sensory_region_x_end = min(sensory_width, W)
 
     SENSORY_REGION   = (0, sensory_region_y_end, 0, sensory_region_x_end)
     WORKSPACE_REGION = (H - workspace_height, H, 0, workspace_width)
 
-    # ---------------------------------------------------------------
-    # Register regions in the engine (ADR-001).
-    #
-    # This makes the engine self-describing: kernels look up the spawn
-    # flag from the registry instead of hard-coding node_type checks.
-    # Three canonical regions:
-    #
-    #   sensory   — receives pixel/audio energy; mortal; no spawning.
-    #   dynamic   — fully autonomous: mortal + spawning enabled.
-    #   workspace — mortal output region; no spawning.
-    #
-    # ALL nodes are mortal — any node that drops below the death
-    # threshold is removed regardless of region type.  Dead workspace
-    # or sensory cells read as zero energy, which naturally produces
-    # black pixels or silence.
-    #
-    # Dynamic region fills the remainder between sensory and workspace.
-    # ---------------------------------------------------------------
-    dynamic_y0 = sensory_region_y_end
-    dynamic_y1 = H - workspace_height
-
+    # Single dynamic region — the entire grid is spawn-enabled
     engine.register_region(
-        y0=0,                    y1=sensory_region_y_end,
-        x0=0,                    x1=sensory_region_x_end,
-        region_type=0,           # NODE_TYPE_SENSORY
-        spawn=False,             # population fixed at initialisation
-    )
-    engine.register_region(
-        y0=dynamic_y0,           y1=max(dynamic_y0, dynamic_y1),
-        x0=0,                    x1=W,
+        y0=0,    y1=H,
+        x0=0,    x1=W,
         region_type=1,           # NODE_TYPE_DYNAMIC
         spawn=True,
     )
-    engine.register_region(
-        y0=H - workspace_height, y1=H,
-        x0=0,                    x1=workspace_width,
-        region_type=2,           # NODE_TYPE_WORKSPACE
-        spawn=False,             # workspace population fixed at initialisation
-    )
+
+    logger.info("Region layout: single dynamic region [0,%d)×[0,%d)×%d  (all spawn-enabled)", H, W, D)
+    logger.info("  Sensory injection box: [0,%d)×[0,%d)", sensory_region_y_end, sensory_region_x_end)
+    logger.info("  Workspace read-back:   [%d,%d)×[0,%d)", H - workspace_height, H, workspace_width)
     logger.info("Region registry: %s", engine.get_region_info())
 
     # ---------------------------------------------------------------
@@ -739,74 +738,49 @@ def create_hybrid_neural_system(
     AUDIO_WORKSPACE_R_REGION = (aw_y0, aw_y1, 1024, 1024 + fft_bins)
 
     # ---------------------------------------------------------------
-    # 3D cluster-based node initialization
+    # Initial node seeding
     # ---------------------------------------------------------------
+    import torch
     from project.config import (
         NODE_TYPE_SENSORY, NODE_TYPE_DYNAMIC, NODE_TYPE_WORKSPACE,
         MODALITY_VISUAL, MODALITY_AUDIO_LEFT, MODALITY_AUDIO_RIGHT,
     )
 
-    clusters_cfg = config_manager.get_config('clusters') or {}
-    s_count   = clusters_cfg.get('sensory_count', 10)
-    s_each    = clusters_cfg.get('sensory_nodes_each', 30)
-    s_radius  = clusters_cfg.get('sensory_radius', 3)
-    ws_count  = clusters_cfg.get('workspace_count', 8)
-    ws_each   = clusters_cfg.get('workspace_nodes_each', 32)
-    ws_radius = clusters_cfg.get('workspace_radius', 3)
-    min_sep   = clusters_cfg.get('min_cluster_separation', 8)
+    SEED_COUNT = 1000
 
-    logger.info("Initializing 3D island clusters...")
+    logger.info("Seeding %d neutral-DNA nodes in sensory box [0,%d)×[0,%d) at z=0...",
+                SEED_COUNT, sensory_region_y_end, sensory_region_x_end)
     t_start = time.time()
 
-    # Place sensory clusters
-    sensory_centers, sensory_positions = _place_clusters(H, W, D, s_count, s_each, s_radius, min_sep)
-    logger.info("  Sensory: %d nodes in %d clusters (type=%d)",
-                len(sensory_positions), s_count, NODE_TYPE_SENSORY)
+    # Place all seeds inside the sensory injection box (z=0) so they
+    # immediately receive screen-capture energy and can start spawning.
+    # Children will spread outward into the rest of the grid naturally.
+    seed_positions = [
+        (random.randint(0, sensory_region_y_end - 1),
+         random.randint(0, sensory_region_x_end - 1),
+         0)
+        for _ in range(SEED_COUNT)
+    ]
 
-    # Place workspace clusters
-    _, ws_positions = _place_clusters(H, W, D, ws_count, ws_each, ws_radius, min_sep)
-    logger.info("  Workspace: %d nodes in %d clusters (type=%d)",
-                len(ws_positions), ws_count, NODE_TYPE_WORKSPACE)
+    # Neutral DNA: MODE=0 (classic), PARAM=1111 (max compatibility).
+    # Lock-and-key: (15 & X) = X for any neighbor → universal energy exchange.
+    neutral_dna = _build_neutral_dna(SEED_COUNT, device)
 
-    # Seed dynamic nodes: one per (x, z) column at mid-Y
-    mid_y = H // 2
-    dynamic_positions = [(mid_y, x, z) for z in range(D) for x in range(W)]
-    dynamic_positions = dynamic_positions[:min(len(dynamic_positions), 10_000)]
-    initial_dynamic = len(dynamic_positions)
-    logger.info("  Dynamic: %d seed nodes at mid-Y=%d (type=%d)",
-                initial_dynamic, mid_y, NODE_TYPE_DYNAMIC)
-
-    # Build combined batch
-    all_positions = sensory_positions + ws_positions + dynamic_positions
-    all_energies = (
-        [10.0] * len(sensory_positions)
-        + [5.0] * len(ws_positions)
-        + [15.0] * initial_dynamic
+    engine.add_nodes_batch(
+        seed_positions,
+        [10.0] * SEED_COUNT,
+        [NODE_TYPE_DYNAMIC] * SEED_COUNT,
+        [0] * SEED_COUNT,
+        dna=neutral_dna,
     )
-    all_types = (
-        [NODE_TYPE_SENSORY] * len(sensory_positions)
-        + [NODE_TYPE_WORKSPACE] * len(ws_positions)
-        + [NODE_TYPE_DYNAMIC] * initial_dynamic
-    )
-    all_modalities = (
-        [MODALITY_VISUAL] * len(sensory_positions)
-        + [MODALITY_VISUAL] * len(ws_positions)
-        + [0] * initial_dynamic
-    )
-
-    engine.add_nodes_batch(all_positions, all_energies, all_types, all_modalities)
 
     t_elapsed = time.time() - t_start
-    total_tracked = len(all_positions)
-    logger.info("  Initialization complete in %.3fs", t_elapsed)
 
     logger.info("=" * 60)
-    logger.info("HYBRID ENGINE READY (3D clusters)")
+    logger.info("HYBRID ENGINE READY")
     logger.info("  Grid: %d×%d×%d = %d cells", H, W, D, H * W * D)
-    logger.info("  Sensory: %d nodes in %d clusters", len(sensory_positions), s_count)
-    logger.info("  Workspace: %d nodes in %d clusters", len(ws_positions), ws_count)
-    logger.info("  Dynamic: %d seed nodes", initial_dynamic)
-    logger.info("  Total tracked: %d nodes", total_tracked)
+    logger.info("  Seed nodes: %d (neutral DNA, sensory box z=0)", SEED_COUNT)
+    logger.info("  Init time: %.3fs", t_elapsed)
     logger.info("=" * 60)
 
     # Wrap in adapter for compatibility
@@ -816,8 +790,6 @@ def create_hybrid_neural_system(
         audio_sensory_R=AUDIO_SENSORY_R_REGION if audio_enabled else None,
         audio_workspace_L=AUDIO_WORKSPACE_L_REGION if audio_enabled else None,
         audio_workspace_R=AUDIO_WORKSPACE_R_REGION if audio_enabled else None,
-        sensory_cluster_centers=sensory_centers,
-        sensory_cluster_radius=s_radius,
     )
 
 
