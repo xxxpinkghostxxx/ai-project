@@ -1,26 +1,51 @@
 """
 Workspace Mapping Utilities
 
-This module provides functions for mapping sensory nodes to workspace nodes.
+DEPRECATED (ADR-001): This module was written for the PyG graph-based system
+where sensory and workspace were discrete node-ID spaces that required an
+explicit cross-graph mapping.  Under the unified dynamic node grid those spaces
+are *regions* of the same grid, so their spatial relationship is implicit in
+the cluster layout — no ID-level mapping table is needed.
+
+These functions are preserved only for backward compatibility.  They will be
+removed once all call sites have been updated to use
+``TaichiNeuralEngine.register_region()`` and direct field slices.
 """
 
+import logging
+import warnings
 from typing import Dict, List, Tuple
 import numpy as np
 
+_deprecated_logger = logging.getLogger(__name__)
 
-def map_sensory_to_workspace(sensory_width: int, sensory_height: int, 
-                           workspace_size: Tuple[int, int] = (16, 16)) -> Dict[int, List[int]]:
-    """
-    Map sensory nodes to workspace nodes using spatial aggregation.
-    
+
+def map_sensory_to_workspace(sensory_width: int, sensory_height: int,
+                            workspace_size: Tuple[int, int] = (16, 16)) -> Dict[int, List[int]]:
+    """Map sensory nodes to workspace nodes using spatial aggregation.
+
+    .. deprecated::
+        ADR-001 — sensory and workspace are now regions of the unified dynamic
+        node grid.  Spatial coupling is implicit in grid topology; this
+        explicit ID mapping is no longer used in the active simulation path.
+        Use ``TaichiNeuralEngine.register_region()`` instead.
+
     Args:
         sensory_width: Width of sensory grid (e.g., 256)
         sensory_height: Height of sensory grid (e.g., 144)
         workspace_size: Size of workspace grid (16, 16)
-    
+
     Returns:
         Dictionary mapping workspace node IDs to lists of sensory node IDs
     """
+    warnings.warn(
+        "map_sensory_to_workspace() is deprecated (ADR-001). "
+        "Sensory and workspace are now regions of the unified dynamic node grid. "
+        "Use TaichiNeuralEngine.register_region() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    _deprecated_logger.debug("map_sensory_to_workspace() called — deprecated (ADR-001)")
     workspace_to_sensory = {}
     
     # Calculate mapping ratio

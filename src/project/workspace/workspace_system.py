@@ -31,7 +31,7 @@ except ImportError:
 
 from .workspace_node import WorkspaceNode
 from .config import EnergyReadingConfig
-from .mapping import map_sensory_to_workspace, calculate_energy_aggregation
+# mapping.map_sensory_to_workspace removed (ADR-001) — see _create_sensory_mapping()
 
 logger = logging.getLogger(__name__)
 
@@ -84,29 +84,25 @@ class WorkspaceNodeSystem:
         logger.info(f"Initialized {len(self.workspace_nodes)} workspace nodes")
     
     def _create_sensory_mapping(self):
-        """Create mapping from workspace nodes to sensory nodes."""
-        try:
-            sensory_width = self.neural_system.sensory_width
-            sensory_height = self.neural_system.sensory_height
-            
-            logger.info(f"Creating mapping from {sensory_width}x{sensory_height} to {self.grid_size[0]}x{self.grid_size[1]}")
-            
-            self.mapping = map_sensory_to_workspace(
-                sensory_width, sensory_height, self.grid_size
-            )
-            
-            # Validate mapping
-            total_mapped_sensory = sum(len(sensory_list) for sensory_list in self.mapping.values())
-            total_sensory_nodes = sensory_width * sensory_height
-            
-            logger.info(f"Mapping created: {total_mapped_sensory}/{total_sensory_nodes} sensory nodes mapped")
-            
-            if total_mapped_sensory != total_sensory_nodes:
-                logger.warning(f"Mapping incomplete: {total_mapped_sensory} mapped vs {total_sensory_nodes} total")
-        
-        except Exception as e:
-            logger.error(f"Failed to create sensory mapping: {e}")
-            raise
+        """Inform about the unified region topology (ADR-001).
+
+        Under the unified dynamic node grid, sensory and workspace are spatial
+        *regions* of the same grid — their coupling is implicit in the cluster
+        layout and the region registry, not in an explicit node-ID mapping table.
+
+        The old ``map_sensory_to_workspace()`` call is removed here because:
+          - It produced an ID-to-ID dict that was never used in the active
+            simulation path (energy reads go straight to the GPU field slice).
+          - It is dead code from the PyG graph layer that was removed.
+
+        ``self.mapping`` is kept as an empty dict for backward compatibility
+        with any callers that inspect it; ``get_connection_count()`` returns 0.
+        """
+        self.mapping = {}
+        logger.info(
+            "WorkspaceNodeSystem: sensory→workspace coupling is implicit in the "
+            "unified region grid (ADR-001). No explicit ID mapping needed."
+        )
     
     def start(self):
         """Start the workspace system."""

@@ -7,22 +7,24 @@ This module defines configuration parameters for the workspace node system.
 from dataclasses import dataclass
 from typing import Tuple
 
+from project.config import NODE_ENERGY_CAP
+
 
 @dataclass
 class EnergyReadingConfig:
     """Configuration for energy reading and workspace system."""
-    
+
     # Grid configuration
     grid_size: Tuple[int, int] = (16, 16)
     pixel_size: int = 20
     grid_spacing: int = 2
-    
+
     # Energy reading configuration
     reading_interval_ms: int = 50  # 20 Hz update rate
     energy_smoothing: bool = True
     smoothing_factor: float = 0.1
     energy_threshold_min: float = 0.0
-    energy_threshold_max: float = 244.0  # From config.py
+    energy_threshold_max: float = float(NODE_ENERGY_CAP)
     
     # Visualization configuration
     shading_mode: str = 'linear'  # 'linear', 'logarithmic', 'exponential'

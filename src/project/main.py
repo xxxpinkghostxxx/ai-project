@@ -318,11 +318,20 @@ class HybridNeuralSystemAdapter:
         }
 
     def pulse_energy(self) -> float:
-        """Add a burst of energy across the whole field. Returns amount added."""
-        amount = self.engine.energy_cap * 0.1  # 10% of cap
-        self.engine.energy_field.add_(amount)
-        self.engine.energy_field.clamp_(self.engine.death_threshold, self.engine.energy_cap)
-        return float(amount)
+        """REMOVED (ADR-001): external energy injection violates node economics.
+
+        Global energy pulses bypass the sensory→dynamic→workspace flow and
+        create phantom energy that corrupts the system's thermodynamic balance.
+        This method is retained as a no-op to avoid breaking callers; remove
+        any UI button that triggers it.
+
+        Returns 0.0 without modifying the field.
+        """
+        logger.warning(
+            "pulse_energy() called but is disabled (ADR-001). "
+            "Remove the call site — this method will be deleted in a future release."
+        )
+        return 0.0
 
     # ------------------------------------------------------------------
     # Config hot-reload
@@ -536,17 +545,12 @@ class HybridNeuralSystemAdapter:
         pass
     
     def shutdown(self) -> None:
-        """Shutdown the system."""
+        """Shutdown the system (cleanup/stop are aliases)."""
         logger.info("Shutting down hybrid engine")
-        # Hybrid engine doesn't need special shutdown
-    
-    def cleanup(self) -> None:
-        """Clean up resources."""
-        self.shutdown()
-    
-    def stop(self) -> None:
-        """Stop the system."""
-        self.shutdown()
+
+    # Aliases for compatibility — all delegate to shutdown().
+    cleanup = shutdown
+    stop = shutdown
 
 
 def resolve_device(pref: str | None) -> str:
@@ -665,8 +669,49 @@ def create_hybrid_neural_system(
     sensory_region_y_end = min(sensory_height, H)
     sensory_region_x_end = min(sensory_width, W)
 
-    SENSORY_REGION = (0, sensory_region_y_end, 0, sensory_region_x_end)
+    SENSORY_REGION   = (0, sensory_region_y_end, 0, sensory_region_x_end)
     WORKSPACE_REGION = (H - workspace_height, H, 0, workspace_width)
+
+    # ---------------------------------------------------------------
+    # Register regions in the engine (ADR-001).
+    #
+    # This makes the engine self-describing: kernels look up the spawn
+    # flag from the registry instead of hard-coding node_type checks.
+    # Three canonical regions:
+    #
+    #   sensory   — receives pixel/audio energy; mortal; no spawning.
+    #   dynamic   — fully autonomous: mortal + spawning enabled.
+    #   workspace — mortal output region; no spawning.
+    #
+    # ALL nodes are mortal — any node that drops below the death
+    # threshold is removed regardless of region type.  Dead workspace
+    # or sensory cells read as zero energy, which naturally produces
+    # black pixels or silence.
+    #
+    # Dynamic region fills the remainder between sensory and workspace.
+    # ---------------------------------------------------------------
+    dynamic_y0 = sensory_region_y_end
+    dynamic_y1 = H - workspace_height
+
+    engine.register_region(
+        y0=0,                    y1=sensory_region_y_end,
+        x0=0,                    x1=sensory_region_x_end,
+        region_type=0,           # NODE_TYPE_SENSORY
+        spawn=False,             # population fixed at initialisation
+    )
+    engine.register_region(
+        y0=dynamic_y0,           y1=max(dynamic_y0, dynamic_y1),
+        x0=0,                    x1=W,
+        region_type=1,           # NODE_TYPE_DYNAMIC
+        spawn=True,
+    )
+    engine.register_region(
+        y0=H - workspace_height, y1=H,
+        x0=0,                    x1=workspace_width,
+        region_type=2,           # NODE_TYPE_WORKSPACE
+        spawn=False,             # workspace population fixed at initialisation
+    )
+    logger.info("Region registry: %s", engine.get_region_info())
 
     # ---------------------------------------------------------------
     # Audio regions (disabled when grid too narrow)
@@ -701,7 +746,7 @@ def create_hybrid_neural_system(
         MODALITY_VISUAL, MODALITY_AUDIO_LEFT, MODALITY_AUDIO_RIGHT,
     )
 
-    clusters_cfg = config_manager.get('clusters', {})
+    clusters_cfg = config_manager.get_config('clusters') or {}
     s_count   = clusters_cfg.get('sensory_count', 10)
     s_each    = clusters_cfg.get('sensory_nodes_each', 30)
     s_radius  = clusters_cfg.get('sensory_radius', 3)

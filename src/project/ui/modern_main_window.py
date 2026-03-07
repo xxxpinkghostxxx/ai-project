@@ -1013,14 +1013,15 @@ class ModernMainWindow(QMainWindow):
                 else:
                     self._workspace_pixmap_item.setPixmap(pixmap)
 
-                # Re-fit on every frame so the view stays aligned after window resizes.
-                # The pixmap is always 1px-per-node (e.g. 16×16); fitInView scales it up
-                # uniformly with KeepAspectRatio. SmoothPixmapTransform is disabled above
-                # so each node cell remains a crisp integer-sized block.
-                self.workspace_view.fitInView(
-                    self.workspace_scene.itemsBoundingRect(),
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                )
+                # Only re-fit when the scene bounds change (first frame or after resize).
+                # Calling fitInView() every frame causes geometry thrashing and flicker.
+                bounds = self.workspace_scene.itemsBoundingRect()
+                if not hasattr(self, '_workspace_last_bounds') or self._workspace_last_bounds != bounds:
+                    self._workspace_last_bounds = bounds
+                    self.workspace_view.fitInView(
+                        bounds,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                    )
 
         except Exception as e:
             # Enhanced error reporting with detailed context
@@ -1062,6 +1063,13 @@ class ModernMainWindow(QMainWindow):
     
     def on_workspace_update(self, energy_grid) -> None:
         """Handle workspace system updates and render them to the canvas."""
+        # Throttle to ~60 fps — drop stale queued updates from the workspace thread.
+        now = time.time()
+        if hasattr(self, '_workspace_last_render_time'):
+            if now - self._workspace_last_render_time < 0.015:  # ~66 Hz cap
+                return
+        self._workspace_last_render_time = now
+
         if not hasattr(self, '_workspace_update_counter'):
             self._workspace_update_counter = 0
         self._workspace_update_counter += 1
@@ -1918,6 +1926,11 @@ class ModernMainWindow(QMainWindow):
                     context=error_context
                 )
                 self.status_bar.showMessage(f"Error: {str(e)} - Check logs for details")
+
+    def resizeEvent(self, event: Any) -> None:  # pylint: disable=invalid-name
+        """Invalidate cached scene bounds so fitInView re-fires after resize."""
+        super().resizeEvent(event)
+        self._workspace_last_bounds = None
 
     def closeEvent(self, a0: Any) -> None:  # pylint: disable=invalid-name
         """Handle window closing."""

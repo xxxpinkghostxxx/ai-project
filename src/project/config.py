@@ -121,9 +121,13 @@ SPAWN_TIER_4_LIMIT = 200
 # Legacy Energy Constants (used by energy_calculator.py, simulation_validator.py)
 # These are from the PyG connection-based system.  The Taichi engine reads its
 # thresholds from pyg_config.json → hybrid section instead.
+#
+# ADR-001: corrected to match the 0-255 design range used by the Taichi engine.
+#   NODE_ENERGY_CAP was 244 (now 255 — matches 8-bit pixel intensity)
+#   NODE_DEATH_THRESHOLD was -10.0 (now 1.0 — nodes die at near-zero energy)
 # =============================================================================
-NODE_ENERGY_CAP = 244
-NODE_DEATH_THRESHOLD = -10.0
+NODE_ENERGY_CAP = 255
+NODE_DEATH_THRESHOLD = 1.0
 NODE_SPAWN_THRESHOLD = NODE_ENERGY_CAP * 0.09
 NODE_ENERGY_SPAWN_COST = NODE_ENERGY_CAP * 0.08
 MAX_NODE_BIRTHS_PER_STEP = 80

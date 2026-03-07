@@ -8,11 +8,14 @@ and provides various shading modes for visualization.
 import math
 from typing import List, Tuple
 
+from project.config import NODE_DEATH_THRESHOLD, NODE_ENERGY_CAP
+
 
 class PixelShadingSystem:
     """Handles energy-to-pixel conversion and visual effects."""
 
-    def __init__(self, energy_min: float = -10.0, energy_max: float = 244.0):
+    def __init__(self, energy_min: float = NODE_DEATH_THRESHOLD,
+                 energy_max: float = NODE_ENERGY_CAP):
         """
         Initialize pixel shading system.
 
@@ -104,15 +107,20 @@ class PixelShadingSystem:
 
     @staticmethod
     def _color_heatmap(pv: int) -> Tuple[int, int, int]:
-        # Blue (low) -> Green -> Red (high)
-        if pv < 85:
-            ratio = pv / 85.0
-            return (0, int(255 * ratio), int(255 * (1 - ratio)))
-        elif pv < 170:
-            ratio = (pv - 85) / 85.0
-            return (int(255 * ratio), int(255 * (1 - ratio)), 0)
+        # Blue (low) -> Green (mid) -> Red (high), continuous interpolation.
+        # Normalize to [0, 1] then use two linear segments with shared boundaries.
+        t = pv / 255.0
+        if t < 0.5:
+            ratio = t * 2.0          # 0 → 1 across first half
+            r = 0
+            g = int(255 * ratio)
+            b = int(255 * (1.0 - ratio))
         else:
-            return (255, 0, 0)
+            ratio = (t - 0.5) * 2.0  # 0 → 1 across second half
+            r = int(255 * ratio)
+            g = int(255 * (1.0 - ratio))
+            b = 0
+        return (r, g, b)
 
     @staticmethod
     def _color_custom(pv: int) -> Tuple[int, int, int]:

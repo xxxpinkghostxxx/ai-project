@@ -220,11 +220,12 @@ class AudioOutput:
             self._phase_L = (self._phase_L + self._phase_inc * frames) % (2.0 * np.pi)
             self._phase_R = (self._phase_R + self._phase_inc * frames) % (2.0 * np.pi)
 
-            # Normalise by number of active bins to prevent clipping
-            n_active_L = max(np.count_nonzero(self._amp_L > 0.01), 1)
-            n_active_R = max(np.count_nonzero(self._amp_R > 0.01), 1)
-            left /= n_active_L
-            right /= n_active_R
+            # Normalise by peak amplitude to prevent clipping while preserving
+            # relative spectral balance (bin-count division was non-linear).
+            peak_L = max(np.abs(left).max(), 1e-8)
+            peak_R = max(np.abs(right).max(), 1e-8)
+            left /= peak_L
+            right /= peak_R
 
             # Apply master volume and write to output buffer
             vol = self.master_volume

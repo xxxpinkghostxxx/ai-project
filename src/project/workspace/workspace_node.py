@@ -8,6 +8,10 @@ in the 16x16 workspace grid.
 from collections import deque
 from typing import List
 
+# Default EMA smoothing factor — must match config_manager.py defaults.
+# The update_energy() method maintains a running EMA at this rate for O(1) lookups.
+DEFAULT_SMOOTHING_FACTOR = 0.1
+
 
 class WorkspaceNode:
     """Represents a single workspace node in the 16x16 grid."""
@@ -44,15 +48,15 @@ class WorkspaceNode:
         if not self.energy_history:
             self._ema = new_energy
         else:
-            self._ema += 0.1 * (new_energy - self._ema)
+            self._ema += DEFAULT_SMOOTHING_FACTOR * (new_energy - self._ema)
         self.current_energy = new_energy
         self.energy_history.append(new_energy)
     
-    def get_smoothed_energy(self, smoothing_factor: float = 0.1) -> float:
+    def get_smoothed_energy(self, smoothing_factor: float = DEFAULT_SMOOTHING_FACTOR) -> float:
         """Get smoothed energy value using exponential moving average (O(1))."""
         if not self.energy_history:
             return 0.0
-        if smoothing_factor == 0.1:
+        if smoothing_factor == DEFAULT_SMOOTHING_FACTOR:
             # Fast path: return the running EMA maintained by update_energy()
             return self._ema
         # Fallback: recompute with a non-default factor (rarely called)

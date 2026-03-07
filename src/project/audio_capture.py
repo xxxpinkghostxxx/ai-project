@@ -65,6 +65,8 @@ class AudioCapture:
 
         # Hann window for FFT (pre-computed)
         self._window: NDArray[np.floating[Any]] = np.hanning(fft_size).astype(np.float32)
+        # Window amplitude sum for correct FFT normalization (Hann sum ≈ N/2)
+        self._window_sum: float = float(self._window.sum())
 
         # Ring buffer to accumulate samples between callbacks
         self._ring: NDArray[np.floating[Any]] = np.zeros(
@@ -283,8 +285,9 @@ class AudioCapture:
             windowed = buf[:, ch] * self._window
             fft_result = np.fft.rfft(windowed)
             magnitudes = np.abs(fft_result[1 : self.fft_bins + 1])  # skip DC
-            # Normalise: divide by fft_size/2 so a full-scale sine → ~1.0
-            magnitudes *= 2.0 / self.fft_size
+            # Normalise by window sum so a full-scale sine → ~1.0.
+            # Factor of 2 accounts for one-sided spectrum.
+            magnitudes *= 2.0 / self._window_sum
             spectrum[ch] = magnitudes
 
         with self._lock:

@@ -18,7 +18,7 @@ Dead nodes (state == 0) contribute zero energy automatically.
 
 Bit layout (64-bit int64 per node, matches config.py):
     bit 63      : alive flag
-    bits 62-61  : node_type  (0=sensory, 1=dynamic, 2=workspace)
+    bits 62-61  : node_type  (0=sensory, 1=dynamic, 2=workspace) — informational only; physics is uniform
     bits 60-58  : conn_type  (0-7, eight connection types)
     bits 57-3   : reserved (DNA moved to _node_dna field)
     bits 2-0    : modality  (0=neutral, 1=visual, 2=audio_L, 3=audio_R)
@@ -68,6 +68,18 @@ from project.config import (
 )
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Named constants for values used inside Taichi kernels and step().
+# Taichi kernels read these as Python globals at compile time.
+# ---------------------------------------------------------------------------
+DAMPING_SCALE = 50.0            # exp(-|energy|/DAMPING_SCALE) for damped connections
+SPECIAL_PARAM_MAX = 3.0         # max value of 2-bit sparam field (0-3)
+THRESHOLD_ENERGY_SCALE = 16.0   # THRESHOLD micro-instruction: sparam × this
+CONTRIB_CLAMP_FRACTION = 0.08   # per-neighbor clamp = energy_cap × this (~20 for cap=244, ~40 for cap=500)
+SPAWN_ABOVE_AVG_FACTOR = 1.10   # spawn threshold = avg energy × this
+SPAWN_COST_FRACTION = 0.75      # spawn cost = threshold × this
+SPAWN_CAP_FRACTION = 0.80       # spawn threshold capped at energy_cap × this
 
 
 def project_energy_field_to_2d(energy_field: torch.Tensor) -> torch.Tensor:
@@ -136,6 +148,32 @@ _node_count  = ti.field(dtype=ti.i32, shape=())               # high-water mark
 _node_charge = ti.field(dtype=ti.f32, shape=MAX_NODES)        # capacitive charge
 _node_dna    = ti.field(dtype=ti.i64, shape=(MAX_NODES, 3))  # 26×5=130 bits in 3 int64s (NEW)
 
+# =============================================================================
+# Region registry (ADR-001) — sensory and workspace as named regions of the grid.
+#
+# Each entry describes a 2-D bounding box (all Z layers) with one behavioural
+# flag:
+#   _region_spawn[r]    — 1 if nodes inside this region may reproduce, else 0
+#
+# All nodes are mortal — no immortality flags exist.  Any node that drops below
+# the death threshold is removed regardless of region type.
+#
+# Regions are registered by the adapter via TaichiNeuralEngine.register_region()
+# before the first step().  Kernels call _get_node_region() to look up a node's
+# region index, then gate spawning on the region flag.
+#
+# Up to MAX_REGIONS entries; entries 0..(_region_count-1) are valid.
+# =============================================================================
+MAX_REGIONS = 16
+
+_region_count    = ti.field(dtype=ti.i32, shape=())
+_region_y0       = ti.field(dtype=ti.i32, shape=MAX_REGIONS)
+_region_y1       = ti.field(dtype=ti.i32, shape=MAX_REGIONS)
+_region_x0       = ti.field(dtype=ti.i32, shape=MAX_REGIONS)
+_region_x1       = ti.field(dtype=ti.i32, shape=MAX_REGIONS)
+_region_type     = ti.field(dtype=ti.i32, shape=MAX_REGIONS)   # 0=sensory,1=dynamic,2=workspace
+_region_spawn    = ti.field(dtype=ti.i32, shape=MAX_REGIONS)   # 1 = spawning allowed
+
 # Per-step event counters (reset before each step)
 _deaths_count = ti.field(dtype=ti.i32, shape=())
 _spawns_count = ti.field(dtype=ti.i32, shape=())
@@ -187,6 +225,7 @@ def _dna_transfer_kernel(
     gate_threshold: float,
     frame: int,
     strength: float,
+    contrib_clamp: float,
 ):
     """
     3D DNA transfer with lock-and-key compatibility, 26 neighbours, 8 connection
@@ -208,7 +247,7 @@ def _dna_transfer_kernel(
         energy = _node_energy[i]
         conn_type = int((state >> 58) & 7)
         gate_fire = 1.0 if energy > gate_threshold else 0.0
-        damping = ti.exp(-ti.abs(energy) / 50.0)
+        damping = ti.exp(-ti.abs(energy) / DAMPING_SCALE)
 
         total = 0.0
         for d in ti.static(range(26)):
@@ -244,18 +283,18 @@ def _dna_transfer_kernel(
                     special = (my_param >> 2) & 3
                     sparam  = my_param & 3
                     if special == 0:      # THRESHOLD
-                        if ti.abs(delta) <= float(sparam) * 16.0:
+                        if ti.abs(delta) <= float(sparam) * THRESHOLD_ENERGY_SCALE:
                             skip = 1
                     elif special == 1:    # INVERT
                         delta = -delta
-                        dna_strength = float(sparam) / 3.0
+                        dna_strength = float(sparam) / SPECIAL_PARAM_MAX
                     elif special == 2:    # PULSE
                         if frame % (sparam + 1) != 0:
                             skip = 1
                     elif special == 3:    # ABSORB
                         if delta < 0.0:
                             skip = 1
-                        dna_strength = float(sparam) / 3.0
+                        dna_strength = float(sparam) / SPECIAL_PARAM_MAX
 
                 if skip == 0:
                     # --- Connection type determines transfer formula ---
@@ -279,8 +318,9 @@ def _dna_transfer_kernel(
                         ti.atomic_add(_node_charge[i], ti.abs(delta) * dna_strength * dt)
                         contrib = 0.0         # no immediate transfer
 
-                    # Clamp individual contribution to prevent NaN propagation
-                    contrib = ti.min(ti.max(contrib, -100.0), 100.0)
+                    # Clamp per-neighbor contribution to prevent runaway transfer.
+                    # Field-level clamp follows after all transfers complete.
+                    contrib = ti.min(ti.max(contrib, -contrib_clamp), contrib_clamp)
                     if contrib != 0.0:
                         total += contrib
                         ti.atomic_sub(energy_field[ny, nx, nz], contrib)
@@ -296,29 +336,50 @@ def _dna_transfer_kernel(
             ti.atomic_add(energy_field[py, px, pz], total)
 
 
+@ti.func
+def _get_node_region(py: int, px: int) -> int:
+    """Return region index [0..MAX_REGIONS-1] for (y, x), or -1 if unregistered.
+
+    Iterates over all MAX_REGIONS slots; only registered entries
+    (r < _region_count) are checked.  Returns the first matching region.
+    Called from inside kernels — compiled as an inlined GPU function.
+    """
+    result = -1
+    n = _region_count[None]
+    for r in ti.static(range(MAX_REGIONS)):
+        if r < n and result < 0:
+            if (py >= _region_y0[r] and py < _region_y1[r] and
+                    px >= _region_x0[r] and px < _region_x1[r]):
+                result = r
+    return result
+
+
 @ti.kernel
 def _death_kernel(death_threshold: float):
     """
-    Kill dynamic nodes (type == 1) whose energy falls below threshold.
+    Kill every node whose energy falls below the death threshold.
 
-    Workspace nodes (type == 2) are immortal — never killed here.
+    All nodes are mortal — there is no immortality exception for any region
+    or node type.  Sensory and workspace nodes that stop receiving energy will
+    deplete and die naturally, freeing their slots for dynamic regrowth.  This
+    is the intended thermodynamic behaviour.
+
     Zeroing the state wipes alive, type, and conn fields in one operation.
     DNA words in _node_dna are also cleared on death.
     Death count is accumulated atomically in _deaths_count.
     """
     for i in range(_node_count[None]):
-        state = _node_state[i]
-        if state == 0:
+        if _node_state[i] == 0:
             continue
-        node_type = int((state >> 61) & 3)
-        if node_type == 1 and _node_energy[i] < death_threshold:
-            _node_state[i]  = 0
-            _node_energy[i] = 0.0
-            _node_charge[i] = 0.0
-            _node_dna[i, 0] = 0
-            _node_dna[i, 1] = 0
-            _node_dna[i, 2] = 0
-            ti.atomic_add(_deaths_count[None], 1)
+        if _node_energy[i] >= death_threshold:
+            continue
+        _node_state[i]  = 0
+        _node_energy[i] = 0.0
+        _node_charge[i] = 0.0
+        _node_dna[i, 0] = 0
+        _node_dna[i, 1] = 0
+        _node_dna[i, 2] = 0
+        ti.atomic_add(_deaths_count[None], 1)
 
 
 @ti.kernel
@@ -350,10 +411,26 @@ def _spawn_kernel(
         state = _node_state[i]
         if state == 0:
             continue
-        node_type = int((state >> 61) & 3)
-        if node_type != 1:
-            continue
         if _node_energy[i] < spawn_threshold:
+            continue
+
+        # Region-aware spawn gate (ADR-001): check the region registry first.
+        # Fall back to node_type == 1 check for nodes placed before any
+        # regions were registered (backward-compat).
+        py = _node_pos_y[i]
+        px = _node_pos_x[i]
+        region = _get_node_region(py, px)
+
+        can_spawn = 0
+        if region >= 0:
+            can_spawn = _region_spawn[region]
+        else:
+            # No region registered — only dynamic (type 1) may spawn (legacy)
+            node_type = int((state >> 61) & 3)
+            if node_type == 1:
+                can_spawn = 1
+
+        if can_spawn == 0:
             continue
 
         # Atomically claim a spawn slot BEFORE doing work — prevents overshoot
@@ -434,9 +511,53 @@ def _inject_sensory_kernel(
     y0: int, x0: int, h: int, w: int,
     z: int,
 ):
-    """Write raw data values as energy into a specific Z layer of energy_field."""
+    """Write raw data values as energy into a specific Z layer of energy_field.
+
+    Used for audio injection (direct overwrite — no node gating needed).
+    Visual sensory injection uses _inject_sensory_delta_kernel instead.
+    """
     for dy, dx in ti.ndrange(h, w):
         energy_field[y0 + dy, x0 + dx, z] = data[dy, dx]
+
+
+@ti.kernel
+def _inject_sensory_delta_kernel(
+    energy_field: ti.types.ndarray(),
+    grid_node_id: ti.types.ndarray(),
+    data:         ti.types.ndarray(),
+    y0: int, x0: int, h: int, w: int,
+    z: int,
+):
+    """Node-gated delta injection for visual sensory regions (ADR-001).
+
+    For each pixel position in [y0:y0+h, x0:x0+w] at depth z:
+      - If a live node occupies that cell: add (pixel_value − node_energy)
+        to the field.  This drives the node's energy toward the pixel value
+        as a natural gradient signal rather than a hard overwrite.
+      - If the cell is empty or holds a dead node: no injection.  Field
+        energy there drains to zero through DNA transfer and clamping,
+        producing black pixels in the workspace display or silence in audio.
+
+    Physics:
+        delta = pixel_bw − node_energy
+        energy_field[y, x, z] += delta
+
+    Because _sync_energy_from_field sets node_energy ← energy_field after
+    each DNA transfer step, this converges the node toward the pixel value
+    over consecutive frames.  Spatial resolution of the sensory signal
+    therefore matches the live-node density in the region — sparser nodes
+    mean lower effective resolution, which is the intended behaviour.
+    """
+    for dy, dx in ti.ndrange(h, w):
+        py = y0 + dy
+        px = x0 + dx
+        node_id = grid_node_id[py, px, z]
+        if node_id < MAX_NODES:            # a node occupies this cell
+            state = _node_state[node_id]
+            if state != 0:                 # node is alive
+                pixel_val = data[dy, dx]
+                node_e    = _node_energy[node_id]
+                energy_field[py, px, z] = energy_field[py, px, z] + (pixel_val - node_e)
 
 
 @ti.kernel
@@ -643,7 +764,7 @@ class TaichiNeuralEngine:
             # Python-side count (mirrors _node_count Taichi field)
             self._count = 0
 
-            # Workspace read cache — built once on first call (workspace nodes are immortal)
+            # Workspace read cache (retired — read_workspace_energies uses direct field slice)
             self._workspace_local_y: Optional[torch.Tensor] = None
             self._workspace_local_x: Optional[torch.Tensor] = None
             self._workspace_cache_valid = False
@@ -682,6 +803,91 @@ class TaichiNeuralEngine:
     def node_count(self) -> int:
         """Current node count (high-water mark, no GPU roundtrip)."""
         return self._count
+
+    # -----------------------------------------------------------------------
+    # -----------------------------------------------------------------------
+    # Region registry (ADR-001)
+    # -----------------------------------------------------------------------
+
+    def register_region(
+        self,
+        y0: int,
+        y1: int,
+        x0: int,
+        x1: int,
+        region_type: int,
+        spawn: bool = False,
+        immortal: bool = False,   # ignored — all nodes are mortal (kept for API compat)
+    ) -> int:
+        """Register a 2-D spatial region with uniform behavioural flags.
+
+        Args:
+            y0, y1: Row bounds [y0, y1) in grid coordinates.
+            x0, x1: Column bounds [x0, x1) in grid coordinates.
+            region_type: 0 = sensory, 1 = dynamic, 2 = workspace (informational).
+            spawn:    If True, nodes inside this region may reproduce.
+            immortal: Deprecated — ignored.  All nodes are mortal; any node
+                      that drops below the death threshold is removed regardless
+                      of region type.  The parameter is kept for call-site
+                      backward compatibility only.
+
+        Returns:
+            Region index (0-based). Raises RuntimeError if registry is full.
+
+        Note:
+            Must be called before the first step().  The Z dimension is not
+            part of region bounds — all Z layers of (y0:y1, x0:x1) share the
+            same flags, consistent with how cluster-based placement works.
+        """
+        if immortal:
+            logger.warning(
+                "register_region(): immortal=True is ignored — all nodes are mortal."
+            )
+        idx = int(_region_count[None])
+        if idx >= MAX_REGIONS:
+            raise RuntimeError(
+                f"Region registry full (MAX_REGIONS={MAX_REGIONS}). "
+                "Increase MAX_REGIONS if you need more regions."
+            )
+        _region_y0[idx]       = int(y0)
+        _region_y1[idx]       = int(y1)
+        _region_x0[idx]       = int(x0)
+        _region_x1[idx]       = int(x1)
+        _region_type[idx]     = int(region_type)
+        _region_spawn[idx]    = 1 if spawn else 0
+        _region_count[None]   = idx + 1
+        logger.info(
+            "Region %d registered: type=%d y=[%d,%d) x=[%d,%d) spawn=%s",
+            idx, region_type, y0, y1, x0, x1, spawn,
+        )
+        return idx
+
+    def get_region_info(self) -> List[Dict[str, Any]]:
+        """Return a list of dicts describing all registered regions.
+
+        Useful for monitoring, logging, and test assertions.
+        """
+        n = int(_region_count[None])
+        regions = []
+        for r in range(n):
+            regions.append({
+                'index':    r,
+                'type':     int(_region_type[r]),
+                'y0':       int(_region_y0[r]),
+                'y1':       int(_region_y1[r]),
+                'x0':       int(_region_x0[r]),
+                'x1':       int(_region_x1[r]),
+                'spawn':    bool(_region_spawn[r]),
+            })
+        return regions
+
+    def clear_regions(self) -> None:
+        """Remove all registered regions (e.g., before a grid resize).
+
+        Warning: call this only when no step() is running.
+        """
+        _region_count[None] = 0
+        logger.info("Region registry cleared.")
 
     # -----------------------------------------------------------------------
     # Public API — runtime parameter updates (hot-reload from config)
@@ -752,6 +958,7 @@ class TaichiNeuralEngine:
                     self.gate_threshold,
                     self.frame_counter,
                     self.transfer_strength,
+                    self.energy_cap * CONTRIB_CLAMP_FRACTION,
                 )
             transfer_time = time.time() - t0
 
@@ -785,8 +992,11 @@ class TaichiNeuralEngine:
                     else:
                         self._cached_avg_dyn_e = self.spawn_threshold
                 avg_dyn_e = self._cached_avg_dyn_e
-                effective_spawn_threshold = avg_dyn_e * 1.10
-                effective_spawn_cost      = effective_spawn_threshold * 0.75
+                # Clamp spawn threshold to energy_cap × SPAWN_CAP_FRACTION — otherwise
+                # at high avg energy the threshold exceeds cap and nodes can never spawn.
+                effective_spawn_threshold = min(avg_dyn_e * SPAWN_ABOVE_AVG_FACTOR,
+                                                self.energy_cap * SPAWN_CAP_FRACTION)
+                effective_spawn_cost      = effective_spawn_threshold * SPAWN_COST_FRACTION
                 effective_child_energy    = effective_spawn_cost * self.child_energy_fraction
 
                 _spawn_kernel(
@@ -804,8 +1014,11 @@ class TaichiNeuralEngine:
             self._count = int(_node_count[None])
             rules_time = time.time() - t0
 
-            # Step 6: Clamp field to valid energy range
-            _clamp_kernel(self.energy_field, self.death_threshold, self.energy_cap)
+            # Step 6: Clamp field to the hard 0–255 energy range.
+            # Fixed constants — not self.death_threshold / self.energy_cap — so
+            # a misconfigured runtime value can never push a node above 255 or
+            # below 0 regardless of config drift.
+            _clamp_kernel(self.energy_field, 0.0, 255.0)
 
             # Warn at 90% capacity: gives operators ~400k slots of headroom before hard stop
             if self._count > MAX_NODES * 0.9:
@@ -906,16 +1119,8 @@ class TaichiNeuralEngine:
         else:
             new_modality = torch.zeros(n, device=dev, dtype=torch.int64)
 
-        # Workspace nodes: excitatory conn + max DNA compatibility (PARAM=15 all slots)
-        ws_mask = (new_types == 2)
-        if ws_mask.any():
-            new_conn[ws_mask] = 0    # excitatory
-            ws_dna = torch.zeros(n, 3, device=dev, dtype=torch.int64)
-            for slot_n in range(NUM_NEIGHBORS_3D):
-                word = DNA_SLOT_WORD[slot_n]
-                bit  = DNA_SLOT_BIT[slot_n]
-                ws_dna[:, word] |= torch.tensor(15, dtype=torch.int64, device=dev) << bit
-            new_dna[ws_mask] = ws_dna[ws_mask]
+        # All nodes use the same random DNA and connection type — workspace and
+        # sensory are spatial regions of the same grid, not special node subtypes.
 
         alive_bits = torch.ones(n, device=dev, dtype=torch.int64)
         new_state  = _pack_state_batch(alive_bits, new_types, new_conn, new_modality)
@@ -965,14 +1170,24 @@ class TaichiNeuralEngine:
         region:      Tuple[int, int, int, int],
         z:           int = 0,
     ) -> None:
-        """
-        Write pixel data as energy into a specific Z layer of the sensory region.
+        """Inject pixel data as a delta signal into live sensory nodes (ADR-001).
 
-        Data values are written directly — no gain, bias, or normalization.
-        Sensory nodes are the inverse of workspace nodes: they output their
-        assigned data value as energy into attached dynamic nodes.
+        Uses node-gated delta injection: for each grid cell in *region* at
+        depth *z*, if a live node occupies that cell, the field receives
+        ``pixel_value − node_energy`` (driving the node toward the pixel).
+        Cells without a live node get no injection — their field energy
+        drains naturally to zero.
 
-        pixel_data: [H, W] float32.
+        This replaces the previous hard-overwrite approach so that:
+          - Sensory coverage follows live-node density (organic resolution)
+          - Starved / dead sensory cells produce black output automatically
+          - No energy is injected into cells the network hasn't populated
+
+        Note: ``grid_node_id`` is populated by step()'s grid-map rebuild.
+        The very first injection (before step() runs) is a no-op; the signal
+        takes effect from frame 2 onward once the map is populated.
+
+        pixel_data: [H, W] float32, values in 0–255 (raw pixel intensities).
         region:     (y0, y1, x0, x1) slice into energy_field.
         z:          Z layer index (default 0).
         """
@@ -982,8 +1197,8 @@ class TaichiNeuralEngine:
 
         data = pixel_data[:h, :w].to(dtype=torch.float32, device=self.device).contiguous()
 
-        _inject_sensory_kernel(
-            self.energy_field, data, y0, x0, h, w, z,
+        _inject_sensory_delta_kernel(
+            self.energy_field, self.grid_node_id, data, y0, x0, h, w, z,
         )
 
         self._injection_counter += 1
@@ -1086,80 +1301,32 @@ class TaichiNeuralEngine:
         return self.energy_field.cpu()
 
     def read_workspace_energies(self, region: Tuple[int, int, int, int]) -> torch.Tensor:
+        """Read workspace region energy as a direct field slice (ADR-001).
+
+        Returns a [h, w] float32 CPU tensor where each value is the maximum
+        energy across Z layers at that (y, x) position.
+
+        No node scanning, no cache, no Taichi→CPU field reads.
+
+        Why this works:
+          All nodes are mortal.  A workspace cell that has a live node will
+          hold energy through DNA transfer and reflect that node's activity.
+          A workspace cell whose node has starved (or was never populated)
+          receives no delta injection (sensory delta injection is node-gated)
+          and drains to zero through field clamping — it appears black in the
+          display or silent in audio without any special-casing.  This is the
+          intended thermodynamic behaviour: dead regions naturally go dark.
         """
-        Read workspace node (type == 2) energies in the given region.
-
-        Workspace nodes are immortal — positions never change.
-        Position cache built once on first call; subsequent calls are a single
-        indexed tensor read, no Taichi scan.
-
-        Returns: [h, w] float32 CPU tensor (zeros where no workspace node).
-        """
-        with self.step_lock:
-            y0, y1, x0, x1 = region
-            h, w = y1 - y0, x1 - x0
-
-            with self._workspace_cache_lock:
-                if not self._workspace_cache_valid or self._workspace_cached_region != (y0, y1, x0, x1):
-                    self._build_workspace_cache(y0, y1, x0, x1)
-
-            if self._workspace_local_y is None or len(self._workspace_local_y) == 0:
-                return torch.zeros((h, w), dtype=torch.float32)
-
-            energy_grid = torch.zeros((h, w), device=self.device, dtype=torch.float32)
-            energy_grid[self._workspace_local_y, self._workspace_local_x] = (
-                self.energy_field[
-                    self._workspace_local_y + y0,
-                    self._workspace_local_x + x0,
-                    self._workspace_local_z,
-                ]
-            )
-            return energy_grid.cpu()
+        y0, y1, x0, x1 = region
+        # max over Z: display pixel shows the brightest depth layer
+        return self.energy_field[y0:y1, x0:x1, :].max(dim=-1).values.cpu()
 
     def _build_workspace_cache(self, y0: int, y1: int, x0: int, x1: int) -> None:
-        """Scan Taichi fields once to find all workspace nodes in the region."""
-        n = self._count
-        if n == 0:
-            self._workspace_local_y = torch.tensor([], dtype=torch.long, device=self.device)
-            self._workspace_local_x = torch.tensor([], dtype=torch.long, device=self.device)
-            self._workspace_local_z = torch.tensor([], dtype=torch.long, device=self.device)
-            self._workspace_cache_valid = True
-            return
+        """RETIRED (ADR-001) — read_workspace_energies now uses a direct field slice.
 
-        # Ensure all GPU kernels have finished before reading back to CPU.
-        # Use torch.cuda.synchronize() instead of ti.sync() because ti.sync()
-        # asserts main-thread-only in Taichi 1.7 and this path is called from
-        # the workspace background thread.
-        torch.cuda.synchronize()
-
-        state_np = _node_state.to_numpy()[:n]
-        pos_y_np = _node_pos_y.to_numpy()[:n]
-        pos_x_np = _node_pos_x.to_numpy()[:n]
-        pos_z_np = _node_pos_z.to_numpy()[:n]
-
-        is_ws = ((state_np != 0) &
-                 (((state_np >> BINARY_NODE_TYPE_SHIFT) & BINARY_TYPE_MASK) == 2))
-        ws_y  = pos_y_np[is_ws]
-        ws_x  = pos_x_np[is_ws]
-        ws_z  = pos_z_np[is_ws]
-        in_r  = (ws_y >= y0) & (ws_y < y1) & (ws_x >= x0) & (ws_x < x1)
-
-        self._workspace_local_y = torch.tensor(
-            ws_y[in_r] - y0, dtype=torch.long, device=self.device
-        )
-        self._workspace_local_x = torch.tensor(
-            ws_x[in_r] - x0, dtype=torch.long, device=self.device
-        )
-        self._workspace_local_z = torch.tensor(
-            ws_z[in_r], dtype=torch.long, device=self.device
-        )
-        self._workspace_cache_valid = True
-        self._workspace_cached_region = (y0, y1, x0, x1)
-
-        logger.info(
-            "Workspace cache: %d nodes in region [%d:%d, %d:%d]",
-            int(in_r.sum()), y0, y1, x0, x1,
-        )
+        Kept as a no-op so that any lingering call sites don't crash.
+        """
+        logger.debug("_build_workspace_cache() called but is retired (ADR-001); no-op.")
 
     def render_connection_heatmap(self) -> torch.Tensor:
         """

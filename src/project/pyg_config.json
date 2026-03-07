@@ -2,8 +2,8 @@
     "version": "1.0",
     "sensory": {
         "enabled": true,
-        "width": 1920,
-        "height": 1080,
+        "width": 780,
+        "height": 780,
         "canvas_width": 1920,
         "canvas_height": 1080
     },
@@ -50,14 +50,14 @@
         "inhibitory_prob": 0.2,
         "gated_prob": 0.6,
         "node_spawn_threshold": 8.0,
-        "node_death_threshold": -10.0,
+        "node_death_threshold": 1.0,
         "node_energy_cap": 255.0,
-        "spawn_cost": 3.0,
+        "spawn_cost": 40.0,
         "transfer_strength": 0.7,
-        "description": "Binary state HybridGridGraphEngine. Each node is int64 with packed DNA, type, energy. state==0 means DEAD and zeros out all math automatically."
+        "description": "Unified dynamic node grid with typed regions (ADR-001). Sensory and workspace are regions of the same grid; kernels use a region registry instead of hardcoded node-type rules."
     },
     "audio": {
-        "enabled": true,
+        "enabled": false,
         "source": "loopback",
         "sample_rate": 44100,
         "fft_size": 512,

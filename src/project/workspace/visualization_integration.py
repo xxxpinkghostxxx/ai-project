@@ -12,6 +12,9 @@ from .workspace_system import WorkspaceNodeSystem
 
 logger = logging.getLogger(__name__)
 
+# Valid visualization modes — single source for both _configure and set_visualization_mode.
+_VALID_MODES = ('grid', 'nodes', 'connections', 'heatmap')
+
 
 class WorkspaceVisualizationIntegration:
     """Integration manager for workspace visualization."""
@@ -93,14 +96,7 @@ class WorkspaceVisualizationIntegration:
         
         try:
             # Set visualization mode
-            mode_map = {
-                'grid': 'grid',
-                'nodes': 'nodes', 
-                'connections': 'connections',
-                'heatmap': 'heatmap'
-            }
-            
-            mode = mode_map.get(self.config['default_mode'], 'grid')
+            mode = self.config['default_mode'] if self.config['default_mode'] in _VALID_MODES else 'grid'
             self.visualization_window.mode_combo.setCurrentText(mode)
             
             # Set display options
@@ -194,14 +190,7 @@ class WorkspaceVisualizationIntegration:
             mode: Visualization mode ('grid', 'nodes', 'connections', 'heatmap')
         """
         if self.visualization_window:
-            mode_map = {
-                'grid': 'grid',
-                'nodes': 'nodes',
-                'connections': 'connections', 
-                'heatmap': 'heatmap'
-            }
-            
-            mapped_mode = mode_map.get(mode, 'grid')
+            mapped_mode = mode if mode in _VALID_MODES else 'grid'
             self.visualization_window.mode_combo.setCurrentText(mapped_mode)
     
     def set_zoom_level(self, zoom: float):
