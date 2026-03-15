@@ -1,20 +1,139 @@
-"""Main entry point for the Taichi Neural System.
+# =============================================================================
+# CODE STRUCTURE
+# =============================================================================
+#
+# Module-level Constants:
+#   OPTIMIZED_CAPTURE_AVAILABLE = bool
+#     True when project.optimized_capture is importable
+#   AUDIO_AVAILABLE = bool
+#     True when project.audio_capture/audio_output are importable
+#
+# Module-level Functions:
+#   _place_clusters(grid_H: int, grid_W: int, grid_D: int, count: int,
+#       nodes_each: int, radius: int, min_separation: int) -> tuple
+#     Place count node clusters in a 3D volume with minimum separation
+#
+#   _build_neutral_dna(n: int, device) -> torch.Tensor
+#     Build neutral DNA (MODE=0, PARAM=1111) for all 26 neighbor slots
+#
+#   resolve_device(pref: str | None) -> str
+#     Resolve device preference string to 'cuda' or 'cpu'
+#
+#   managed_resources() -> Generator[list[Any], None, None]    @contextlib.contextmanager
+#     Context manager for system resources with lifecycle management
+#
+#   create_hybrid_neural_system(config_manager: ConfigManager,
+#       sensory_width: int, sensory_height: int) -> HybridNeuralSystemAdapter
+#     Create TaichiNeuralEngine, configure regions, seed nodes, wrap in adapter
+#
+#   initialize_system(config_manager: ConfigManager)
+#       -> tuple[HybridNeuralSystemAdapter, ThreadedScreenCapture,
+#          WorkspaceNodeSystem | None]
+#     Initialize neural system, screen capture, and workspace system
+#
+#   _attempt_system_recovery() -> bool
+#     Clean up partial state after initialization failure
+#
+#   main() -> None
+#     Entry point: parse args, init Qt, create system, run event loop
+#
+# Classes:
+#   HybridNeuralSystemAdapter:
+#     Adapter making TaichiNeuralEngine compatible with existing UI/workspace code
+#
+#     __init__(self, engine: TaichiNeuralEngine,
+#         sensory_region: Tuple[int, int, int, int],
+#         workspace_region: Tuple[int, int, int, int],
+#         sensory_width: int = 64, sensory_height: int = 64,
+#         audio_sensory_L: Tuple[...] | None = None,
+#         audio_sensory_R: Tuple[...] | None = None,
+#         audio_workspace_L: Tuple[...] | None = None,
+#         audio_workspace_R: Tuple[...] | None = None,
+#         sensory_cluster_centers: list | None = None,
+#         sensory_cluster_radius: int = 3)
+#
+#     process_frame(self, frame_data: Any) -> dict
+#       Process screen capture frame; per-cluster or full-region injection -> step()
+#
+#     update_step(self) -> dict
+#       Single update step with GPU sync timing
+#
+#     get_workspace_energies(self) -> torch.Tensor
+#       Read workspace region energies from engine
+#
+#     get_workspace_energies_grid(self) -> np.ndarray
+#       Get workspace energies as 2D numpy array; cached for 8ms
+#
+#     get_workspace_node_energy(self, node_id: int) -> float
+#       Get energy for a single workspace node (deprecated, prefer grid)
+#
+#     get_node_count(self) -> int
+#       Alive node count (high-water mark, no GPU roundtrip)
+#
+#     get_energy_stats(self) -> dict
+#       Energy field min/max/avg statistics
+#
+#     pulse_energy(self) -> float
+#       No-op (ADR-001): external energy injection disabled
+#
+#     apply_config(self, config_manager: ConfigManager) -> None
+#       Push hybrid config values into running engine (hot-reload)
+#
+#     process_audio_frame(self, spectrum: np.ndarray) -> None
+#       Inject stereo FFT spectrum into audio sensory regions
+#
+#     get_audio_workspace_energies(self)
+#         -> Tuple[np.ndarray, np.ndarray] | None
+#       Read energy from both audio workspace regions; cached 8ms
+#
+#     stop_connection_worker(self) -> None
+#       No-op compatibility stub
+#
+#     wait_for_workers_idle(self) -> None
+#       No-op compatibility stub
+#
+#     get_metrics(self) -> dict
+#       Return performance metrics; cached for 100ms
+#
+#     queue_cull(self) -> None
+#       No-op compatibility stub
+#
+#     queue_connection_growth(self) -> None
+#       No-op compatibility stub
+#
+#     start_connection_worker(self, batch_size: int = 25) -> None
+#       No-op compatibility stub
+#
+#     update_sensory_nodes(self, sensory_input: Any) -> None
+#       Convert sensory pixels to energy, inject into sensory region
+#
+#     update(self) -> None
+#       Run single simulation step (delegates to update_step)
+#
+#     apply_connection_worker_results(self) -> None
+#       No-op compatibility stub
+#
+#     shutdown(self) -> None
+#       Shutdown the system
+#
+#     cleanup -> shutdown (alias)
+#     stop -> shutdown (alias)
+#
+# =============================================================================
+# TODOS
+# =============================================================================
+#
+# None
+#
+# =============================================================================
+# KNOWN BUGS
+# =============================================================================
+#
+# None
+#
+# DO NOT ADD PROJECT NOTES BELOW — all notes go in the file header above.
 
-This module contains the main entry point and system initialization logic
-for the neural simulation application.
-
-Key Features:
-- System initialization and configuration management
-- Qt application setup and lifecycle management
-- Resource management with context-based cleanup
-- Comprehensive error handling and logging
-- Neural system and UI integration
-
-Usage:
-    python project/main.py [--log-level LEVEL]
-
-    Where LEVEL can be: DEBUG, INFO, WARNING, ERROR, CRITICAL
-"""
+"""Main entry point and system initialization for the Taichi Neural System."""
 
 import sys
 import os
@@ -23,7 +142,6 @@ import threading
 import random
 import math
 
-# Add parent directory to path so we can import 'project' as a module
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # pylint: disable=wrong-import-position
@@ -35,7 +153,6 @@ from collections.abc import Generator
 import numpy as np
 import torch
 
-# Import Qt application components
 # pylint: disable=wrong-import-position
 from PyQt6.QtWidgets import QApplication  # type: ignore[import-untyped]  # pylint: disable=no-name-in-module
 
@@ -45,7 +162,6 @@ try:
     OPTIMIZED_CAPTURE_AVAILABLE = True
 except ImportError:
     OPTIMIZED_CAPTURE_AVAILABLE = False
-    # Note: logger not defined yet, will log later
 from project.utils.error_handler import ErrorHandler  # type: ignore[import-untyped,import-not-found]  # pylint: disable=import-error
 from project.utils.config_manager import ConfigManager  # type: ignore[import-untyped,import-not-found]  # pylint: disable=import-error
 from project.system.state_manager import StateManager  # type: ignore[import-untyped,import-not-found]  # pylint: disable=import-error
@@ -54,7 +170,6 @@ from project.workspace.workspace_system import WorkspaceNodeSystem  # type: igno
 from project.workspace.config import EnergyReadingConfig  # type: ignore[import-untyped,import-not-found]  # pylint: disable=import-error
 from project.system.taichi_engine import TaichiNeuralEngine, init_taichi  # type: ignore[import-untyped,import-not-found]  # pylint: disable=import-error
 
-# Audio modules (optional — graceful degradation if sounddevice missing)
 try:
     from project.audio_capture import AudioCapture  # type: ignore[import-untyped,import-not-found]
     from project.audio_output import AudioOutput    # type: ignore[import-untyped,import-not-found]
@@ -62,7 +177,6 @@ try:
 except ImportError:
     AUDIO_AVAILABLE = False
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -73,7 +187,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Log optimized capture availability (now that logger is defined)
 if OPTIMIZED_CAPTURE_AVAILABLE:
     logger.info("Optimized capture available (will auto-select best method)")
 else:
@@ -178,20 +291,17 @@ class HybridNeuralSystemAdapter:
         self.sensory_height = sensory_height
         self.device = engine.device
 
-        # Audio regions (None = audio disabled)
         self.audio_sensory_L = audio_sensory_L
         self.audio_sensory_R = audio_sensory_R
         self.audio_workspace_L = audio_workspace_L
         self.audio_workspace_R = audio_workspace_R
 
-        # 3D cluster injection
         self._sensory_cluster_centers = sensory_cluster_centers or []
         self._sensory_cluster_radius = sensory_cluster_radius
 
-        # Track connection worker state (for compatibility)
         self._connection_worker_started = False
 
-        self._step_count = 0  # Number of update_step() calls made
+        self._step_count = 0
         self._metrics_lock = threading.Lock()
         logger.info("Hybrid adapter initialized")
     
@@ -200,14 +310,11 @@ class HybridNeuralSystemAdapter:
 
         Optimized for real-time performance with GPU.
         """
-        # Convert frame to float32 tensor — raw values become energy directly
         if isinstance(frame_data, torch.Tensor):
             pixels = frame_data.float()
         else:
             pixels = torch.tensor(frame_data, device=self.device).float()
 
-        # Per-cluster sensory injection: downsample frame to grid size, then
-        # inject a small patch at each cluster center's Z layer.
         if self._sensory_cluster_centers:
             import torch.nn.functional as F
             small = F.interpolate(
@@ -222,7 +329,6 @@ class HybridNeuralSystemAdapter:
                 patch = small[y0:y1, x0:x1]
                 self.engine.inject_sensory_data(patch, region=(y0, y1, x0, x1), z=cz)
         else:
-            # Fallback: full-region injection at z=0
             self.engine.inject_sensory_data(pixels, self.sensory_region)
 
         return self.engine.step()
@@ -236,7 +342,6 @@ class HybridNeuralSystemAdapter:
         result = self.engine.step()
         t_engine_call_done = time.time()
 
-        # Explicit GPU sync to measure actual GPU work time
         t_gpu_sync_start = time.time()
         if torch.cuda.is_available():
             torch.cuda.synchronize()
@@ -245,7 +350,7 @@ class HybridNeuralSystemAdapter:
         t_step_done = time.time()
 
         result['adapter_time']     = t_step_done - t_step_start
-        result['pre_sync_time']    = 0.0  # pre-sync removed (was always 0)
+        result['pre_sync_time']    = 0.0
         result['engine_call_time'] = t_engine_call_done - t_engine_call_start
         result['gpu_sync_time']    = t_gpu_sync_done - t_gpu_sync_start
         return result
@@ -273,7 +378,6 @@ class HybridNeuralSystemAdapter:
             flat = energies_tensor.cpu().numpy().copy()  # shape: (H*W,) or (H*W, 1)
             flat = flat.ravel()
 
-            # Reshape to 2D (height × width) matching the workspace region
             ws_h = self.workspace_region[1] - self.workspace_region[0]
             ws_w = self.workspace_region[3] - self.workspace_region[2]
             if flat.size == ws_h * ws_w:
@@ -302,11 +406,8 @@ class HybridNeuralSystemAdapter:
         Returns:
             Energy value for that node
         """
-        # Get all workspace energies
         energies = self.get_workspace_energies()
-        
-        # Convert node_id to grid position
-        # Assuming workspace is 16x16, node_id maps to (row, col)
+
         workspace_height = self.workspace_region[1] - self.workspace_region[0]
         workspace_width = self.workspace_region[3] - self.workspace_region[2]
         
@@ -316,7 +417,6 @@ class HybridNeuralSystemAdapter:
         row = node_id // workspace_width
         col = node_id % workspace_width
         
-        # Return energy at that position
         if row < energies.shape[0] and col < energies.shape[1]:
             return float(energies[row, col].item())
         return 0.0
@@ -349,10 +449,6 @@ class HybridNeuralSystemAdapter:
         )
         return 0.0
 
-    # ------------------------------------------------------------------
-    # Config hot-reload
-    # ------------------------------------------------------------------
-
     def apply_config(self, config_manager: 'ConfigManager') -> None:
         """Push current hybrid config values into the running engine.
 
@@ -369,10 +465,6 @@ class HybridNeuralSystemAdapter:
             energy_cap=hybrid.get('node_energy_cap', self.engine.energy_cap),
             child_energy_fraction=hybrid.get('child_energy_fraction', self.engine.child_energy_fraction),
         )
-
-    # ------------------------------------------------------------------
-    # Audio methods
-    # ------------------------------------------------------------------
 
     def process_audio_frame(self, spectrum: 'np.ndarray') -> None:
         """Inject stereo FFT spectrum into the audio sensory regions.
@@ -392,7 +484,6 @@ class HybridNeuralSystemAdapter:
 
         for ch, region in enumerate([self.audio_sensory_L, self.audio_sensory_R]):
             ch_data = spectrum[ch]  # (fft_bins,)
-            # Tile across rows for spatial redundancy
             tiled = np.tile(ch_data, (rows, 1))[:rows, :cols]
             tiled_t = torch.from_numpy(tiled.astype(np.float32))
             self.engine.inject_audio_data(tiled_t, region)
@@ -431,31 +522,26 @@ class HybridNeuralSystemAdapter:
         current_time = time.time()
 
         with self._metrics_lock:
-            # Cache valid for 100ms — reduces GPU round-trips on high-frequency UI polls
             if hasattr(self, '_last_metrics_time'):
                 if current_time - self._last_metrics_time < 0.1:
                     return self._cached_metrics.copy()
 
-            # Reuse engine's get_metrics() (single GPU→CPU numpy read for node counts)
             engine_m = self.engine.get_metrics()
             dynamic_count   = engine_m['dynamic_count']
             workspace_count = engine_m['workspace_count']
 
-            # Sensory count = area of sensory field region (not in _node_state)
             sy0_m, sy1_m, sx0_m, sx1_m = self.sensory_region
             sensory_count = (sy1_m - sy0_m) * (sx1_m - sx0_m)
             total_nodes   = engine_m['alive_count'] + sensory_count
 
             total_energy = engine_m['total_energy']
 
-            # Workspace energy stats — slice directly from GPU field (fast; no node scan)
             wy0, wy1, wx0, wx1 = self.workspace_region
             ws_field = self.engine.energy_field[wy0:wy1, wx0:wx1]
             workspace_energy_avg = float(ws_field.mean().item())
             workspace_energy_min = float(ws_field.min().item())
             workspace_energy_max = float(ws_field.max().item())
 
-            # Sensory region energy stats (cheap slice, no per-node scan)
             sy0, sy1, sx0, sx1 = self.sensory_region
             sens_field = self.engine.energy_field[sy0:sy1, sx0:sx1]
             sensory_energy_min = float(sens_field.min().item())
@@ -470,7 +556,7 @@ class HybridNeuralSystemAdapter:
                 'workspace_node_count': workspace_count,
                 'edge_count':           0,
                 'connection_count':     0,
-                'conns_per_dynamic':    0.0,  # DNA-based system; no discrete connections
+                'conns_per_dynamic':    0.0,
                 'total_spawns':         self.engine.total_spawns,
                 'total_deaths':         self.engine.total_deaths,
                 'node_births':          self.engine.total_spawns,
@@ -486,7 +572,7 @@ class HybridNeuralSystemAdapter:
                 'workspace_energy_min': workspace_energy_min,
                 'workspace_energy_max': workspace_energy_max,
                 'avg_energy':           avg_energy,
-                'avg_dynamic_energy':   avg_energy,  # Field-wide proxy; no per-node-type scan
+                'avg_dynamic_energy':   avg_energy,
                 'sensory_energy_min':   sensory_energy_min,
                 'sensory_energy_max':   sensory_energy_max,
             }
@@ -500,19 +586,15 @@ class HybridNeuralSystemAdapter:
         
         Hybrid engine doesn't use explicit connections, so this is a no-op.
         """
-        # Hybrid engine uses field-based flow, not explicit connections
-        # No culling needed - connections are implicit in the field
         pass
-    
+
     def queue_connection_growth(self) -> None:
         """Queue connection growth (compatibility method for UI).
         
         Hybrid engine doesn't use explicit connections, so this is a no-op.
         """
-        # Hybrid engine uses field-based flow, not explicit connections
-        # Growth happens automatically via density field evolution
         pass
-    
+
     def start_connection_worker(self, batch_size: int = 25) -> None:
         """Start connection worker (compatibility method - not needed for hybrid)."""
         self._connection_worker_started = True
@@ -527,20 +609,15 @@ class HybridNeuralSystemAdapter:
             sensory_input: Sensory data (numpy array or torch tensor) with shape (height, width)
                           Values should be in range 0-255 (pixel intensities)
         """
-        # Convert to tensor if needed
         if isinstance(sensory_input, np.ndarray):
             sensory_input = torch.tensor(sensory_input, device=self.device, dtype=torch.float32)
         
-        # Validate shape
         if sensory_input.shape != (self.sensory_height, self.sensory_width):
-            # Reshape or resize if needed
             if sensory_input.numel() == self.sensory_height * self.sensory_width:
                 sensory_input = sensory_input.reshape(self.sensory_height, self.sensory_width)
             else:
-                # Skip invalid input silently for compatibility
                 return
         
-        # Inject data using the hybrid engine's method
         self.engine.inject_sensory_data(sensory_input, self.sensory_region)
     
     def update(self) -> None:
@@ -557,14 +634,12 @@ class HybridNeuralSystemAdapter:
         The hybrid engine doesn't use a separate connection worker,
         so this is a no-op for compatibility.
         """
-        # Hybrid engine doesn't use connection worker
         pass
-    
+
     def shutdown(self) -> None:
         """Shutdown the system (cleanup/stop are aliases)."""
         logger.info("Shutting down hybrid engine")
 
-    # Aliases for compatibility — all delegate to shutdown().
     cleanup = shutdown
     stop = shutdown
 
@@ -608,7 +683,6 @@ def managed_resources() -> Generator[list[Any], None, None]:
                 logger.error(error_info)
                 cleanup_errors.append(error_info)
 
-        # Report cleanup summary
         if cleanup_errors:
             logger.warning(
                 "Resource cleanup completed with %d errors: %s",
@@ -624,7 +698,6 @@ def create_hybrid_neural_system(
     sensory_height: int
 ) -> HybridNeuralSystemAdapter:
     """Create and initialize the Taichi neural engine and wrap it in the adapter."""
-    # Get hybrid configuration
     system_config = config_manager.get_config('system')
     if system_config is None:
         system_config = {}
@@ -633,10 +706,8 @@ def create_hybrid_neural_system(
     if hybrid_config is None:
         hybrid_config = {}
     
-    # Grid size (default: 512x512 for optimal performance)
     grid_size = tuple(hybrid_config.get('grid_size', [512, 512]))
     
-    # Device selection
     device = resolve_device(system_config.get('device', 'auto'))
     
     logger.info("="*60)
@@ -645,7 +716,6 @@ def create_hybrid_neural_system(
     logger.info("Grid size: %dx%d = %d cells", grid_size[0], grid_size[1], grid_size[0]*grid_size[1])
     logger.info("Device: %s", device)
     
-    # Get hybrid parameters from config
     node_spawn_threshold = hybrid_config.get('node_spawn_threshold', 5.0)
     node_death_threshold = hybrid_config.get('node_death_threshold', -50.0)
     node_energy_cap = hybrid_config.get('node_energy_cap', 500.0)
@@ -656,11 +726,9 @@ def create_hybrid_neural_system(
                 f"death_threshold={node_death_threshold}, energy_cap={node_energy_cap}, "
                 f"spawn_cost={spawn_cost}, transfer_strength={transfer_strength}")
     
-    # Initialize Taichi runtime with config-driven device/memory settings
     device_for_taichi = system_config.get('device', 'auto') or 'auto'
     init_taichi(device=device_for_taichi)
 
-    # Create Taichi engine (single canonical engine, 4M node cap, CUDA)
     logger.info("Creating TaichiNeuralEngine (4M node capacity, CUDA kernels)")
     engine = TaichiNeuralEngine(
         grid_size=grid_size,
@@ -672,34 +740,19 @@ def create_hybrid_neural_system(
         device=device
     )
     
-    # Unpack 3D grid dimensions
     H, W = grid_size[0], grid_size[1]
     D = grid_size[2] if len(grid_size) > 2 else 8
 
-    # Define workspace read-back area
     workspace_config = config_manager.get_config('workspace') or {}
     workspace_height = min(workspace_config.get('height', 16), H // 4)
     workspace_width = min(workspace_config.get('width', 16), W)
 
-    # ---------------------------------------------------------------
-    # Region layout (ADR-001 revised).
-    #
-    # ONE region covers the entire grid: dynamic, spawn=True.
-    # Every node can spawn, die, and transfer energy everywhere.
-    #
-    # SENSORY_REGION and WORKSPACE_REGION are just coordinate rectangles
-    # that tell the adapter WHERE to inject screen-capture energy and
-    # WHERE to read output energy.  They are NOT separate node types —
-    # all nodes are dynamic.  The sensory box is just an energy input
-    # overlay inside the one big dynamic grid.
-    # ---------------------------------------------------------------
     sensory_region_y_end = min(sensory_height, H)
     sensory_region_x_end = min(sensory_width, W)
 
     SENSORY_REGION   = (0, sensory_region_y_end, 0, sensory_region_x_end)
     WORKSPACE_REGION = (H - workspace_height, H, 0, workspace_width)
 
-    # Single dynamic region — the entire grid is spawn-enabled
     engine.register_region(
         y0=0,    y1=H,
         x0=0,    x1=W,
@@ -712,9 +765,6 @@ def create_hybrid_neural_system(
     logger.info("  Workspace read-back:   [%d,%d)×[0,%d)", H - workspace_height, H, workspace_width)
     logger.info("Region registry: %s", engine.get_region_info())
 
-    # ---------------------------------------------------------------
-    # Audio regions (disabled when grid too narrow)
-    # ---------------------------------------------------------------
     audio_config = config_manager.get_config('audio') or {}
     audio_enabled = audio_config.get('enabled', False) and AUDIO_AVAILABLE
     fft_bins = audio_config.get('fft_bins', 256)
@@ -737,9 +787,6 @@ def create_hybrid_neural_system(
     AUDIO_WORKSPACE_L_REGION = (aw_y0, aw_y1, 768, 768 + fft_bins)
     AUDIO_WORKSPACE_R_REGION = (aw_y0, aw_y1, 1024, 1024 + fft_bins)
 
-    # ---------------------------------------------------------------
-    # Initial node seeding
-    # ---------------------------------------------------------------
     import torch
     from project.config import (
         NODE_TYPE_SENSORY, NODE_TYPE_DYNAMIC, NODE_TYPE_WORKSPACE,
@@ -752,9 +799,6 @@ def create_hybrid_neural_system(
                 SEED_COUNT, sensory_region_y_end, sensory_region_x_end)
     t_start = time.time()
 
-    # Place all seeds inside the sensory injection box (z=0) so they
-    # immediately receive screen-capture energy and can start spawning.
-    # Children will spread outward into the rest of the grid naturally.
     seed_positions = [
         (random.randint(0, sensory_region_y_end - 1),
          random.randint(0, sensory_region_x_end - 1),
@@ -762,8 +806,6 @@ def create_hybrid_neural_system(
         for _ in range(SEED_COUNT)
     ]
 
-    # Neutral DNA: MODE=0 (classic), PARAM=1111 (max compatibility).
-    # Lock-and-key: (15 & X) = X for any neighbor → universal energy exchange.
     neutral_dna = _build_neutral_dna(SEED_COUNT, device)
 
     engine.add_nodes_batch(
@@ -783,7 +825,6 @@ def create_hybrid_neural_system(
     logger.info("  Init time: %.3fs", t_elapsed)
     logger.info("=" * 60)
 
-    # Wrap in adapter for compatibility
     return HybridNeuralSystemAdapter(
         engine, SENSORY_REGION, WORKSPACE_REGION, sensory_width, sensory_height,
         audio_sensory_L=AUDIO_SENSORY_L_REGION if audio_enabled else None,
@@ -809,12 +850,10 @@ def initialize_system(
         Exception: If system initialization fails
     """
     try:
-        # Get configurations with proper type validation
         sensory_config = config_manager.get_config('sensory')
         workspace_config = config_manager.get_config('workspace')
         system_config = config_manager.get_config('system')
 
-        # Check for None configs with more descriptive error messages
         if sensory_config is None:
             raise ValueError("Sensory configuration not found - check pyg_config.json")
         if workspace_config is None:
@@ -822,7 +861,6 @@ def initialize_system(
         if system_config is None:
             raise ValueError("System configuration not found - check pyg_config.json")
 
-        # Validate configuration types
         if not isinstance(sensory_config, dict):
             raise ValueError(f"Invalid sensory config type: {type(sensory_config)}")
         if not isinstance(workspace_config, dict):
@@ -830,7 +868,6 @@ def initialize_system(
         if not isinstance(system_config, dict):
             raise ValueError(f"Invalid system config type: {type(system_config)}")
 
-        # Calculate dynamic nodes with validation
         try:
             width = int(sensory_config['width'])  # type: ignore
             height = int(sensory_config['height'])  # type: ignore
@@ -840,7 +877,6 @@ def initialize_system(
         except (KeyError, ValueError, TypeError) as e:
             raise ValueError(f"Missing or invalid sensory configuration: {e}") from e
 
-        # Resolve device preference (cpu/cuda/auto)
         device = resolve_device(system_config.get('device', 'auto'))  # type: ignore
 
         if torch.cuda.is_available():
@@ -852,7 +888,6 @@ def initialize_system(
         else:
             logger.info("CUDA not available, using CPU")
 
-        # Initialize Taichi neural system
         logger.info("="*70)
         logger.info("NEURAL SYSTEM INITIALIZATION (TaichiNeuralEngine)")
         logger.info("="*70)
@@ -873,28 +908,23 @@ def initialize_system(
             logger.error("Failed to initialize neural system: %s", str(e))
             raise RuntimeError(f"Neural system initialization failed: {str(e)}") from e
 
-        # Initialize screen capture with MULTI-TIER fallback system!
         try:
             if OPTIMIZED_CAPTURE_AVAILABLE:
-                # Use best available method (auto-detects GPU capabilities!)
                 logger.info("Initializing optimized capture (auto-detecting best method)...")
                 capture = create_best_capture(
                     region=(0, 0, width, height),
                     device=device  # Use the device variable we set earlier
                 )
             else:
-                # Fallback to standard capture
                 logger.info("Using standard capture (install mss for faster capture: pip install mss)")
                 capture = ThreadedScreenCapture(width, height)
         except Exception as e:
             logger.error("Failed to initialize screen capture: %s", str(e))
             raise RuntimeError(f"Screen capture initialization failed: {str(e)}") from e
 
-        # Initialize workspace system with error handling
         try:
             workspace_enabled = workspace_config.get('enabled', True)  # type: ignore
             if workspace_enabled:
-                # Create config with values from pyg_config.json
                 ws_config = EnergyReadingConfig(
                     grid_size=(workspace_config.get('width', 16), workspace_config.get('height', 16)),
                     reading_interval_ms=workspace_config.get('reading_interval_ms', 50),
@@ -927,12 +957,9 @@ def initialize_system(
     except Exception as e:
         logger.error("Failed to initialize system: %s", str(e))
         logger.debug("System initialization error occurred during configuration processing")
-        # Enhanced error handling with recovery attempt
         error_msg = f"System initialization failed: {str(e)}"
         logger.error(error_msg)
 
-        # Attempt recovery by validating system state (no recursive retry —
-        # if recovery succeeds the caller can retry at a higher level)
         try:
             recovery_success = _attempt_system_recovery()
             if recovery_success:
@@ -957,7 +984,6 @@ def _attempt_system_recovery() -> bool:
     try:
         logger.info("Attempting system recovery...")
 
-        # Clean up global storage
         try:
             from project.system.global_storage import GlobalStorage  # type: ignore[import-untyped,import-not-found]  # pylint: disable=import-outside-toplevel,import-error
             GlobalStorage.clear()
@@ -965,14 +991,11 @@ def _attempt_system_recovery() -> bool:
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.warning("Error clearing global storage: %s", str(e))
 
-        # Force garbage collection
         import gc  # pylint: disable=import-outside-toplevel
         gc.collect()
         logger.info("Garbage collection completed")
 
-        # Reset any cached configurations
         try:
-            # Reload config from disk to discard any corrupted in-memory state
             ConfigManager.shared().load_config()
             logger.info("Configuration cache reset")
         except Exception as e:  # pylint: disable=broad-exception-caught
@@ -1022,13 +1045,10 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    # Set logging level based on argument
     logging.getLogger().setLevel(getattr(logging, args.log_level))
 
     try:
-        # Initialize Qt application first
         try:
-            # Check if QApplication already exists
             app: QApplication | None = QApplication.instance()  # type: ignore[assignment]
             if app is None:
                 app = QApplication(sys.argv)  # type: ignore[call-overload]
@@ -1037,14 +1057,11 @@ def main() -> None:
                 logger.info("Using existing Qt application instance")
         except Exception as qt_error:  # pylint: disable=broad-exception-caught
             logger.error("Failed to initialize Qt application: %s", str(qt_error))
-            # Cannot show QMessageBox — QApplication failed to initialize
             raise RuntimeError(f"Qt initialization failed: {str(qt_error)}") from qt_error
 
-        # Initialize managers with error handling
         try:
             config_manager = ConfigManager.shared()
             state_manager = StateManager()
-            # Honor config flag for detailed logging at startup
             try:
                 detailed_logging = config_manager.get_config('system', 'detailed_logging')
                 if isinstance(detailed_logging, bool) and detailed_logging:
@@ -1060,7 +1077,6 @@ def main() -> None:
 
         try:
             with managed_resources() as resources:  # type: ignore[assignment]
-                # Initialize system components
                 try:
                     system, capture, workspace_system = initialize_system(config_manager)
                     resources.extend([system, capture])
@@ -1072,7 +1088,6 @@ def main() -> None:
                     ErrorHandler.show_error("System Error", sys_error_msg)  # type: ignore[call-arg]
                     raise
 
-                # Start connection worker with error handling
                 try:
                     system.start_connection_worker(batch_size=25)
                     logger.info("Connection worker started successfully")
@@ -1084,7 +1099,6 @@ def main() -> None:
                     )
                     raise
 
-                # Start screen capture with error handling
                 try:
                     capture.start()
                     logger.info("Screen capture started successfully")
@@ -1096,7 +1110,6 @@ def main() -> None:
                     )
                     raise
 
-                # Initialize audio subsystem if enabled
                 audio_capture_obj = None
                 audio_output_obj = None
                 if AUDIO_AVAILABLE and system.audio_sensory_L is not None:
@@ -1125,7 +1138,6 @@ def main() -> None:
                         audio_capture_obj = None
                         audio_output_obj = None
 
-                # Create main window with error handling
                 try:
                     main_window = ModernMainWindow(config_manager, state_manager)
                     resources.append(main_window)
@@ -1137,7 +1149,6 @@ def main() -> None:
                     )
                     raise
 
-                # Provide components to UI but let user explicitly start via button
                 try:
                     main_window.set_components(
                         system, capture, workspace_system,
@@ -1169,7 +1180,6 @@ def main() -> None:
         fatal_error_msg = f"System failed to start ({type(e).__name__}): {str(e)}"
         ErrorHandler.show_error("Fatal Error", fatal_error_msg)  # type: ignore[union-attr]
 
-        # Clean up Qt application if it was initialized
         try:
             qt_app: QApplication | None = QApplication.instance()  # type: ignore[assignment]
             if qt_app is not None:
@@ -1179,7 +1189,6 @@ def main() -> None:
         except Exception as cleanup_error:  # pylint: disable=broad-exception-caught
             logger.warning("Error during Qt cleanup: %s", str(cleanup_error))
 
-        # Add system exit for fatal errors
         sys.exit(1)
 
 if __name__ == '__main__':
