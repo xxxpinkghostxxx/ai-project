@@ -1,9 +1,69 @@
-"""
-Global Storage Module.
+# =============================================================================
+# CODE STRUCTURE
+# =============================================================================
+#
+# Classes:
+#   GlobalStorage:
+#     Singleton-pattern class (no instantiation); use class methods directly.
+#
+#     _storage: dict[str, Any]                     (class variable)
+#     _device: str = 'cpu'                         (class variable)
+#     _initialized: bool = False                   (class variable)
+#
+#     __init__(self) -> None
+#       Raises TypeError — use class methods directly
+#
+#     get_device() -> str                          @classmethod
+#       Get current device configuration
+#
+#     set_device(device: str) -> None              @classmethod
+#       Set device configuration
+#
+#     store(key: str, value: Any) -> None          @classmethod
+#       Store a value in global storage
+#
+#     retrieve(key: str, default: Any = None) -> Any    @classmethod
+#       Retrieve a value from global storage
+#
+#     has_key(key: str) -> bool                    @classmethod
+#       Check if a key exists
+#
+#     remove(key: str) -> bool                     @classmethod
+#       Remove a key from storage
+#
+#     clear() -> None                              @classmethod
+#       Clear all stored values
+#
+#     initialize(device: str = 'cpu') -> None      @classmethod
+#       Initialize global storage with defaults
+#
+#     ensure_device_attribute() -> str             @classmethod
+#       Ensure device attribute exists and return it
+#
+#     get_storage_info() -> dict[str, Any]         @classmethod
+#       Get storage state information
+#
+#     __str__() -> str                             @classmethod
+#       String representation
+#
+#     __repr__() -> str                            @classmethod
+#       Detailed string representation
+#
+# =============================================================================
+# TODOS
+# =============================================================================
+#
+# None
+#
+# =============================================================================
+# KNOWN BUGS
+# =============================================================================
+#
+# None
+#
+# DO NOT ADD PROJECT NOTES BELOW — all notes go in the file header above.
 
-This module provides centralized storage for system-wide state and configuration,
-including device management, global settings, and shared resources.
-"""
+"""Centralized global storage for system-wide state and configuration."""
 
 from typing import Any
 import logging
@@ -18,7 +78,6 @@ class GlobalStorage:
     device management, and shared resources across all system components.
     """
 
-    # Class variable to store singleton instance data
     _storage: dict[str, Any] = {}
     _device: str = 'cpu'
     _initialized: bool = False
@@ -80,7 +139,6 @@ class GlobalStorage:
             cls._device = device
             cls._storage = {}
             cls._initialized = True
-            # Store device in storage for consistency
             cls.store('device', device)
             logger.info(f"GlobalStorage initialization completed with device: {device}")
 

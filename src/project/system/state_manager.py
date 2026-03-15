@@ -1,9 +1,60 @@
-"""
-System State Manager Module.
+# =============================================================================
+# CODE STRUCTURE
+# =============================================================================
+#
+# Classes:
+#   SystemState:                                                    @dataclass
+#     suspended: bool = False
+#     sensory_enabled: bool = True
+#     last_pulse_time: float = 0.0
+#     last_update_time: float = 0.0
+#     total_energy: float = 0.0
+#     node_count: int = 0
+#     connection_count: int = 0
+#
+#   StateManager:
+#     __init__(self) -> None
+#
+#     add_observer(self, observer: Any) -> None
+#       Register observer for state change notifications
+#
+#     remove_observer(self, observer: Any) -> None
+#       Unregister observer
+#
+#     _notify_observers(self) -> None
+#       Notify all observers of state change
+#
+#     toggle_sensory(self) -> bool | None
+#       Toggle sensory input state
+#
+#     toggle_suspend(self) -> bool | None
+#       Toggle system suspension state
+#
+#     update_metrics(self, total_energy: float, node_count: int,
+#         connection_count: int) -> None
+#       Update system metrics and notify observers
+#
+#     get_state(self) -> SystemState
+#       Get current system state
+#
+#     reset(self) -> None
+#       Reset system state to defaults
+#
+# =============================================================================
+# TODOS
+# =============================================================================
+#
+# None
+#
+# =============================================================================
+# KNOWN BUGS
+# =============================================================================
+#
+# None
+#
+# DO NOT ADD PROJECT NOTES BELOW — all notes go in the file header above.
 
-This module provides system state management functionality for the Energy-Based Neural System,
-including state tracking, observer pattern implementation, and system metrics management.
-"""
+"""System state management with observer pattern for the neural system."""
 
 from dataclasses import dataclass
 from typing import Any
