@@ -10,7 +10,7 @@ Standardize all Python source files in `src/project/` with a consistent three-se
 |----------|--------|
 | Section 1 detail level | Full outline: signature + params + returns + brief internal flow |
 | Empty sections | Keep section with explicit `# None` marker |
-| Inline comment removal scope | Remove all `#` comments; keep all `"""docstrings"""`; retain tool pragmas (`# type: ignore`, `# noqa`, `# pylint:`, `# fmt:`) |
+| Inline comment removal scope | Remove all `#` comments; keep all `"""docstrings"""`; retain tool pragmas (`# type: ignore`, `# noqa`, `# pylint:`, `# fmt:`, `# pragma:`) |
 | Rule line placement | Once, right after header ends, before imports |
 | Section divider style | `# ===...===` (equals-sign separators) |
 | Header vs docstring | Header is `#` comment block; module docstring preserved separately (trimmed to 1-2 lines) |
@@ -132,7 +132,7 @@ import ...
 
 **Phase 2 — Core system files:**
 2. `src/project/main.py` (1,186 lines)
-3. `src/project/config.py` (138 lines) — **relaxed variant:** constants-only file retains `# ===` section separators in body for grouping readability; Section 1 lists constant groups rather than individual constants
+3. `src/project/config.py` (137 lines) — **relaxed variant:** constants-focused file (one private helper `_compute_reverse_3d()`) retains `# ===` section separators in body for grouping readability; Section 1 lists constant groups rather than individual constants
 4. `src/project/system/state_manager.py`
 5. `src/project/system/global_storage.py`
 
