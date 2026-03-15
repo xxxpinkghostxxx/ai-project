@@ -10,14 +10,15 @@ Standardize all Python source files in `src/project/` with a consistent three-se
 |----------|--------|
 | Section 1 detail level | Full outline: signature + params + returns + brief internal flow |
 | Empty sections | Keep section with explicit `# None` marker |
-| Inline comment removal scope | Remove all `#` comments; keep all `"""docstrings"""` |
+| Inline comment removal scope | Remove all `#` comments; keep all `"""docstrings"""`; retain tool pragmas (`# type: ignore`, `# noqa`, `# pylint:`, `# fmt:`) |
 | Rule line placement | Once, right after header ends, before imports |
 | Section divider style | `# ===...===` (equals-sign separators) |
 | Header vs docstring | Header is `#` comment block; module docstring preserved separately (trimmed to 1-2 lines) |
 
 ## Template
 
-Every `.py` file in `src/project/` (excluding `__init__.py` files) will follow this structure:
+Every `.py` file in `src/project/` (excluding `__init__.py` files) will follow this structure.
+If a file begins with a shebang line (`#!/usr/bin/env python3`), the shebang remains as the very first line and the header follows immediately after it:
 
 ```python
 # =============================================================================
@@ -71,12 +72,13 @@ import ...
 
 ### Section 1: CODE STRUCTURE
 
-- Lists all module-level functions, classes, methods, and properties in **source order**
+- Entries are grouped by category (Constants, Functions, Classes) and listed in **source order within each category**
 - Each entry includes: name, full signature (params + types + return type), and a brief description
 - For functions with non-trivial internal flow, include a one-line summary of the flow (e.g., `grid map -> DNA transfer -> sync -> death/spawn -> clamp -> metrics`)
-- Taichi kernel decorators (`@ti.kernel`, `@ti.func`) are annotated next to the function name
+- Notable decorators are annotated next to the function/method name: `@ti.kernel`, `@ti.func`, `@staticmethod`, `@classmethod`. Properties use `property_name -> type` syntax.
 - Module-level constants are listed only if they are part of the public API or are non-obvious
 - Nested/inner functions are not listed unless they are significant
+- If a file has no entries for a category (e.g., no classes), omit that sub-heading entirely
 
 ### Section 2: TODOS
 
@@ -103,11 +105,18 @@ import ...
   - Moved to Section 1 entries where they describe specific functions/classes
   - Kept in function-level docstrings where they're most relevant
   - Dropped if they duplicate information already in function docstrings
+- Cross-cutting architecture documentation (e.g., bit layouts, encoding specs) that doesn't map to a single function should be placed at the top of Section 1 as a brief "Architecture" preamble before the category listings
 
 ### Inline Comment Removal
 
-- All `#` comments in the code body are removed
+- All documentary `#` comments in the code body are removed
 - This includes: section separators (`# ===`), explanatory comments, parameter annotations, TODO/NOTE/FIXME markers
+- **Retained exceptions:** Tool pragmas are functional, not documentary, and must be kept:
+  - `# type: ignore[...]` — type checker directives
+  - `# noqa: ...` — linter suppression
+  - `# pylint: disable=...` / `# pylint: enable=...`
+  - `# fmt: on` / `# fmt: off` — formatter directives
+  - `# pragma: no cover` — coverage directives
 - Critical "why" information from removed comments is either:
   - Incorporated into the Section 1 description for the relevant function
   - Added to Section 3 if it describes a known limitation or bug
@@ -116,14 +125,14 @@ import ...
 
 ## Scope
 
-### Files to refactor (31 files in `src/project/`):
+### Files to refactor (25 files in `src/project/`, excluding `__init__.py`):
 
 **Phase 1 — Start file:**
 1. `src/project/system/taichi_engine.py` (1,466 lines, heaviest file)
 
 **Phase 2 — Core system files:**
 2. `src/project/main.py` (1,186 lines)
-3. `src/project/config.py` (138 lines)
+3. `src/project/config.py` (138 lines) — **relaxed variant:** constants-only file retains `# ===` section separators in body for grouping readability; Section 1 lists constant groups rather than individual constants
 4. `src/project/system/state_manager.py`
 5. `src/project/system/global_storage.py`
 
@@ -163,7 +172,7 @@ import ...
 ## Validation
 
 After each file is refactored:
-1. No `#` comments remain in the code body (below the rule line), except inside string literals
+1. No documentary `#` comments remain in the code body (below the rule line), except tool pragmas and string literals
 2. All three header sections are present with correct `# ===` separators
 3. The rule line appears exactly once, before imports
 4. The module docstring is preserved (trimmed)
