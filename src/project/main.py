@@ -250,7 +250,7 @@ def _build_neutral_dna(n: int, device) -> 'torch.Tensor':
     for s in range(NUM_NEIGHBORS_3D):
         word = DNA_SLOT_WORD[s]
         bit  = DNA_SLOT_BIT[s]
-        dna[:, word] |= (15 << bit)   # 0b01111 = MODE 0 + PARAM 1111
+        dna[:, word] |= (15 << bit)
     return dna
 
 
@@ -375,7 +375,7 @@ class HybridNeuralSystemAdapter:
         now = time.monotonic()
         if now - self._workspace_energies_cache_time >= 0.008 or self._workspace_energies_cache is None:
             energies_tensor = self.get_workspace_energies()
-            flat = energies_tensor.cpu().numpy().copy()  # shape: (H*W,) or (H*W, 1)
+            flat = energies_tensor.cpu().numpy().copy()
             flat = flat.ravel()
 
             ws_h = self.workspace_region[1] - self.workspace_region[0]
@@ -483,7 +483,7 @@ class HybridNeuralSystemAdapter:
         cols = x1 - x0
 
         for ch, region in enumerate([self.audio_sensory_L, self.audio_sensory_R]):
-            ch_data = spectrum[ch]  # (fft_bins,)
+            ch_data = spectrum[ch]
             tiled = np.tile(ch_data, (rows, 1))[:rows, :cols]
             tiled_t = torch.from_numpy(tiled.astype(np.float32))
             self.engine.inject_audio_data(tiled_t, region)
@@ -756,7 +756,7 @@ def create_hybrid_neural_system(
     engine.register_region(
         y0=0,    y1=H,
         x0=0,    x1=W,
-        region_type=1,           # NODE_TYPE_DYNAMIC
+        region_type=1,
         spawn=True,
     )
 
@@ -913,7 +913,7 @@ def initialize_system(
                 logger.info("Initializing optimized capture (auto-detecting best method)...")
                 capture = create_best_capture(
                     region=(0, 0, width, height),
-                    device=device  # Use the device variable we set earlier
+                    device=device
                 )
             else:
                 logger.info("Using standard capture (install mss for faster capture: pip install mss)")
@@ -1155,7 +1155,7 @@ def main() -> None:
                         audio_capture=audio_capture_obj,
                         audio_output=audio_output_obj,
                     )
-                    main_window.show()  # Show the main window
+                    main_window.show()
                     logger.info("Entering Qt event loop - application will stay open")
                     app.exec()  # type: ignore[union-attr]
                     logger.info("Qt event loop exited - application closing")
