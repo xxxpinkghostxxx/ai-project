@@ -1,10 +1,78 @@
-"""
-Modern Configuration Panel Module.
+# =============================================================================
+# CODE STRUCTURE
+# =============================================================================
+#
+# Constants:
+#   logger                                  — Module-level logger instance
+#
+# Classes:
+#   ModernConfigPanel(QDialog)
+#     _HYBRID_FIELD_INFO: dict[str, tuple[str, str]]
+#                                           — Mapping of hybrid field keys to display name and restart hint
+#     _AUDIO_FIELD_INFO: dict[str, tuple[str, str]]
+#                                           — Mapping of audio field keys to display name and restart hint
+#     __init__(self, parent: Any, config_manager: ConfigManager) -> None
+#                                           — Initialize panel with parent window and config manager
+#     _get_dark_theme_stylesheet(self) -> str
+#                                           — Return dark theme CSS stylesheet string
+#     _create_sensory_tab(self) -> None     — Build sensory configuration tab
+#     _create_workspace_tab(self) -> None   — Build workspace configuration tab
+#     _create_system_tab(self) -> None      — Build system configuration tab
+#     _create_hybrid_tab(self) -> None      — Build hybrid/engine configuration tab
+#     _update_hybrid_bool(self, key: str, state: int) -> None
+#                                           — Handle hybrid boolean checkbox change
+#     _update_hybrid_text(self, key: str, text: str) -> None
+#                                           — Handle hybrid numeric text field change
+#     _update_hybrid_list(self, key: str, line_edit: QLineEdit) -> None
+#                                           — Parse and apply hybrid JSON list field
+#     _create_audio_tab(self) -> None       — Build audio configuration tab
+#     _update_audio_bool(self, key: str, state: int) -> None
+#                                           — Handle audio boolean checkbox change
+#     _update_audio_str(self, key: str, text: str) -> None
+#                                           — Handle audio string text field change
+#     _update_audio_text(self, key: str, text: str) -> None
+#                                           — Handle audio numeric text field change
+#     _create_advanced_tab(self) -> None    — Build advanced configuration tab with perf and debug options
+#     _create_action_buttons(self, main_layout: QVBoxLayout) -> None
+#                                           — Create Apply/Reset/Close action buttons
+#     _update_sensory_bool(self, key: str, state: int) -> None
+#                                           — Handle sensory boolean checkbox change
+#     _update_sensory_text(self, key: str, text: str) -> None
+#                                           — Handle sensory text field change (integer only)
+#     _update_workspace_text(self, key: str, text: str) -> None
+#                                           — Handle workspace text field change (integer only)
+#     _update_system_text(self, key: str, text: str) -> None
+#                                           — Handle system text field change (numeric)
+#     _update_system_bool(self, key: str, state: int) -> None
+#                                           — Handle system boolean checkbox change with logging toggle
+#     _update_system_max_images(self, text: str) -> None
+#                                           — Handle max images text field change
+#     _update_config(self, section: str, key: str, value: Any) -> None
+#                                           — Validate and persist a configuration value
+#     _get_expected_type(self, section: str, key: str) -> str
+#                                           — Return human-readable expected type for a config param
+#     _restart_system(self) -> None         — Prompt user and restart system with new config
+#     _reset_to_defaults(self) -> None      — Prompt user and reset config to factory defaults
+#     _refresh_configuration_ui(self) -> None
+#                                           — Refresh UI to show current values (stub)
+#     closeEvent(self, a0: QCloseEvent | None) -> None
+#                                           — Handle dialog close event
+#
+# =============================================================================
+# TODOS
+# =============================================================================
+#
+# None
+#
+# =============================================================================
+# KNOWN BUGS
+# =============================================================================
+#
+# None
+#
+# DO NOT ADD PROJECT NOTES BELOW — all notes go in the file header above.
 
-This module provides a modern PyQt6-based graphical user interface for configuring
-the Energy-Based Neural System, including sensory, workspace, and system parameter
-configuration with advanced options and comprehensive error handling.
-"""
+"""Modern PyQt6 configuration panel for the Energy-Based Neural System."""
 
 import logging
 from functools import partial
@@ -22,46 +90,7 @@ from project.utils.config_manager import ConfigManager
 logger = logging.getLogger(__name__)
 
 class ModernConfigPanel(QDialog):
-    """
-    Modern configuration panel class for managing system configuration through a PyQt6 GUI.
-
-    This class provides a comprehensive configuration interface with:
-    - Tabbed interface for different configuration sections
-    - Advanced configuration options with performance tuning
-    - Real-time validation and error feedback
-    - Comprehensive documentation and tooltips
-    - Modern dark theme styling
-    - Responsive layout and scrolling for large configurations
-
-    Key Features:
-    - Sensory configuration with real-time preview
-    - Workspace parameter tuning
-    - System performance optimization
-    - Resource management controls
-    - Debug and logging options
-    - Configuration validation and error handling
-
-    Thread Safety:
-    - Uses Qt's signal/slot mechanism for thread-safe UI updates
-    - Implements proper event handling for concurrent operations
-    - Ensures UI responsiveness during configuration changes
-
-    Usage Patterns:
-    - Real-time configuration tuning
-    - Performance optimization
-    - System debugging and monitoring
-    - Resource management
-    - Configuration validation
-
-    Example:
-    ```python
-    # Initialize and show the modern configuration panel
-    config_manager = ConfigManager()
-    main_window = ModernMainWindow(config_manager, state_manager)
-    config_dialog = ModernConfigPanel(main_window, config_manager)
-    config_dialog.exec()
-    ```
-    """
+    """Modern configuration panel for managing system configuration through a PyQt6 GUI."""
 
     def __init__(self, parent: Any, config_manager: ConfigManager) -> None:
         """
@@ -77,12 +106,10 @@ class ModernConfigPanel(QDialog):
         self.setMinimumSize(800, 900)
         self.setStyleSheet(self._get_dark_theme_stylesheet())
 
-        # Create main layout
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(15, 15, 15, 15)
         main_layout.setSpacing(12)
 
-        # Create tab widget
         self.tab_widget = QTabWidget()
         self.tab_widget.setStyleSheet("""
             QTabWidget::pane {
@@ -108,7 +135,6 @@ class ModernConfigPanel(QDialog):
         """)
         main_layout.addWidget(self.tab_widget)
 
-        # Create tabs
         self._create_sensory_tab()
         self._create_workspace_tab()
         self._create_system_tab()
@@ -116,7 +142,6 @@ class ModernConfigPanel(QDialog):
         self._create_audio_tab()
         self._create_advanced_tab()
 
-        # Create action buttons
         self._create_action_buttons(main_layout)
 
     def _get_dark_theme_stylesheet(self) -> str:
@@ -204,7 +229,6 @@ class ModernConfigPanel(QDialog):
         sensory_layout.setContentsMargins(10, 10, 10, 10)
         sensory_layout.setSpacing(10)
 
-        # Create scroll area
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
 
@@ -216,7 +240,6 @@ class ModernConfigPanel(QDialog):
 
         sensory_config = cast(dict[str, Any], self.config_manager.get_config('sensory'))
 
-        # Add sensory configuration options
         for key, value in sensory_config.items():
             key_str = str(key)
             label = QLabel(f"{key_str.replace('_', ' ').title()}:")
@@ -247,7 +270,6 @@ class ModernConfigPanel(QDialog):
         workspace_layout.setContentsMargins(10, 10, 10, 10)
         workspace_layout.setSpacing(10)
 
-        # Create scroll area
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
 
@@ -259,7 +281,6 @@ class ModernConfigPanel(QDialog):
 
         workspace_config = cast(dict[str, Any], self.config_manager.get_config('workspace'))
 
-        # Add workspace configuration options
         for key, value in workspace_config.items():
             key_str = str(key)
             label = QLabel(f"{key_str.replace('_', ' ').title()}:")
@@ -283,7 +304,6 @@ class ModernConfigPanel(QDialog):
         system_layout.setContentsMargins(10, 10, 10, 10)
         system_layout.setSpacing(10)
 
-        # Create scroll area
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
 
@@ -295,7 +315,6 @@ class ModernConfigPanel(QDialog):
 
         system_config = cast(dict[str, Any], self.config_manager.get_config('system'))
 
-        # Add basic configuration options
         for key, value in system_config.items():
             label = QLabel(f"{str(key).replace('_', ' ').title()}:")
             label.setToolTip(f"Configure {key} parameter")
@@ -310,10 +329,6 @@ class ModernConfigPanel(QDialog):
         scroll_area.setWidget(scroll_content)
         system_layout.addWidget(scroll_area)
         self.tab_widget.addTab(system_frame, "System")
-
-    # ------------------------------------------------------------------
-    # Hybrid / Engine tab
-    # ------------------------------------------------------------------
 
     _HYBRID_FIELD_INFO: dict[str, tuple[str, str]] = {
         'grid_size': ('Grid Size [H, W]', 'restart'),
@@ -353,7 +368,7 @@ class ModernConfigPanel(QDialog):
             label.setStyleSheet("color: #e0e0e0; font-family: 'Segoe UI'; font-size: 11px;")
 
             if key == 'enabled' or key == 'description':
-                continue  # skip meta fields
+                continue
 
             if isinstance(value, bool):
                 checkbox = QCheckBox()
@@ -391,11 +406,7 @@ class ModernConfigPanel(QDialog):
             if isinstance(val, list):
                 self._update_config('hybrid', key, val)
         except Exception:
-            pass  # ignore parse errors while typing
-
-    # ------------------------------------------------------------------
-    # Audio tab
-    # ------------------------------------------------------------------
+            pass
 
     _AUDIO_FIELD_INFO: dict[str, tuple[str, str]] = {
         'enabled': ('Audio Enabled', 'restart'),
@@ -473,7 +484,6 @@ class ModernConfigPanel(QDialog):
         advanced_layout.setContentsMargins(10, 10, 10, 10)
         advanced_layout.setSpacing(10)
 
-        # Create scroll area
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
 
@@ -482,7 +492,6 @@ class ModernConfigPanel(QDialog):
         scroll_layout.setContentsMargins(10, 10, 10, 10)
         scroll_layout.setSpacing(12)
 
-        # Performance Tuning Group
         performance_group = QGroupBox("Performance Tuning")
         performance_group.setStyleSheet("""
             QGroupBox {
@@ -501,7 +510,6 @@ class ModernConfigPanel(QDialog):
         performance_layout.setSpacing(8)
         performance_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
 
-        # Frame throttling option
         frame_throttle_label = QLabel("Enable Frame Throttling:")
         frame_throttle_label.setToolTip("Enable frame throttling to maintain UI responsiveness under heavy load")
 
@@ -511,7 +519,6 @@ class ModernConfigPanel(QDialog):
         frame_throttle_checkbox.stateChanged.connect(partial(self._update_system_bool, 'frame_throttling'))  # type: ignore[reportUnknownMemberType]
         performance_layout.addRow(frame_throttle_label, frame_throttle_checkbox)
 
-        # Memory optimization option
         memory_opt_label = QLabel("Aggressive Memory Optimization:")
         memory_opt_label.setToolTip("Enable aggressive memory optimization (may impact performance)")
 
@@ -520,7 +527,6 @@ class ModernConfigPanel(QDialog):
         memory_opt_checkbox.stateChanged.connect(partial(self._update_system_bool, 'aggressive_memory_opt'))  # type: ignore[reportUnknownMemberType]
         performance_layout.addRow(memory_opt_label, memory_opt_checkbox)
 
-        # Resource limits
         max_images_label = QLabel("Max Images:")
         max_images_label.setToolTip("Maximum number of images to keep in memory")
 
@@ -532,7 +538,6 @@ class ModernConfigPanel(QDialog):
         performance_group.setLayout(performance_layout)
         scroll_layout.addWidget(performance_group)
 
-        # Debug Options Group
         debug_group = QGroupBox("Debug Options")
         debug_group.setStyleSheet("""
             QGroupBox {
@@ -550,7 +555,6 @@ class ModernConfigPanel(QDialog):
         debug_layout.setSpacing(8)
         debug_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
 
-        # Enable detailed logging
         debug_logging_label = QLabel("Enable Detailed Logging:")
         debug_logging_label.setToolTip("Enable detailed logging for troubleshooting")
 
@@ -559,7 +563,6 @@ class ModernConfigPanel(QDialog):
         debug_logging_checkbox.stateChanged.connect(partial(self._update_system_bool, 'detailed_logging'))  # type: ignore[reportUnknownMemberType]
         debug_layout.addRow(debug_logging_label, debug_logging_checkbox)
 
-        # Show performance metrics
         perf_metrics_label = QLabel("Show Performance Metrics:")
         perf_metrics_label.setToolTip("Display performance metrics in status bar")
 
@@ -582,7 +585,6 @@ class ModernConfigPanel(QDialog):
         button_layout.setContentsMargins(0, 0, 0, 0)
         button_layout.setSpacing(10)
 
-        # Restart button
         restart_btn = QPushButton("Apply & Restart")
         restart_btn.setStyleSheet("""
             QPushButton {
@@ -605,7 +607,6 @@ class ModernConfigPanel(QDialog):
         restart_btn.clicked.connect(self._restart_system)  # type: ignore[reportUnknownMemberType]
         button_layout.addWidget(restart_btn)
 
-        # Reset button
         reset_btn = QPushButton("Reset to Defaults")
         reset_btn.setStyleSheet("""
             QPushButton {
@@ -628,7 +629,6 @@ class ModernConfigPanel(QDialog):
         reset_btn.clicked.connect(self._reset_to_defaults)  # type: ignore[reportUnknownMemberType]
         button_layout.addWidget(reset_btn)
 
-        # Close button
         close_btn = QPushButton("Close")
         close_btn.setStyleSheet("""
             QPushButton {
@@ -669,7 +669,7 @@ class ModernConfigPanel(QDialog):
 
     def _update_system_text(self, key: str, text: str) -> None:
         """Update system text configuration. Skips empty or incomplete input."""
-        stripped = text.lstrip('-')  # allow negative numbers
+        stripped = text.lstrip('-')
         if stripped and stripped.replace('.', '', 1).isdigit():
             self._update_config('system', key, float(text))
 
@@ -702,12 +702,11 @@ class ModernConfigPanel(QDialog):
             TypeError: If value type is incompatible
         """
         try:
-            # Validate value type and range before updating
             if section == 'sensory':
                 if key in ['width', 'height', 'canvas_width', 'canvas_height'] and isinstance(value, int):
                     if value <= 0:
                         raise ValueError(f"{key} must be positive")
-                    if value > 4096:  # Reasonable maximum
+                    if value > 4096:
                         raise ValueError(f"{key} exceeds maximum allowed value (4096)")
                 elif key in ['update_interval', 'frame_skip'] and isinstance(value, int):
                     if value < 1:
@@ -719,7 +718,7 @@ class ModernConfigPanel(QDialog):
                 if key in ['width', 'height'] and isinstance(value, int):
                     if value <= 0:
                         raise ValueError(f"{key} must be positive")
-                    if value > 2048:  # Reasonable maximum for workspace
+                    if value > 2048:
                         raise ValueError(f"{key} exceeds maximum allowed value (2048)")
                 elif key in ['node_spacing', 'connection_distance'] and isinstance(value, (int, float)):
                     if value <= 0:
@@ -752,16 +751,13 @@ class ModernConfigPanel(QDialog):
                     if value not in (22050, 44100, 48000, 96000):
                         raise ValueError("Sample rate must be 22050, 44100, 48000, or 96000")
 
-            # Update configuration with validated value
             logger.info(f"Attempting to update {section}.{key} to {value}")
 
-            # Check if the key exists in the configuration
             current_config = self.config_manager.get_config(section)
             logger.debug(f"Current {section} config: {current_config}")
 
             if self.config_manager.update_config(section, key, value):
                 logger.info(f"Updated {section}.{key} to {value}")
-                # Propagate hybrid config changes to the running engine
                 if section == 'hybrid':
                     parent = self.parent()
                     if parent and hasattr(parent, 'system') and parent.system is not None:
@@ -836,7 +832,6 @@ class ModernConfigPanel(QDialog):
     def _restart_system(self) -> None:
         """Restart the system with new configuration."""
         try:
-            # Show confirmation dialog
             reply = QMessageBox.question(
                 self,
                 "Confirm Restart",
@@ -852,8 +847,7 @@ class ModernConfigPanel(QDialog):
 
             if reply == QMessageBox.StandardButton.Yes:
                 logger.info("Applying configuration changes and restarting system")
-                self.accept()  # Close the dialog
-                # The actual restart will be handled by the main window
+                self.accept()
         except Exception as e:
             ErrorHandler.show_error(
                 "Restart Error",
@@ -865,7 +859,6 @@ class ModernConfigPanel(QDialog):
     def _reset_to_defaults(self) -> None:
         """Reset configuration to default values."""
         try:
-            # Show confirmation dialog
             reply = QMessageBox.question(
                 self,
                 "Confirm Reset",
@@ -879,9 +872,7 @@ class ModernConfigPanel(QDialog):
             )
 
             if reply == QMessageBox.StandardButton.Yes:
-                # Create a fresh ConfigManager to get defaults, then save over the current config
                 fresh_config = ConfigManager()
-                # Fresh instance has no loaded user config — its defaults are the reset target
                 self.config_manager.config = fresh_config.config
                 self.config_manager.save_config()
                 logger.info("Configuration reset to defaults and saved to disk")
@@ -907,7 +898,6 @@ class ModernConfigPanel(QDialog):
     def closeEvent(self, a0: QCloseEvent | None) -> None:
         """Handle dialog closing."""
         try:
-            # Simple close handling
             logger.info("Configuration panel closed")
             if a0 is not None:
                 a0.accept()

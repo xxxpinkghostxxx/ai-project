@@ -1,16 +1,133 @@
-"""
-Modern Main Window Module.
+# =============================================================================
+# CODE STRUCTURE
+# =============================================================================
+#
+# Constants:
+#   logger                          -- Module-level logger
+#   _VALIDATOR_AVAILABLE            -- bool, whether SimulationValidator imported successfully
+#   _SimulationValidator            -- SimulationValidator class or None
+#
+# Classes:
+#   ModernMainWindow(QMainWindow)
+#     __init__(self, config_manager: ConfigManager, state_manager: StateManager) -> None
+#       Initialize window with configuration and state managers.
+#     _build_header_bar(self) -> QFrame
+#       Build the top header bar with FPS/node/energy labels.
+#     _build_left_column(self) -> QFrame
+#       Build left column with workspace, sensory, audio views and metrics.
+#     _build_center_column(self) -> QFrame
+#       Build center column with Taichi window toggles and modality legend.
+#     _build_right_column(self) -> QFrame
+#       Build right column with simulation controls, audio, config, and interval slider.
+#     @staticmethod _section_label(layout: QVBoxLayout, text: str) -> None
+#       Add a styled section label to a layout.
+#     @staticmethod _window_toggle_style(active: bool) -> str
+#       Return QPushButton stylesheet for active/inactive window toggle.
+#     _create_interval_slider_in(self, layout: QVBoxLayout) -> None
+#       Build the update interval slider into the given layout.
+#     _update_interval(self, value: int) -> None
+#       Handle update interval slider change.
+#     _toggle_workspace_window(self) -> None
+#       Toggle workspace GGUI window open/closed.
+#     _toggle_full_ai_window(self) -> None
+#       Toggle full AI structure GGUI window open/closed.
+#     _toggle_sensory_window(self) -> None
+#       Toggle sensory input GGUI window open/closed.
+#     _get_dark_theme_stylesheet(self) -> str
+#       Return dark theme stylesheet for the application.
+#     @staticmethod _button_style(bg: str, hover: str = '', pressed: str = '') -> str
+#       Generate QPushButton stylesheet with consistent structure.
+#     _create_control_buttons(self) -> None
+#       Create control buttons with modern styling (legacy layout path).
+#     _create_interval_slider(self) -> None
+#       Create update interval slider with modern styling (legacy layout path).
+#     _toggle_suspend(self) -> None
+#       Toggle system suspension with visual feedback.
+#     _pulse_energy(self) -> None
+#       Pulse energy into the system with visual feedback.
+#     _toggle_sensory(self) -> None
+#       Toggle sensory input on/off.
+#     _toggle_audio(self) -> None
+#       Toggle audio capture and output on/off.
+#     _toggle_audio_source(self) -> None
+#       Switch audio source between loopback and microphone.
+#     @pyqtSlot(int) _audio_volume_changed(self, value: int) -> None
+#       Handle audio volume slider change.
+#     _update_audio_spectrum_canvas(self, spectrum: np.ndarray) -> None
+#       Render a stereo FFT spectrum as a bar chart in the audio view.
+#     _open_config_panel(self) -> None
+#       Open modern configuration panel dialog.
+#     @pyqtSlot(int) _update_interval_changed(self, value: int) -> None
+#       Handle capture interval change (legacy path).
+#     @pyqtSlot() _update_resource_stats_display(self) -> None
+#       Update resource statistics display (stub).
+#     update_workspace_canvas(self, workspace_data: npt.NDArray[np.float64] | None = None) -> None
+#       Update workspace canvas with new data using thread-safe operations.
+#     @pyqtSlot() _process_pending_workspace_update(self) -> None
+#       Process pending workspace update from worker thread on main thread.
+#     on_workspace_update(self, energy_grid) -> None
+#       Handle workspace system updates and render them to the canvas.
+#     update_sensory_canvas(self, sensory_data: npt.NDArray[np.float64]) -> None
+#       Update sensory canvas with new data.
+#     update_metrics_panel(self, metrics: dict[str, Any] | None = None) -> None
+#       Update metrics panel with new data.
+#     on_state_change(self, state: Any) -> None
+#       Handle state changes and update UI accordingly.
+#     set_components(self, system: Any, capture: Any, workspace_system: Any | None = None, audio_capture: Any | None = None, audio_output: Any | None = None) -> None
+#       Store components without starting the simulation.
+#     start_system(self, system: Any | None = None, capture: Any | None = None, workspace_system: Any | None = None) -> None
+#       Start the system, capture, and workspace components.
+#     stop_system(self) -> None
+#       Stop timers and background components.
+#     _build_fresh_components(self) -> tuple[Any, Any, Any | None] | None
+#       Recreate system, capture, and workspace components from config.
+#     _handle_start(self) -> None
+#       User-initiated start.
+#     _handle_stop(self) -> None
+#       User-initiated stop.
+#     _handle_reset(self) -> None
+#       Stop and rebuild a fresh map.
+#     _handle_clear_log(self) -> None
+#       Clear the application log file.
+#     _handle_test_rules(self) -> None
+#       Run comprehensive rule validation test.
+#     _update_sensory(self, current_time: float) -> tuple[Any, dict[str, float]]
+#       Process screen capture and update sensory nodes.
+#     _update_engine(self) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, float]]
+#       Run one engine step and retrieve metrics.
+#     _update_audio(self, current_time: float) -> None
+#       Process audio input spectrum and update audio output.
+#     _log_frame_profiling(self, update_start: float, time_since_last: float, sensory_t: dict[str, float], engine_t: dict[str, float], step_result: dict[str, Any] | None, ui_time: float) -> None
+#       Log detailed profiling info every 90 frames.
+#     @pyqtSlot() periodic_update(self) -> None
+#       Periodic update function with performance optimization and frame throttling.
+#     resizeEvent(self, event: Any) -> None
+#       Invalidate cached scene bounds so fitInView re-fires after resize.
+#     closeEvent(self, a0: Any) -> None
+#       Handle window closing.
+#     safe_window_cleanup(self) -> None
+#       Safe cleanup method that can be called during shutdown.
+#     run(self) -> None
+#       Start the main window.
+#
+# =============================================================================
+# TODOS
+# =============================================================================
+#
+# None
+#
+# =============================================================================
+# KNOWN BUGS
+# =============================================================================
+#
+# None
+#
+# DO NOT ADD PROJECT NOTES BELOW — all notes go in the file header above.
 
-This module provides a modern PyQt6-based graphical user interface for the
-Energy-Based Neural System, including workspace visualization, sensory input
-display, system controls, metrics monitoring, and comprehensive error handling
-with detailed error context.
-"""
+"""Modern PyQt6 main window for the Energy-Based Neural System interface."""
 
 # pylint: disable=no-name-in-module
-# PyQt6 classes are dynamically loaded and Pylint cannot detect them
 # pylint: disable=import-error
-# Import paths are correct but Pylint may not resolve them in all environments
 
 import logging
 import time
@@ -18,7 +135,7 @@ import threading
 from typing import Any
 import numpy as np
 import numpy.typing as npt
-import torch  # For GPU direct capture support
+import torch
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QFrame,
                             QLabel, QPushButton, QSlider, QGraphicsView,
                             QGraphicsScene, QStatusBar, QMessageBox, QTextEdit, QDialog)
@@ -47,66 +164,10 @@ except Exception:  # pylint: disable=broad-exception-caught
 
 logger = logging.getLogger(__name__)
 
-# Note: Broad exception catching (Exception) is intentional in UI code
-# to prevent crashes and provide user-friendly error messages.
 # pylint: disable=broad-exception-caught,too-many-lines
-# This module is a comprehensive UI component that legitimately requires
-# many lines for complete functionality
 
 class ModernMainWindow(QMainWindow):
-    """
-    Modern application window class for the neural system interface using PyQt6.
-
-    This class provides a comprehensive graphical user interface for the
-    Energy-Based Neural System, featuring modern design principles, responsive
-    controls, and advanced visualization capabilities.
-
-    Key Features:
-    - Dark theme UI with modern styling
-    - Workspace visualization with real-time updates
-    - Sensory input display and monitoring
-    - System controls with visual feedback
-    - Comprehensive metrics monitoring
-    - Error handling with detailed context
-    - Responsive design and layout management
-    - Configuration management interface
-
-    UI Components:
-    - Workspace visualization panel with zoom and pan capabilities
-    - Sensory input display with real-time frame updates
-    - Metrics panel showing system statistics
-    - Control buttons for system management
-    - Configuration panel for parameter adjustment
-    - Status bar for system notifications
-
-    Thread Safety:
-    - Uses Qt's signal/slot mechanism for thread-safe UI updates
-    - Implements proper event handling for concurrent operations
-    - Ensures UI responsiveness during system operations
-    - Provides safe cleanup during application shutdown
-
-    Usage Patterns:
-    - Real-time system monitoring and control
-    - Interactive workspace visualization
-    - Configuration management and tuning
-    - System state monitoring and feedback
-    - Error reporting and user notifications
-
-    Example:
-    ```python
-    # Initialize and run the modern main window
-    config_manager = ConfigManager()
-    state_manager = StateManager()
-    main_window = ModernMainWindow(config_manager, state_manager)
-
-    # Start the system and capture components
-    # system, capture, workspace = initialize_system(config_manager)
-    # main_window.start_system(system, capture)
-
-    # Run the application
-    main_window.run()
-    ```
-    """
+    """Modern application window class for the neural system interface using PyQt6."""
 
     def __init__(self, config_manager: ConfigManager, state_manager: StateManager) -> None:
         """Initialize ModernMainWindow with configuration and state managers."""
@@ -118,43 +179,36 @@ class ModernMainWindow(QMainWindow):
         self.capture: Any | None = None
         self.workspace_system: Any | None = None
         self._workspace_observer_added = False
-        self._gui_manager: Any | None = None   # TaichiGUIManager, set by start_system()
+        self._gui_manager: Any | None = None
 
         self.setWindowTitle("Neural Engine")
         self.setMinimumSize(1400, 900)
         self.setStyleSheet(self._get_dark_theme_stylesheet())
 
-        # ── Root layout ──────────────────────────────────────────────
         root = QWidget()
         self.setCentralWidget(root)
         root_layout = QVBoxLayout(root)
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
 
-        # ── Header bar ───────────────────────────────────────────────
         self._header_bar = self._build_header_bar()
         root_layout.addWidget(self._header_bar)
 
-        # ── 3-column body ────────────────────────────────────────────
         body = QWidget()
         body_layout = QHBoxLayout(body)
         body_layout.setContentsMargins(8, 8, 8, 8)
         body_layout.setSpacing(8)
         root_layout.addWidget(body, stretch=1)
 
-        # Left column (live views + metrics)
         left_col = self._build_left_column()
         body_layout.addWidget(left_col, stretch=3)
 
-        # Center column (Taichi windows + modality legend)
         center_col = self._build_center_column()
         body_layout.addWidget(center_col, stretch=2)
 
-        # Right column (engine config + controls)
         right_col = self._build_right_column()
         body_layout.addWidget(right_col, stretch=2)
 
-        # ── Status bar ───────────────────────────────────────────────
         self.status_bar = QStatusBar()
         self.status_bar.setStyleSheet(
             "color: #9999bb; background-color: #0d0d0d; "
@@ -162,17 +216,14 @@ class ModernMainWindow(QMainWindow):
         )
         self.setStatusBar(self.status_bar)
 
-        # ── Audio state ──────────────────────────────────────────────
         self.audio_capture: Any | None = None
         self.audio_output:  Any | None = None
 
-        # ── Timers ───────────────────────────────────────────────────
         self.update_timer = QTimer()
         self.update_timer.timeout.connect(self.periodic_update)
         self.resource_stats_timer = QTimer()
         self.resource_stats_timer.timeout.connect(self._update_resource_stats_display)
 
-        # ── Performance throttling (unchanged from original) ─────────
         self.last_update_time = 0
         self.last_sensory_canvas_update = 0
         self.last_workspace_canvas_update = 0.0
@@ -186,16 +237,10 @@ class ModernMainWindow(QMainWindow):
         self.node_read_skip_counter = 0
         self.node_read_interval = 2
 
-        # ── Thread safety ─────────────────────────────────────────────
         self._ui_update_lock = threading.Lock()
         self._resource_access_lock = threading.Lock()
 
-        # ── State observer ───────────────────────────────────────────
         self.state_manager.add_observer(self)
-
-    # ──────────────────────────────────────────────────────────────────
-    # Layout builders
-    # ──────────────────────────────────────────────────────────────────
 
     def _build_header_bar(self) -> QFrame:
         bar = QFrame()
@@ -227,7 +272,6 @@ class ModernMainWindow(QMainWindow):
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(6)
 
-        # Workspace canvas
         self.workspace_view = QGraphicsView()
         self.workspace_view.setStyleSheet(
             "background-color: #0d0d0d; border: 1px solid #2a2a4e; border-radius: 4px;"
@@ -237,7 +281,6 @@ class ModernMainWindow(QMainWindow):
         self.workspace_view.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
         layout.addWidget(self.workspace_view, stretch=3)
 
-        # Sensory thumbnail
         self.sensory_view = QGraphicsView()
         self.sensory_view.setStyleSheet(
             "background-color: #0d0d0d; border: 1px solid #2a2a4e; border-radius: 4px;"
@@ -248,7 +291,6 @@ class ModernMainWindow(QMainWindow):
         self._sensory_pixmap_item = None
         layout.addWidget(self.sensory_view, stretch=1)
 
-        # Audio spectrum
         self.audio_view = QGraphicsView()
         self.audio_view.setStyleSheet(
             "background-color: #0d0d0d; border: 1px solid #2a2a4e; border-radius: 4px;"
@@ -259,7 +301,6 @@ class ModernMainWindow(QMainWindow):
         self.audio_view.setVisible(False)
         layout.addWidget(self.audio_view)
 
-        # Metrics
         self.metrics_panel = QFrame()
         self.metrics_panel.setStyleSheet(
             "background-color: #12122a; border-radius: 4px; border: 1px solid #2a2a4e;"
@@ -285,14 +326,12 @@ class ModernMainWindow(QMainWindow):
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(8)
 
-        # Section: Taichi Windows
         sec_title = QLabel("TAICHI WINDOWS")
         sec_title.setStyleSheet(
             "color: #666699; font-family: 'Consolas'; font-size: 10px; letter-spacing: 1px;"
         )
         layout.addWidget(sec_title)
 
-        # Window toggle buttons + FPS labels
         self._btn_workspace_win = QPushButton("\u25b6  Workspace Grid")
         self._btn_workspace_win.setCheckable(True)
         self._btn_workspace_win.setStyleSheet(self._window_toggle_style(False))
@@ -323,7 +362,6 @@ class ModernMainWindow(QMainWindow):
         self._lbl_sensory_fps.setStyleSheet("color: #666699; font-family: 'Consolas'; font-size: 10px;")
         layout.addWidget(self._lbl_sensory_fps)
 
-        # Divider
         layout.addSpacing(8)
         divider = QFrame()
         divider.setFrameShape(QFrame.Shape.HLine)
@@ -331,7 +369,6 @@ class ModernMainWindow(QMainWindow):
         layout.addWidget(divider)
         layout.addSpacing(4)
 
-        # Section: Modality Legend
         legend_title = QLabel("MODALITY ZONES")
         legend_title.setStyleSheet(
             "color: #666699; font-family: 'Consolas'; font-size: 10px; letter-spacing: 1px;"
@@ -371,7 +408,6 @@ class ModernMainWindow(QMainWindow):
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(6)
 
-        # ── Simulation controls ───────────────────────────────────────
         self._section_label(layout, "SIMULATION")
 
         self.start_button = QPushButton("\u25b6  Start")
@@ -431,7 +467,6 @@ class ModernMainWindow(QMainWindow):
         self.audio_source_button.setVisible(False)
         layout.addWidget(self.audio_source_button)
 
-        # Audio volume slider (hidden until audio is enabled)
         self._audio_volume_frame = QFrame()
         self._audio_volume_frame.setStyleSheet("background-color: #12122a; border-radius: 4px;")
         _avl = QVBoxLayout(self._audio_volume_frame)
@@ -458,7 +493,6 @@ class ModernMainWindow(QMainWindow):
         layout.addSpacing(4)
         self._section_label(layout, "UPDATE INTERVAL")
 
-        # Re-use existing interval slider builder
         self._create_interval_slider_in(layout)
 
         layout.addStretch()
@@ -515,8 +549,6 @@ class ModernMainWindow(QMainWindow):
             self.status_bar.showMessage(f"Capture interval: {value}ms (~{fps} fps)")
         except Exception as e:
             ErrorHandler.show_error("Config Error", f"Failed to update capture interval: {str(e)}")
-
-    # ── GGUI window toggle handlers ──────────────────────────────────
 
     def _toggle_workspace_window(self) -> None:
         if self._gui_manager is None:
@@ -628,7 +660,6 @@ class ModernMainWindow(QMainWindow):
 
     def _create_control_buttons(self) -> None:
         """Create control buttons with modern styling."""
-        # Simple single-state buttons (no hover/pressed variants needed)
         self.start_button = QPushButton("Start Simulation")
         self.start_button.setStyleSheet("background-color: #227722; color: #e0e0e0; font-weight: bold;")
         self.start_button.clicked.connect(self._handle_start)
@@ -654,7 +685,6 @@ class ModernMainWindow(QMainWindow):
         self.test_button.clicked.connect(self._handle_test_rules)
         self.controls_layout.addWidget(self.test_button)
 
-        # Styled buttons with hover/pressed states
         self.suspend_button = QPushButton("Drain && Suspend")
         self.suspend_button.setStyleSheet(self._button_style("#882222", "#993333", "#661111"))
         self.suspend_button.clicked.connect(self._toggle_suspend)
@@ -675,7 +705,6 @@ class ModernMainWindow(QMainWindow):
         self.config_button.clicked.connect(self._open_config_panel)
         self.controls_layout.addWidget(self.config_button)
 
-        # --- Audio controls ---
         self.audio_toggle_button = QPushButton("Enable Audio")
         self.audio_toggle_button.setStyleSheet(self._button_style("#664488", "#8855aa", "#443366"))
         self.audio_toggle_button.clicked.connect(self._toggle_audio)
@@ -687,7 +716,6 @@ class ModernMainWindow(QMainWindow):
         self.audio_source_button.setVisible(False)
         self.controls_layout.addWidget(self.audio_source_button)
 
-        # Audio volume slider
         self._audio_volume_frame = QFrame()
         self._audio_volume_frame.setStyleSheet("background-color: #282828; border-radius: 6px;")
         _avl = QVBoxLayout(self._audio_volume_frame)
@@ -725,7 +753,6 @@ class ModernMainWindow(QMainWindow):
     def _toggle_suspend(self) -> None:
         """Toggle system suspension with enhanced visual feedback."""
         try:
-            # Show immediate feedback
             self.status_bar.showMessage("Processing suspension request...")
             self.suspend_button.setEnabled(False)
             self.suspend_button.setText("Processing...")
@@ -734,18 +761,17 @@ class ModernMainWindow(QMainWindow):
             if self.state_manager.toggle_suspend():
                 self.suspend_button.setText("Resume System")
                 self.suspend_button.setStyleSheet(self._button_style("#225522", "#337733", "#113311"))
-                self.status_bar.showMessage("✓ System suspended and drained successfully")
+                self.status_bar.showMessage("\u2713 System suspended and drained successfully")
                 logger.info("System suspended successfully")
             else:
                 self.suspend_button.setText("Drain && Suspend")
                 self.suspend_button.setStyleSheet(self._button_style("#882222", "#993333", "#661111"))
-                self.status_bar.showMessage("✓ System resumed successfully")
+                self.status_bar.showMessage("\u2713 System resumed successfully")
                 logger.info("System resumed successfully")
 
         except Exception as e:
             ErrorHandler.show_error("Suspend Error", f"Failed to toggle suspension: {str(e)}")
-            self.status_bar.showMessage(f"✗ Error: {str(e)}")
-            # Restore button state
+            self.status_bar.showMessage(f"\u2717 Error: {str(e)}")
             self.suspend_button.setEnabled(True)
             if self.state_manager.get_state().suspended:
                 self.suspend_button.setText("Resume System")
@@ -757,33 +783,29 @@ class ModernMainWindow(QMainWindow):
 
     def _pulse_energy(self) -> None:
         """Pulse energy into the system with enhanced visual feedback."""
-        original_text = "Pulse +10 Energy"  # Default text
+        original_text = "Pulse +10 Energy"
         try:
-            # Show immediate feedback
             if hasattr(self, 'pulse_button') and self.pulse_button:
                 original_text = self.pulse_button.text()
                 self.pulse_button.setText("Pulsing...")
                 self.pulse_button.setEnabled(False)
                 self.pulse_button.repaint()
 
-            # Apply energy pulse to the system
             pulse_amt = 0.0
             if self.system:
                 pulse_amt = self.system.pulse_energy()
-            self.status_bar.showMessage(f"✓ Energy pulse +{pulse_amt:.1f} applied successfully")
+            self.status_bar.showMessage(f"\u2713 Energy pulse +{pulse_amt:.1f} applied successfully")
             logger.info("Energy pulse applied: +%.2f", pulse_amt)
 
-            # Visual feedback - temporary highlight
             if hasattr(self, 'pulse_button') and self.pulse_button:
                 self.pulse_button.setStyleSheet(self._button_style("#33aa33"))
                 self.pulse_button.repaint()
 
         except Exception as e:
             ErrorHandler.show_error("Pulse Error", f"Failed to pulse energy: {str(e)}")
-            self.status_bar.showMessage(f"✗ Pulse failed: {str(e)}")
+            self.status_bar.showMessage(f"\u2717 Pulse failed: {str(e)}")
 
         finally:
-            # Restore original state
             if hasattr(self, 'pulse_button') and self.pulse_button:
                 self.pulse_button.setText(original_text)
                 self.pulse_button.setEnabled(True)
@@ -799,10 +821,6 @@ class ModernMainWindow(QMainWindow):
             self.sensory_button.setText("Enable Sensory Input")
             self.sensory_button.setStyleSheet(self._button_style("#882222", "#993333", "#661111"))
             self.status_bar.showMessage("Sensory input disabled.")
-
-    # ------------------------------------------------------------------
-    # Audio controls
-    # ------------------------------------------------------------------
 
     def _toggle_audio(self) -> None:
         """Toggle audio capture and output on/off."""
@@ -854,16 +872,15 @@ class ModernMainWindow(QMainWindow):
         """
         try:
             n_bins = spectrum.shape[1]
-            bar_h = 100  # pixel height of the bar area
-            # Create RGB image: (bar_h, n_bins, 3)
+            bar_h = 100
             img = np.zeros((bar_h, n_bins, 3), dtype=np.uint8)
             for b in range(n_bins):
                 h_L = int(min(spectrum[0, b], 1.0) * bar_h)
                 h_R = int(min(spectrum[1, b], 1.0) * bar_h)
                 if h_L > 0:
-                    img[bar_h - h_L:, b, 1] = 180  # green for L
+                    img[bar_h - h_L:, b, 1] = 180
                 if h_R > 0:
-                    img[bar_h - h_R:, b, 2] = 180  # blue for R
+                    img[bar_h - h_R:, b, 2] = 180
 
             height, width = img.shape[:2]
             q_image = QImage(
@@ -888,20 +905,16 @@ class ModernMainWindow(QMainWindow):
     def _open_config_panel(self) -> None:
         """Open modern configuration panel with enhanced visual feedback."""
         try:
-            # Show loading feedback
             self.status_bar.showMessage("Loading configuration panel...")
 
-            # Import and create modern config panel
             # pylint: disable=import-outside-toplevel
-            # Lazy import to avoid circular dependencies
             from project.ui.modern_config_panel import ModernConfigPanel
             config_dialog = ModernConfigPanel(self, self.config_manager)
 
-            # Show the dialog
             result = config_dialog.exec()
 
-            if result == 1:  # Accepted
-                self.status_bar.showMessage("✓ Configuration changes applied")
+            if result == 1:
+                self.status_bar.showMessage("\u2713 Configuration changes applied")
                 logger.info("Configuration panel closed with changes applied")
             else:
                 self.status_bar.showMessage("Configuration panel closed")
@@ -917,7 +930,7 @@ class ModernMainWindow(QMainWindow):
                 "- No permission issues exist",
                 severity=ERROR_SEVERITY_MEDIUM
             )
-            self.status_bar.showMessage(f"✗ Error loading config: {str(e)}")
+            self.status_bar.showMessage(f"\u2717 Error loading config: {str(e)}")
 
     @pyqtSlot(int)
     def _update_interval_changed(self, value: int) -> None:
@@ -925,7 +938,6 @@ class ModernMainWindow(QMainWindow):
         try:
             self.config_manager.update_config('system', 'update_interval', value)
             fps = max(1, 1000 // value)
-            # Push new target FPS to the async capture thread if available
             if self.capture and hasattr(self.capture, 'set_target_fps'):
                 self.capture.set_target_fps(fps)
             self.status_bar.showMessage(f"Capture interval: {value}ms (~{fps} fps)")
@@ -942,10 +954,8 @@ class ModernMainWindow(QMainWindow):
     ) -> None:
         """Update workspace canvas with new data using thread-safe operations (OPTIMIZED!)."""
         try:
-            # Thread-safe canvas update
             with self._ui_update_lock:
                 if workspace_data is None:
-                    # Create empty workspace
                     workspace_config = self.config_manager.get_config('workspace')
                     if workspace_config is None:
                         raise ValueError("Workspace configuration not found")
@@ -953,11 +963,6 @@ class ModernMainWindow(QMainWindow):
                         workspace_config['height'], workspace_config['width']
                     ))
 
-                # Soft auto-ranging: tracks observed extremes with slow exponential
-                # adaptation (alpha=0.02 ≈ 50-frame window) to avoid the grey-flash
-                # that per-frame hard auto-ranging causes, while still using the full
-                # pixel scale instead of the ±65000 fixed range that maps actual
-                # 0-500 energies to <0.4% of the display scale.
                 _arr_min = float(workspace_data.min())
                 _arr_max = float(workspace_data.max())
                 if not hasattr(self, '_ws_range_min') or self._ws_range_min is None:
@@ -969,8 +974,6 @@ class ModernMainWindow(QMainWindow):
                     self._ws_range_max = self._ws_range_max * (1 - _alpha) + _arr_max * _alpha
                     if self._ws_range_max <= self._ws_range_min:
                         self._ws_range_max = self._ws_range_min + 1.0
-                # Ensure 2-D before colormap (guard against 1-D legacy paths).
-                # Use config dimensions — the square-root assumption breaks non-square grids.
                 if workspace_data.ndim == 1:
                     _ws_cfg = self.config_manager.get_config('workspace')
                     _ws_h = int(_ws_cfg['height']) if _ws_cfg else 16
@@ -979,7 +982,7 @@ class ModernMainWindow(QMainWindow):
                         workspace_data = workspace_data.reshape(_ws_h, _ws_w)
                     else:
                         logger.warning(
-                            "1-D workspace array size %d does not match config %d×%d; "
+                            "1-D workspace array size %d does not match config %d\u00d7%d; "
                             "displaying as single row.", workspace_data.size, _ws_h, _ws_w
                         )
                         workspace_data = workspace_data.reshape(1, -1)
@@ -992,29 +995,23 @@ class ModernMainWindow(QMainWindow):
                 height, width = arr_rgb.shape[:2]
                 bytes_per_line = 3 * width
 
-                # Create QImage with proper memory management
                 image_data_copy = arr_rgb.copy()
                 q_image = QImage(
                     image_data_copy.data.tobytes(), width, height, bytes_per_line,
                     QImage.Format.Format_RGB888
                 )
-                del image_data_copy  # Free memory
+                del image_data_copy
 
-                # Create QPixmap and display
                 pixmap = QPixmap.fromImage(q_image)
                 if pixmap.isNull():
                     raise ValueError("Failed to create valid QPixmap from workspace data")
 
-                # Update scene without clearing — avoids the brief blank frame
-                # that appears between scene.clear() and addPixmap() on each tick.
                 if not hasattr(self, '_workspace_pixmap_item') or self._workspace_pixmap_item is None:
                     self.workspace_scene.clear()
                     self._workspace_pixmap_item = self.workspace_scene.addPixmap(pixmap)
                 else:
                     self._workspace_pixmap_item.setPixmap(pixmap)
 
-                # Only re-fit when the scene bounds change (first frame or after resize).
-                # Calling fitInView() every frame causes geometry thrashing and flicker.
                 bounds = self.workspace_scene.itemsBoundingRect()
                 if not hasattr(self, '_workspace_last_bounds') or self._workspace_last_bounds != bounds:
                     self._workspace_last_bounds = bounds
@@ -1024,7 +1021,6 @@ class ModernMainWindow(QMainWindow):
                     )
 
         except Exception as e:
-            # Enhanced error reporting with detailed context
             error_context: dict[str, Any] = {
                 ERROR_CONTEXT_TIMESTAMP: time.time(),
                 ERROR_CONTEXT_MODULE: 'modern_main_window',
@@ -1051,22 +1047,21 @@ class ModernMainWindow(QMainWindow):
                 severity=severity,
                 context=error_context
             )
-            self.status_bar.showMessage(f"✗ Workspace update failed: {str(e)}")
+            self.status_bar.showMessage(f"\u2717 Workspace update failed: {str(e)}")
 
     @pyqtSlot()
     def _process_pending_workspace_update(self) -> None:
         """Process pending workspace update from worker thread (called on main thread via QMetaObject.invokeMethod)."""
         if hasattr(self, '_pending_workspace_grid'):
             energy_grid = self._pending_workspace_grid
-            delattr(self, '_pending_workspace_grid')  # Clean up
+            delattr(self, '_pending_workspace_grid')
             self.on_workspace_update(energy_grid)
-    
+
     def on_workspace_update(self, energy_grid) -> None:
         """Handle workspace system updates and render them to the canvas."""
-        # Throttle to ~60 fps — drop stale queued updates from the workspace thread.
         now = time.time()
         if hasattr(self, '_workspace_last_render_time'):
-            if now - self._workspace_last_render_time < 0.015:  # ~66 Hz cap
+            if now - self._workspace_last_render_time < 0.015:
                 return
         self._workspace_last_render_time = now
 
@@ -1075,7 +1070,6 @@ class ModernMainWindow(QMainWindow):
         self._workspace_update_counter += 1
 
         try:
-            # Accept both numpy arrays (fast path from cached adapter) and list-of-lists
             if isinstance(energy_grid, np.ndarray):
                 workspace_data = energy_grid if energy_grid.dtype == np.float64 else energy_grid.astype(np.float64)
             elif energy_grid:
@@ -1083,14 +1077,13 @@ class ModernMainWindow(QMainWindow):
             else:
                 return
 
-            # Validate that the incoming shape matches the configured grid dimensions
             _ws_cfg = self.config_manager.get_config('workspace')
             if _ws_cfg and workspace_data.ndim == 2:
                 _exp_h = int(_ws_cfg.get('height', 16))
                 _exp_w = int(_ws_cfg.get('width',  16))
                 if workspace_data.shape != (_exp_h, _exp_w):
                     logger.warning(
-                        "Workspace grid shape %s does not match config %d×%d",
+                        "Workspace grid shape %s does not match config %d\u00d7%d",
                         workspace_data.shape, _exp_h, _exp_w,
                     )
 
@@ -1101,7 +1094,6 @@ class ModernMainWindow(QMainWindow):
                 )
             self.update_workspace_canvas(workspace_data)
 
-            # Update status bar using already-computed numpy array (no Python list needed)
             if workspace_data.size > 0:
                 self.status_bar.showMessage(
                     f"Workspace: Avg={workspace_data.mean():.1f}, "
@@ -1114,32 +1106,24 @@ class ModernMainWindow(QMainWindow):
     def update_sensory_canvas(self, sensory_data: npt.NDArray[np.float64]) -> None:
         """Update sensory canvas with new data (OPTIMIZED!)."""
         try:
-            # OPTIMIZATION: Downsample for faster rendering (SENSORY-SPECIFIC!)
             ui_config = self.config_manager.get_config('ui')
-            scale_factor = 8  # Default 8× downsampling for sensory (performance!)
+            scale_factor = 8
             if ui_config is not None:
                 scale_factor = ui_config.get('sensory_scale_factor', 8)
             if scale_factor > 1 and sensory_data.shape[0] >= scale_factor and sensory_data.shape[1] >= scale_factor:
-                # Downsample by taking every Nth pixel
                 sensory_data = sensory_data[::scale_factor, ::scale_factor]
-            
-            # Convert to QImage
-            # CRITICAL FIX: Handle corrupted/invalid sensory data
-            # Check for NaN, Inf, or invalid values
+
             if not np.isfinite(sensory_data).all():
                 logger.warning("Sensory data contains NaN/Inf values, replacing with zeros")
                 sensory_data = np.nan_to_num(sensory_data, nan=0.0, posinf=1.0, neginf=0.0)
-            
-            # Ensure data is in valid range [0, 1]
+
             arr = np.clip(sensory_data, 0, 1)
-            
-            # Check if data is all zeros or all same value (corrupted)
+
             if arr.max() == arr.min() and arr.max() == 0:
                 logger.warning("Sensory data is all zeros - screen capture may be failing")
-                # Show a test pattern instead of pure black
                 h, w = arr.shape
-                arr = np.random.rand(h, w) * 0.1  # Very dim random noise for visibility
-            
+                arr = np.random.rand(h, w) * 0.1
+
             arr = (arr * 255).astype(np.uint8)
             arr_rgb = np.repeat(arr[:, :, None], 3, axis=2)
 
@@ -1150,7 +1134,6 @@ class ModernMainWindow(QMainWindow):
                 QImage.Format.Format_RGB888
             )
 
-            # Create QPixmap and display
             pixmap = QPixmap.fromImage(q_image)
             if self._sensory_pixmap_item is None:
                 self._sensory_pixmap_item = self.sensory_scene.addPixmap(pixmap)
@@ -1162,7 +1145,6 @@ class ModernMainWindow(QMainWindow):
             )
 
         except Exception as e:
-            # Enhanced error reporting with detailed context
             error_context: dict[str, Any] = {
                 ERROR_CONTEXT_TIMESTAMP: time.time(),
                 ERROR_CONTEXT_MODULE: 'modern_main_window',
@@ -1193,31 +1175,26 @@ class ModernMainWindow(QMainWindow):
                 self.metrics_label.setText("Metrics not available")
                 return
 
-            # Format energy values with K suffix for large numbers
             total_e = metrics.get('total_energy', 0)
             total_e_str = f"{total_e/1000:.1f}K" if total_e >= 1000 else f"{total_e:.1f}"
-            
-            # Node counts
+
             n_sens = metrics.get('sensory_node_count', 0)
             n_dyn = metrics.get('dynamic_node_count', 0)
             n_ws = metrics.get('workspace_node_count', 0)
             n_total = n_sens + n_dyn + n_ws
-            
-            # Energy stats
+
             sens_min = metrics.get('sensory_energy_min', 0)
             sens_max = metrics.get('sensory_energy_max', 0)
             ws_min = metrics.get('workspace_energy_min', 0)
             ws_max = metrics.get('workspace_energy_max', 0)
             ws_avg = metrics.get('workspace_energy_avg', 0)
             dyn_avg = metrics.get('avg_dynamic_energy', 0)
-            
-            # Connection stats
+
             conn_count = metrics.get('connection_count', 0)
             conns_per_dyn = metrics.get('conns_per_dynamic', 0)
-            
-            # Step count
+
             step_count = metrics.get('step_count', 0)
-            
+
             metrics_text = (
                 f"<b>Step:</b> {step_count} | <b>Energy:</b> {total_e_str}<br>"
                 f"<b>Nodes:</b> {n_total} (S:{n_sens} D:{n_dyn} W:{n_ws})<br>"
@@ -1230,7 +1207,6 @@ class ModernMainWindow(QMainWindow):
             )
             self.metrics_label.setText(metrics_text)
         except Exception as e:
-            # Enhanced error reporting with detailed context
             error_context: dict[str, Any] = {
                 ERROR_CONTEXT_TIMESTAMP: time.time(),
                 ERROR_CONTEXT_MODULE: 'modern_main_window',
@@ -1257,7 +1233,6 @@ class ModernMainWindow(QMainWindow):
     def on_state_change(self, state: Any) -> None:
         """Handle state changes."""
         try:
-            # Update UI based on state
             if state.suspended:
                 self.suspend_button.setText("Resume System")
                 self.suspend_button.setStyleSheet(self._button_style("#225522", "#337733", "#113311"))
@@ -1272,7 +1247,6 @@ class ModernMainWindow(QMainWindow):
                 self.sensory_button.setText("Enable Sensory Input")
                 self.sensory_button.setStyleSheet(self._button_style("#882222", "#993333", "#661111"))
         except Exception as e:
-            # Enhanced error reporting with detailed context
             error_context: dict[str, Any] = {
                 ERROR_CONTEXT_TIMESTAMP: time.time(),
                 ERROR_CONTEXT_MODULE: 'modern_main_window',
@@ -1312,7 +1286,6 @@ class ModernMainWindow(QMainWindow):
         self.audio_output = audio_output
         self._workspace_observer_added = False
 
-        # Sync audio UI state with actual audio state
         if audio_capture is not None and audio_capture.is_running:
             self.audio_toggle_button.setText("Disable Audio")
             self.audio_source_button.setVisible(True)
@@ -1323,31 +1296,7 @@ class ModernMainWindow(QMainWindow):
                 self.audio_source_button.setText(f"Source: {src.title()}")
 
     def start_system(self, system: Any | None = None, capture: Any | None = None, workspace_system: Any | None = None) -> None:
-        """
-        Start the system, capture, and workspace components.
-
-        This method initializes the main system components and starts the periodic update timer.
-        It sets up the neural system, screen capture, and workspace system components for real-time operation.
-
-        Args:
-            system: The neural system instance to be controlled by this window
-            capture: The screen capture system instance for sensory input
-            workspace_system: The workspace system instance for energy visualization
-
-        Example:
-        ```python
-        # Initialize system components
-        # system, capture, workspace = initialize_system(config_manager)
-        screen_capture = ScreenCaptureSystem(config_manager)
-        workspace_system = WorkspaceNodeSystem(neural_system, config)
-
-        # Start the system in the main window
-        main_window.start_system(neural_system, screen_capture, workspace_system)
-
-        # The window will now display real-time updates from all systems
-        # and allow user interaction with the neural network and workspace
-        ```
-        """
+        """Start the system, capture, and workspace components."""
         if system is not None:
             self.system = system
         if capture is not None:
@@ -1355,7 +1304,6 @@ class ModernMainWindow(QMainWindow):
         if workspace_system is not None:
             self.workspace_system = workspace_system
         self.frame_counter = 0
-        # Allow configurable growth/cull cadence (frames)
         self.growth_interval_frames = int(self.config_manager.get_config('system', 'growth_interval_frames') or 2)
         self.cull_interval_frames = int(self.config_manager.get_config('system', 'cull_interval_frames') or 3)
         if self.growth_interval_frames < 1:
@@ -1363,25 +1311,20 @@ class ModernMainWindow(QMainWindow):
         if self.cull_interval_frames < 1:
             self.cull_interval_frames = 1
         if not self.update_timer.isActive():
-            # 0ms interval: fires on every Qt event loop iteration — sim runs uncapped.
-            # Screen capture rate is controlled separately via AsyncScreenCapture.set_target_fps().
             self.update_timer.start(0)
 
-        # Start capture thread if available
         if self.capture and hasattr(self.capture, 'start'):
             try:
                 self.capture.start()
             except Exception as cap_err:  # pylint: disable=broad-exception-caught
                 logger.warning("Failed to start capture: %s", cap_err)
 
-        # Start connection worker if available
         if self.system and hasattr(self.system, 'start_connection_worker'):
             try:
                 self.system.start_connection_worker(batch_size=25)
             except Exception as worker_err:  # pylint: disable=broad-exception-caught
                 logger.warning("Failed to start connection worker: %s", worker_err)
 
-        # Start workspace system if available
         if self.workspace_system:
             try:
                 if hasattr(self.workspace_system, 'add_observer'):
@@ -1392,15 +1335,11 @@ class ModernMainWindow(QMainWindow):
                 if hasattr(self.workspace_system, 'start'):
                     self.workspace_system.start()
                 logger.info("Workspace system started successfully")
-                # Initialize workspace canvas with placeholder
                 self.update_workspace_canvas()
             except Exception as e:
                 logger.error(f"Failed to start workspace system: {e}")
                 ErrorHandler.show_error("Workspace Error", f"Failed to start workspace system: {str(e)}")
 
-        # Set up TaichiGUIManager so center column toggle buttons work.
-        # Use self.system (not the local `system` param, which may be None
-        # when start_system() is called without arguments from _handle_start).
         try:
             from project.visualization.taichi_gui_manager import TaichiGUIManager
             sys = self.system
@@ -1412,7 +1351,6 @@ class ModernMainWindow(QMainWindow):
             logger.warning("TaichiGUIManager unavailable: %s", e)
 
         self.status_bar.showMessage("Simulation started")
-        # Prime connection growth to avoid sparse graphs at startup
         if self.system:
             for _ in range(3):
                 self.system.queue_connection_growth()
@@ -1432,7 +1370,6 @@ class ModernMainWindow(QMainWindow):
                 except Exception:  # pylint: disable=broad-exception-caught
                     if hasattr(self.system, 'wait_for_workers_idle'):
                         self.system.wait_for_workers_idle()
-            # Stop audio subsystem
             if hasattr(self, 'audio_capture') and self.audio_capture and hasattr(self.audio_capture, 'stop'):
                 try:
                     self.audio_capture.stop()
@@ -1450,20 +1387,17 @@ class ModernMainWindow(QMainWindow):
 
     def _build_fresh_components(self) -> tuple[Any, Any, Any | None] | None:
         """Recreate system, capture, and workspace components from config.
-        
+
         This method now respects hybrid mode configuration and will create
         either a hybrid or traditional system based on the config.
         """
         try:
-            # Import the initialize_system function from main
-            # This ensures we use the SAME logic that creates systems at startup
             from project.main import initialize_system
-            
+
             logger.info("Rebuilding system components (respects hybrid mode)")
-            
-            # Use the centralized initialization logic
+
             system, capture, workspace_system = initialize_system(self.config_manager)
-            
+
             logger.info("System components rebuilt successfully")
             return system, capture, workspace_system
         except Exception as e:  # pylint: disable=broad-exception-caught
@@ -1517,7 +1451,6 @@ class ModernMainWindow(QMainWindow):
             self.test_button.setText("Testing...")
             self.status_bar.showMessage("Running rule validation test...")
 
-            # Determine device
             device = "cpu"
             try:
                 import torch  # type: ignore[import-untyped]
@@ -1538,7 +1471,6 @@ class ModernMainWindow(QMainWindow):
                 validator = _SimulationValidator()
                 results = validator.run_full_test(device=device)
 
-            # Display results in a dialog
             dialog = QDialog(self)
             dialog.setWindowTitle("Simulation Rule Test Results")
             dialog.setMinimumSize(600, 400)
@@ -1561,12 +1493,12 @@ class ModernMainWindow(QMainWindow):
             if results.get('errors'):
                 report_lines.append("\n=== ERRORS ===")
                 for err in results['errors']:
-                    report_lines.append(f"✗ {err}")
+                    report_lines.append(f"\u2717 {err}")
 
             if results.get('warnings'):
                 report_lines.append("\n=== WARNINGS ===")
                 for warn in results['warnings']:
-                    report_lines.append(f"⚠ {warn}")
+                    report_lines.append(f"\u26a0 {warn}")
 
             results_text.setPlainText("\n".join(report_lines))
             layout.addWidget(results_text)
@@ -1611,36 +1543,28 @@ class ModernMainWindow(QMainWindow):
 
         if frame is not None:
             t_convert_start = time.time()
-            # OPTIMIZATION: Handle torch.Tensor frames (GPU, no CPU transfer!)
             if isinstance(frame, torch.Tensor):
-                # GPU frame - keep on GPU! (NO CPU transfer!)
                 sensory_input = frame.float() if frame.dtype == torch.uint8 else frame
             else:
-                # CPU frame (numpy) - convert to float32, raw values as energy
                 sensory_input = frame.astype(np.float32)
             t['t_convert'] = (time.time() - t_convert_start) * 1000
 
-            # Update sensory CANVAS only every 500ms (not every frame!) - Huge performance boost!
             if (current_time - self.last_sensory_canvas_update) > self.sensory_canvas_update_interval:
                 t_canvas_start = time.time()
-                # For canvas update, convert to numpy if needed
                 if isinstance(sensory_input, torch.Tensor):
                     canvas_input = sensory_input.cpu().numpy()
-                    # Normalize to [0, 1] range if it's in [0, 255]
                     if canvas_input.max() > 1.0:
                         canvas_input = canvas_input / 255.0
                 else:
                     canvas_input = sensory_input
-                    # Normalize to [0, 1] range if needed
                     if canvas_input.max() > 1.0:
                         canvas_input = canvas_input / 255.0
                 self.update_sensory_canvas(canvas_input)
                 t['t_canvas'] = (time.time() - t_canvas_start) * 1000
                 self.last_sensory_canvas_update = current_time
 
-            # Update sensory NODES every frame (OPTIMIZED with GPU direct!)
             t_nodes_start = time.time()
-            self.system.update_sensory_nodes(sensory_input)  # Can be torch.Tensor now!
+            self.system.update_sensory_nodes(sensory_input)
             t['t_nodes'] = (time.time() - t_nodes_start) * 1000
         else:
             logger.debug("Received null frame from screen capture")
@@ -1667,12 +1591,10 @@ class ModernMainWindow(QMainWindow):
 
         t_update_start = time.time()
 
-        # Break down update() into components
         if hasattr(self.system, 'update_step'):
             t_update_step_start = time.time()
             step_result = self.system.update_step()
             t['t_update_step'] = (time.time() - t_update_step_start) * 1000
-            # Extract detailed timing if available
             if isinstance(step_result, dict):
                 t['t_engine_step'] = step_result.get('total_time', 0) * 1000
                 t['t_pre_sync'] = step_result.get('pre_sync_time', 0) * 1000
@@ -1719,17 +1641,15 @@ class ModernMainWindow(QMainWindow):
                 or self.system is None):
             return
         try:
-            spectrum = self.audio_capture.get_latest()  # (2, fft_bins)
+            spectrum = self.audio_capture.get_latest()
             self.system.process_audio_frame(spectrum)
 
-            # Update spectrum canvas (~10 FPS to save CPU)
             if not hasattr(self, '_last_audio_canvas_t'):
                 self._last_audio_canvas_t = 0.0
             if current_time - self._last_audio_canvas_t > 0.1:
                 self._update_audio_spectrum_canvas(spectrum)
                 self._last_audio_canvas_t = current_time
 
-            # Feed workspace energy back to audio output
             if self.audio_output is not None and self.audio_output.is_running:
                 ws_data = self.system.get_audio_workspace_energies()
                 if ws_data is not None:
@@ -1750,7 +1670,7 @@ class ModernMainWindow(QMainWindow):
         t_engine_call_val = engine_t.get('t_engine_call', 0)
 
         logger.info(
-            "🔍 ULTRA PROFILING | Total: %.1fms | Capture: %.1fms | Convert: %.1fms | "
+            "\U0001f50d ULTRA PROFILING | Total: %.1fms | Capture: %.1fms | Convert: %.1fms | "
             "Canvas: %.1fms | Nodes: %.1fms | Update: %.1fms | "
             "UpdateStep: %.1fms | EngineStep: %.1fms | Worker: %.1fms | "
             "Metrics: %.1fms | UI: %.1fms | FPS: %.1f",
@@ -1762,20 +1682,19 @@ class ModernMainWindow(QMainWindow):
             engine_t.get('t_metrics', 0), ui_time * 1000, fps,
         )
 
-        # Extract GPU timing from step_result if available
         gpu_time_ms = 0.0
         if isinstance(step_result, dict):
             gpu_time_ms = step_result.get('gpu_time_ms', 0)
 
         logger.info(
-            "   🔬 GPU SYNC BREAKDOWN | PreSync: %.2fms | EngineCall: %.2fms | "
+            "   \U0001f52c GPU SYNC BREAKDOWN | PreSync: %.2fms | EngineCall: %.2fms | "
             "ResultAccess: %.2fms | GPUSync: %.2fms | Adapter: %.2fms",
             engine_t.get('t_pre_sync', 0), t_engine_call_val,
             engine_t.get('t_result_access', 0), engine_t.get('t_gpu_sync', 0),
             engine_t.get('t_adapter', 0),
         )
         logger.info(
-            "   ⚡ CUDA EVENT TIMING | GPUExecution: %.2fms | CPUTime: %.2fms | Gap: %.2fms",
+            "   \u26a1 CUDA EVENT TIMING | GPUExecution: %.2fms | CPUTime: %.2fms | Gap: %.2fms",
             gpu_time_ms, t_engine_step_val, t_engine_call_val - gpu_time_ms,
         )
         self.status_bar.showMessage(
@@ -1791,12 +1710,9 @@ class ModernMainWindow(QMainWindow):
                 update_start = current_time
                 time_since_last_update = current_time - self.last_update_time
 
-                # Minimal frame throttling (GPU mode can handle high FPS)
-                # Only skip if updates are EXTREMELY fast (< 1ms)
                 if time_since_last_update < self.min_update_interval:
                     self.frame_skip_counter += 1
                     if self.frame_skip_counter < self.frame_skip_threshold:
-                        # Only skip if we're getting insane FPS
                         return
                     else:
                         self.frame_skip_counter = 0
@@ -1805,7 +1721,6 @@ class ModernMainWindow(QMainWindow):
 
                 self.last_update_time = current_time
 
-                # Update header bar
                 if hasattr(self, '_header_fps') and self.system is not None:
                     try:
                         metrics = self.system.get_metrics() if hasattr(self.system, 'get_metrics') else {}
@@ -1819,7 +1734,6 @@ class ModernMainWindow(QMainWindow):
                     except Exception:
                         pass
 
-                # Update GGUI FPS labels
                 if self._gui_manager is not None:
                     for name, lbl in [
                         ("workspace", self._lbl_workspace_fps),
@@ -1829,30 +1743,22 @@ class ModernMainWindow(QMainWindow):
                         fps = self._gui_manager.get_fps(name)
                         lbl.setText(f"  FPS: {fps:.0f}" if fps > 0 else "  FPS: \u2014")
 
-                # Sensory update with visual feedback + DETAILED PROFILING
                 frame, sensory_t = self._update_sensory(current_time)
 
-                # System update with progress feedback + DETAILED PROFILING
                 step_result, metrics, engine_t = self._update_engine()
 
-                # Workspace system update with visual feedback
                 if self.workspace_system:
                     try:
-                        # The workspace system runs in its own thread, but we can trigger updates
-                        # or check for new data here
                         self.status_bar.showMessage("Workspace system active")
                     except Exception as e:
                         logger.error(f"Error updating workspace system: {e}")
                         self.status_bar.showMessage(f"Workspace error: {str(e)}")
 
-                # Audio processing (inject spectrum + read workspace + update output)
                 self._update_audio(current_time)
 
-                # Queue connection tasks with visual feedback
                 self.frame_counter += 1
 
                 if self.system:
-                    # Throttle growth/cull when edge count is low to avoid starving nodes
                     safe_to_modify_edges = True
                     if metrics is not None:
                         edge_count = metrics.get('connection_count', 0)
@@ -1868,13 +1774,8 @@ class ModernMainWindow(QMainWindow):
                     elif not safe_to_modify_edges:
                         logger.debug("Skipping cull; edge_count below safe minimum")
 
-                # Update UI with performance monitoring (SKIP FRAMES FOR METRICS!)
                 start_ui_update = time.time()
-                # Note: Workspace canvas is updated via observer pattern (on_workspace_update)
-                # from WorkspaceNodeSystem, not here. Calling update_workspace_canvas() with
-                # no args would overwrite the observer data with an empty canvas.
                 if self.system:
-                    # metrics was already fetched above; pass it directly.
                     self.update_metrics_panel(metrics)
                     if metrics is not None:
                         self.state_manager.update_metrics(
@@ -1884,14 +1785,12 @@ class ModernMainWindow(QMainWindow):
                         )
                 ui_update_time = time.time() - start_ui_update
 
-                # Show performance stats periodically + ULTRA-DETAILED PROFILING
                 self._log_frame_profiling(
                     update_start, time_since_last_update,
                     sensory_t, engine_t, step_result, ui_update_time,
                 )
 
             except Exception as e:
-                # Enhanced error reporting with detailed context
                 error_context: dict[str, Any] = {
                     ERROR_CONTEXT_TIMESTAMP: time.time(),
                     ERROR_CONTEXT_MODULE: 'modern_main_window',
@@ -1913,7 +1812,6 @@ class ModernMainWindow(QMainWindow):
                     }
                 }
 
-                # Periodic update errors are critical for UI responsiveness
                 severity = ERROR_SEVERITY_HIGH
                 if 'memory' in str(e).lower() or 'out of' in str(e).lower():
                     severity = ERROR_SEVERITY_CRITICAL
@@ -1934,7 +1832,6 @@ class ModernMainWindow(QMainWindow):
 
     def closeEvent(self, a0: Any) -> None:  # pylint: disable=invalid-name
         """Handle window closing."""
-        # closeEvent is a Qt method name that must match Qt's naming convention
         try:
             ShutdownDetector.safe_cleanup(self.safe_window_cleanup, "MainWindow cleanup")
         except Exception as e:
@@ -1949,7 +1846,6 @@ class ModernMainWindow(QMainWindow):
             if hasattr(self, 'resource_stats_timer') and self.resource_stats_timer.isActive():
                 self.resource_stats_timer.stop()
 
-            # Stop workspace system if it exists
             if hasattr(self, 'workspace_system') and self.workspace_system:
                 try:
                     self.workspace_system.stop()
@@ -1957,7 +1853,6 @@ class ModernMainWindow(QMainWindow):
                 except Exception as e:
                     logger.error(f"Error stopping workspace system: {e}")
 
-            # Stop audio subsystem
             for attr in ('audio_capture', 'audio_output'):
                 obj = getattr(self, attr, None)
                 if obj and hasattr(obj, 'stop'):
