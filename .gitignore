@@ -4,3 +4,4 @@ venv
 nul
 *.bak
 pyg_system.log.worktrees/
+pyg_system.log
