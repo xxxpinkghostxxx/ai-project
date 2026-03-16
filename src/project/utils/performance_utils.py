@@ -1,10 +1,80 @@
 #!/usr/bin/env python3
-"""
-Performance optimization utilities for the PyTorch Geometric Neural System.
+# =============================================================================
+# CODE STRUCTURE
+# =============================================================================
+#
+# T = TypeVar('T')
+# logger = logging.getLogger(__name__)
+#
+# class ProfilingSectionData(TypedDict):
+#     count: int
+#     total_time: float
+#     avg_time: float
+#     min_time: float
+#     max_time: float
+#
+# class TensorOperationCache:
+#     def __init__(self, max_size: int = 1000)
+#     def get(self, key: str) -> Any | None
+#     def set(self, key: str, value: Any, ttl: float = 60.0) -> None
+#     def _evict_oldest(self) -> None
+#     def clear(self) -> None
+#     def size(self) -> int
+#
+# _tensor_cache = TensorOperationCache()
+#
+# def cached_tensor_operation(ttl: float = 60.0) -> Callable[[Callable[..., Any]], Callable[..., Any]]
+#
+# class PerformanceMonitor:
+#     def __init__(self) -> None
+#     def record_operation(self, operation_name: str, duration: float) -> None
+#     def get_operation_stats(self, operation_name: str) -> dict[str, float] | None
+#     def get_all_stats(self) -> dict[str, dict[str, float]]
+#     def clear_stats(self) -> None
+#
+# _performance_monitor = PerformanceMonitor()
+#
+# def monitor_performance(operation_name: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]
+#
+# class MemoryOptimizer:
+#     @staticmethod
+#     def optimize_tensor_allocation(tensor_shape: tuple[int, ...], device: str = 'cpu', dtype: Any = None) -> Any
+#     @staticmethod
+#     def batch_tensor_operations(tensors: list[Any], operation: str = 'concatenate') -> Any
+#
+# class PerformanceProfiler:
+#     def __init__(self) -> None
+#     def start_profiling(self, section_name: str) -> None
+#     def end_profiling(self, section_name: str) -> None
+#     def record_tensor_operation(self, operation_name: str, tensor_shape: tuple[int, ...], duration: float) -> None
+#     def get_profiling_report(self) -> dict[str, Any]
+#     def enable_profiling(self, enabled: bool = True) -> None
+#     def clear_profiling_data(self) -> None
+#
+# def get_tensor_cache() -> TensorOperationCache
+# def get_performance_monitor() -> PerformanceMonitor
+# def clear_all_caches() -> None
+#
+# _performance_profiler = PerformanceProfiler()
+#
+# def get_performance_profiler() -> PerformanceProfiler
+# def profile_operation(operation_name: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]
+#
+# =============================================================================
+# TODOS
+# =============================================================================
+#
+# None
+#
+# =============================================================================
+# KNOWN BUGS
+# =============================================================================
+#
+# None
+#
+# DO NOT ADD PROJECT NOTES BELOW — all notes go in the file header above.
 
-This module provides caching mechanisms, tensor operation optimizations,
-and performance monitoring utilities to improve system efficiency.
-"""
+"""Performance optimization utilities for the PyTorch Geometric Neural System."""
 
 import functools
 import time
@@ -31,7 +101,7 @@ class ProfilingSectionData(TypedDict):
 class TensorOperationCache:
     """
     Caching system for expensive tensor operations to improve performance.
-    
+
     This cache helps avoid redundant tensor shape validation and synchronization
     operations that were identified as performance bottlenecks in the audit.
     """
@@ -51,68 +121,63 @@ class TensorOperationCache:
             self._access_times[key] = time.time()
             return value
         return None
-        
+
     def set(self, key: str, value: Any, ttl: float = 60.0) -> None:
         """Set cached value with time-to-live."""
         current_time = time.time()
-        
-        # Evict oldest entries if cache is full
+
         if len(self._cache) >= self._max_size:
             self._evict_oldest()
-            
+
         self._cache[key] = (value, current_time + ttl)
         self._access_times[key] = current_time
-        
+
     def _evict_oldest(self) -> None:
         """Remove the least recently accessed entry."""
         if not self._access_times:
             return
-            
+
         oldest_key = min(self._access_times.keys(), key=lambda k: self._access_times[k])
         self._cache.pop(oldest_key, None)
         self._access_times.pop(oldest_key, None)
-        
+
     def clear(self) -> None:
         """Clear all cached entries."""
         self._cache.clear()
         self._access_times.clear()
-        
+
     def size(self) -> int:
         """Get current cache size."""
         return len(self._cache)
 
 
-# Global cache instance for tensor operations
 _tensor_cache = TensorOperationCache()
 
 
 def cached_tensor_operation(ttl: float = 60.0) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """
     Decorator to cache expensive tensor operations.
-    
+
     Args:
         ttl: Time-to-live for cache entries in seconds
-        
+
     Returns:
         Decorated function with caching
     """
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            # Create cache key from function name and arguments
             cache_key = f"{func.__name__}:{hash(str(args) + str(sorted(kwargs.items())))}"
-            
-            # Try to get from cache
+
             cached_result = _tensor_cache.get(cache_key)
             if cached_result is not None:
                 logger.debug(f"Cache hit for {func.__name__}")
                 return cached_result
-                
-            # Execute function and cache result
+
             result = func(*args, **kwargs)
             _tensor_cache.set(cache_key, result, ttl)
             logger.debug(f"Cache miss for {func.__name__}, cached result")
-            
+
             return result
         return wrapper
     return decorator
@@ -122,35 +187,33 @@ class PerformanceMonitor:
     """
     Performance monitoring utilities for tracking operation timing and resource usage.
     """
-    
+
     def __init__(self) -> None:
         """Initialize performance monitor."""
         self._operation_times: dict[str, list[float]] = {}
         self._operation_counts: dict[str, int] = {}
-        
+
     def record_operation(self, operation_name: str, duration: float) -> None:
         """Record operation timing and update statistics."""
         if operation_name not in self._operation_times:
             self._operation_times[operation_name] = []
-            
+
         self._operation_times[operation_name].append(duration)
-        
-        # Keep only last 100 measurements per operation
+
         if len(self._operation_times[operation_name]) > 100:
             self._operation_times[operation_name] = self._operation_times[operation_name][-100:]
-            
+
         self._operation_counts[operation_name] = self._operation_counts.get(operation_name, 0) + 1
-        
+
     def get_operation_stats(self, operation_name: str) -> dict[str, float] | None:
         """Get statistics for a specific operation."""
         if operation_name not in self._operation_times:
             return None
-            
+
         times = self._operation_times[operation_name]
         if not times:
             return None
-            
-        # Precompute sum for efficiency
+
         times_sum = sum(times)
         return {
             'count': len(times),
@@ -163,8 +226,8 @@ class PerformanceMonitor:
         }
     def get_all_stats(self) -> dict[str, dict[str, float]]:
         """Get statistics for all operations."""
-        return {name: stats for name, stats in 
-                ((name, self.get_operation_stats(name)) 
+        return {name: stats for name, stats in
+                ((name, self.get_operation_stats(name))
                  for name in self._operation_times.keys())
                 if stats is not None}
     def clear_stats(self) -> None:
@@ -173,17 +236,16 @@ class PerformanceMonitor:
         self._operation_counts.clear()
 
 
-# Global performance monitor instance
 _performance_monitor = PerformanceMonitor()
 
 
 def monitor_performance(operation_name: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """
     Decorator to monitor function performance.
-    
+
     Args:
         operation_name: Name for performance tracking
-        
+
     Returns:
         Decorated function with performance monitoring
     """
@@ -224,7 +286,6 @@ class MemoryOptimizer:
             import torch
             return torch.empty(tensor_shape, device=device, dtype=dtype)
         except ImportError:
-            # Fallback for when torch is not available
             import numpy as np
             return np.zeros(tensor_shape, dtype=dtype)
     @staticmethod
@@ -284,7 +345,7 @@ class PerformanceProfiler:
         try:
             import torch
             if torch.cuda.is_available():
-                memory_used = torch.cuda.memory_allocated() / (1024 * 1024)  # MB
+                memory_used = torch.cuda.memory_allocated() / (1024 * 1024)
                 self._memory_usage[section_name].append(memory_used)
         except Exception as e:
             logger.debug("CUDA memory query failed for section '%s': %s", section_name, e)
@@ -329,7 +390,6 @@ class PerformanceProfiler:
             'performance_summary': {}
         }
 
-        # Process profiling sections
         for section_name, times in self._profiling_data.items():
             if times:
                 report['profiling_sections'][section_name] = {
@@ -340,7 +400,6 @@ class PerformanceProfiler:
                     'max_time': max(times)
                 }
 
-        # Process memory usage
         for section_name, memory_values in self._memory_usage.items():
             if memory_values:
                 report['memory_usage'][section_name] = {
@@ -349,7 +408,6 @@ class PerformanceProfiler:
                     'min_memory_mb': min(memory_values)
                 }
 
-        # Generate performance summary
         if report['profiling_sections']:
             all_times: list[float] = []
             profiling_sections: dict[str, ProfilingSectionData] = report['profiling_sections']  # type: ignore[assignment]
@@ -396,7 +454,6 @@ def clear_all_caches() -> None:
     _performance_monitor.clear_stats()
     logger.info("All performance caches and monitors cleared")
 
-# Global performance profiler instance
 _performance_profiler = PerformanceProfiler()
 
 def get_performance_profiler() -> PerformanceProfiler:

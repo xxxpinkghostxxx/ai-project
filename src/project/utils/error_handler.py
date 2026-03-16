@@ -1,10 +1,64 @@
-"""
-Error Handler Module.
+# =============================================================================
+# CODE STRUCTURE
+# =============================================================================
+#
+# Constants:
+#   ERROR_SEVERITY_CRITICAL, ERROR_SEVERITY_HIGH, ERROR_SEVERITY_MEDIUM,
+#   ERROR_SEVERITY_LOW, ERROR_SEVERITY_INFO, ERROR_SEVERITY_DEBUG
+#   ERROR_CONTEXT_TIMESTAMP, ERROR_CONTEXT_MODULE, ERROR_CONTEXT_FUNCTION,
+#   ERROR_CONTEXT_ERROR_TYPE, ERROR_CONTEXT_ERROR_MESSAGE,
+#   ERROR_CONTEXT_STACK_TRACE, ERROR_CONTEXT_ADDITIONAL_INFO,
+#   ERROR_CONTEXT_SEVERITY, ERROR_CONTEXT_RECOVERY_ACTIONS
+#
+# Classes:
+#   ErrorHandler
+#     MAX_ERRORS = 1000
+#     __init__(self) -> None
+#       Initialize with empty error list and enhanced tracking.
+#     @staticmethod show_error(title, message, log=True, severity=ERROR_SEVERITY_MEDIUM, context=None) -> None
+#       Log error and optionally show a Qt dialog to the user.
+#     @staticmethod safe_operation(func) -> Callable
+#       Decorator for safe operations with error handling and recovery.
+#     with_retry(self, max_retries=3, retry_delay=1.0, backoff=True)
+#       Decorator for adding retry logic with exponential backoff.
+#     @staticmethod log_warning(message) -> None
+#       Log a warning message.
+#     @staticmethod log_info(message) -> None
+#       Log an info message.
+#     @staticmethod log_debug(message) -> None
+#       Log a debug message.
+#     log_error(self, message, severity=ERROR_SEVERITY_MEDIUM, context=None) -> str
+#       Log an error with context and store structured error information.
+#     _generate_error_id(self) -> str
+#       Generate a unique error ID.
+#     classify_error_severity(self, error_message, error_type=None, context=None) -> str
+#       Classify error severity based on message, type, and context.
+#     get_recent_errors(self, count=10) -> list[Dict[str, Any]]
+#       Get the most recent errors with full context.
+#     get_errors_by_severity(self, severity) -> list[Dict[str, Any]]
+#       Get errors filtered by severity level.
+#     get_error_statistics(self) -> Dict[str, Any]
+#       Get comprehensive error statistics.
+#     _calculate_error_rate(self) -> float
+#       Calculate error rate (errors per minute).
+#     __len__(self) -> int
+#       Return the number of stored errors.
+#
+# =============================================================================
+# TODOS
+# =============================================================================
+#
+# None
+#
+# =============================================================================
+# KNOWN BUGS
+# =============================================================================
+#
+# None
+#
+# DO NOT ADD PROJECT NOTES BELOW — all notes go in the file header above.
 
-This module provides comprehensive error handling functionality for the Energy-Based Neural System,
-including standardized error handling patterns, enhanced logging with detailed context,
-consistent error severity classification, and thread-safe error management.
-"""
+"""Error handling with severity classification, retry logic, and thread-safe tracking."""
 
 import logging
 import threading
@@ -14,11 +68,8 @@ import time
 from functools import wraps
 from typing import Any, Optional, Callable, Dict
 
-# Get logger (logging should be configured in main entry point)
-# Don't call basicConfig here - it only works once and should be in main.py
 logger = logging.getLogger(__name__)
 
-# Error severity classification constants
 ERROR_SEVERITY_CRITICAL = 'CRITICAL'
 ERROR_SEVERITY_HIGH = 'HIGH'
 ERROR_SEVERITY_MEDIUM = 'MEDIUM'
@@ -26,7 +77,6 @@ ERROR_SEVERITY_LOW = 'LOW'
 ERROR_SEVERITY_INFO = 'INFO'
 ERROR_SEVERITY_DEBUG = 'DEBUG'
 
-# Error context keys
 ERROR_CONTEXT_TIMESTAMP = 'timestamp'
 ERROR_CONTEXT_MODULE = 'module'
 ERROR_CONTEXT_FUNCTION = 'function'
@@ -49,14 +99,13 @@ class ErrorHandler:
     - Comprehensive error tracking and statistics
     """
 
-    # Maximum number of stored errors to prevent unbounded memory growth
     MAX_ERRORS = 1000
 
     def __init__(self) -> None:
         """Initialize ErrorHandler with empty error list and enhanced tracking."""
-        self.errors: list[Dict[str, Any]] = []  # Store structured error information
+        self.errors: list[Dict[str, Any]] = []
         self.error_counter = 0
-        self._lock = threading.RLock()  # Reentrant lock for nested calls (e.g. get_error_statistics -> get_recent_errors)
+        self._lock = threading.RLock()
         self._retry_logic_enabled = True
         self._max_retries = 3
         self._retry_delay = 1.0
@@ -78,14 +127,12 @@ class ErrorHandler:
             context: Additional error context information
         """
         try:
-            # Log with enhanced context (always safe from any thread)
             if log:
                 log_message = "%s: %s | Severity: %s" % (title, message, severity)
                 if context:
                     log_message += " | Context: %s" % context
                 logger.error(log_message)
 
-            # Only attempt Qt dialog from the main thread and if QApplication exists
             try:
                 from PyQt6.QtWidgets import QApplication, QMessageBox
                 from PyQt6.QtCore import QThread
@@ -93,9 +140,9 @@ class ErrorHandler:
                 if app is not None and QThread.currentThread() is app.thread():
                     QMessageBox.critical(None, title, message)
             except ImportError:
-                pass  # Qt not available — log-only mode
+                pass
             except RuntimeError:
-                pass  # Qt shutting down
+                pass
 
         except Exception as e:
             logger.error("Error showing error message: %s", str(e))
@@ -157,7 +204,6 @@ class ErrorHandler:
 
                 logger.error(error_msg, exc_info=True)
 
-                # Show error to user (thread-safe — will only show dialog on main thread)
                 ErrorHandler.show_error(
                     "Operation Failed",
                     error_msg,
@@ -193,7 +239,6 @@ class ErrorHandler:
                         retry_count += 1
 
                         if retry_count <= max_retries:
-                            # Log the retry attempt
                             error_context = {
                                 'function': func.__name__,
                                 'attempt': retry_count,
@@ -209,7 +254,6 @@ class ErrorHandler:
                                 context=error_context
                             )
 
-                            # Wait before retrying
                             if backoff:
                                 sleep_time = min(retry_delay * (2 ** (retry_count - 1)), 30.0)
                             else:
@@ -218,10 +262,8 @@ class ErrorHandler:
                             logger.info(f"Retrying {func.__name__} in {sleep_time:.2f} seconds (attempt {retry_count}/{max_retries})")
                             time.sleep(sleep_time)
                         else:
-                            # Final attempt failed
                             break
 
-                # If we get here, all retries failed
                 if last_error:
                     error_context = {
                         'function': func.__name__,
@@ -264,7 +306,7 @@ class ErrorHandler:
             severity: Error severity level
             context: Additional error context
         """
-        with self._lock:  # Thread-safe error logging
+        with self._lock:
             error_id = self._generate_error_id()
             error_entry = {
                 'error_id': error_id,
@@ -276,24 +318,20 @@ class ErrorHandler:
                 'recovery_successful': False
             }
 
-            # Add stack trace for critical errors
             if severity == ERROR_SEVERITY_CRITICAL:
                 error_entry['stack_trace'] = traceback.format_exc()
 
             self.errors.append(error_entry)
             self.error_counter += 1
 
-            # Cap stored errors to prevent unbounded memory growth
             if len(self.errors) > self.MAX_ERRORS:
                 self.errors = self.errors[-self.MAX_ERRORS:]
 
-            # Log with severity and context
             log_message = f"[{severity}] {message}"
             if context:
                 log_message += f" | Context: {context}"
             logger.error(log_message)
 
-            # Log detailed error entry for debugging
             logger.debug(f"Error entry: {error_entry}")
 
             return error_id
@@ -314,10 +352,8 @@ class ErrorHandler:
         Returns:
             Appropriate severity level constant
         """
-        # Convert to lowercase for case-insensitive matching
         message_lower = error_message.lower()
 
-        # Critical errors - system failures, unrecoverable issues
         critical_keywords = [
             'fatal', 'critical', 'unrecoverable', 'system failure',
             'memory exhaustion', 'out of memory', 'segmentation fault',
@@ -327,7 +363,6 @@ class ErrorHandler:
         if any(keyword in message_lower for keyword in critical_keywords):
             return ERROR_SEVERITY_CRITICAL
 
-        # High severity - major functionality failures, data loss potential
         high_keywords = [
             'failed to initialize', 'connection failed', 'database error',
             'network error', 'timeout', 'deadlock', 'resource exhaustion',
@@ -338,7 +373,6 @@ class ErrorHandler:
         if any(keyword in message_lower for keyword in high_keywords):
             return ERROR_SEVERITY_HIGH
 
-        # Medium severity - functional issues, recoverable errors
         medium_keywords = [
             'invalid', 'mismatch', 'not found', 'missing', 'null',
             'empty', 'format error', 'parse error', 'type error',
@@ -349,7 +383,6 @@ class ErrorHandler:
         if any(keyword in message_lower for keyword in medium_keywords):
             return ERROR_SEVERITY_MEDIUM
 
-        # Low severity - warnings, minor issues, informational
         low_keywords = [
             'warning', 'deprecated', 'minor', 'temporary',
             'transient', 'retry', 'timeout', 'slow',
@@ -359,12 +392,11 @@ class ErrorHandler:
         if any(keyword in message_lower for keyword in low_keywords):
             return ERROR_SEVERITY_LOW
 
-        # Default to medium severity for uncategorized errors
         return ERROR_SEVERITY_MEDIUM
 
     def get_recent_errors(self, count: int = 10) -> list[Dict[str, Any]]:
         """Get the most recent errors with full context"""
-        with self._lock:  # Thread-safe access
+        with self._lock:
             return self.errors[-count:] if self.errors else []
 
     def get_errors_by_severity(self, severity: str) -> list[Dict[str, Any]]:
@@ -421,7 +453,7 @@ class ErrorHandler:
 
             if time_diff_minutes > 0.0:
                 return len(self.errors) / time_diff_minutes
-            return 0.0  # Errors all in same instant; rate undefined
+            return 0.0
         except Exception as e:
             logger.warning(f"Error calculating error rate: {str(e)}")
             return 0.0

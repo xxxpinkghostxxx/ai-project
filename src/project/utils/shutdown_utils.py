@@ -1,9 +1,45 @@
-"""
-Shutdown Utilities Module.
+# =============================================================================
+# CODE STRUCTURE
+# =============================================================================
+#
+# logger = logging.getLogger(__name__)
+#
+# class ShutdownDetector:
+#     _shutdown_lock = threading.Lock()
+#     _shutting_down: bool
+#     _cleanup_functions: list[tuple[Callable[[], None], str]]
+#     _registered: bool
+#     @classmethod
+#     def register_cleanup_function(cls, func: Callable[[], None], name: str) -> None
+#     @classmethod
+#     def _execute_registered_cleanup(cls) -> None
+#     @classmethod
+#     def is_shutting_down(cls) -> bool
+#     @classmethod
+#     def set_shutting_down(cls, value: bool = True) -> None
+#     @classmethod
+#     def safe_cleanup(cls, cleanup_func: Callable[[], None], name: str = "cleanup") -> None
+#
+# def is_python_shutting_down() -> bool
+# def safe_cleanup(cleanup_func: Callable[[], None], name: str = "cleanup") -> None
+# def register_cleanup_function(func: Callable[[], None], name: str) -> None
+#
+# =============================================================================
+# TODOS
+# =============================================================================
+#
+# None
+#
+# =============================================================================
+# KNOWN BUGS
+# =============================================================================
+#
+# None
+#
+# DO NOT ADD PROJECT NOTES BELOW — all notes go in the file header above.
 
-This module provides enhanced utilities for detecting Python interpreter shutdown
-and managing graceful cleanup during system termination with resource management integration.
-"""
+"""Shutdown utilities for detecting interpreter shutdown and managing graceful cleanup."""
+
 import sys
 import logging
 import threading
@@ -50,12 +86,10 @@ class ShutdownDetector:
     def is_shutting_down(cls) -> bool:
         """Check if Python interpreter is shutting down."""
         with cls._shutdown_lock:
-            # Check if sys.meta_path is None (indicator of shutdown)
             if not hasattr(sys, 'meta_path') or sys.meta_path is None:  # type: ignore[comparison-overlap]
                 cls._shutting_down = True
                 return True
 
-            # Check if we're in a cleanup phase
             if cls._shutting_down:
                 return True
 

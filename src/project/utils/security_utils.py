@@ -1,10 +1,63 @@
 #!/usr/bin/env python3
-"""
-Security enhancement utilities for the PyTorch Geometric Neural System.
+# =============================================================================
+# CODE STRUCTURE
+# =============================================================================
+#
+# logger = logging.getLogger(__name__)
+#
+# class InputValidator:
+#     PATTERNS: dict
+#     @classmethod
+#     def validate_string(cls, value: str, pattern: str = 'safe_string', min_length: int = 0, max_length: int = 255) -> bool
+#     @classmethod
+#     def validate_numeric(cls, value: int | float, min_value: float | None = None, max_value: float | None = None) -> bool
+#     @classmethod
+#     def validate_list(cls, value: list[Any], element_type: type = str, min_elements: int = 0, max_elements: int = 100) -> bool
+#
+# class SecuritySanitizer:
+#     @staticmethod
+#     def sanitize_html(value: str) -> str
+#     @staticmethod
+#     def sanitize_json(value: str) -> str
+#     @staticmethod
+#     def sanitize_filename(filename: str) -> str
+#     @staticmethod
+#     def sanitize_path(path: str) -> str
+#
+# class ConfigurationSecurityValidator:
+#     SECURITY_CONSTRAINTS: dict[str, dict[str, float]]
+#     @classmethod
+#     def validate_config_value(cls, key: str, value: Any) -> tuple[bool, str]
+#     @classmethod
+#     def validate_config_section(cls, config: dict[str, Any]) -> list[str]
+#
+# class SecureLogger:
+#     SENSITIVE_PATTERNS: list[str]
+#     @classmethod
+#     def sanitize_log_message(cls, message: str) -> str
+#     @classmethod
+#     def secure_info(cls, logger_instance: logging.Logger, message: str) -> None
+#     @classmethod
+#     def secure_error(cls, logger_instance: logging.Logger, message: str) -> None
+#
+# def validate_and_sanitize_input(input_value: Any, validation_type: str = 'safe_string', sanitization_method: str | None = None) -> tuple[Any, list[str]]
+#
+# =============================================================================
+# TODOS
+# =============================================================================
+#
+# None
+#
+# =============================================================================
+# KNOWN BUGS
+# =============================================================================
+#
+# None
+#
+# DO NOT ADD PROJECT NOTES BELOW — all notes go in the file header above.
 
-This module provides input validation, sanitization, and security best practices
-to enhance system security and prevent common vulnerabilities.
-"""
+"""Security enhancement utilities for the PyTorch Geometric Neural System."""
+
 import re
 import html
 from typing import Any
@@ -17,7 +70,6 @@ class InputValidator:
     Input validation utilities to prevent injection attacks and ensure data integrity.
     """
 
-    # Patterns for common input validation
     PATTERNS = {
         'safe_string': re.compile(r'^[a-zA-Z0-9_\-\.]+$'),
         'numeric': re.compile(r'^-?\d+(\.\d+)?$'),
@@ -42,10 +94,6 @@ class InputValidator:
         Returns:
             True if valid, False otherwise
         """
-        # Type check is redundant since value is already typed as str
-        # if not isinstance(value, str):
-        #     return False
-
         if len(value) < min_length or len(value) > max_length:
             return False
 
@@ -70,10 +118,6 @@ class InputValidator:
         Returns:
             True if valid, False otherwise
         """
-        # Type check is redundant since value is already typed as int | float
-        # if not isinstance(value, (int, float)):
-        #     return False
-
         if min_value is not None and value < min_value:
             return False
 
@@ -131,7 +175,6 @@ class SecuritySanitizer:
         Returns:
             Sanitized JSON string
         """
-        # Remove potentially dangerous characters
         sanitized = re.sub(r'[<>"\']', '', value)
         return sanitized
 
@@ -146,14 +189,11 @@ class SecuritySanitizer:
         Returns:
             Sanitized filename
         """
-        # Remove path separators and dangerous characters
         sanitized = re.sub(r'[<>:"/\\|?*]', '', filename)
 
-        # Ensure it's not empty
         if not sanitized.strip():
             sanitized = "unnamed_file"
 
-        # Limit length
         if len(sanitized) > 255:
             sanitized = sanitized[:255]
 
@@ -170,10 +210,8 @@ class SecuritySanitizer:
         Returns:
             Sanitized path
         """
-        # Remove dangerous sequences
         sanitized = path.replace('..', '').replace('//', '/')
 
-        # Remove path traversal attempts
         sanitized = re.sub(r'[/\\]\.\.[/\\]', '', sanitized)
 
         return sanitized.strip()
@@ -183,7 +221,6 @@ class ConfigurationSecurityValidator:
     Security validation for configuration parameters.
     """
 
-    # Security constraints for configuration values
     SECURITY_CONSTRAINTS: dict[str, dict[str, float]] = {
         'max_total_connections': {'min': 1, 'max': 10000},
         'max_connections_per_node': {'min': 1, 'max': 1000},
@@ -207,7 +244,7 @@ class ConfigurationSecurityValidator:
             Tuple of (is_valid, error_message)
         """
         if key not in cls.SECURITY_CONSTRAINTS:
-            return True, ""  # Allow unknown keys for forward compatibility
+            return True, ""
 
         constraints = cls.SECURITY_CONSTRAINTS[key]
 
@@ -322,11 +359,10 @@ def validate_and_sanitize_input(input_value: Any, validation_type: str = 'safe_s
     """
     errors: list[str] = []
 
-    # Validate
     if validation_type == 'string':
         if not InputValidator.validate_string(str(input_value)):
             errors.append("Invalid string format")
-            input_value = str(input_value)[:255]  # Truncate if too long
+            input_value = str(input_value)[:255]
     elif validation_type == 'numeric':
         if not InputValidator.validate_numeric(float(input_value)):
             errors.append("Invalid numeric format")
@@ -336,7 +372,6 @@ def validate_and_sanitize_input(input_value: Any, validation_type: str = 'safe_s
             errors.append("Invalid path format")
             input_value = "unknown_path"
 
-    # Sanitize
     if sanitization_method == 'html':
         input_value = SecuritySanitizer.sanitize_html(str(input_value))
     elif sanitization_method == 'json':

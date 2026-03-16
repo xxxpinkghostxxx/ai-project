@@ -1,10 +1,48 @@
-"""
-Configuration Manager Module.
+# =============================================================================
+# CODE STRUCTURE
+# =============================================================================
+#
+# logger = logging.getLogger(__name__)
+#
+# class ConfigManager:
+#     _instance: 'ConfigManager | None'
+#
+#     @classmethod
+#     def shared(cls) -> 'ConfigManager'
+#
+#     def __init__(self: 'ConfigManager', config_file: str | None = None) -> None
+#     def _check_error_condition(self: 'ConfigManager') -> bool
+#     def _check_backup_rate_limit(self: 'ConfigManager') -> bool
+#     def _update_backup_timestamp(self: 'ConfigManager') -> None
+#     def _record_error(self: 'ConfigManager', error_message: str) -> None
+#     def create_backup(self: 'ConfigManager') -> bool
+#     def save_config(self: 'ConfigManager') -> bool
+#     def load_config(self: 'ConfigManager') -> bool
+#
+#     @monitor_performance("config_update")
+#     def update_config(self: 'ConfigManager', section: str, key: str, value: Any) -> bool
+#
+#     def validate_config(self: 'ConfigManager', config: dict[str, Any]) -> bool
+#     def get_config(self: 'ConfigManager', section: str | None = None, key: str | None = None) -> Any
+#     def clear_error_condition(self: 'ConfigManager') -> None
+#     def get_backup_status(self: 'ConfigManager') -> dict[str, Any]
+#     def cleanup_excessive_backups(self: 'ConfigManager', max_backups: int = 5) -> int
+#
+# =============================================================================
+# TODOS
+# =============================================================================
+#
+# None
+#
+# =============================================================================
+# KNOWN BUGS
+# =============================================================================
+#
+# None
+#
+# DO NOT ADD PROJECT NOTES BELOW — all notes go in the file header above.
 
-This module provides configuration management functionality for the Energy-Based Neural System,
-including loading, saving, validating, and managing configuration files with
-optimized backup strategy to prevent excessive backups during error conditions.
-"""
+"""Configuration management with backup rate limiting and error condition detection."""
 
 import os
 import re
@@ -19,7 +57,6 @@ from .error_handler import ErrorHandler
 from .security_utils import ConfigurationSecurityValidator, SecuritySanitizer, SecureLogger
 from .performance_utils import monitor_performance
 
-# Logger for this module
 logger = logging.getLogger(__name__)
 
 class ConfigManager:
@@ -36,23 +73,16 @@ class ConfigManager:
 
     def __init__(self: 'ConfigManager', config_file: str | None = None) -> None:
         """Initialize ConfigManager with default configuration.
-        
+
         Always uses src/project/pyg_config.json - never writes to root directory.
         """
-        # Always use the config file in src/project/ directory
         if config_file is None:
-            # Get the directory where this file is located (src/project/utils/)
-            # Then go up one level to src/project/
             current_dir = os.path.dirname(os.path.abspath(__file__))
-            project_dir = os.path.dirname(current_dir)  # Go up from utils/ to project/
+            project_dir = os.path.dirname(current_dir)
             config_file = os.path.join(project_dir, 'pyg_config.json')
-        
-        # Normalize the path (resolve to absolute, handle separators correctly)
+
         config_file = os.path.normpath(os.path.abspath(config_file))
-        
-        # DO NOT sanitize full paths - sanitize_filename removes path separators!
-        # Only sanitize the filename portion if needed
-        # For absolute paths, just use them as-is (they're already validated by os.path)
+
         self.config_file = config_file
         self.config: dict[str, Any] = {
             'version': '1.0',
@@ -128,13 +158,12 @@ class ConfigManager:
             },
         }
 
-        # Backup rate limiting and error condition detection
         self._last_backup_time: float = 0
-        self._backup_rate_limit: float = 300.0  # 5 minutes between backups
+        self._backup_rate_limit: float = 300.0
         self._error_condition_active: bool = False
         self._error_timestamp: float = 0
-        self._error_cooldown: float = 1800.0  # 30 minutes error cooldown period
-        self._recent_errors: deque[str] = deque(maxlen=10)  # Track recent errors
+        self._error_cooldown: float = 1800.0
+        self._recent_errors: deque[str] = deque(maxlen=10)
 
         self.load_config()
 
@@ -144,12 +173,10 @@ class ConfigManager:
         """Check if system is in error condition and should suppress backups"""
         current_time = time.time()
 
-        # Check if we're still in error cooldown period
         if self._error_condition_active and (current_time - self._error_timestamp) < self._error_cooldown:
             return True
 
-        # Check if we have recent errors that indicate error condition
-        if len(self._recent_errors) >= 3:  # 3 errors in short period indicates error condition
+        if len(self._recent_errors) >= 3:
             self._error_condition_active = True
             self._error_timestamp = current_time
             return True
@@ -160,8 +187,8 @@ class ConfigManager:
         """Check if backup rate limit allows creating a new backup"""
         current_time = time.time()
         if (current_time - self._last_backup_time) < self._backup_rate_limit:
-            return False  # Rate limit not reached
-        return True  # Rate limit reached, can create backup
+            return False
+        return True
 
     def _update_backup_timestamp(self: 'ConfigManager') -> None:
         """Update the last backup timestamp"""
@@ -172,8 +199,7 @@ class ConfigManager:
         current_time = time.time()
         self._recent_errors.append(error_message)
 
-        # If we get multiple errors in short time, activate error condition
-        if len(self._recent_errors) >= 3 and (current_time - self._error_timestamp) < 60:  # 3 errors in 60 seconds
+        if len(self._recent_errors) >= 3 and (current_time - self._error_timestamp) < 60:
             self._error_condition_active = True
             self._error_timestamp = current_time
 
@@ -182,12 +208,10 @@ class ConfigManager:
         if not self.config_file or not os.path.exists(self.config_file):
             return True
 
-        # Check if we should suppress backups due to error conditions
         if self._check_error_condition():
             ErrorHandler.log_warning("Backup suppressed due to error condition")
             return True
 
-        # Check rate limiting
         if not self._check_backup_rate_limit():
             ErrorHandler.log_warning("Backup skipped due to rate limiting")
             return True
@@ -210,9 +234,7 @@ class ConfigManager:
             if not self.validate_config(self.config):
                 return False
 
-            # Create backup with rate limiting and error condition detection
             if not self.create_backup():
-                # If backup fails but we're not in error condition, still try to save
                 if not self._error_condition_active:
                     with open(self.config_file, 'w', encoding='utf-8') as f:
                         json.dump(self.config, f, indent=4)
@@ -220,7 +242,6 @@ class ConfigManager:
                     return True
                 return False
 
-            # Normal save with successful backup
             with open(self.config_file, 'w', encoding='utf-8') as f:
                 json.dump(self.config, f, indent=4)
             ErrorHandler.log_info("Config saved successfully")
@@ -258,13 +279,11 @@ class ConfigManager:
         try:
             logger.debug("ConfigManager: Attempting to update %s.%s", section, key)
 
-            # Validate config key names: alphanumeric, underscores, hyphens only
             _config_key_re = re.compile(r'^[a-zA-Z0-9_\-]+$')
             if not _config_key_re.match(section) or not _config_key_re.match(key):
                 logger.error("Invalid config key name: %s.%s", section, key)
                 return False
 
-            # Validate configuration key-value pair for security constraint
             full_key = f"{section}_{key}"
 
             is_valid, error_msg = ConfigurationSecurityValidator.validate_config_value(full_key, value)
@@ -293,17 +312,15 @@ class ConfigManager:
         except Exception as e:
             SecureLogger.secure_error(logger, f"Config update error: {str(e)}")
             return False
+
     def validate_config(self: 'ConfigManager', config: dict[str, Any]) -> bool:
         """Enhanced config validation with security constraints and detailed error messages"""
         try:
-            # Basic validation
-            if not config:  # Check if config is empty or None
+            if not config:
                 raise ValueError("Configuration cannot be empty or None")
-            # Runtime type check for defensive programming (type checker knows it's dict)
             if not isinstance(config, dict):  # type: ignore[reportUnnecessaryIsInstance]
                 raise ValueError(f"Configuration must be a dictionary, got {type(config).__name__}")
 
-            # Security validation for entire config section
             security_errors = ConfigurationSecurityValidator.validate_config_section(config)
             if security_errors:
                 detailed_errors = "\n".join([f"  - {error}" for error in security_errors])
@@ -313,7 +330,6 @@ class ConfigManager:
             if 'version' not in config:
                 raise ValueError("Missing required 'version' field in configuration")
 
-            # Validate sensory config with detailed error messages
             sensory_raw = config.get('sensory', {})
             if not isinstance(sensory_raw, dict):
                 raise ValueError(f"Sensory configuration must be a dictionary, got {type(sensory_raw).__name__}")
@@ -333,7 +349,6 @@ class ConfigManager:
                 if sensory_value <= 0:
                     raise ValueError(f"Sensory '{key}' must be positive integer, got {sensory_value}")
 
-            # Validate workspace config with detailed error messages
             workspace_raw = config.get('workspace', {})
             if not isinstance(workspace_raw, dict):
                 raise ValueError(f"Workspace configuration must be a dictionary, got {type(workspace_raw).__name__}")
@@ -349,7 +364,6 @@ class ConfigManager:
                 if workspace_value <= 0:
                     raise ValueError(f"Workspace '{key}' must be positive integer, got {workspace_value}")
 
-            # Validate system config with detailed error messages
             system_raw = config.get('system', {})
             if not isinstance(system_raw, dict):
                 raise ValueError(f"System configuration must be a dictionary, got {type(system_raw).__name__}")
@@ -382,13 +396,11 @@ class ConfigManager:
                 if min_energy >= max_energy:
                     raise ValueError(f"System 'min_energy' ({min_energy}) must be less than 'max_energy' ({max_energy})")
 
-            # Validate optional boolean fields
             for key in ['frame_throttling', 'detailed_logging']:
                 value_raw = system.get(key)
                 if value_raw is not None and not isinstance(value_raw, bool):
                     raise ValueError(f"System '{key}' must be boolean, got {type(value_raw).__name__}")
 
-            # Validate hybrid config (optional section)
             hybrid_raw = config.get('hybrid')
             if hybrid_raw is not None:
                 if not isinstance(hybrid_raw, dict):
@@ -412,7 +424,6 @@ class ConfigManager:
                 if isinstance(energy_cap, (int, float)) and energy_cap <= 0:
                     raise ValueError(f"Hybrid 'node_energy_cap' must be positive, got {energy_cap}")
 
-            # Validate audio config (optional section)
             audio_raw = config.get('audio')
             if audio_raw is not None:
                 if not isinstance(audio_raw, dict):
@@ -438,7 +449,6 @@ class ConfigManager:
                     if val is not None and isinstance(val, (int, float)) and val < 0:
                         raise ValueError(f"Audio '{key}' must be non-negative, got {val}")
 
-            # Cross-section validation: sensory must fit within grid
             hybrid_raw2 = config.get('hybrid', {})
             if isinstance(hybrid_raw2, dict):
                 grid_sz = hybrid_raw2.get('grid_size')
@@ -456,6 +466,7 @@ class ConfigManager:
         except Exception as e:
             logger.error(f"Configuration validation error: {str(e)}")
             return False
+
     def get_config(self: 'ConfigManager', section: str | None = None, key: str | None = None) -> Any:
         """Get configuration value(s)"""
         try:
@@ -473,7 +484,6 @@ class ConfigManager:
     def clear_error_condition(self: 'ConfigManager') -> None:
         """Clear error condition when system stabilizes"""
         current_time = time.time()
-        # Only clear error condition if we haven't had recent errors
         if not self._recent_errors or (current_time - self._error_timestamp) > self._error_cooldown:
             self._error_condition_active = False
             self._recent_errors.clear()
@@ -495,15 +505,12 @@ class ConfigManager:
         if not self.config_file:
             return 0
 
-        # Find all backup files for this config
         backup_pattern = f"{self.config_file}.*.bak"
         import glob
         backup_files = glob.glob(backup_pattern)
 
-        # Sort by modification time (newest first)
         backup_files.sort(key=os.path.getmtime, reverse=True)
 
-        # Keep only the most recent backups
         files_to_delete = backup_files[max_backups:]
 
         deleted_count = 0
