@@ -1,9 +1,64 @@
-"""Vision module for screen capture and image processing.
+# =============================================================================
+# CODE STRUCTURE
+# =============================================================================
+#
+# Module-level Constants:
+#   pil_available = bool
+#     True when PIL.ImageGrab is importable
+#
+# Classes:
+#   ThreadedScreenCapture:
+#     __init__(self, width: int, height: int, interval: Optional[float] = None)
+#
+#     __enter__(self) -> 'ThreadedScreenCapture'
+#
+#     __exit__(self, exc_type, exc_val, exc_tb) -> None
+#
+#     start(self) -> None
+#       Start the capture thread
+#
+#     stop(self) -> None
+#       Stop the capture thread
+#
+#     _capture_loop(self) -> None
+#       Main capture loop with error handling and recovery
+#
+#     _update_frame_queue(self, frame: NDArray[Any]) -> None
+#       Update the frame queue with proper error handling
+#
+#     get_latest(self) -> NDArray[Any]
+#       Get the latest frame with thread safety
+#
+#     get_next_frame(self, timeout: float = 0.01) -> NDArray[Any] | None
+#       Get the next frame from the queue with timeout
+#
+#     is_running -> bool                                      @property
+#
+#     error_count -> int                                      @property
+#
+# Module-level Functions:
+#   capture_screen(resolution: Tuple[int, int], grayscale: bool = False)
+#       -> NDArray[Any]
+#     Capture screen with fallback options (PIL then mss)
+#
+#   preprocess_image(image: NDArray[Any]) -> NDArray[Any]
+#     Preprocess image: convert to grayscale and resize to sensor dimensions
+#
+# =============================================================================
+# TODOS
+# =============================================================================
+#
+# None
+#
+# =============================================================================
+# KNOWN BUGS
+# =============================================================================
+#
+# None
+#
+# DO NOT ADD PROJECT NOTES BELOW — all notes go in the file header above.
 
-This module provides threaded screen capture functionality and image
-preprocessing utilities for the neural system. It supports multiple
-backends (PIL and mss) with fallback mechanisms and robust error handling.
-"""
+"""Vision module for screen capture and image processing."""
 
 import threading
 import numpy as np
@@ -19,7 +74,6 @@ from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
 
-# Pillow import only if needed
 try:
     from PIL import ImageGrab
     pil_available = True
@@ -30,12 +84,12 @@ except ImportError:
 
 class ThreadedScreenCapture:
     """Threaded screen capture class for continuous frame acquisition.
-    
+
     This class provides thread-safe screen capture functionality with
     configurable resolution and frame rate, using a producer-consumer
     pattern for efficient frame handling.
     """
-    
+
     def __init__(
         self,
         width: int,
@@ -43,7 +97,7 @@ class ThreadedScreenCapture:
         interval: Optional[float] = None
     ) -> None:
         """Initialize the screen capture with specified dimensions and interval.
-        
+
         Args:
             width: Target width for captured frames
             height: Target height for captured frames
@@ -51,7 +105,6 @@ class ThreadedScreenCapture:
         """
         self.width = width
         self.height = height
-        # Use adaptive polling interval from config if not specified
         self.interval = (
             interval
             if interval is not None
@@ -67,7 +120,6 @@ class ThreadedScreenCapture:
             target=self._capture_loop,
             daemon=True
         )
-        # Async queue for frames with size limit
         self.frame_queue: queue.Queue[NDArray[Any]] = queue.Queue(
             maxsize=int(SCREEN_CAPTURE_QUEUE_SIZE)
         )
@@ -75,7 +127,7 @@ class ThreadedScreenCapture:
         self.drop_counter = 0
         self._error_count = 0
         self._max_retries = 3
-        self._retry_delay = 1.0  # seconds
+        self._retry_delay = 1.0
 
     def __enter__(self) -> 'ThreadedScreenCapture':
         """Context manager entry"""
@@ -106,26 +158,22 @@ class ThreadedScreenCapture:
         with mss.mss() as sct:
             while not self._stop_event.is_set():
                 try:
-                    # Get primary monitor
                     if len(sct.monitors) <= 1:
                         logger.error("No monitor found")
                         time.sleep(self._retry_delay)
                         continue
 
-                    monitor = sct.monitors[1]  # Primary monitor
+                    monitor = sct.monitors[1]
                     img = np.array(sct.grab(monitor))
                     img = cv2.cvtColor(img, cv2.COLOR_BGRA2GRAY)  # type: ignore[attr-defined]
                     img = cv2.resize(img, (int(self.width), int(self.height)), interpolation=cv2.INTER_AREA)  # type: ignore[attr-defined]
 
-                    # Update latest frame
                     with self._frame_lock:
                         self._latest_frame = img
                         self.frame_counter += 1
 
-                    # Update frame queue
                     self._update_frame_queue(img)
 
-                    # Reset error count on successful capture
                     self._error_count = 0
 
                 except Exception as e:
@@ -137,25 +185,22 @@ class ThreadedScreenCapture:
                         self._stop_event.set()
                         break
 
-                    # Exponential backoff
                     time.sleep(self._retry_delay * (2 ** (self._error_count - 1)))
 
-                # Wait for next capture interval
                 self._stop_event.wait(self.interval)
 
     def _update_frame_queue(self, frame: NDArray[Any]) -> None:
         """Update the frame queue with proper error handling.
-        
+
         Clears old frames and adds new frame to the queue.
         Handles queue full scenarios with frame dropping and logging.
-        
+
         Args:
             frame: The frame to add to the queue
         """
         try:
             self.frame_queue.put_nowait(frame)
         except queue.Full:
-            # Drop oldest frame to make room for the new one
             try:
                 self.frame_queue.get_nowait()
             except queue.Empty:
@@ -216,15 +261,13 @@ def capture_screen(
 
     try:
         if pil_available and ImageGrab is not None:
-            # Try PIL-based capture first
             pil_img = ImageGrab.grab()
             pil_img = pil_img.resize(resolution)
             img = np.array(pil_img)
             if img.shape[-1] == 4:
-                img = img[..., :3]  # RGBA to RGB conversion
+                img = img[..., :3]
             backend_used = 'pillow'
         else:
-            # Fallback to mss-based capture
             with mss.mss() as sct:
                 if len(sct.monitors) <= 1:
                     logger.warning(
@@ -235,10 +278,10 @@ def capture_screen(
                         dtype=np.uint8
                     )
                 else:
-                    monitor = sct.monitors[1]  # Primary monitor
+                    monitor = sct.monitors[1]
                     screenshot = sct.grab(monitor)
                     img = np.array(screenshot)
-                    img = img[..., :3]  # BGRA to BGR conversion
+                    img = img[..., :3]
                     img = cv2.resize(  # type: ignore[attr-defined]
                         img,
                         tuple(resolution)
@@ -266,33 +309,30 @@ def capture_screen(
 
 def preprocess_image(image: NDArray[Any]) -> NDArray[Any]:
     """Preprocess image with error handling.
-    
+
     Converts image to grayscale and resizes to sensor dimensions.
     Handles both RGB and grayscale input images.
-    
+
     Args:
         image: Input image as numpy array
-        
+
     Returns:
         Preprocessed grayscale image resized to sensor dimensions
     """
     try:
         if len(image.shape) == 3:
-            # Convert RGB/BGR image to grayscale
             gray = cv2.cvtColor(  # type: ignore[attr-defined]
                 image,
                 cv2.COLOR_BGR2GRAY
             )
         else:
-            # Already grayscale
             gray = image
-        
-        # Resize to sensor dimensions
+
         resized = cv2.resize(  # type: ignore[attr-defined]
             gray,
             (int(SENSOR_WIDTH), int(SENSOR_HEIGHT))
         )
-        
+
         logger.debug(
             f"preprocess_image: "
             f"shape={resized.shape}, "

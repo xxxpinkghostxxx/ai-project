@@ -1,10 +1,50 @@
-"""Audio output module — oscillator bank synthesizer.
+# =============================================================================
+# CODE STRUCTURE
+# =============================================================================
+#
+# Module-level Constants:
+#   SD_AVAILABLE = bool
+#     True when sounddevice is importable
+#
+# Classes:
+#   AudioOutput:
+#     __init__(self, n_bins: int = 256, sample_rate: int = 44100,
+#         buffer_size: int = 1024, min_freq: float = 80.0,
+#         max_freq: float = 8000.0, master_volume: float = 0.3)
+#
+#     start(self) -> None
+#       Start audio output stream
+#
+#     stop(self) -> None
+#       Stop audio output stream
+#
+#     update_amplitudes(self, energy_L: NDArray, energy_R: NDArray) -> None
+#       Update target oscillator amplitudes from workspace energy grids
+#
+#     set_master_volume(self, volume: float) -> None
+#       Set master volume (0.0 to 1.0)
+#
+#     is_running -> bool                                      @property
+#
+#     _audio_callback(self, outdata: NDArray, frames: int,
+#         time_info: Any, status: Any) -> None
+#       sounddevice OutputStream callback — vectorized additive synthesis
+#
+# =============================================================================
+# TODOS
+# =============================================================================
+#
+# None
+#
+# =============================================================================
+# KNOWN BUGS
+# =============================================================================
+#
+# None
+#
+# DO NOT ADD PROJECT NOTES BELOW — all notes go in the file header above.
 
-Reads workspace energy from the audio workspace grid regions and synthesizes
-stereo audio via a bank of sine oscillators.  Each frequency bin maps to one
-oscillator; energy controls amplitude.  Phase accumulators ensure glitch-free
-output, and EMA smoothing prevents clicks on rapid amplitude changes.
-"""
+"""Audio output module — oscillator bank synthesizer."""
 
 import logging
 import math
@@ -58,37 +98,27 @@ class AudioOutput:
         self.buffer_size = buffer_size
         self.master_volume = np.clip(master_volume, 0.0, 1.0)
 
-        # Log-spaced frequencies for each oscillator
         self.frequencies: NDArray[np.floating[Any]] = np.logspace(
             math.log10(min_freq), math.log10(max_freq), n_bins, dtype=np.float64,
         )
 
-        # Phase accumulators (one per bin, in radians)
         self._phase_L: NDArray[np.floating[Any]] = np.zeros(n_bins, dtype=np.float64)
         self._phase_R: NDArray[np.floating[Any]] = np.zeros(n_bins, dtype=np.float64)
 
-        # Current and target amplitudes (EMA-smoothed)
         self._amp_L: NDArray[np.floating[Any]] = np.zeros(n_bins, dtype=np.float32)
         self._amp_R: NDArray[np.floating[Any]] = np.zeros(n_bins, dtype=np.float32)
         self._target_amp_L: NDArray[np.floating[Any]] = np.zeros(n_bins, dtype=np.float32)
         self._target_amp_R: NDArray[np.floating[Any]] = np.zeros(n_bins, dtype=np.float32)
 
-        # EMA smoothing factor (higher = faster response, more clicks)
         self._smoothing = 0.15
 
-        # Pre-compute phase increments per sample for each frequency
         self._phase_inc: NDArray[np.floating[Any]] = (
             2.0 * np.pi * self.frequencies / self.sample_rate
         )
 
-        # Stream management
         self._stream: Optional[Any] = None
         self._running = False
         self._lock = threading.Lock()
-
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
 
     def start(self) -> None:
         """Start audio output stream."""
@@ -142,21 +172,17 @@ class AudioOutput:
             and normalised to [0, 1].
         """
         try:
-            # Average rows → (n_bins,)
             amp_L = np.mean(energy_L, axis=0).astype(np.float32)
             amp_R = np.mean(energy_R, axis=0).astype(np.float32)
 
-            # Clamp to expected bin count
             amp_L = amp_L[: self.n_bins]
             amp_R = amp_R[: self.n_bins]
 
-            # Pad if shorter
             if amp_L.shape[0] < self.n_bins:
                 amp_L = np.pad(amp_L, (0, self.n_bins - amp_L.shape[0]))
             if amp_R.shape[0] < self.n_bins:
                 amp_R = np.pad(amp_R, (0, self.n_bins - amp_R.shape[0]))
 
-            # Normalise to [0, 1]
             max_val = max(amp_L.max(), amp_R.max(), 1e-6)
             amp_L /= max_val
             amp_R /= max_val
@@ -176,10 +202,6 @@ class AudioOutput:
     def is_running(self) -> bool:
         return self._running
 
-    # ------------------------------------------------------------------
-    # Internals
-    # ------------------------------------------------------------------
-
     def _audio_callback(
         self,
         outdata: NDArray[np.floating[Any]],
@@ -192,7 +214,6 @@ class AudioOutput:
             logger.debug("Audio output status: %s", status)
 
         try:
-            # EMA smooth amplitudes toward targets
             with self._lock:
                 target_L = self._target_amp_L.copy()
                 target_R = self._target_amp_R.copy()
@@ -201,33 +222,25 @@ class AudioOutput:
             self._amp_L += alpha * (target_L - self._amp_L)
             self._amp_R += alpha * (target_R - self._amp_R)
 
-            # Build sample indices: (frames,)
             t = np.arange(frames, dtype=np.float64)
 
-            # Phase matrix: (frames, n_bins) = outer(t, phase_inc) + phase
             phases_L = np.outer(t, self._phase_inc) + self._phase_L[np.newaxis, :]
             phases_R = np.outer(t, self._phase_inc) + self._phase_R[np.newaxis, :]
 
-            # Sine synthesis: (frames, n_bins)
-            sines_L = np.sin(phases_L)  # (frames, n_bins)
+            sines_L = np.sin(phases_L)
             sines_R = np.sin(phases_R)
 
-            # Weight by amplitudes and sum across bins → (frames,)
             left = (sines_L * self._amp_L[np.newaxis, :]).sum(axis=1)
             right = (sines_R * self._amp_R[np.newaxis, :]).sum(axis=1)
 
-            # Advance phase accumulators (mod 2π to prevent float drift)
             self._phase_L = (self._phase_L + self._phase_inc * frames) % (2.0 * np.pi)
             self._phase_R = (self._phase_R + self._phase_inc * frames) % (2.0 * np.pi)
 
-            # Normalise by peak amplitude to prevent clipping while preserving
-            # relative spectral balance (bin-count division was non-linear).
             peak_L = max(np.abs(left).max(), 1e-8)
             peak_R = max(np.abs(right).max(), 1e-8)
             left /= peak_L
             right /= peak_R
 
-            # Apply master volume and write to output buffer
             vol = self.master_volume
             outdata[:, 0] = (left * vol).astype(np.float32)
             outdata[:, 1] = (right * vol).astype(np.float32)

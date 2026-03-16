@@ -1,9 +1,63 @@
-"""Audio capture module for FFT-based spectral input.
+# =============================================================================
+# CODE STRUCTURE
+# =============================================================================
+#
+# Module-level Constants:
+#   SD_AVAILABLE = bool
+#     True when sounddevice is importable
+#
+# Classes:
+#   AudioCapture:
+#     __init__(self, sample_rate: int = 44100, fft_size: int = 512,
+#         buffer_size: int = 1024, source: str = "loopback")
+#
+#     start(self) -> None
+#       Start audio capture stream
+#
+#     stop(self) -> None
+#       Stop audio capture stream
+#
+#     get_latest(self) -> NDArray[np.floating[Any]]
+#       Return the latest stereo FFT magnitude spectrum
+#
+#     set_source(self, source: str) -> None
+#       Switch between "loopback" and "microphone" at runtime
+#
+#     source -> str                                           @property
+#
+#     is_running -> bool                                      @property
+#
+#     get_device_list() -> List[dict]                         @staticmethod
+#       Return list of available audio devices
+#
+#     _resolve_device(self) -> Tuple[Optional[int], int]
+#       Pick the sounddevice device index and channel count
+#
+#     _find_loopback_device(self) -> Tuple[Optional[int], int]
+#       Find a loopback / stereo-mix capture device across all host APIs
+#
+#     _audio_callback(self, indata: NDArray, frames: int,
+#         time_info: Any, status: Any) -> None
+#       sounddevice InputStream callback — accumulates samples and runs FFT
+#
+#     _compute_fft(self) -> None
+#       Compute windowed FFT magnitudes for both channels
+#
+# =============================================================================
+# TODOS
+# =============================================================================
+#
+# None
+#
+# =============================================================================
+# KNOWN BUGS
+# =============================================================================
+#
+# None
+#
+# DO NOT ADD PROJECT NOTES BELOW — all notes go in the file header above.
 
-Provides threaded audio capture from system loopback (WASAPI) or microphone,
-computing stereo FFT magnitude spectra for injection into the neural grid.
-Mirrors the AsyncScreenCapture / ThreadedScreenCapture pattern.
-"""
+"""Audio capture module for FFT-based spectral input."""
 
 import threading
 import time
@@ -53,36 +107,27 @@ class AudioCapture:
     ) -> None:
         self.sample_rate = sample_rate
         self.fft_size = fft_size
-        self.fft_bins = fft_size // 2  # unique magnitudes (Nyquist excluded)
+        self.fft_bins = fft_size // 2
         self.buffer_size = buffer_size
         self._source = source
 
-        # Latest spectrum: shape (2, fft_bins) — row 0 = L, row 1 = R
         self._lock = threading.Lock()
         self._latest: NDArray[np.floating[Any]] = np.zeros(
             (2, self.fft_bins), dtype=np.float32
         )
 
-        # Hann window for FFT (pre-computed)
         self._window: NDArray[np.floating[Any]] = np.hanning(fft_size).astype(np.float32)
-        # Window amplitude sum for correct FFT normalization (Hann sum ≈ N/2)
         self._window_sum: float = float(self._window.sum())
 
-        # Ring buffer to accumulate samples between callbacks
         self._ring: NDArray[np.floating[Any]] = np.zeros(
             (fft_size, 2), dtype=np.float32
         )
         self._ring_pos = 0
-        self._ring_filled = False  # True once ring has been fully written at least once
+        self._ring_filled = False
 
-        # Stream management
         self._stream: Optional[Any] = None
         self._running = False
         self._error_count = 0
-
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
 
     def start(self) -> None:
         """Start audio capture stream."""
@@ -164,16 +209,11 @@ class AudioCapture:
             return []
         return sd.query_devices()  # type: ignore[return-value]
 
-    # ------------------------------------------------------------------
-    # Internals
-    # ------------------------------------------------------------------
-
     def _resolve_device(self) -> Tuple[Optional[int], int]:
         """Pick the sounddevice device index and channel count."""
         if self._source == "loopback":
             return self._find_loopback_device()
-        # Microphone: use default input
-        return None, 2  # None = default device
+        return None, 2
 
     def _find_loopback_device(self) -> Tuple[Optional[int], int]:
         """Find a loopback / stereo-mix capture device across all host APIs.
@@ -189,14 +229,12 @@ class AudioCapture:
             devices = sd.query_devices()
             hostapis = sd.query_hostapis()
 
-            # Find WASAPI host API index (preferred for low latency)
             wasapi_idx: Optional[int] = None
             for i, api in enumerate(hostapis):
                 if "wasapi" in api["name"].lower():
                     wasapi_idx = i
                     break
 
-            # Pass 1: WASAPI loopback devices
             if wasapi_idx is not None:
                 for i, dev in enumerate(devices):
                     if dev["hostapi"] == wasapi_idx and dev["max_input_channels"] >= 2:
@@ -205,7 +243,6 @@ class AudioCapture:
                             logger.info("Using WASAPI loopback device: %s", dev["name"])
                             return i, min(int(dev["max_input_channels"]), 2)
 
-            # Pass 2: loopback / stereo-mix on ANY host API
             for i, dev in enumerate(devices):
                 if dev["max_input_channels"] >= 2:
                     name_lower = dev["name"].lower()
@@ -234,27 +271,22 @@ class AudioCapture:
                 logger.debug("Audio callback status: %s", status)
 
         try:
-            # indata shape: (frames, channels)
             n_channels = indata.shape[1] if indata.ndim == 2 else 1
 
-            # Ensure stereo
             if n_channels == 1:
                 stereo = np.column_stack([indata.ravel(), indata.ravel()])
             else:
                 stereo = indata[:, :2].copy()
 
-            # Feed into ring buffer
             n = stereo.shape[0]
             buf_len = self._ring.shape[0]
 
             if n >= buf_len:
-                # More samples than buffer — just take the last buf_len
                 self._ring[:] = stereo[-buf_len:]
                 self._ring_pos = 0
                 self._ring_filled = True
                 self._compute_fft()
             else:
-                # Partial fill
                 space = buf_len - self._ring_pos
                 if n <= space:
                     self._ring[self._ring_pos : self._ring_pos + n] = stereo
@@ -266,7 +298,6 @@ class AudioCapture:
                     self._ring_pos = remainder
                     self._ring_filled = True
 
-                # Compute FFT every callback once the ring has been filled
                 if self._ring_filled:
                     self._compute_fft()
 
@@ -277,16 +308,13 @@ class AudioCapture:
 
     def _compute_fft(self) -> None:
         """Compute windowed FFT magnitudes for both channels."""
-        # Reorder ring buffer so oldest sample is first
         buf = np.roll(self._ring, -self._ring_pos, axis=0)
 
         spectrum = np.zeros((2, self.fft_bins), dtype=np.float32)
         for ch in range(2):
             windowed = buf[:, ch] * self._window
             fft_result = np.fft.rfft(windowed)
-            magnitudes = np.abs(fft_result[1 : self.fft_bins + 1])  # skip DC
-            # Normalise by window sum so a full-scale sine → ~1.0.
-            # Factor of 2 accounts for one-sided spectrum.
+            magnitudes = np.abs(fft_result[1 : self.fft_bins + 1])
             magnitudes *= 2.0 / self._window_sum
             spectrum[ch] = magnitudes
 

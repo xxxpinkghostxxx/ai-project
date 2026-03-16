@@ -1,23 +1,87 @@
-"""
-TaichiGUIManager — Three standalone GGUI visualization windows.
+# =============================================================================
+# CODE STRUCTURE
+# =============================================================================
+#
+# Module-level Constants:
+#   _WORKSPACE_W = 512
+#   _WORKSPACE_H = 512
+#   _FULL_AI_W = 320
+#   _FULL_AI_H = 240
+#   _SENSORY_W = 480
+#   _SENSORY_H = 270
+#   _display_workspace = ti.field  (H, W, 3) float32 display field
+#   _display_full_ai = ti.field    (H, W, 3) float32 display field
+#   _display_sensory = ti.field    (H, W, 3) float32 display field
+#
+# Module-level Functions:
+#   _fill_workspace_display(energy_field, ws_y0, ws_x0, ws_h, ws_w,
+#       e_lo, e_hi)                                           @ti.kernel
+#     Sample workspace strip, normalize, upsample to 512x512 B/W display
+#
+#   _fill_full_ai_display(energy_field, H, W, e_lo, e_hi)    @ti.kernel
+#     Downsample full energy field to 320x240 heat colormap display
+#
+#   _fill_sensory_display(energy_field, sen_y0, sen_x0, sen_h, sen_w,
+#       e_lo, e_hi)                                           @ti.kernel
+#     Downsample sensory region to 480x270 B/W display
+#
+# Classes:
+#   TaichiGUIManager:
+#     __init__(self, engine: "TaichiNeuralEngine")
+#
+#     open_workspace_window(self) -> None
+#       Launch workspace B/W grid GGUI window (512x512, 60 FPS)
+#
+#     open_full_ai_window(self) -> None
+#       Launch full AI structure heat-map window (320x240, 30 FPS)
+#
+#     open_sensory_window(self) -> None
+#       Launch sensory input B/W window (480x270, 30 FPS)
+#
+#     close_workspace_window(self) -> None
+#
+#     close_full_ai_window(self) -> None
+#
+#     close_sensory_window(self) -> None
+#
+#     close_all(self) -> None
+#
+#     is_open(self, name: str) -> bool
+#       Return True if the named window thread is alive
+#
+#     get_fps(self, name: str) -> float
+#       Return measured FPS of named window
+#
+#     _launch(self, name: str, loop_fn, target_fps: int) -> None
+#       Launch a named window thread
+#
+#     _stop(self, name: str) -> None
+#       Stop a named window thread
+#
+#     _workspace_loop(self, stop: threading.Event, target_fps: int) -> None
+#       Workspace window render loop
+#
+#     _full_ai_loop(self, stop: threading.Event, target_fps: int) -> None
+#       Full AI window render loop
+#
+#     _sensory_loop(self, stop: threading.Event, target_fps: int) -> None
+#       Sensory window render loop
+#
+# =============================================================================
+# TODOS
+# =============================================================================
+#
+# None
+#
+# =============================================================================
+# KNOWN BUGS
+# =============================================================================
+#
+# None
+#
+# DO NOT ADD PROJECT NOTES BELOW — all notes go in the file header above.
 
-Renders slices of the shared energy_field PyTorch CUDA tensor
-into GPU-resident display fields using Taichi GGUI (ti.ui.Window).
-
-Three windows:
-  - workspace:  512×512  B/W — bottom workspace strip (128×128 upsampled)
-  - full_ai:    320×240  heat-colored — full 2560×1920 at 1:8 downsample
-  - sensory:    480×270  B/W — top sensory region 1920×1080 downsampled
-
-Each window runs in its own Python thread. Windows can be launched and
-closed independently while the Qt UI stays running.
-
-Module-level Taichi fields (required by Taichi 1.7 — no class-level fields).
-Only the fields defined here are allocated; they are written by the display
-kernels and read by ti.ui canvas.set_image().
-
-IMPORTANT: Do not call ti.init() here. The engine already called it.
-"""
+"""TaichiGUIManager — three standalone GGUI visualization windows."""
 
 import logging
 import threading
@@ -31,9 +95,6 @@ from project.system.taichi_engine import project_energy_field_to_2d
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Display field sizes
-# ---------------------------------------------------------------------------
 _WORKSPACE_W  = 512
 _WORKSPACE_H  = 512
 _FULL_AI_W    = 320
@@ -41,34 +102,26 @@ _FULL_AI_H    = 240
 _SENSORY_W    = 480
 _SENSORY_H    = 270
 
-# ---------------------------------------------------------------------------
-# Module-level Taichi display fields
-# ti.ui (GGUI) canvas.set_image() requires shape (H, W, 3) float32 fields.
-# ---------------------------------------------------------------------------
 _display_workspace = ti.field(dtype=ti.f32, shape=(_WORKSPACE_H, _WORKSPACE_W, 3))
 _display_full_ai   = ti.field(dtype=ti.f32, shape=(_FULL_AI_H, _FULL_AI_W, 3))
 _display_sensory   = ti.field(dtype=ti.f32, shape=(_SENSORY_H, _SENSORY_W, 3))
 
-# ---------------------------------------------------------------------------
-# Kernels
-# ---------------------------------------------------------------------------
 
 @ti.kernel
 def _fill_workspace_display(
-    energy_field: ti.types.ndarray(),   # [2560, 1920] float32 CUDA tensor
-    ws_y0: int,                          # workspace strip y-start row
-    ws_x0: int,                          # workspace strip x-start col (0)
-    ws_h:  int,                          # workspace strip height (128)
-    ws_w:  int,                          # workspace strip width  (128)
-    e_lo:  float,                        # energy min for normalization
-    e_hi:  float,                        # energy max for normalization
+    energy_field: ti.types.ndarray(),
+    ws_y0: int,
+    ws_x0: int,
+    ws_h:  int,
+    ws_w:  int,
+    e_lo:  float,
+    e_hi:  float,
 ):
     """
     Sample the workspace strip from energy_field, normalize to [0,1],
     upsample to 512×512, and write as B/W RGB into _display_workspace.
     """
     for py, px in ti.ndrange(_WORKSPACE_H, _WORKSPACE_W):
-        # Map display pixel → source cell (nearest-neighbour)
         src_y = ws_y0 + int(float(py) / _WORKSPACE_H * ws_h)
         src_x = ws_x0 + int(float(px) / _WORKSPACE_W * ws_w)
         e = energy_field[src_y, src_x]
@@ -81,7 +134,7 @@ def _fill_workspace_display(
 
 @ti.kernel
 def _fill_full_ai_display(
-    energy_field: ti.types.ndarray(),   # [H, W] float32
+    energy_field: ti.types.ndarray(),
     H: int,
     W: int,
     e_lo: float,
@@ -97,26 +150,25 @@ def _fill_full_ai_display(
         e = energy_field[src_y, src_x]
         v = (e - e_lo) / (e_hi - e_lo + 1e-6)
         v = ti.min(ti.max(v, 0.0), 1.0)
-        # Heat colormap: v<0.5 → blue→white; v>0.5 → white→red
         if v < 0.5:
             t = v * 2.0
-            _display_full_ai[py, px, 0] = t        # R: 0→1
-            _display_full_ai[py, px, 1] = t        # G: 0→1
-            _display_full_ai[py, px, 2] = 1.0      # B: constant
+            _display_full_ai[py, px, 0] = t
+            _display_full_ai[py, px, 1] = t
+            _display_full_ai[py, px, 2] = 1.0
         else:
             t = (v - 0.5) * 2.0
-            _display_full_ai[py, px, 0] = 1.0      # R: constant
-            _display_full_ai[py, px, 1] = 1.0 - t  # G: 1→0
-            _display_full_ai[py, px, 2] = 1.0 - t  # B: 1→0
+            _display_full_ai[py, px, 0] = 1.0
+            _display_full_ai[py, px, 1] = 1.0 - t
+            _display_full_ai[py, px, 2] = 1.0 - t
 
 
 @ti.kernel
 def _fill_sensory_display(
-    energy_field: ti.types.ndarray(),   # [H, W] float32
-    sen_y0: int,    # sensory region y-start (0)
-    sen_x0: int,    # sensory region x-start (0)
-    sen_h:  int,    # sensory region height (1080)
-    sen_w:  int,    # sensory region width  (1920)
+    energy_field: ti.types.ndarray(),
+    sen_y0: int,
+    sen_x0: int,
+    sen_h:  int,
+    sen_w:  int,
     e_lo:   float,
     e_hi:   float,
 ):
@@ -131,10 +183,6 @@ def _fill_sensory_display(
         _display_sensory[py, px, 1] = v
         _display_sensory[py, px, 2] = v
 
-
-# ---------------------------------------------------------------------------
-# TaichiGUIManager class
-# ---------------------------------------------------------------------------
 
 class TaichiGUIManager:
     """
@@ -165,10 +213,6 @@ class TaichiGUIManager:
         self._fps: dict[str, float] = {
             "workspace": 0.0, "full_ai": 0.0, "sensory": 0.0
         }
-
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
 
     def open_workspace_window(self) -> None:
         """Launch the workspace B/W grid GGUI window (512×512, 60 FPS target)."""
@@ -203,10 +247,6 @@ class TaichiGUIManager:
     def get_fps(self, name: str) -> float:
         """Return the measured FPS of the named window (or 0 if closed)."""
         return self._fps.get(name, 0.0)
-
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
 
     def _launch(self, name: str, loop_fn, target_fps: int) -> None:
         with self._lock:
@@ -245,7 +285,6 @@ class TaichiGUIManager:
             )
             canvas = window.get_canvas()
             engine = self._engine
-            # Workspace strip: bottom 128 rows, left 128 cols
             ws_h   = 128
             ws_w   = 128
             ws_y0  = engine.H - ws_h
