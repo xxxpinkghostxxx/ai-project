@@ -50,6 +50,8 @@
 # =============================================================================
 #
 # - [hanging] Implement actual image export in export_visualization()
+# - [critical] Replace integration points with cube_vis / panel readout after
+#   cube migration; this module is legacy workspace path.
 #
 # =============================================================================
 # KNOWN BUGS

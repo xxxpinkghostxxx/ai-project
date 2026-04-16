@@ -62,7 +62,10 @@
 # TODOS
 # =============================================================================
 #
-# None
+# - [critical] Add cube-relevant controls and pyg_config.json fields (N,
+#   block_size, panel definitions, death_threshold, max_nodes, dna_mutation_rate)
+#   per cube architecture spec.
+# - [hanging] Implement _refresh_configuration_ui (stub).
 #
 # =============================================================================
 # KNOWN BUGS

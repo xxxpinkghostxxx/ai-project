@@ -47,7 +47,8 @@
 # TODOS
 # =============================================================================
 #
-# None
+# - [minor] After cube migration, ensure stereo FFT array shape matches registered
+#   audio sensory panels (LEFT/RIGHT); no gain/bias before inject per spec.
 #
 # =============================================================================
 # KNOWN BUGS

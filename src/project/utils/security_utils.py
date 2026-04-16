@@ -46,7 +46,8 @@
 # TODOS
 # =============================================================================
 #
-# None
+# - [minor] Review sanitization of cube config (panel names, numeric bounds) when
+#   pyg_config.json gains cube section.
 #
 # =============================================================================
 # KNOWN BUGS

@@ -48,7 +48,8 @@
 # TODOS
 # =============================================================================
 #
-# None
+# - [minor] After cube migration, route frames to PanelRegistry.inject for the
+#   registered visual_sensory panel (uint8, no scaling before inject per spec).
 #
 # =============================================================================
 # KNOWN BUGS

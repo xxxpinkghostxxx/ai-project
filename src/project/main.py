@@ -123,7 +123,12 @@
 # TODOS
 # =============================================================================
 #
-# None
+# - [critical] Migrate startup to CubeGrid → DnaTransfer → PanelRegistry →
+#   CubePipeline → CubeVisualizer; register panels from config; seed interior
+#   clusters; wire vision/audio to PanelRegistry per cube architecture spec
+#   (docs/superpowers/specs/2026-03-15-cube-architecture-design.md).
+# - [minor] Remove TaichiNeuralEngine, workspace stack, and HybridNeuralSystemAdapter
+#   once cube integration and UI readout are complete.
 #
 # =============================================================================
 # KNOWN BUGS

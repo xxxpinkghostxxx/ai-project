@@ -32,7 +32,8 @@
 # TODOS
 # =============================================================================
 #
-# None
+# - [critical] Validate and persist cube section in pyg_config.json (N, block_size,
+#   panels, death_threshold, max_nodes, dna_mutation_rate) per cube architecture spec.
 #
 # =============================================================================
 # KNOWN BUGS

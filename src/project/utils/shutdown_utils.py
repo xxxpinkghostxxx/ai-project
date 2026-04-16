@@ -28,7 +28,8 @@
 # TODOS
 # =============================================================================
 #
-# None
+# - [minor] Ensure graceful teardown order for cube Taichi fields and capture threads
+#   after cube migration.
 #
 # =============================================================================
 # KNOWN BUGS

@@ -53,7 +53,8 @@
 # TODOS
 # =============================================================================
 #
-# None
+# - [minor] If needed, store cube parameters (N, device) for shared Taichi init
+#   ordering after cube migration.
 #
 # =============================================================================
 # KNOWN BUGS

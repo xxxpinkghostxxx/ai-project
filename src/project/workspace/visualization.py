@@ -51,7 +51,8 @@
 # TODOS
 # =============================================================================
 #
-# None
+# - [critical] Replaced by cube_vis and main-window cube widgets; remove after
+#   migration.
 #
 # =============================================================================
 # KNOWN BUGS

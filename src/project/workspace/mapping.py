@@ -21,6 +21,8 @@
 # =============================================================================
 #
 # - [hanging] Implement clustering-based adaptive logic in create_adaptive_mapping()
+# - [critical] Deprecated for cube: panel-based I/O removes explicit sensory→workspace
+#   mapping; delete after migration.
 #
 # =============================================================================
 # KNOWN BUGS

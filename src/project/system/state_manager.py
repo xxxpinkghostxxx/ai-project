@@ -44,7 +44,8 @@
 # TODOS
 # =============================================================================
 #
-# None
+# - [minor] Align metrics and observers with cube pipeline stats (panels, alive
+#   nodes, sparse grid) once cube migration replaces the rectangular engine.
 #
 # =============================================================================
 # KNOWN BUGS

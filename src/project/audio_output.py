@@ -34,7 +34,8 @@
 # TODOS
 # =============================================================================
 #
-# None
+# - [minor] Read workspace audio panels via PanelRegistry.read (LEFT/RIGHT) after
+#   cube migration; keep direct energy→oscillator path consistent with uint8 scale.
 #
 # =============================================================================
 # KNOWN BUGS

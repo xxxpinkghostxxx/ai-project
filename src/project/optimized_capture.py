@@ -84,7 +84,8 @@
 # TODOS
 # =============================================================================
 #
-# None
+# - [minor] Same as vision: ensure capture dimensions match registered NEAR visual
+#   panel after PanelRegistry migration (cube architecture spec).
 #
 # =============================================================================
 # KNOWN BUGS

@@ -198,7 +198,9 @@
 # TODOS
 # =============================================================================
 #
-# None
+# - [critical] Replace with cube/ implementation (cube_grid, cube_dna,
+#   cube_pipeline); delete this module after behavioral parity with cube
+#   architecture spec (sparse N³, 6-neighbor int32 DNA, uint8 energy).
 #
 # =============================================================================
 # KNOWN BUGS

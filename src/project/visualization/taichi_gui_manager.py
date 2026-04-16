@@ -71,7 +71,8 @@
 # TODOS
 # =============================================================================
 #
-# None
+# - [critical] Replaced by cube_vis + PyQt widgets per cube architecture spec;
+#   delete or keep optional debug once migration is complete.
 #
 # =============================================================================
 # KNOWN BUGS

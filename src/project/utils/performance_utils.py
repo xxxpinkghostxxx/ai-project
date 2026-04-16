@@ -64,7 +64,8 @@
 # TODOS
 # =============================================================================
 #
-# None
+# - [minor] Add monitors for cube pipeline / sparse-kernel timings if needed after
+#   migration.
 #
 # =============================================================================
 # KNOWN BUGS

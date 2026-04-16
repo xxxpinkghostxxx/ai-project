@@ -31,7 +31,7 @@
 # TODOS
 # =============================================================================
 #
-# None
+# - [critical] Replaced by cube_vis energy→color mapping; remove after migration.
 #
 # =============================================================================
 # KNOWN BUGS

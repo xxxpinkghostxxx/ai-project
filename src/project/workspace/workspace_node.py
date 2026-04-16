@@ -26,7 +26,8 @@
 # TODOS
 # =============================================================================
 #
-# None
+# - [critical] Superseded by cube pipeline node state; delete or archive after
+#   cube migration.
 #
 # =============================================================================
 # KNOWN BUGS

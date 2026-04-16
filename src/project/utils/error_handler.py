@@ -48,7 +48,8 @@
 # TODOS
 # =============================================================================
 #
-# None
+# - [minor] Add or map severity/context for cube failures (panel overlap, Z-axis
+#   rule, sparse allocation) when cube modules land.
 #
 # =============================================================================
 # KNOWN BUGS

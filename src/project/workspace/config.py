@@ -29,7 +29,8 @@
 # TODOS
 # =============================================================================
 #
-# None
+# - [critical] Merge or replace with cube/panel config (EnergyReadingConfig is
+#   rectangular-workspace-specific); align with pyg_config.json cube section.
 #
 # =============================================================================
 # KNOWN BUGS

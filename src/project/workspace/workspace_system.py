@@ -65,7 +65,8 @@
 # TODOS
 # =============================================================================
 #
-# None
+# - [critical] Superseded by cube_panels + cube_vis; remove or replace with thin
+#   adapter after cube migration (cube architecture spec).
 #
 # =============================================================================
 # KNOWN BUGS

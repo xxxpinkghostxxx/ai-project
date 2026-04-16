@@ -114,7 +114,10 @@
 # TODOS
 # =============================================================================
 #
-# None
+# - [critical] Integrate cube UI (CubeFaceWidget, CubeSliceWidget,
+#   CubeScatterWidget, CubePanelWidget) and layout per cube architecture spec;
+#   retire Taichi GGUI toggles as primary visualization when cube_vis is wired.
+# - [hanging] Implement _update_resource_stats_display (currently empty).
 #
 # =============================================================================
 # KNOWN BUGS

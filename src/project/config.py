@@ -46,7 +46,9 @@
 # TODOS
 # =============================================================================
 #
-# None
+# - [critical] Add cube constants: 6-neighbor offsets, int32 DNA layout (6 slots ×
+#   5 bits), uint8 energy bounds; migrate off 26-neighbor / legacy binary layout
+#   per cube architecture spec.
 #
 # =============================================================================
 # KNOWN BUGS
